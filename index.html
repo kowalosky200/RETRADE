@@ -3,177 +3,145 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>eBay Tracker 2026</title>
-<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<title>General-007 | eBay Tracker</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@700;800&display=swap" rel="stylesheet">
 <style>
-:root{--bg:#0c0d10;--surface:#13151a;--surface2:#1a1d25;--border:#252830;--border2:#2e3240;--accent:#f0b429;--green:#2dd4a0;--red:#f56565;--blue:#63b3ed;--purple:#b794f4;--text:#e2e8f0;--muted:#5a6480;--muted2:#8892b0;--fh:'Syne',sans-serif;--fm:'DM Mono',monospace;}
+:root{--bg:#0a0b0e;--surface:#111318;--surface2:#181b23;--border:#22262f;--border2:#2d3140;--accent:#f0b429;--green:#2dd4a0;--red:#f56565;--blue:#63b3ed;--purple:#b794f4;--text:#edf2f7;--muted:#4a5568;--muted2:#718096;--fh:'Syne',sans-serif;--fm:'DM Mono',monospace;}
 *{box-sizing:border-box;margin:0;padding:0;}
-body{background:var(--bg);color:var(--text);font-family:var(--fm);font-size:13px;min-height:100vh;}
-nav{position:sticky;top:0;z-index:200;background:rgba(12,13,16,0.96);backdrop-filter:blur(12px);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;padding:0 20px;height:52px;}
-.brand{font-family:var(--fh);font-weight:800;font-size:17px;color:var(--accent);letter-spacing:-0.5px;}
-.brand span{color:var(--text);opacity:0.5;}
-.tabs{display:flex;gap:2px;}
-.tab{padding:5px 14px;border-radius:6px;border:none;cursor:pointer;font-family:var(--fm);font-size:12px;background:transparent;color:var(--muted2);transition:all 0.15s;}
+body{background:var(--bg);color:var(--text);font-family:var(--fm);font-size:14px;min-height:100vh;}
+nav{position:sticky;top:0;z-index:200;background:rgba(10,11,14,0.97);backdrop-filter:blur(16px);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;padding:0 24px;height:60px;}
+.brand{font-family:var(--fh);font-weight:800;font-size:22px;color:var(--accent);letter-spacing:-1px;cursor:pointer;display:flex;align-items:center;gap:8px;user-select:none;}
+.brand:hover{opacity:0.85;}
+.brand-dot{width:8px;height:8px;border-radius:50%;background:var(--accent);flex-shrink:0;}
+.tabs{display:flex;gap:4px;}
+.tab{padding:8px 20px;border-radius:8px;border:none;cursor:pointer;font-family:var(--fh);font-size:15px;font-weight:700;background:transparent;color:var(--muted2);transition:all 0.15s;letter-spacing:0.3px;}
 .tab:hover{color:var(--text);background:var(--surface2);}
-.tab.on{background:var(--accent);color:#000;font-weight:500;}
-.page{display:none;max-width:1100px;margin:0 auto;padding:28px 20px;}
+.tab.on{background:var(--accent);color:#000;}
+.page{display:none;max-width:1140px;margin:0 auto;padding:32px 24px;}
 .page.on{display:block;}
-.kgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(185px,1fr));gap:12px;margin-bottom:28px;}
-.kcard{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:18px 16px;position:relative;overflow:hidden;}
-.kcard::after{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:var(--accent);}
+.kgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:14px;margin-bottom:32px;}
+.kcard{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:20px 18px;position:relative;overflow:hidden;}
+.kcard::after{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:var(--accent);}
 .kcard.g::after{background:var(--green);}.kcard.r::after{background:var(--red);}.kcard.b::after{background:var(--blue);}.kcard.p::after{background:var(--purple);}
-.klabel{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;}
-.kval{font-family:var(--fh);font-size:26px;font-weight:700;line-height:1;}
-.ksub{font-size:11px;color:var(--muted2);margin-top:5px;}
-.sl{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1.2px;margin:24px 0 14px;display:flex;align-items:center;gap:10px;}
+.klabel{font-size:11px;color:var(--muted2);text-transform:uppercase;letter-spacing:1.2px;margin-bottom:8px;font-weight:500;}
+.kval{font-family:var(--fh);font-size:28px;font-weight:800;line-height:1;}
+.ksub{font-size:12px;color:var(--muted2);margin-top:6px;}
+.sl{font-size:11px;color:var(--muted2);text-transform:uppercase;letter-spacing:1.2px;margin:28px 0 16px;display:flex;align-items:center;gap:12px;font-weight:500;}
 .sl::after{content:'';flex:1;height:1px;background:var(--border);}
-.mgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-bottom:28px;}
-.mcard{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px;cursor:pointer;transition:all 0.15s;}
-.mcard:hover{border-color:var(--accent);transform:translateY(-1px);}
-.mname{font-family:var(--fh);font-weight:700;font-size:13px;margin-bottom:6px;}
-.mval{font-size:17px;font-weight:500;}.mval.pos{color:var(--green);}.mval.nil{color:var(--muted);}
-.msub{font-size:10px;color:var(--muted);margin-top:3px;}
-.twrap{overflow-x:auto;border-radius:8px;border:1px solid var(--border);margin-bottom:20px;}
-table{width:100%;border-collapse:collapse;font-size:12px;}
+.mgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(155px,1fr));gap:12px;margin-bottom:32px;}
+.mcard{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px;cursor:pointer;transition:all 0.15s;}
+.mcard:hover{border-color:var(--accent);transform:translateY(-2px);}
+.mname{font-family:var(--fh);font-weight:700;font-size:14px;margin-bottom:8px;}
+.mval{font-size:20px;font-weight:700;font-family:var(--fh);}.mval.pos{color:var(--green);}.mval.nil{color:var(--muted);}
+.msub{font-size:11px;color:var(--muted2);margin-top:4px;}
+.twrap{overflow-x:auto;border-radius:10px;border:1px solid var(--border);margin-bottom:22px;}
+table{width:100%;border-collapse:collapse;font-size:13px;}
 thead{background:var(--surface2);}
-th{padding:9px 12px;text-align:left;color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:0.8px;white-space:nowrap;border-bottom:1px solid var(--border);font-weight:400;}
-td{padding:9px 12px;border-bottom:1px solid var(--border);white-space:nowrap;vertical-align:middle;}
+th{padding:11px 14px;text-align:left;color:var(--muted2);font-size:11px;text-transform:uppercase;letter-spacing:0.8px;white-space:nowrap;border-bottom:1px solid var(--border);font-weight:500;}
+td{padding:11px 14px;border-bottom:1px solid var(--border);white-space:nowrap;vertical-align:middle;}
 tr:last-child td{border-bottom:none;}
 tbody tr:hover td{background:var(--surface2);}
-.pos{color:var(--green);}.neg{color:var(--red);}.dim{color:var(--muted2);}
-.badge{display:inline-block;padding:2px 7px;border-radius:4px;font-size:10px;font-weight:500;}
-.sold-b{background:rgba(45,212,160,0.12);color:var(--green);}.listed-b{background:rgba(240,180,41,0.12);color:var(--accent);}
-.fsec{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:20px;margin-bottom:20px;}
-.fgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px;}
-.fg{display:flex;flex-direction:column;gap:5px;}
-.fg label{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:0.8px;}
-.fg input,.fg select{background:var(--bg);border:1px solid var(--border2);border-radius:6px;padding:7px 9px;color:var(--text);font-family:var(--fm);font-size:12px;transition:border-color 0.15s;width:100%;}
+.pos{color:var(--green);font-weight:500;}.neg{color:var(--red);}.dim{color:var(--muted2);}
+.badge{display:inline-block;padding:3px 9px;border-radius:5px;font-size:11px;font-weight:500;}
+.sold-b{background:rgba(45,212,160,0.15);color:var(--green);}.listed-b{background:rgba(240,180,41,0.15);color:var(--accent);}
+.fsec{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:22px;margin-bottom:22px;}
+.fgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:12px;}
+.fg{display:flex;flex-direction:column;gap:6px;}
+.fg label{font-size:11px;color:var(--muted2);text-transform:uppercase;letter-spacing:0.8px;font-weight:500;}
+.fg input,.fg select{background:var(--bg);border:1px solid var(--border2);border-radius:7px;padding:9px 11px;color:var(--text);font-family:var(--fm);font-size:13px;transition:border-color 0.15s;width:100%;}
 .fg input:focus,.fg select:focus{outline:none;border-color:var(--accent);}
 .fg input::placeholder{color:var(--muted);}
-.fbtns{display:flex;gap:8px;margin-top:14px;flex-wrap:wrap;}
-.btn{padding:7px 18px;border-radius:6px;border:none;cursor:pointer;font-family:var(--fm);font-size:12px;transition:all 0.15s;}
-.btn-p{background:var(--accent);color:#000;font-weight:500;}.btn-p:hover{opacity:0.9;}
+.fbtns{display:flex;gap:10px;margin-top:16px;flex-wrap:wrap;}
+.btn{padding:9px 22px;border-radius:7px;border:none;cursor:pointer;font-family:var(--fh);font-size:14px;font-weight:700;transition:all 0.15s;}
+.btn-p{background:var(--accent);color:#000;}.btn-p:hover{opacity:0.88;}
 .btn-s{background:var(--surface2);color:var(--text);border:1px solid var(--border2);}.btn-s:hover{border-color:var(--accent);color:var(--accent);}
-.mhdr{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:24px;}
-.mtitle{font-family:var(--fh);font-size:30px;font-weight:800;}
-.mstats{display:flex;gap:10px;flex-wrap:wrap;}
-.mstat{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:9px 14px;text-align:center;}
-.msv{font-family:var(--fh);font-size:18px;font-weight:700;}
-.msl{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin-top:2px;}
-.pbar-wrap{margin-bottom:22px;}
-.pbar-labels{display:flex;justify-content:space-between;font-size:11px;color:var(--muted2);margin-bottom:5px;}
-.pbar{height:6px;border-radius:3px;background:var(--surface2);overflow:hidden;}
-.pbar-fill{height:100%;background:var(--green);border-radius:3px;}
-.sfooter{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px;margin-top:14px;}
-.sfgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:12px;}
-.sflabel{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:4px;}
-.sfval{font-family:var(--fh);font-size:18px;font-weight:700;}
-.tbtn{padding:3px 8px;border-radius:4px;font-size:10px;font-family:var(--fm);cursor:pointer;border:1px solid var(--border2);background:transparent;color:var(--muted2);transition:all 0.12s;white-space:nowrap;}
+.mhdr{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:14px;margin-bottom:28px;}
+.mtitle{font-family:var(--fh);font-size:34px;font-weight:800;}
+.mstats{display:flex;gap:12px;flex-wrap:wrap;}
+.mstat{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:11px 16px;text-align:center;}
+.msv{font-family:var(--fh);font-size:20px;font-weight:800;}
+.msl{font-size:10px;color:var(--muted2);text-transform:uppercase;letter-spacing:0.5px;margin-top:3px;font-weight:500;}
+.pbar-wrap{margin-bottom:24px;}
+.pbar-labels{display:flex;justify-content:space-between;font-size:12px;color:var(--muted2);margin-bottom:6px;}
+.pbar{height:7px;border-radius:4px;background:var(--surface2);overflow:hidden;}
+.pbar-fill{height:100%;background:var(--green);border-radius:4px;}
+.sfooter{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:18px;margin-top:16px;}
+.sfgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(145px,1fr));gap:14px;}
+.sflabel{font-size:11px;color:var(--muted2);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:5px;font-weight:500;}
+.sfval{font-family:var(--fh);font-size:20px;font-weight:800;}
+.tbtn{padding:4px 10px;border-radius:5px;font-size:11px;font-family:var(--fh);font-weight:700;cursor:pointer;border:1px solid var(--border2);background:transparent;color:var(--muted2);transition:all 0.12s;white-space:nowrap;}
 .tbtn:hover{border-color:var(--accent);color:var(--accent);}
 .tbtn.del{border-color:rgba(245,101,101,0.3);color:var(--red);}.tbtn.del:hover{background:rgba(245,101,101,0.1);}
-.sa-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px;}
+.sa-grid{display:grid;grid-template-columns:1fr 1fr;gap:22px;margin-bottom:22px;}
 @media(max-width:640px){.sa-grid{grid-template-columns:1fr;}}
-.sacard{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:20px;margin-bottom:16px;}
-.sacard-title{font-family:var(--fh);font-weight:700;font-size:13px;color:var(--accent);margin-bottom:14px;}
-.sarow{display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid var(--border);font-size:12px;}
-.sarow:last-child{border-bottom:none;font-size:13px;font-weight:500;}
-.notice{background:rgba(240,180,41,0.08);border:1px solid rgba(240,180,41,0.25);border-radius:7px;padding:11px 14px;font-size:12px;color:var(--accent);margin-bottom:20px;line-height:1.5;}
-.sabox{background:var(--bg);border:1px solid var(--border);border-radius:7px;padding:14px;font-size:11px;color:var(--muted2);line-height:1.9;white-space:pre-wrap;margin-bottom:12px;font-family:var(--fm);}
-.filters{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px;}
-.fbtn{padding:4px 12px;border-radius:5px;border:1px solid var(--border2);background:transparent;color:var(--muted2);font-family:var(--fm);font-size:11px;cursor:pointer;transition:all 0.12s;}
-.fbtn:hover,.fbtn.on{border-color:var(--accent);color:var(--accent);background:rgba(240,180,41,0.06);}
-.selrow{display:flex;align-items:center;gap:12px;margin-bottom:20px;flex-wrap:wrap;}
-.selrow select{background:var(--surface);border:1px solid var(--border2);border-radius:6px;padding:6px 10px;color:var(--text);font-family:var(--fm);font-size:12px;}
-.backbtn{background:none;border:none;color:var(--muted2);font-family:var(--fm);font-size:12px;cursor:pointer;}
+.sacard{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:22px;margin-bottom:0;}
+.sacard-title{font-family:var(--fh);font-weight:700;font-size:14px;color:var(--accent);margin-bottom:16px;}
+.sarow{display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid var(--border);font-size:13px;}
+.sarow:last-child{border-bottom:none;font-size:14px;font-weight:700;}
+.notice{background:rgba(240,180,41,0.07);border:1px solid rgba(240,180,41,0.3);border-radius:8px;padding:13px 16px;font-size:13px;color:var(--accent);margin-bottom:22px;line-height:1.6;}
+.sabox{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:16px;font-size:12px;color:var(--muted2);line-height:2;white-space:pre-wrap;margin-bottom:14px;font-family:var(--fm);}
+.filters{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px;}
+.fbtn{padding:6px 14px;border-radius:6px;border:1px solid var(--border2);background:transparent;color:var(--muted2);font-family:var(--fh);font-size:13px;font-weight:700;cursor:pointer;transition:all 0.12s;}
+.fbtn:hover,.fbtn.on{border-color:var(--accent);color:var(--accent);background:rgba(240,180,41,0.07);}
+.selrow{display:flex;align-items:center;gap:14px;margin-bottom:22px;flex-wrap:wrap;}
+.selrow select{background:var(--surface);border:1px solid var(--border2);border-radius:7px;padding:8px 12px;color:var(--text);font-family:var(--fh);font-size:14px;font-weight:700;}
+.backbtn{background:none;border:none;color:var(--muted2);font-family:var(--fh);font-size:14px;font-weight:700;cursor:pointer;padding:0;}
 .backbtn:hover{color:var(--accent);}
-.empty{text-align:center;padding:40px;color:var(--muted);font-size:12px;}
-#toast{position:fixed;bottom:20px;right:20px;background:var(--surface);border:1px solid var(--green);color:var(--green);padding:10px 18px;border-radius:7px;font-size:12px;z-index:9999;opacity:0;transform:translateY(8px);transition:all 0.2s;pointer-events:none;}
-#toast.on{opacity:1;transform:translateY(0);}
-#toast.err{border-color:var(--red);color:var(--red);}
-#modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:500;align-items:center;justify-content:center;}
+.empty{text-align:center;padding:44px;color:var(--muted);font-size:13px;}
+.page-title{font-family:var(--fh);font-size:32px;font-weight:800;margin-bottom:6px;}
+.page-sub{color:var(--muted2);font-size:13px;margin-bottom:24px;}
+#toast{position:fixed;bottom:24px;right:24px;background:var(--surface);border:1px solid var(--green);color:var(--green);padding:12px 20px;border-radius:8px;font-size:13px;z-index:9999;opacity:0;transform:translateY(10px);transition:all 0.2s;pointer-events:none;font-family:var(--fh);font-weight:700;}
+#toast.on{opacity:1;transform:translateY(0);}#toast.err{border-color:var(--red);color:var(--red);}
+#modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:500;align-items:center;justify-content:center;}
 #modal-overlay.on{display:flex;}
-#modal{background:var(--surface);border:1px solid var(--border2);border-radius:12px;padding:24px;width:90%;max-width:360px;}
-#modal h3{font-family:var(--fh);font-weight:700;font-size:16px;margin-bottom:16px;}
-#modal input{width:100%;background:var(--bg);border:1px solid var(--border2);border-radius:6px;padding:8px 10px;color:var(--text);font-family:var(--fm);font-size:12px;margin-bottom:14px;}
+#modal{background:var(--surface);border:1px solid var(--border2);border-radius:14px;padding:28px;width:90%;max-width:380px;}
+#modal h3{font-family:var(--fh);font-weight:800;font-size:18px;margin-bottom:18px;}
+#modal input{width:100%;background:var(--bg);border:1px solid var(--border2);border-radius:7px;padding:10px 12px;color:var(--text);font-family:var(--fm);font-size:13px;margin-bottom:16px;}
 #modal input:focus{outline:none;border-color:var(--accent);}
-#modal .mbtns{display:flex;gap:8px;justify-content:flex-end;}
-.sync-bar{position:fixed;top:52px;left:0;right:0;background:rgba(240,180,41,0.1);border-bottom:1px solid rgba(240,180,41,0.25);padding:7px 20px;font-size:11px;color:var(--accent);z-index:150;display:flex;align-items:center;justify-content:space-between;}
-.sync-bar button{background:none;border:none;color:var(--accent);cursor:pointer;font-size:14px;padding:0 4px;}
-@media(max-width:600px){nav{padding:0 12px;}.page{padding:16px 12px;}.tab{padding:4px 8px;font-size:11px;}}
+#modal .mbtns{display:flex;gap:10px;justify-content:flex-end;}
+@media(max-width:600px){nav{padding:0 14px;height:54px;}.brand{font-size:18px;}.tab{padding:6px 10px;font-size:13px;}.page{padding:18px 14px;}}
 </style>
 </head>
 <body>
 <nav>
-  <div class="brand">eBay<span>Tracker</span></div>
+  <div class="brand" onclick="goNav('summary')"><div class="brand-dot"></div>GENERAL-007</div>
   <div class="tabs">
     <button class="tab on" onclick="goNav('summary')">Summary</button>
     <button class="tab" onclick="goNav('monthly')">Monthly</button>
     <button class="tab" onclick="goNav('stock')">Stock</button>
     <button class="tab" onclick="goNav('tax')">Tax / SA</button>
   </div>
-  <div style="font-size:11px;color:var(--muted)">2026</div>
+  <div style="font-size:11px;color:var(--muted);font-family:var(--fm)">2026</div>
 </nav>
-<div id="p-summary" class="page on"><div style="text-align:center;padding:60px;color:var(--muted)">Loading…</div></div>
+<div id="p-summary" class="page on"></div>
 <div id="p-monthly" class="page"></div>
 <div id="p-stock" class="page"></div>
 <div id="p-tax" class="page"></div>
 <div id="modal-overlay" onclick="closeModal(event)">
   <div id="modal">
     <h3>Mark as sold</h3>
-    <label style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:0.8px;display:block;margin-bottom:6px">Date sold</label>
+    <label style="font-size:11px;color:var(--muted2);text-transform:uppercase;letter-spacing:0.8px;display:block;margin-bottom:7px;font-weight:500">Date sold</label>
     <input type="date" id="modal-date">
-    <div class="mbtns">
-      <button class="btn btn-s" onclick="closeModal()">Cancel</button>
-      <button class="btn btn-p" onclick="confirmSold()">Confirm</button>
-    </div>
+    <div class="mbtns"><button class="btn btn-s" onclick="closeModal()">Cancel</button><button class="btn btn-p" onclick="confirmSold()">Confirm</button></div>
   </div>
 </div>
 <div id="toast"></div>
-
 <script>
+const SEED={"JAN":[],"FEB":[{"id":"f1","dateListed":"2026-02-18","item":"Grand Turismo 1997 PS1","location":"Bed","dateSold":"2026-02-21","salePrice":9.99,"postage":0,"itemCost":1.5,"shipping":2.7,"ebayFee":0.75,"promoCost":0.4995,"promoPercent":0.05,"totalCost":5.4995,"totalRev":9.99,"grossProfit":4.4905,"roi":0.8165},{"id":"f2","dateListed":"2026-02-19","item":"Mag-Lite Torch","location":"Bed","dateSold":"2026-03-03","salePrice":26,"postage":0,"itemCost":3.25,"shipping":2.94,"ebayFee":1.67,"promoCost":0.78,"promoPercent":0.03,"totalCost":8.67,"totalRev":26,"grossProfit":17.33,"roi":1.9988},{"id":"f3","dateListed":"2026-02-19","item":"Band of Brothers","location":"Bed","dateSold":null,"salePrice":9.99,"postage":0,"itemCost":3,"shipping":2.7,"ebayFee":0.75,"promoCost":0.4995,"promoPercent":0.05,"totalCost":6.9995,"totalRev":9.99,"grossProfit":null,"roi":0.4272},{"id":"f4","dateListed":"2026-02-22","item":"Nokia 3410 - Green Mint","location":"A101","dateSold":"2026-03-13","salePrice":11,"postage":0,"itemCost":2.5,"shipping":2.7,"ebayFee":0.81,"promoCost":0.55,"promoPercent":0.05,"totalCost":6.61,"totalRev":11,"grossProfit":4.39,"roi":0.6641},{"id":"f5","dateListed":"2026-02-22","item":"Sony Ericsson T610","location":"A101","dateSold":"2026-03-11","salePrice":10.5,"postage":0,"itemCost":2.5,"shipping":2.7,"ebayFee":0.78,"promoCost":0.525,"promoPercent":0.05,"totalCost":6.555,"totalRev":10.5,"grossProfit":3.945,"roi":0.6018},{"id":"f6","dateListed":"2026-02-22","item":"Motorolla W377 Pink","location":"A101","dateSold":"2026-03-04","salePrice":24.99,"postage":0,"itemCost":2.5,"shipping":2.7,"ebayFee":1.63,"promoCost":1.2495,"promoPercent":0.05,"totalCost":8.1295,"totalRev":24.99,"grossProfit":16.8605,"roi":2.074},{"id":"f7","dateListed":"2026-02-22","item":"Blackberry Curve 9320","location":"A101","dateSold":"2026-02-27","salePrice":14.99,"postage":0,"itemCost":2.5,"shipping":2.7,"ebayFee":1.04,"promoCost":0.7495,"promoPercent":0.05,"totalCost":7.0395,"totalRev":14.99,"grossProfit":7.9505,"roi":1.1294},{"id":"f8","dateListed":"2026-02-22","item":"LOTR Blue Ray Set - 1 Disc Missing","location":"A101","dateSold":"2026-03-06","salePrice":23.47,"postage":0,"itemCost":5,"shipping":2.94,"ebayFee":1.58,"promoCost":1.1735,"promoPercent":0.05,"totalCost":10.7435,"totalRev":23.47,"grossProfit":12.7265,"roi":1.1846},{"id":"f9","dateListed":"2026-02-23","item":"Harry Potter Board Game","location":"Bed","dateSold":null,"salePrice":19.99,"postage":0,"itemCost":0,"shipping":3.38,"ebayFee":1.4,"promoCost":0.9995,"promoPercent":0.05,"totalCost":5.8295,"totalRev":19.99,"grossProfit":null,"roi":null},{"id":"f10","dateListed":"2026-02-25","item":"Canon 550D - Complete Kit","location":"Bed","dateSold":"2026-02-28","salePrice":149.99,"postage":0,"itemCost":80,"shipping":4.88,"ebayFee":11.24,"promoCost":4.4997,"promoPercent":0.03,"totalCost":100.6497,"totalRev":149.99,"grossProfit":49.3403,"roi":0.4902},{"id":"f11","dateListed":"2026-02-25","item":"Kids Music Piano Book","location":"Bed","dateSold":"2026-03-14","salePrice":5.99,"postage":2.94,"itemCost":0.2,"shipping":2.94,"ebayFee":0.49,"promoCost":0.4465,"promoPercent":0.05,"totalCost":4.1265,"totalRev":8.93,"grossProfit":4.8035,"roi":1.1641},{"id":"f12","dateListed":"2026-02-25","item":"Star Wars Trilogy VHS Special Edition","location":"A101","dateSold":null,"salePrice":12.99,"postage":0,"itemCost":2,"shipping":2.94,"ebayFee":0.94,"promoCost":0.6495,"promoPercent":0.05,"totalCost":6.5795,"totalRev":12.99,"grossProfit":null,"roi":0.9743},{"id":"f13","dateListed":"2026-02-25","item":"Top Shine Elite Shoe Care Kit","location":"Bed","dateSold":null,"salePrice":39.99,"postage":0,"itemCost":6,"shipping":2.94,"ebayFee":2.21,"promoCost":1.9995,"promoPercent":0.05,"totalCost":13.1995,"totalRev":39.99,"grossProfit":null,"roi":2.0297},{"id":"f14","dateListed":"2026-02-25","item":"Hugo Boss Glasses Case","location":"Drawer","dateSold":"2026-03-02","salePrice":12.99,"postage":0,"itemCost":0,"shipping":2.94,"ebayFee":0.94,"promoCost":0.6495,"promoPercent":0.05,"totalCost":4.5795,"totalRev":12.99,"grossProfit":8.4105,"roi":null},{"id":"f15","dateListed":"2026-02-26","item":"Toy Story 3 Mr Potato Tub","location":"Wardrobe","dateSold":"2026-03-01","salePrice":22.99,"postage":0,"itemCost":2.5,"shipping":3.88,"ebayFee":1.56,"promoCost":1.1495,"promoPercent":0.05,"totalCost":9.1395,"totalRev":22.99,"grossProfit":13.8505,"roi":1.5155},{"id":"f16","dateListed":"2026-02-26","item":"Tomee Tippee Nappy Bin","location":"Bedroom","dateSold":"2026-02-27","salePrice":13.99,"postage":0,"itemCost":0,"shipping":3.71,"ebayFee":4.01,"promoCost":0.6995,"promoPercent":0.05,"totalCost":8.4695,"totalRev":13.99,"grossProfit":5.5205,"roi":null},{"id":"f17","dateListed":"2026-02-27","item":"Grand Turismo PS1 - Manual Only","location":"Wardrobe","dateSold":null,"salePrice":4.99,"postage":0,"itemCost":2.5,"shipping":1,"ebayFee":0.32,"promoCost":0.2495,"promoPercent":0.05,"totalCost":4.1195,"totalRev":4.99,"grossProfit":null,"roi":0.2113}],"MAR":[{"id":"m1","dateListed":"2026-03-02","item":"Power Rangers Complete Season 1","location":"A101","dateSold":null,"salePrice":24.99,"postage":0,"itemCost":6,"shipping":2.94,"ebayFee":1.63,"promoCost":1.2495,"promoPercent":0.05,"totalCost":11.8695,"totalRev":24.99,"grossProfit":null,"roi":1.1054},{"id":"m2","dateListed":"2026-03-02","item":"Google Nest Mini Gen 1","location":"A101","dateSold":"2026-03-04","salePrice":23.99,"postage":0,"itemCost":10.15,"shipping":2.94,"ebayFee":1.6,"promoCost":1.1995,"promoPercent":0.05,"totalCost":15.9395,"totalRev":23.99,"grossProfit":8.0505,"roi":0.5051},{"id":"m3","dateListed":"2026-03-03","item":"The Singing Machine Lights SML283BK","location":"Wardrobe","dateSold":null,"salePrice":49.99,"postage":0,"itemCost":15,"shipping":3.71,"ebayFee":2.6,"promoCost":2.4995,"promoPercent":0.05,"totalCost":23.8595,"totalRev":49.99,"grossProfit":null,"roi":1.0952},{"id":"m4","dateListed":"2026-03-03","item":"George RR Martin Book Set","location":"Bedroom","dateSold":"2026-03-06","salePrice":29.99,"postage":0,"itemCost":7,"shipping":2.94,"ebayFee":1.83,"promoCost":1.4995,"promoPercent":0.05,"totalCost":13.3195,"totalRev":29.99,"grossProfit":16.6705,"roi":1.2516},{"id":"m5","dateListed":"2026-03-03","item":"Mr & Mrs Potato Head Bundle","location":"Bedroom","dateSold":"2026-03-09","salePrice":19.99,"postage":0,"itemCost":2,"shipping":2.94,"ebayFee":1.4,"promoCost":0.9995,"promoPercent":0.05,"totalCost":7.3895,"totalRev":19.99,"grossProfit":12.6005,"roi":1.705},{"id":"m6","dateListed":"2026-03-07","item":"DK Illustrated Family Encyclopedia 16 Books","location":"Wardrobe","dateSold":null,"salePrice":24.99,"postage":0,"itemCost":6,"shipping":5.88,"ebayFee":1.63,"promoCost":1.2495,"promoPercent":0.05,"totalCost":14.8095,"totalRev":24.99,"grossProfit":null,"roi":0.6874},{"id":"m7","dateListed":"2026-03-07","item":"Google Nest Mini Gen 1 (B)","location":"A101","dateSold":"2026-03-18","salePrice":22.82,"postage":0,"itemCost":11.2,"shipping":2.94,"ebayFee":1.55,"promoCost":1.141,"promoPercent":0.05,"totalCost":16.881,"totalRev":22.82,"grossProfit":5.939,"roi":0.3518},{"id":"m8","dateListed":"2026-03-07","item":"Google Nest Mini Gen 1 (C)","location":"A101","dateSold":null,"salePrice":23.99,"postage":0,"itemCost":12.25,"shipping":2.94,"ebayFee":1.6,"promoCost":1.1995,"promoPercent":0.05,"totalCost":18.0395,"totalRev":23.99,"grossProfit":null,"roi":0.3299},{"id":"m9","dateListed":"2026-03-08","item":"Acer Aspire E5-571","location":"Bed","dateSold":"2026-03-18","salePrice":114.99,"postage":0,"itemCost":48.59,"shipping":5.88,"ebayFee":5.1,"promoCost":3.4497,"promoPercent":0.03,"totalCost":63.0497,"totalRev":114.99,"grossProfit":51.9403,"roi":0.8238},{"id":"m10","dateListed":"2026-03-08","item":"Canon 600D Astro Mod","location":"Bed","dateSold":"2026-03-11","salePrice":189.99,"postage":0,"itemCost":66.85,"shipping":4.88,"ebayFee":7.98,"promoCost":5.6997,"promoPercent":0.03,"totalCost":85.4397,"totalRev":189.99,"grossProfit":104.5503,"roi":1.2237},{"id":"m11","dateListed":"2026-03-09","item":"MSI GeForce GTX 770 4GB Twin Frozr","location":"Bedroom","dateSold":null,"salePrice":54.99,"postage":0,"itemCost":21.7,"shipping":2.94,"ebayFee":2.79,"promoCost":2.7495,"promoPercent":0.05,"totalCost":30.2295,"totalRev":54.99,"grossProfit":null,"roi":0.8191},{"id":"m12","dateListed":"2026-03-10","item":"Playstation Backpack - Blue","location":"Bed","dateSold":null,"salePrice":24.99,"postage":0,"itemCost":5.5,"shipping":2.94,"ebayFee":1.63,"promoCost":1.2495,"promoPercent":0.05,"totalCost":11.3695,"totalRev":24.99,"grossProfit":null,"roi":1.198},{"id":"m13","dateListed":"2026-03-11","item":"Salus RT500RF Wireless Thermostat","location":"Bed","dateSold":"2026-03-16","salePrice":65,"postage":0,"itemCost":10,"shipping":2.94,"ebayFee":3.17,"promoCost":1.95,"promoPercent":0.03,"totalCost":18.09,"totalRev":65,"grossProfit":46.91,"roi":2.5931},{"id":"m14","dateListed":"2026-03-12","item":"Siemens Remote Control 13A Adaptor 3 Pack","location":"Bed","dateSold":"2026-03-18","salePrice":39.99,"postage":0,"itemCost":2,"shipping":2.94,"ebayFee":2.21,"promoCost":1.9995,"promoPercent":0.05,"totalCost":9.1995,"totalRev":39.99,"grossProfit":30.7905,"roi":3.347},{"id":"m15","dateListed":"2026-03-13","item":"Canon 1300D Full Kit and Lens","location":"Wardrobe","dateSold":"2026-03-18","salePrice":189.99,"postage":0,"itemCost":120.99,"shipping":4.88,"ebayFee":7.98,"promoCost":5.6997,"promoPercent":0.03,"totalCost":139.5797,"totalRev":189.99,"grossProfit":50.4103,"roi":0.3612},{"id":"m16","dateListed":"2026-03-15","item":"Apple Magic Touchpad","location":"A101","dateSold":"2026-03-15","salePrice":22.99,"postage":0,"itemCost":7.5,"shipping":2.94,"ebayFee":1.56,"promoCost":0.6897,"promoPercent":0.03,"totalCost":12.7197,"totalRev":22.99,"grossProfit":10.2703,"roi":0.8074},{"id":"m17","dateListed":"2026-03-15","item":"Apple Magic Keyboard 1314 (Sold w/ another)","location":"A101","dateSold":"2026-03-18","salePrice":19.99,"postage":0,"itemCost":7.5,"shipping":0,"ebayFee":1.4,"promoCost":0,"promoPercent":0,"totalCost":8.9,"totalRev":19.99,"grossProfit":11.09,"roi":1.2461},{"id":"m18","dateListed":"2026-03-15","item":"Apple Magic Keyboard 1314","location":"A101","dateSold":"2026-03-18","salePrice":19.99,"postage":0,"itemCost":7.5,"shipping":1.69,"ebayFee":1.4,"promoCost":0.5997,"promoPercent":0.03,"totalCost":11.2197,"totalRev":19.99,"grossProfit":8.7703,"roi":0.7817},{"id":"m19","dateListed":"2026-03-15","item":"Apple Magic Keyboard 1655","location":"A101","dateSold":"2026-03-16","salePrice":24.99,"postage":0,"itemCost":7.5,"shipping":2.94,"ebayFee":1.63,"promoCost":0.7497,"promoPercent":0.03,"totalCost":12.8497,"totalRev":24.99,"grossProfit":12.1403,"roi":0.9448},{"id":"m20","dateListed":"2026-03-15","item":"Job Lot Magic Keyboards 1314/1255","location":"Bag","dateSold":null,"salePrice":9.99,"postage":2.94,"itemCost":0,"shipping":2.94,"ebayFee":0.75,"promoCost":0.3879,"promoPercent":0.03,"totalCost":4.1079,"totalRev":12.93,"grossProfit":null,"roi":null},{"id":"m21","dateListed":"2026-03-16","item":"HUSKY Tyre Chains","location":"Bedroom","dateSold":null,"salePrice":39.99,"postage":0,"itemCost":15,"shipping":5.21,"ebayFee":2.21,"promoCost":1.9995,"promoPercent":0.05,"totalCost":24.4695,"totalRev":39.99,"grossProfit":null,"roi":0.6343},{"id":"m22","dateListed":"2026-03-17","item":"Samsung TV with Remote","location":"Bedroom","dateSold":null,"salePrice":47.5,"postage":0,"itemCost":7.5,"shipping":5.21,"ebayFee":2.5,"promoCost":1.425,"promoPercent":0.03,"totalCost":16.665,"totalRev":47.5,"grossProfit":null,"roi":1.8503},{"id":"m23","dateListed":"2026-03-19","item":"Geermac Amplidect 295","location":"Bed","dateSold":null,"salePrice":34.99,"postage":0,"itemCost":10,"shipping":2.94,"ebayFee":2.02,"promoCost":1.0497,"promoPercent":0.03,"totalCost":16.0397,"totalRev":34.99,"grossProfit":null,"roi":1.1815},{"id":"m24","dateListed":"2026-03-20","item":"Sony Walkman Docking Speaker","location":"Desk","dateSold":null,"salePrice":19.99,"postage":0,"itemCost":2,"shipping":2.94,"ebayFee":1.4,"promoCost":0.5997,"promoPercent":0.03,"totalCost":6.9697,"totalRev":19.99,"grossProfit":null,"roi":1.8681},{"id":"m25","dateListed":"2026-03-20","item":"Monopoly Original Hasbro Board Game","location":"Desk","dateSold":null,"salePrice":19.99,"postage":0,"itemCost":3.33,"shipping":2.94,"ebayFee":1.4,"promoCost":0.5997,"promoPercent":0.03,"totalCost":8.2997,"totalRev":19.99,"grossProfit":null,"roi":1.4085},{"id":"m26","dateListed":"2026-03-20","item":"Azatom Docking Station HouseDance-Max","location":"Desk","dateSold":null,"salePrice":24.99,"postage":0,"itemCost":5.99,"shipping":2.94,"ebayFee":1.63,"promoCost":0.7497,"promoPercent":0.03,"totalCost":11.3397,"totalRev":24.99,"grossProfit":null,"roi":1.2038},{"id":"m27","dateListed":"2026-03-20","item":"Saitek Cyborg Evo USB Joystick","location":"Desk","dateSold":null,"salePrice":24.99,"postage":0,"itemCost":5.99,"shipping":2.94,"ebayFee":1.63,"promoCost":0,"promoPercent":0,"totalCost":10.56,"totalRev":24.99,"grossProfit":null,"roi":1.3664},{"id":"m28","dateListed":"2026-03-20","item":"BT4600 Twin Landline Phone","location":"Desk","dateSold":null,"salePrice":24.99,"postage":0,"itemCost":2,"shipping":2.94,"ebayFee":1.63,"promoCost":0.7497,"promoPercent":0.03,"totalCost":7.3497,"totalRev":24.99,"grossProfit":null,"roi":2.4001},{"id":"m29","dateListed":"2026-03-20","item":"Saturn V Space Rocket Blocks Building Set","location":"Wardrobe","dateSold":null,"salePrice":34.99,"postage":0,"itemCost":10,"shipping":2.94,"ebayFee":2.02,"promoCost":1.0497,"promoPercent":0.03,"totalCost":16.0397,"totalRev":34.99,"grossProfit":null,"roi":1.1815},{"id":"m30","dateListed":"2026-03-20","item":"Big Button Phone for Elderly (A)","location":"Desk","dateSold":null,"salePrice":29.99,"postage":0,"itemCost":3.33,"shipping":2.94,"ebayFee":1.83,"promoCost":0.8997,"promoPercent":0.03,"totalCost":9.0297,"totalRev":29.99,"grossProfit":null,"roi":2.3213},{"id":"m31","dateListed":"2026-03-20","item":"Big Button Phone for Elderly (B)","location":"Desk","dateSold":null,"salePrice":29.99,"postage":0,"itemCost":3.33,"shipping":2.94,"ebayFee":1.83,"promoCost":0.8997,"promoPercent":0.03,"totalCost":9.0297,"totalRev":29.99,"grossProfit":null,"roi":2.3213}],"APR":[],"MAY":[],"JUN":[],"JUL":[],"AUG":[],"SEP":[],"OCT":[],"NOV":[],"DEC":[]};
 const MONTHS=['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
 const MN={JAN:'January',FEB:'February',MAR:'March',APR:'April',MAY:'May',JUN:'June',JUL:'July',AUG:'August',SEP:'September',OCT:'October',NOV:'November',DEC:'December'};
 const £=n=>n!=null?'£'+parseFloat(n).toFixed(2):'—';
-let DB={};
-let invFilter='all';
-let _soldTarget=null;
-
-async function loadData(){
-  try{
-    const local=localStorage.getItem('ebt26_v3');
-    if(local){DB=JSON.parse(local);renderSummary();return;}
-  }catch(e){}
-  try{
-    const res=await fetch('./data.json');
-    if(!res.ok)throw new Error();
-    DB=await res.json();
-    saveLocal();
-    renderSummary();
-  }catch(e){
-    document.getElementById('p-summary').innerHTML=`<div style="text-align:center;padding:60px"><div style="font-size:28px;margin-bottom:12px;color:var(--accent)">⚠</div><div style="color:var(--text);margin-bottom:8px">Can't load data.json</div><div style="font-size:12px;color:var(--muted)">Make sure both index.html and data.json are in the same folder,<br>then open with Live Server in VS Code (not by double-clicking the file).</div></div>`;
-  }
-}
-
-function saveLocal(){try{localStorage.setItem('ebt26_v3',JSON.stringify(DB));}catch(e){}}
-function saveData(){
-  saveLocal();
-  if(!document.getElementById('sync-bar')){
-    const bar=document.createElement('div');
-    bar.id='sync-bar';bar.className='sync-bar';
-    bar.innerHTML='<span>Changes saved. To sync across devices: <code style="background:var(--surface2);padding:1px 5px;border-radius:3px">git add . && git commit -m "update data" && git push</code></span><button onclick="this.parentElement.remove()">✕</button>';
-    document.body.appendChild(bar);
-  }
-}
-
+let DB,invFilter='all',_st=null;
+function initDB(){try{const s=localStorage.getItem('g007v2');if(s){DB=JSON.parse(s);return;}}catch(e){}DB=JSON.parse(JSON.stringify(SEED));saveDB();}
+function saveDB(){try{localStorage.setItem('g007v2',JSON.stringify(DB));}catch(e){}}
 function daysAgo(d){return Math.round((Date.now()-new Date(d))/86400000);}
 function sold(m){return(DB[m]||[]).filter(i=>i.dateSold);}
 function unsold(m){return(DB[m]||[]).filter(i=>!i.dateSold);}
 function allSold(){return MONTHS.flatMap(m=>sold(m).map(i=>({...i,month:m})));}
 function allUnsold(){return MONTHS.flatMap(m=>unsold(m).map(i=>({...i,month:m})));}
-function mTotals(m){const s=sold(m);return{rev:s.reduce((a,i)=>a+(i.totalRev||0),0),cost:s.reduce((a,i)=>a+(i.totalCost||0),0),profit:s.reduce((a,i)=>a+(i.grossProfit||0),0),nSold:s.length,nTotal:(DB[m]||[]).length};}
-function yTotals(){return MONTHS.reduce((a,m)=>{const t=mTotals(m);a.rev+=t.rev;a.cost+=t.cost;a.profit+=t.profit;a.nSold+=t.nSold;a.nTotal+=t.nTotal;return a;},{rev:0,cost:0,profit:0,nSold:0,nTotal:0});}
-function calcItem(price,post,cost,ship,ebay,pp,ds){const pc=price*pp;const tc=cost+ship+ebay+pc;const tr=price+(post||0);return{totalCost:+tc.toFixed(4),totalRev:+tr.toFixed(4),grossProfit:ds?+((tr-tc).toFixed(2)):null,roi:cost>0?+(((tr-tc)/cost).toFixed(4)):null,promoCost:+pc.toFixed(4)};}
-
+function mT(m){const s=sold(m);return{rev:s.reduce((a,i)=>a+(i.totalRev||0),0),cost:s.reduce((a,i)=>a+(i.totalCost||0),0),profit:s.reduce((a,i)=>a+(i.grossProfit||0),0),nSold:s.length,nTotal:(DB[m]||[]).length};}
+function yT(){return MONTHS.reduce((a,m)=>{const t=mT(m);a.rev+=t.rev;a.cost+=t.cost;a.profit+=t.profit;a.nSold+=t.nSold;a.nTotal+=t.nTotal;return a;},{rev:0,cost:0,profit:0,nSold:0,nTotal:0});}
+function recalc(i,ds){const pc=i.salePrice*(i.promoPercent||0);const tc=i.itemCost+i.shipping+i.ebayFee+pc;const tr=i.salePrice+(i.postage||0);i.promoCost=+pc.toFixed(4);i.totalCost=+tc.toFixed(4);i.totalRev=+tr.toFixed(4);i.grossProfit=ds?+(tr-tc).toFixed(2):null;i.roi=i.itemCost>0?+((tr-tc)/i.itemCost).toFixed(4):null;}
 function goNav(page){
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('on'));
   document.querySelectorAll('.tab').forEach(t=>t.classList.remove('on'));
@@ -184,47 +152,35 @@ function goNav(page){
   if(page==='stock')renderStock();
   if(page==='tax')renderTax();
 }
-
+function kc(l,v,s,c){return`<div class="kcard ${c}"><div class="klabel">${l}</div><div class="kval">${v}</div><div class="ksub">${s}</div></div>`;}
 function renderSummary(){
-  const yt=yTotals();
-  const unsd=allUnsold();
-  const unrealised=unsd.reduce((a,i)=>a+((i.totalRev||0)-(i.totalCost||0)),0);
-  const stockCost=unsd.reduce((a,i)=>a+(i.itemCost||0),0);
+  const yt=yT(),u=allUnsold();
+  const unreal=u.reduce((a,i)=>a+(i.totalRev-i.totalCost),0),sc=u.reduce((a,i)=>a+i.itemCost,0);
+  const top=allSold().filter(i=>i.grossProfit>0).sort((a,b)=>b.grossProfit-a.grossProfit).slice(0,10);
   document.getElementById('p-summary').innerHTML=`
-    <div style="font-family:var(--fh);font-size:44px;font-weight:800;color:var(--accent);line-height:1">2026</div>
-    <div style="color:var(--muted);font-size:12px;margin-bottom:24px;margin-top:4px">eBay Reselling — Annual Overview</div>
-    <div class="kgrid">
-      ${[['Total Revenue',£(yt.rev),yt.nSold+' items sold',''],['Gross Profit',£(yt.profit),'Margin: '+(yt.rev>0?((yt.profit/yt.rev)*100).toFixed(1)+'%':'—'),'g'],['Total Costs',£(yt.cost),'Fees + shipping + stock','r'],['Stock on Hand',unsd.length+' items',£(stockCost)+' cost value','b'],['Unrealised Profit',£(unrealised),'If all listed items sell','p'],['Items Listed',yt.nTotal,yt.nSold+' sold · '+(yt.nTotal-yt.nSold)+' active','']].map(([l,v,s,c])=>`<div class="kcard ${c}"><div class="klabel">${l}</div><div class="kval">${v}</div><div class="ksub">${s}</div></div>`).join('')}
-    </div>
+    <div class="page-title" style="color:var(--accent)">2026</div>
+    <div class="page-sub">eBay Reselling — Annual Overview</div>
+    <div class="kgrid">${kc('Total Revenue',£(yt.rev),yt.nSold+' items sold','')}${kc('Gross Profit',£(yt.profit),'Margin: '+(yt.rev>0?((yt.profit/yt.rev)*100).toFixed(1)+'%':'—'),'g')}${kc('Total Costs',£(yt.cost),'Fees + shipping + stock','r')}${kc('Stock on Hand',u.length+' items',£(sc)+' cost value','b')}${kc('Unrealised Profit',£(unreal),'If all listed items sell','p')}${kc('Items Listed',yt.nTotal,yt.nSold+' sold · '+(yt.nTotal-yt.nSold)+' active','')}</div>
     <div class="sl">Monthly breakdown</div>
-    <div class="mgrid">${MONTHS.map(m=>{const t=mTotals(m);return`<div class="mcard" onclick="goMonth('${m}')"><div class="mname">${MN[m]}</div><div class="mval ${t.profit>0?'pos':'nil'}">${t.profit>0?£(t.profit):'—'}</div><div class="msub">${t.nSold} sold · ${t.nTotal-t.nSold} listed</div></div>`;}).join('')}</div>
+    <div class="mgrid">${MONTHS.map(m=>{const t=mT(m);return`<div class="mcard" onclick="goMonth('${m}')"><div class="mname">${MN[m]}</div><div class="mval ${t.profit>0?'pos':'nil'}">${t.profit>0?£(t.profit):'—'}</div><div class="msub">${t.nSold} sold · ${t.nTotal-t.nSold} listed</div></div>`;}).join('')}</div>
     <div class="sl">Top performers</div>
     <div class="twrap"><table><thead><tr><th>Item</th><th>Month</th><th>Sale Price</th><th>Item Cost</th><th>Gross Profit</th><th>ROI</th></tr></thead>
-    <tbody>${allSold().filter(i=>i.grossProfit>0).sort((a,b)=>b.grossProfit-a.grossProfit).slice(0,10).map(i=>`<tr><td>${i.item}</td><td class="dim">${MN[i.month]}</td><td>${£(i.salePrice)}</td><td class="dim">${£(i.itemCost)}</td><td class="pos">${£(i.grossProfit)}</td><td style="color:var(--accent)">${i.roi!=null?(i.roi*100).toFixed(0)+'%':'—'}</td></tr>`).join('')||'<tr><td colspan="6" class="empty">No sold items yet</td></tr>'}</tbody></table></div>`;
+    <tbody>${top.length?top.map(i=>`<tr><td>${i.item}</td><td class="dim">${MN[i.month]}</td><td>${£(i.salePrice)}</td><td class="dim">${£(i.itemCost)}</td><td class="pos">${£(i.grossProfit)}</td><td style="color:var(--accent)">${i.roi!=null?(i.roi*100).toFixed(0)+'%':'—'}</td></tr>`).join(''):'<tr><td colspan="6" class="empty">No sold items yet</td></tr>'}</tbody></table></div>`;
 }
-
 function goMonth(m){document.getElementById('msel').value=m;goNav('monthly');}
-
 function renderMonthPage(){
   const el=document.getElementById('p-monthly');
-  if(!el.querySelector('#msel')){
-    el.innerHTML=`<div class="selrow"><button class="backbtn" onclick="goNav('summary')">← Back</button><select id="msel" onchange="renderMonth()">${MONTHS.map(m=>`<option value="${m}"${m==='MAR'?' selected':''}>${MN[m]}</option>`).join('')}</select></div><div id="month-body"></div>`;
-  }
+  if(!el.querySelector('#msel')){el.innerHTML=`<div class="selrow"><button class="backbtn" onclick="goNav('summary')">← Back</button><select id="msel" onchange="renderMonth()">${MONTHS.map(m=>`<option value="${m}"${m==='MAR'?' selected':''}>${MN[m]}</option>`).join('')}</select></div><div id="mbody"></div>`;}
   renderMonth();
 }
-
 function renderMonth(){
   const m=document.getElementById('msel')?.value||'MAR';
-  const items=DB[m]||[];
-  const t=mTotals(m);
-  const s=sold(m);const u=unsold(m);
+  const items=DB[m]||[],t=mT(m),s=sold(m),u=unsold(m);
   const made=s.reduce((a,i)=>a+(i.grossProfit||0),0);
-  const remaining=u.reduce((a,i)=>{const p=(i.totalRev||0)-(i.totalCost||0);return a+(p>0?p:0);},0);
-  const total=made+remaining;
-  const pct=total>0?((made/total)*100).toFixed(1):0;
-  document.getElementById('month-body').innerHTML=`
-    <div class="mhdr">
-      <div class="mtitle">${MN[m]}</div>
+  const rem=u.reduce((a,i)=>{const p=i.totalRev-i.totalCost;return a+(p>0?p:0);},0);
+  const tot=made+rem,pct=tot>0?((made/tot)*100).toFixed(1):0;
+  document.getElementById('mbody').innerHTML=`
+    <div class="mhdr"><div class="mtitle">${MN[m]}</div>
       <div class="mstats">
         <div class="mstat"><div class="msv pos">${£(t.profit)}</div><div class="msl">Realised Profit</div></div>
         <div class="mstat"><div class="msv" style="color:var(--accent)">${£(t.rev)}</div><div class="msl">Revenue</div></div>
@@ -232,12 +188,12 @@ function renderMonth(){
         <div class="mstat"><div class="msv">${t.nSold}/${t.nTotal}</div><div class="msl">Sold / Listed</div></div>
       </div>
     </div>
-    ${total>0?`<div class="pbar-wrap"><div class="pbar-labels"><span>Realised ${£(made)} (${pct}%)</span><span>Remaining ${£(remaining)}</span></div><div class="pbar"><div class="pbar-fill" style="width:${pct}%"></div></div></div>`:''}
+    ${tot>0?`<div class="pbar-wrap"><div class="pbar-labels"><span>Realised ${£(made)} (${pct}%)</span><span>Remaining ${£(rem)}</span></div><div class="pbar"><div class="pbar-fill" style="width:${pct}%"></div></div></div>`:''}
     <div class="sl">Add new item</div>
     <div class="fsec"><div class="fgrid">
       <div class="fg"><label>Item name</label><input type="text" id="fi-name" placeholder="e.g. Nokia 3310"></div>
       <div class="fg"><label>Date listed</label><input type="date" id="fi-listed" value="${new Date().toISOString().split('T')[0]}"></div>
-      <div class="fg"><label>Location</label><input type="text" id="fi-loc" placeholder="Bed, A101, Desk…"></div>
+      <div class="fg"><label>Location</label><input type="text" id="fi-loc" placeholder="Bed, A101, Desk..."></div>
       <div class="fg"><label>Sale Price (£)</label><input type="number" id="fi-price" step="0.01" placeholder="0.00" oninput="autoCalc()"></div>
       <div class="fg"><label>Item Cost (£)</label><input type="number" id="fi-cost" step="0.01" placeholder="0.00"></div>
       <div class="fg"><label>Shipping Cost (£)</label><input type="number" id="fi-ship" step="0.01" placeholder="2.94"></div>
@@ -246,27 +202,14 @@ function renderMonth(){
       <div class="fg"><label>Promo % (e.g. 0.05)</label><input type="number" id="fi-promo" step="0.01" placeholder="0.05"></div>
       <div class="fg"><label>Date Sold (optional)</label><input type="date" id="fi-sold"></div>
     </div>
-    <div class="fbtns">
-      <button class="btn btn-p" onclick="addItem('${m}')">+ Add Item</button>
-      <button class="btn btn-s" onclick="autoCalc()">Auto-calc eBay fee</button>
-    </div></div>
+    <div class="fbtns"><button class="btn btn-p" onclick="addItem('${m}')">+ Add Item</button><button class="btn btn-s" onclick="autoCalc()">Auto-calc eBay fee</button></div></div>
     <div class="sl">Items this month (${items.length})</div>
-    <div class="twrap"><table>
-      <thead><tr><th>Status</th><th>Item</th><th>Location</th><th>Listed</th><th>Price</th><th>Cost</th><th>Ship</th><th>eBay Fee</th><th>Promo</th><th>Total Cost</th><th>Gross Profit</th><th>ROI</th><th>Actions</th></tr></thead>
-      <tbody>${items.map(i=>iRow(i,m)).join('')||'<tr><td colspan="13" class="empty">No items yet — add one above</td></tr>'}</tbody>
-    </table></div>
-    <div class="sfooter"><div class="sfgrid">
-      ${[['Revenue',£(t.rev),'var(--accent)'],['Total Cost',£(t.cost),'var(--red)'],['Gross Profit',£(t.profit),'var(--green)'],['Realised',£(made),'var(--green)'],['Remaining',£(remaining),'var(--muted2)'],['Margin',t.rev>0?((t.profit/t.rev)*100).toFixed(1)+'%':'—','var(--text)']].map(([l,v,c])=>`<div><div class="sflabel">${l}</div><div class="sfval" style="color:${c}">${v}</div></div>`).join('')}
-    </div></div>`;
+    <div class="twrap"><table><thead><tr><th>Status</th><th>Item</th><th>Location</th><th>Listed</th><th>Price</th><th>Cost</th><th>Ship</th><th>eBay Fee</th><th>Promo</th><th>Total Cost</th><th>Gross Profit</th><th>ROI</th><th>Actions</th></tr></thead>
+    <tbody>${items.map(i=>iRow(i,m)).join('')||'<tr><td colspan="13" class="empty">No items yet</td></tr>'}</tbody></table></div>
+    <div class="sfooter"><div class="sfgrid">${[['Revenue',£(t.rev),'var(--accent)'],['Total Cost',£(t.cost),'var(--red)'],['Gross Profit',£(t.profit),'var(--green)'],['Realised',£(made),'var(--green)'],['Remaining',£(rem),'var(--muted2)'],['Margin',t.rev>0?((t.profit/t.rev)*100).toFixed(1)+'%':'—','var(--text)']].map(([l,v,c])=>`<div><div class="sflabel">${l}</div><div class="sfval" style="color:${c}">${v}</div></div>`).join('')}</div></div>`;
 }
-
-function iRow(i,m){
-  const isSold=!!i.dateSold;
-  return`<tr><td><span class="badge ${isSold?'sold-b':'listed-b'}">${isSold?'Sold':'Listed'}</span></td><td style="max-width:160px;overflow:hidden;text-overflow:ellipsis">${i.item}</td><td class="dim">${i.location||'—'}</td><td class="dim">${i.dateListed||'—'}</td><td>${£(i.salePrice)}</td><td class="dim">${£(i.itemCost)}</td><td class="dim">${£(i.shipping)}</td><td class="dim">${£(i.ebayFee)}</td><td class="dim">${£(i.promoCost)}</td><td style="color:var(--red)">${£(i.totalCost)}</td><td class="${i.grossProfit>0?'pos':i.grossProfit<0?'neg':''}">${i.grossProfit!=null?£(i.grossProfit):'—'}</td><td style="color:var(--accent)">${i.roi!=null?(i.roi*100).toFixed(0)+'%':'—'}</td><td style="display:flex;gap:4px">${!isSold?`<button class="tbtn" onclick="openSoldModal('${m}','${i.id}')">Mark sold</button>`:''}<button class="tbtn del" onclick="delItem('${m}','${i.id}')">✕</button></td></tr>`;
-}
-
+function iRow(i,m){const s=!!i.dateSold;return`<tr><td><span class="badge ${s?'sold-b':'listed-b'}">${s?'Sold':'Listed'}</span></td><td style="max-width:160px;overflow:hidden;text-overflow:ellipsis">${i.item}</td><td class="dim">${i.location||'—'}</td><td class="dim">${i.dateListed||'—'}</td><td>${£(i.salePrice)}</td><td class="dim">${£(i.itemCost)}</td><td class="dim">${£(i.shipping)}</td><td class="dim">${£(i.ebayFee)}</td><td class="dim">${£(i.promoCost)}</td><td style="color:var(--red)">${£(i.totalCost)}</td><td class="${i.grossProfit>0?'pos':i.grossProfit<0?'neg':''}">${i.grossProfit!=null?£(i.grossProfit):'—'}</td><td style="color:var(--accent)">${i.roi!=null?(i.roi*100).toFixed(0)+'%':'—'}</td><td style="display:flex;gap:4px">${!s?`<button class="tbtn" onclick="openSold('${m}','${i.id}')">Mark sold</button>`:''}<button class="tbtn del" onclick="delItem('${m}','${i.id}')">✕</button></td></tr>`;}
 function autoCalc(){const p=parseFloat(document.getElementById('fi-price')?.value)||0;if(p>0)document.getElementById('fi-ebay').value=(p*0.093).toFixed(2);}
-
 function addItem(m){
   const name=document.getElementById('fi-name').value.trim();
   if(!name){toast('Enter an item name','err');return;}
@@ -277,119 +220,84 @@ function addItem(m){
   const post=parseFloat(document.getElementById('fi-post').value)||0;
   const pp=parseFloat(document.getElementById('fi-promo').value)||0.05;
   const ds=document.getElementById('fi-sold').value||null;
-  const calc=calcItem(price,post,cost,ship,ebay,pp,ds);
-  DB[m].push({id:Date.now().toString(),dateListed:document.getElementById('fi-listed').value,item:name,location:document.getElementById('fi-loc').value,dateSold:ds,salePrice:price,postage:post,itemCost:cost,shipping:ship,ebayFee:+ebay.toFixed(2),promoPercent:pp,...calc});
-  saveData();renderMonth();toast('Added: '+name);
+  const item={id:Date.now().toString(),dateListed:document.getElementById('fi-listed').value,item:name,location:document.getElementById('fi-loc').value,dateSold:ds,salePrice:price,postage:post,itemCost:cost,shipping:ship,ebayFee:+ebay.toFixed(2),promoPercent:pp};
+  recalc(item,ds);DB[m].push(item);saveDB();renderMonth();toast('Added: '+name);
 }
-
-function delItem(m,id){
-  if(!confirm('Delete this item?'))return;
-  DB[m]=DB[m].filter(i=>i.id!==id);
-  saveData();renderMonth();toast('Deleted');
-}
-
-function openSoldModal(m,id){
-  _soldTarget={m,id};
-  document.getElementById('modal-date').value=new Date().toISOString().split('T')[0];
-  document.getElementById('modal-overlay').classList.add('on');
-}
-function closeModal(e){
-  if(!e||e.target===document.getElementById('modal-overlay')){document.getElementById('modal-overlay').classList.remove('on');_soldTarget=null;}
-}
+function delItem(m,id){if(!confirm('Delete?'))return;DB[m]=DB[m].filter(i=>i.id!==id);saveDB();renderMonth();toast('Deleted');}
+function openSold(m,id){_st={m,id};document.getElementById('modal-date').value=new Date().toISOString().split('T')[0];document.getElementById('modal-overlay').classList.add('on');}
+function closeModal(e){if(!e||e.target===document.getElementById('modal-overlay')){document.getElementById('modal-overlay').classList.remove('on');_st=null;}}
 function confirmSold(){
-  if(!_soldTarget)return;
-  const{m,id}=_soldTarget;
+  if(!_st)return;
   const ds=document.getElementById('modal-date').value;
   if(!ds){toast('Pick a date','err');return;}
-  const item=DB[m].find(i=>i.id===id);
-  if(item){const calc=calcItem(item.salePrice,item.postage,item.itemCost,item.shipping,item.ebayFee,item.promoPercent,ds);item.dateSold=ds;item.grossProfit=calc.grossProfit;item.roi=calc.roi;saveData();}
+  const item=DB[_st.m].find(i=>i.id===_st.id);
+  if(item){item.dateSold=ds;recalc(item,ds);saveDB();}
   closeModal();
   const cur=document.querySelector('.page.on').id;
   if(cur==='p-monthly')renderMonth();
   if(cur==='p-stock')renderStock();
   toast('Marked as sold!');
 }
-
 function setFilter(f,btn){invFilter=f;document.querySelectorAll('.fbtn').forEach(b=>b.classList.remove('on'));btn.classList.add('on');renderStock();}
-
 function renderStock(){
-  const allLocs=[...new Set(MONTHS.flatMap(m=>(DB[m]||[]).filter(i=>!i.dateSold).map(i=>i.location).filter(Boolean)))].sort();
+  const locs=[...new Set(MONTHS.flatMap(m=>(DB[m]||[]).filter(i=>!i.dateSold).map(i=>i.location).filter(Boolean)))].sort();
   let items=allUnsold();
   if(invFilter!=='all')items=items.filter(i=>i.location===invFilter);
-  const costVal=items.reduce((a,i)=>a+(i.itemCost||0),0);
-  const potProfit=items.reduce((a,i)=>a+((i.totalRev||0)-(i.totalCost||0)),0);
+  const cv=items.reduce((a,i)=>a+i.itemCost,0),pp=items.reduce((a,i)=>a+(i.totalRev-i.totalCost),0);
   document.getElementById('p-stock').innerHTML=`
-    <div style="font-family:var(--fh);font-size:28px;font-weight:800;margin-bottom:6px">Current Stock</div>
-    <div style="color:var(--muted);font-size:12px;margin-bottom:20px">Listed but not yet sold</div>
-    <div class="filters">
-      <button class="fbtn ${invFilter==='all'?'on':''}" onclick="setFilter('all',this)">All</button>
-      ${allLocs.map(l=>`<button class="fbtn ${invFilter===l?'on':''}" onclick="setFilter('${l}',this)">${l}</button>`).join('')}
-    </div>
-    <div class="kgrid">${[['Items in Stock',items.length,[...new Set(items.map(i=>i.location).filter(Boolean))].length+' locations','b'],['Stock Cost Value',£(costVal),'Capital tied up',''],['Potential Profit',£(potProfit),'At current list prices','g']].map(([l,v,s,c])=>`<div class="kcard ${c}"><div class="klabel">${l}</div><div class="kval">${v}</div><div class="ksub">${s}</div></div>`).join('')}</div>
-    <div class="twrap"><table>
-      <thead><tr><th>Item</th><th>Month Listed</th><th>Location</th><th>Days Listed</th><th>List Price</th><th>Item Cost</th><th>Potential Profit</th><th>ROI</th><th></th></tr></thead>
-      <tbody>${items.length?items.sort((a,b)=>daysAgo(a.dateListed)-daysAgo(b.dateListed)).reverse().map(i=>{
-        const days=daysAgo(i.dateListed);const pot=(i.totalRev||0)-(i.totalCost||0);
-        return`<tr><td style="max-width:200px;overflow:hidden;text-overflow:ellipsis">${i.item}</td><td class="dim">${MN[i.month]||i.month}</td><td><span class="badge listed-b">${i.location||'—'}</span></td><td style="color:${days>30?'var(--red)':days>14?'var(--accent)':'var(--muted2)'}">${days}d</td><td>${£(i.salePrice)}</td><td class="dim">${£(i.itemCost)}</td><td class="${pot>0?'pos':'neg'}">${£(pot)}</td><td style="color:var(--accent)">${i.roi!=null?(i.roi*100).toFixed(0)+'%':'—'}</td><td><button class="tbtn" onclick="openSoldModal('${i.month}','${i.id}')">Mark sold</button></td></tr>`;
-      }).join(''):`<tr><td colspan="9" class="empty">No stock${invFilter!=='all'?' in '+invFilter:''}</td></tr>`}</tbody>
-    </table></div>`;
+    <div class="page-title">Current Stock</div><div class="page-sub">Listed but not yet sold</div>
+    <div class="filters"><button class="fbtn ${invFilter==='all'?'on':''}" onclick="setFilter('all',this)">All</button>${locs.map(l=>`<button class="fbtn ${invFilter===l?'on':''}" onclick="setFilter('${l}',this)">${l}</button>`).join('')}</div>
+    <div class="kgrid">${kc('Items in Stock',items.length,[...new Set(items.map(i=>i.location).filter(Boolean))].length+' locations','b')}${kc('Stock Cost Value',£(cv),'Capital tied up','')}${kc('Potential Profit',£(pp),'At current list prices','g')}</div>
+    <div class="twrap"><table><thead><tr><th>Item</th><th>Month Listed</th><th>Location</th><th>Days Listed</th><th>List Price</th><th>Item Cost</th><th>Potential Profit</th><th>ROI</th><th></th></tr></thead>
+    <tbody>${items.length?items.sort((a,b)=>daysAgo(a.dateListed)-daysAgo(b.dateListed)).reverse().map(i=>{const d=daysAgo(i.dateListed),p=i.totalRev-i.totalCost;return`<tr><td style="max-width:200px;overflow:hidden;text-overflow:ellipsis">${i.item}</td><td class="dim">${MN[i.month]||i.month}</td><td><span class="badge listed-b">${i.location||'—'}</span></td><td style="color:${d>30?'var(--red)':d>14?'var(--accent)':'var(--muted2)'}">${d}d</td><td>${£(i.salePrice)}</td><td class="dim">${£(i.itemCost)}</td><td class="${p>0?'pos':'neg'}">${£(p)}</td><td style="color:var(--accent)">${i.roi!=null?(i.roi*100).toFixed(0)+'%':'—'}</td><td><button class="tbtn" onclick="openSold('${i.month}','${i.id}')">Mark sold</button></td></tr>`;}).join(''):`<tr><td colspan="9" class="empty">No stock${invFilter!=='all'?' in '+invFilter:''}</td></tr>`}</tbody></table></div>`;
 }
-
 function renderTax(){
-  const yt=yTotals();const unsd=allUnsold();
-  const stockCost=unsd.reduce((a,i)=>a+(i.itemCost||0),0);
-  const net=yt.profit;const taxable=Math.max(0,net-12570);
-  const incomeTax=taxable<=37700?taxable*0.20:37700*0.20+(taxable-37700)*0.40;
-  const ni=Math.max(0,(net-12570)*0.09);
+  const yt=yT(),u=allUnsold(),sc=u.reduce((a,i)=>a+i.itemCost,0);
+  const net=yt.profit,tax=Math.max(0,net-12570);
+  const it=tax<=37700?tax*0.2:37700*0.2+(tax-37700)*0.4,ni=Math.max(0,(net-12570)*0.09);
+  const sr=(l,v,c)=>`<div class="sarow"><span>${l}</span><span style="color:${c};font-weight:700">${v}</span></div>`;
   document.getElementById('p-tax').innerHTML=`
-    <div style="font-family:var(--fh);font-size:28px;font-weight:800;margin-bottom:6px">Self Assessment</div>
-    <div style="color:var(--muted);font-size:12px;margin-bottom:16px">Tax Year: 6 April 2025 – 5 April 2026 · Sole Trader</div>
+    <div class="page-title">Self Assessment</div><div class="page-sub">Tax Year: 6 April 2025 – 5 April 2026 · Sole Trader</div>
     <div class="notice">⚠ Estimated figures only — not financial or tax advice. Always verify with HMRC or a qualified accountant before submitting.</div>
     <div class="sa-grid">
-      <div class="sacard"><div class="sacard-title">Income & Expenses</div>${[['Gross turnover',£(yt.rev),'var(--accent)'],['Total allowable expenses',£(yt.cost),'var(--red)'],['Net profit',£(net),net>=0?'var(--green)':'var(--red)']].map(([l,v,c])=>`<div class="sarow"><span>${l}</span><span style="color:${c}">${v}</span></div>`).join('')}</div>
-      <div class="sacard"><div class="sacard-title">Tax Estimate</div>${[['Net profit',£(net),net>=0?'var(--green)':'var(--red)'],['Personal allowance','£12,570','var(--muted2)'],['Taxable income',£(taxable),'var(--accent)'],['Est. income tax',£(incomeTax),'var(--red)'],['Est. Class 4 NI',£(ni),'var(--red)'],['Est. total tax',£(incomeTax+ni),'var(--red)'],['Est. take-home',£(net-incomeTax-ni),'var(--green)']].map(([l,v,c])=>`<div class="sarow"><span>${l}</span><span style="color:${c}">${v}</span></div>`).join('')}</div>
+      <div class="sacard"><div class="sacard-title">Income & Expenses</div>${sr('Gross turnover',£(yt.rev),'var(--accent)')}${sr('Total expenses',£(yt.cost),'var(--red)')}${sr('Net profit',£(net),net>=0?'var(--green)':'var(--red)')}</div>
+      <div class="sacard"><div class="sacard-title">Tax Estimate</div>${sr('Net profit',£(net),net>=0?'var(--green)':'var(--red)')}${sr('Personal allowance','£12,570','var(--muted2)')}${sr('Taxable income',£(tax),'var(--accent)')}${sr('Est. income tax',£(it),'var(--red)')}${sr('Est. Class 4 NI',£(ni),'var(--red)')}${sr('Est. total tax',£(it+ni),'var(--red)')}${sr('Est. take-home',£(net-it-ni),'var(--green)')}</div>
     </div>
     <div class="sacard"><div class="sacard-title">SA103 Export</div>
-      <div class="sabox" id="sa-box">SA103 SELF-EMPLOYMENT
+    <div class="sabox" id="sa-box">SA103 SELF-EMPLOYMENT
 Tax Year: 6 April 2025 – 5 April 2026
-Business: eBay Reselling (second-hand goods)
+Business: eBay Reselling — General-007
+Description: Online resale of second-hand goods
 Method: Cash basis
 
 INCOME
-Box 15  Turnover:                 ${yt.rev.toFixed(2)}
+Box 15  Turnover:             ${yt.rev.toFixed(2)}
 
 EXPENSES
-Box 16  Cost of goods:            ${yt.cost.toFixed(2)}
-Box 30  Total expenses:           ${yt.cost.toFixed(2)}
+Box 16  Cost of goods:        ${yt.cost.toFixed(2)}
+Box 30  Total expenses:       ${yt.cost.toFixed(2)}
 
 PROFIT
-Box 31  Net profit:               ${net.toFixed(2)}
+Box 31  Net profit:           ${net.toFixed(2)}
 
-STOCK NOTES
-Unsold items:                     ${unsd.length}
-Stock cost value:                 ${stockCost.toFixed(2)}
+STOCK (for records)
+Unsold items:                 ${u.length}
+Stock cost value:             ${sc.toFixed(2)}
 
 TAX ESTIMATE
-Taxable income:                   ${taxable.toFixed(2)}
-Income tax:                       ${incomeTax.toFixed(2)}
-Class 4 NI:                       ${ni.toFixed(2)}
-Total estimated tax:              ${(incomeTax+ni).toFixed(2)}
+Taxable income:               ${tax.toFixed(2)}
+Income tax:                   ${it.toFixed(2)}
+Class 4 NI:                   ${ni.toFixed(2)}
+Total estimated tax:          ${(it+ni).toFixed(2)}
 
 Generated: ${new Date().toLocaleDateString('en-GB')}
-⚠ Verify with HMRC / accountant before submitting.</div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-p" onclick="copySA()">Copy to clipboard</button><button class="btn btn-s" onclick="dlSA()">Download .txt</button></div>
-    </div>`;
+Verify with HMRC / accountant before submitting.</div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap"><button class="btn btn-p" onclick="copySA()">Copy to clipboard</button><button class="btn btn-s" onclick="dlSA()">Download .txt</button></div></div>`;
 }
-
 function copySA(){navigator.clipboard.writeText(document.getElementById('sa-box').textContent).then(()=>toast('Copied!')).catch(()=>toast('Copy failed','err'));}
-function dlSA(){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([document.getElementById('sa-box').textContent],{type:'text/plain'}));a.download='SA103_eBay_2026.txt';a.click();toast('Downloaded!');}
-
-function toast(msg,type=''){
-  const el=document.getElementById('toast');el.textContent=msg;el.className=type==='err'?'on err':'on';
-  clearTimeout(el._t);el._t=setTimeout(()=>el.classList.remove('on','err'),2800);
-}
-
-loadData();
+function dlSA(){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([document.getElementById('sa-box').textContent],{type:'text/plain'}));a.download='SA103_General007_2026.txt';a.click();toast('Downloaded!');}
+function toast(msg,type=''){const el=document.getElementById('toast');el.textContent=msg;el.className=type==='err'?'on err':'on';clearTimeout(el._t);el._t=setTimeout(()=>el.classList.remove('on','err'),2800);}
+initDB();renderSummary();
 </script>
 </body>
 </html>
