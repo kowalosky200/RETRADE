@@ -1,0 +1,771 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>eBay Accounts 2026</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0d0e11;
+    --surface: #15171c;
+    --surface2: #1c1f27;
+    --border: #2a2e3a;
+    --accent: #f0b429;
+    --accent2: #e05c2a;
+    --green: #34d399;
+    --red: #f87171;
+    --blue: #60a5fa;
+    --text: #e8eaf0;
+    --muted: #6b7280;
+    --font-head: 'Syne', sans-serif;
+    --font-mono: 'DM Mono', monospace;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: var(--font-mono); min-height: 100vh; }
+
+  /* NAV */
+  nav {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 24px; height: 56px; position: sticky; top: 0; z-index: 100;
+  }
+  .nav-brand { font-family: var(--font-head); font-weight: 800; font-size: 18px; color: var(--accent); letter-spacing: -0.5px; }
+  .nav-brand span { color: var(--text); }
+  .nav-tabs { display: flex; gap: 4px; }
+  .nav-tab {
+    padding: 6px 14px; border-radius: 6px; border: none; cursor: pointer;
+    font-family: var(--font-mono); font-size: 12px; font-weight: 500;
+    background: transparent; color: var(--muted); transition: all 0.15s;
+  }
+  .nav-tab:hover { background: var(--surface2); color: var(--text); }
+  .nav-tab.active { background: var(--accent); color: #000; }
+  .nav-right { font-size: 11px; color: var(--muted); }
+
+  /* PAGES */
+  .page { display: none; padding: 24px; max-width: 1200px; margin: 0 auto; }
+  .page.active { display: block; }
+
+  /* SUMMARY PAGE */
+  .summary-year { font-family: var(--font-head); font-size: 48px; font-weight: 800; color: var(--accent); margin-bottom: 4px; }
+  .summary-subtitle { color: var(--muted); font-size: 13px; margin-bottom: 32px; }
+  .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 32px; }
+  .kpi-card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+    padding: 20px; position: relative; overflow: hidden;
+  }
+  .kpi-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; background: var(--accent); }
+  .kpi-card.green::before { background: var(--green); }
+  .kpi-card.red::before { background: var(--red); }
+  .kpi-card.blue::before { background: var(--blue); }
+  .kpi-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; }
+  .kpi-value { font-family: var(--font-head); font-size: 28px; font-weight: 700; }
+  .kpi-sub { font-size: 11px; color: var(--muted); margin-top: 4px; }
+
+  /* MONTHLY TABLE */
+  .month-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; margin-bottom: 32px; }
+  .month-card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+    padding: 16px; cursor: pointer; transition: all 0.15s;
+  }
+  .month-card:hover { border-color: var(--accent); transform: translateY(-2px); }
+  .month-card.active-month { border-color: var(--accent); background: var(--surface2); }
+  .month-name { font-family: var(--font-head); font-weight: 700; font-size: 14px; margin-bottom: 8px; }
+  .month-profit { font-size: 18px; font-weight: 500; }
+  .month-profit.positive { color: var(--green); }
+  .month-profit.zero { color: var(--muted); }
+  .month-items { font-size: 11px; color: var(--muted); margin-top: 4px; }
+
+  /* MONTHLY DETAIL */
+  .month-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; flex-wrap: wrap; gap: 12px; }
+  .month-title { font-family: var(--font-head); font-size: 32px; font-weight: 800; }
+  .month-stats { display: flex; gap: 16px; flex-wrap: wrap; }
+  .month-stat { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 10px 16px; text-align: center; }
+  .month-stat-val { font-family: var(--font-head); font-size: 20px; font-weight: 700; }
+  .month-stat-val.green { color: var(--green); }
+  .month-stat-val.amber { color: var(--accent); }
+  .month-stat-label { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
+
+  /* TABLE */
+  .table-wrap { overflow-x: auto; border-radius: 10px; border: 1px solid var(--border); margin-bottom: 24px; }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  thead { background: var(--surface2); }
+  th { padding: 10px 12px; text-align: left; color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: 0.8px; white-space: nowrap; border-bottom: 1px solid var(--border); font-weight: 500; }
+  td { padding: 10px 12px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: var(--surface2); }
+  .sold-yes { color: var(--green); }
+  .sold-no { color: var(--accent); }
+  .profit-pos { color: var(--green); font-weight: 500; }
+  .profit-neg { color: var(--red); font-weight: 500; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: 500; }
+  .badge-sold { background: rgba(52,211,153,0.15); color: var(--green); }
+  .badge-listed { background: rgba(240,180,41,0.15); color: var(--accent); }
+
+  /* ADD ITEM FORM */
+  .form-section { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 24px; margin-bottom: 24px; }
+  .form-title { font-family: var(--font-head); font-weight: 700; font-size: 16px; margin-bottom: 20px; display: flex; align-items: center; gap: 8px; }
+  .form-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; }
+  .form-group { display: flex; flex-direction: column; gap: 6px; }
+  .form-group label { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.8px; }
+  .form-group input, .form-group select {
+    background: var(--bg); border: 1px solid var(--border); border-radius: 6px;
+    padding: 8px 10px; color: var(--text); font-family: var(--font-mono); font-size: 12px;
+    transition: border-color 0.15s;
+  }
+  .form-group input:focus, .form-group select:focus { outline: none; border-color: var(--accent); }
+  .form-group input::placeholder { color: var(--muted); }
+  .form-actions { display: flex; gap: 10px; margin-top: 16px; flex-wrap: wrap; }
+  .btn {
+    padding: 8px 20px; border-radius: 6px; border: none; cursor: pointer;
+    font-family: var(--font-mono); font-size: 12px; font-weight: 500; transition: all 0.15s;
+  }
+  .btn-primary { background: var(--accent); color: #000; }
+  .btn-primary:hover { background: #e0a820; }
+  .btn-secondary { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
+  .btn-secondary:hover { border-color: var(--accent); color: var(--accent); }
+  .btn-danger { background: rgba(248,113,113,0.15); color: var(--red); border: 1px solid rgba(248,113,113,0.3); }
+  .btn-danger:hover { background: rgba(248,113,113,0.25); }
+
+  /* SELF ASSESSMENT PAGE */
+  .sa-header { margin-bottom: 32px; }
+  .sa-title { font-family: var(--font-head); font-size: 32px; font-weight: 800; margin-bottom: 8px; }
+  .sa-notice { background: rgba(240,180,41,0.1); border: 1px solid rgba(240,180,41,0.3); border-radius: 8px; padding: 12px 16px; font-size: 12px; color: var(--accent); margin-bottom: 24px; }
+  .sa-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 24px; }
+  @media (max-width: 700px) { .sa-grid { grid-template-columns: 1fr; } }
+  .sa-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 24px; }
+  .sa-card-title { font-family: var(--font-head); font-weight: 700; font-size: 14px; margin-bottom: 16px; color: var(--accent); }
+  .sa-row { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 12px; }
+  .sa-row:last-child { border-bottom: none; font-weight: 600; font-size: 13px; }
+  .sa-val { font-weight: 500; }
+  .sa-val.green { color: var(--green); }
+  .sa-val.red { color: var(--red); }
+  .sa-val.amber { color: var(--accent); }
+  .sa-export { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 24px; }
+  .sa-export-title { font-family: var(--font-head); font-weight: 700; font-size: 14px; margin-bottom: 16px; }
+  .sa-box { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 16px; font-size: 11px; color: var(--muted); line-height: 1.8; white-space: pre-wrap; margin-bottom: 12px; }
+
+  /* PROFIT SPLIT */
+  .split-bar { display: flex; height: 8px; border-radius: 4px; overflow: hidden; margin: 12px 0; }
+  .split-made { background: var(--green); }
+  .split-remaining { background: var(--surface2); }
+
+  /* SECTION HEADER */
+  .section-label { display: flex; align-items: center; gap: 8px; font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 16px; }
+  .section-label::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+
+  /* INVENTORY TAB */
+  .inv-filter { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
+  .filter-btn { padding: 5px 12px; border-radius: 6px; border: 1px solid var(--border); background: transparent; color: var(--muted); font-family: var(--font-mono); font-size: 11px; cursor: pointer; transition: all 0.15s; }
+  .filter-btn.active, .filter-btn:hover { border-color: var(--accent); color: var(--accent); background: rgba(240,180,41,0.08); }
+
+  /* RESPONSIVE */
+  @media (max-width: 600px) {
+    nav { padding: 0 12px; }
+    .page { padding: 16px; }
+    .nav-tabs { gap: 2px; }
+    .nav-tab { padding: 5px 8px; font-size: 11px; }
+    .summary-year { font-size: 36px; }
+  }
+
+  /* EMPTY STATE */
+  .empty { text-align: center; padding: 48px; color: var(--muted); font-size: 13px; }
+  .empty-icon { font-size: 32px; margin-bottom: 12px; }
+
+  /* TOAST */
+  .toast { position: fixed; bottom: 24px; right: 24px; background: var(--surface); border: 1px solid var(--green); color: var(--green); padding: 12px 20px; border-radius: 8px; font-size: 12px; z-index: 999; opacity: 0; transform: translateY(10px); transition: all 0.2s; pointer-events: none; }
+  .toast.show { opacity: 1; transform: translateY(0); }
+
+  .month-select-wrap { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; }
+  .month-select-wrap select { background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 7px 12px; color: var(--text); font-family: var(--font-mono); font-size: 12px; }
+  .back-btn { font-size: 12px; color: var(--muted); cursor: pointer; background: none; border: none; display: flex; align-items: center; gap: 4px; transition: color 0.15s; }
+  .back-btn:hover { color: var(--accent); }
+
+  .mark-sold-btn { padding: 3px 8px; border-radius: 4px; border: 1px solid var(--accent); background: transparent; color: var(--accent); font-size: 10px; font-family: var(--font-mono); cursor: pointer; white-space: nowrap; }
+  .mark-sold-btn:hover { background: rgba(240,180,41,0.15); }
+  .del-btn { padding: 3px 6px; border-radius: 4px; border: 1px solid rgba(248,113,113,0.3); background: transparent; color: var(--red); font-size: 10px; cursor: pointer; }
+  .del-btn:hover { background: rgba(248,113,113,0.1); }
+
+  .inline-form { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; padding: 12px; background: var(--surface2); border-radius: 8px; margin-bottom: 16px; }
+  .inline-form input, .inline-form select { width: 100%; }
+
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="nav-brand">eBay<span>Tracker</span></div>
+  <div class="nav-tabs">
+    <button class="nav-tab active" onclick="showPage('summary')">Summary</button>
+    <button class="nav-tab" onclick="showPage('monthly')">Monthly</button>
+    <button class="nav-tab" onclick="showPage('inventory')">Stock</button>
+    <button class="nav-tab" onclick="showPage('sa')">Tax / SA</button>
+  </div>
+  <div class="nav-right">2026</div>
+</nav>
+
+<!-- SUMMARY PAGE -->
+<div id="page-summary" class="page active">
+  <div class="summary-year">2026</div>
+  <div class="summary-subtitle">eBay Reselling Business — Annual Overview</div>
+  <div id="kpi-grid" class="kpi-grid"></div>
+  <div class="section-label">Monthly Breakdown</div>
+  <div id="monthly-grid" class="month-grid"></div>
+  <div class="section-label">Best Performers</div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Item</th><th>Month</th><th>Sale Price</th><th>Cost</th><th>Gross Profit</th><th>ROI</th></tr></thead>
+      <tbody id="top-items-body"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- MONTHLY PAGE -->
+<div id="page-monthly" class="page">
+  <div class="month-select-wrap">
+    <button class="back-btn" onclick="showPage('summary')">← Back</button>
+    <select id="month-select" onchange="renderMonthDetail()">
+      <option value="JAN">January</option><option value="FEB" selected>February</option>
+      <option value="MAR">March</option><option value="APR">April</option>
+      <option value="MAY">May</option><option value="JUN">June</option>
+      <option value="JUL">July</option><option value="AUG">August</option>
+      <option value="SEP">September</option><option value="OCT">October</option>
+      <option value="NOV">November</option><option value="DEC">December</option>
+    </select>
+  </div>
+  <div id="month-detail"></div>
+</div>
+
+<!-- INVENTORY PAGE -->
+<div id="page-inventory" class="page">
+  <div style="font-family:var(--font-head);font-size:28px;font-weight:800;margin-bottom:8px;">Current Stock</div>
+  <div style="color:var(--muted);font-size:13px;margin-bottom:24px;">Items listed but not yet sold</div>
+  <div class="inv-filter">
+    <button class="filter-btn active" onclick="filterInv('all',this)">All</button>
+    <button class="filter-btn" onclick="filterInv('Bed',this)">Bed</button>
+    <button class="filter-btn" onclick="filterInv('A101',this)">A101</button>
+    <button class="filter-btn" onclick="filterInv('Wardrobe',this)">Wardrobe</button>
+    <button class="filter-btn" onclick="filterInv('Bedroom',this)">Bedroom</button>
+  </div>
+  <div class="kpi-grid" id="inv-kpis" style="margin-bottom:24px;"></div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Item</th><th>Listed</th><th>Location</th><th>Days</th><th>List Price</th><th>Item Cost</th><th>Potential Profit</th><th>ROI</th><th>Actions</th></tr></thead>
+      <tbody id="inv-table-body"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- SELF ASSESSMENT PAGE -->
+<div id="page-sa" class="page">
+  <div class="sa-header">
+    <div class="sa-title">Self Assessment</div>
+    <div style="color:var(--muted);font-size:13px;margin-bottom:16px;">Tax Year: 6 April 2025 – 5 April 2026 &nbsp;|&nbsp; Sole Trader</div>
+    <div class="sa-notice">⚠ This is a summary guide only — not financial/tax advice. Always verify with HMRC or a qualified accountant before submitting.</div>
+  </div>
+  <div class="sa-grid">
+    <div class="sa-card">
+      <div class="sa-card-title">Income & Expenses</div>
+      <div id="sa-income"></div>
+    </div>
+    <div class="sa-card">
+      <div class="sa-card-title">Profit Summary</div>
+      <div id="sa-profit"></div>
+    </div>
+  </div>
+  <div class="sa-export">
+    <div class="sa-export-title">SA103 Self-Employment Summary</div>
+    <div class="sa-box" id="sa-box"></div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;">
+      <button class="btn btn-primary" onclick="copySA()">Copy to Clipboard</button>
+      <button class="btn btn-secondary" onclick="downloadSA()">Download .txt</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<!-- ADD ITEM MODAL (hidden, injected into monthly) -->
+<script>
+// ==================== DATA ====================
+const MONTHS = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
+const MONTH_NAMES = {JAN:'January',FEB:'February',MAR:'March',APR:'April',MAY:'May',JUN:'June',JUL:'July',AUG:'August',SEP:'September',OCT:'October',NOV:'November',DEC:'December'};
+
+// Seed data from spreadsheet
+const seedData = {
+  FEB: [
+    {id:'f1',dateListed:'2026-02-18',item:'Grand Turismo 1997 PS1',location:'Bed',dateSold:'2026-02-21',salePrice:9.99,grossInc:9.24,postage:0,totalRev:9.99,itemCost:1.5,shipping:2.7,ebayFee:0.75,packaging:0,promoPercent:0.05,promoCost:0.4995,totalCost:5.4995,grossProfit:4.4905,roi:0.8165},
+    {id:'f2',dateListed:'2026-02-19',item:'Mag-Lite Torch',location:'Bed',dateSold:'2026-03-03',salePrice:26,grossInc:24.33,postage:0,totalRev:26,itemCost:3.25,shipping:2.94,ebayFee:1.67,packaging:0,promoPercent:0.03,promoCost:0.78,totalCost:8.67,grossProfit:17.33,roi:1.9988},
+    {id:'f3',dateListed:'2026-02-19',item:'Band of Brothers',location:'Bed',dateSold:null,salePrice:9.99,grossInc:9.24,postage:0,totalRev:9.99,itemCost:3,shipping:2.7,ebayFee:0.75,packaging:0,promoPercent:0.05,promoCost:0.4995,totalCost:6.9995,grossProfit:null,roi:0.4272},
+    {id:'f4',dateListed:'2026-02-22',item:'Nokia 3410 - Green Mint',location:'A101',dateSold:'2026-03-13',salePrice:11,grossInc:10.19,postage:0,totalRev:11,itemCost:2.5,shipping:2.7,ebayFee:0.81,packaging:0,promoPercent:0.05,promoCost:0.55,totalCost:6.61,grossProfit:4.39,roi:0.6641},
+    {id:'f5',dateListed:'2026-02-22',item:'Sony Ericsson T610',location:'A101',dateSold:'2026-03-11',salePrice:10.5,grossInc:9.72,postage:0,totalRev:10.5,itemCost:2.5,shipping:2.7,ebayFee:0.78,packaging:0,promoPercent:0.05,promoCost:0.525,totalCost:6.555,grossProfit:3.945,roi:0.6018},
+    {id:'f6',dateListed:'2026-02-22',item:'Motorolla W377 Pink',location:'A101',dateSold:'2026-03-04',salePrice:24.99,grossInc:23.36,postage:0,totalRev:24.99,itemCost:2.5,shipping:2.7,ebayFee:1.63,packaging:0,promoPercent:0.05,promoCost:1.2495,totalCost:8.1295,grossProfit:16.8605,roi:2.074},
+    {id:'f7',dateListed:'2026-02-22',item:'Blackberry Curve 9320',location:'A101',dateSold:'2026-02-27',salePrice:14.99,grossInc:13.95,postage:0,totalRev:14.99,itemCost:2.5,shipping:2.7,ebayFee:1.04,packaging:0,promoPercent:0.05,promoCost:0.7495,totalCost:7.0395,grossProfit:7.9505,roi:1.1294},
+    {id:'f8',dateListed:'2026-02-22',item:'LOTR Blue Ray Set - 1 Disc Missing',location:'A101',dateSold:'2026-03-06',salePrice:23.47,grossInc:21.89,postage:0,totalRev:23.47,itemCost:5,shipping:2.94,ebayFee:1.58,packaging:0,promoPercent:0.05,promoCost:1.1735,totalCost:10.7435,grossProfit:12.7265,roi:1.1846},
+    {id:'f9',dateListed:'2026-02-23',item:'Harry Potter Board Game',location:'Bed',dateSold:null,salePrice:19.99,grossInc:18.59,postage:0,totalRev:19.99,itemCost:0,shipping:3.38,ebayFee:1.4,packaging:0,promoPercent:0.05,promoCost:0.9995,totalCost:5.8295,grossProfit:null,roi:2.4291},
+    {id:'f10',dateListed:'2026-02-25',item:'Canon 550D - Complete Kit',location:'Bed',dateSold:'2026-02-28',salePrice:149.99,grossInc:138.75,postage:0,totalRev:149.99,itemCost:80,shipping:4.88,ebayFee:11.24,packaging:0,promoPercent:0.03,promoCost:4.4997,totalCost:100.6497,grossProfit:49.3403,roi:0.4902},
+    {id:'f11',dateListed:'2026-02-25',item:'Kids Music Piano Book',location:'Bed',dateSold:'2026-03-14',salePrice:5.99,grossInc:5.5,postage:2.94,totalRev:8.93,itemCost:0.2,shipping:2.94,ebayFee:0.49,packaging:0,promoPercent:0.05,promoCost:0.4465,totalCost:4.1265,grossProfit:4.8035,roi:1.1641},
+    {id:'f12',dateListed:'2026-02-25',item:'Star Wars Trilogy VHS Special Edition',location:'A101',dateSold:null,salePrice:12.99,grossInc:12.05,postage:0,totalRev:12.99,itemCost:2,shipping:2.94,ebayFee:0.94,packaging:0,promoPercent:0.05,promoCost:0.6495,totalCost:6.5795,grossProfit:null,roi:0.9743},
+    {id:'f13',dateListed:'2026-02-25',item:'Top Shine Elite Shoe Care Kit',location:'Bed',dateSold:null,salePrice:39.99,grossInc:37.78,postage:0,totalRev:39.99,itemCost:6,shipping:2.94,ebayFee:2.21,packaging:0,promoPercent:0.05,promoCost:1.9995,totalCost:13.1995,grossProfit:null,roi:2.0297},
+    {id:'f14',dateListed:'2026-02-25',item:'Hugo Boss Glasses Case',location:'Drawer',dateSold:'2026-03-02',salePrice:12.99,grossInc:12.05,postage:0,totalRev:12.99,itemCost:0,shipping:2.94,ebayFee:0.94,packaging:0,promoPercent:0.05,promoCost:0.6495,totalCost:4.5795,grossProfit:8.4105,roi:1.8366},
+    {id:'f15',dateListed:'2026-02-26',item:'Toy Story 3 Mr Potato Tub',location:'Wardrobe',dateSold:'2026-03-01',salePrice:22.99,grossInc:21.43,postage:0,totalRev:22.99,itemCost:2.5,shipping:3.88,ebayFee:1.56,packaging:0,promoPercent:0.05,promoCost:1.1495,totalCost:9.1395,grossProfit:13.8505,roi:1.5155},
+    {id:'f16',dateListed:'2026-02-26',item:'Tomee Tippee Nappy Bin',location:'Bedroom',dateSold:'2026-02-27',salePrice:13.99,grossInc:9.98,postage:0,totalRev:13.99,itemCost:0,shipping:3.71,ebayFee:4.01,packaging:0,promoPercent:0.05,promoCost:0.6995,totalCost:8.4695,grossProfit:5.5205,roi:0.6518},
+    {id:'f17',dateListed:'2026-02-27',item:'Grand Turismo PS1 - Manual Only',location:'Wardrobe',dateSold:null,salePrice:4.99,grossInc:4.67,postage:0,totalRev:4.99,itemCost:2.5,shipping:1,ebayFee:0.32,packaging:0,promoPercent:0.05,promoCost:0.2495,totalCost:4.1195,grossProfit:null,roi:0.2113},
+  ],
+  MAR: [
+    {id:'m1',dateListed:'2026-03-02',item:'Power Rangers Complete Season 1',location:'A101',dateSold:null,salePrice:24.99,grossInc:23.36,postage:0,totalRev:24.99,itemCost:6,shipping:2.94,ebayFee:1.63,packaging:0,promoPercent:0.05,promoCost:1.2495,totalCost:11.8695,grossProfit:null,roi:1.1054},
+    {id:'m2',dateListed:'2026-03-02',item:'Google Nest Mini Gen 1',location:'A101',dateSold:'2026-03-04',salePrice:23.99,grossInc:22.39,postage:0,totalRev:23.99,itemCost:10.15,shipping:2.94,ebayFee:1.6,packaging:0,promoPercent:0.05,promoCost:1.1995,totalCost:15.9395,grossProfit:8.0505,roi:0.5051},
+    {id:'m3',dateListed:'2026-03-03',item:'The Singing Machine Lights SML283BK',location:'Wardrobe',dateSold:null,salePrice:49.99,grossInc:47.39,postage:0,totalRev:49.99,itemCost:15,shipping:3.71,ebayFee:2.6,packaging:0,promoPercent:0.05,promoCost:2.4995,totalCost:23.8595,grossProfit:null,roi:1.0952},
+    {id:'m4',dateListed:'2026-03-03',item:'George RR Martin Book Set',location:'Bedroom',dateSold:'2026-03-06',salePrice:29.99,grossInc:28.16,postage:0,totalRev:29.99,itemCost:7,shipping:2.94,ebayFee:1.83,packaging:0,promoPercent:0.05,promoCost:1.4995,totalCost:13.3195,grossProfit:16.6705,roi:1.2516},
+    {id:'m5',dateListed:'2026-03-03',item:'Mr & Mrs Potato Head Bundle',location:'Bedroom',dateSold:'2026-03-09',salePrice:19.99,grossInc:18.59,postage:0,totalRev:19.99,itemCost:2,shipping:2.94,ebayFee:1.4,packaging:0,promoPercent:0.05,promoCost:0.9995,totalCost:7.3895,grossProfit:12.6005,roi:1.705},
+    {id:'m6',dateListed:'2026-03-07',item:'DK Illustrated Family Encyclopedia 16 Books',location:'Wardrobe',dateSold:null,salePrice:24.99,grossInc:23.36,postage:0,totalRev:24.99,itemCost:6,shipping:5.88,ebayFee:1.63,packaging:0,promoPercent:0.05,promoCost:1.2495,totalCost:14.8095,grossProfit:null,roi:0.6874},
+    {id:'m7',dateListed:'2026-03-07',item:'Google Nest Mini Gen 1 (B)',location:'A101',dateSold:null,salePrice:23.99,grossInc:22.39,postage:0,totalRev:23.99,itemCost:11.2,shipping:2.94,ebayFee:1.6,packaging:0,promoPercent:0.05,promoCost:1.1995,totalCost:16.9895,grossProfit:null,roi:0.412},
+    {id:'m8',dateListed:'2026-03-07',item:'Google Nest Mini Gen 1 (C)',location:'A101',dateSold:null,salePrice:23.99,grossInc:22.39,postage:0,totalRev:23.99,itemCost:12.25,shipping:2.94,ebayFee:1.6,packaging:0,promoPercent:0.05,promoCost:1.1995,totalCost:18.0395,grossProfit:null,roi:0.3299},
+    {id:'m9',dateListed:'2026-03-08',item:'Acer Aspire E5-571',location:'Bed',dateSold:'2026-03-18',salePrice:114.99,grossInc:109.89,postage:0,totalRev:114.99,itemCost:48.59,shipping:5.88,ebayFee:5.1,packaging:0,promoPercent:0.03,promoCost:3.4497,totalCost:63.0497,grossProfit:51.9403,roi:0.824},
+    {id:'m10',dateListed:'2026-03-08',item:'Canon 600D Astro Mod',location:'Bed',dateSold:'2026-03-11',salePrice:189.99,grossInc:182.01,postage:0,totalRev:189.99,itemCost:66.85,shipping:4.88,ebayFee:7.98,packaging:0,promoPercent:0.03,promoCost:5.6997,totalCost:85.4397,grossProfit:104.5503,roi:1.2237},
+    {id:'m11',dateListed:'2026-03-09',item:'MSI GeForce GTX 770 4GB Twin Frozr',location:'Bedroom',dateSold:null,salePrice:54.99,grossInc:52.2,postage:0,totalRev:54.99,itemCost:21.7,shipping:2.94,ebayFee:2.79,packaging:0,promoPercent:0.05,promoCost:2.7495,totalCost:30.2295,grossProfit:null,roi:0.8191},
+    {id:'m12',dateListed:'2026-03-10',item:'Playstation Backpack - Blue',location:'Bed',dateSold:null,salePrice:24.99,grossInc:23.36,postage:0,totalRev:24.99,itemCost:5.5,shipping:2.94,ebayFee:1.63,packaging:0,promoPercent:0.05,promoCost:1.2495,totalCost:11.3695,grossProfit:null,roi:1.198},
+    {id:'m13',dateListed:'2026-03-11',item:'Salus RT500RF Wireless Thermostat',location:'Bed',dateSold:'2026-03-16',salePrice:65,grossInc:61.83,postage:0,totalRev:65,itemCost:10,shipping:2.94,ebayFee:3.17,packaging:0,promoPercent:0.03,promoCost:1.95,totalCost:18.09,grossProfit:46.91,roi:2.5931},
+    {id:'m14',dateListed:'2026-03-12',item:'Siemens Remote Control 13A Adaptor 3 Pack',location:'Bed',dateSold:'2026-03-18',salePrice:39.99,grossInc:37.78,postage:0,totalRev:39.99,itemCost:2,shipping:2.94,ebayFee:2.21,packaging:0,promoPercent:0.05,promoCost:1.9995,totalCost:9.1995,grossProfit:30.7905,roi:3.347},
+    {id:'m15',dateListed:'2026-03-13',item:'Canon 1300D Full Kit and Lens',location:'Wardrobe',dateSold:null,salePrice:199.99,grossInc:191.63,postage:0,totalRev:199.99,itemCost:120.99,shipping:4.88,ebayFee:8.36,packaging:0,promoPercent:0.03,promoCost:5.9997,totalCost:140.2597,grossProfit:null,roi:0.4259},
+    {id:'m16',dateListed:'2026-03-15',item:'Apple Magic Touchpad',location:'A101',dateSold:'2026-03-15',salePrice:22.99,grossInc:21.43,postage:0,totalRev:22.99,itemCost:7.5,shipping:2.94,ebayFee:1.56,packaging:0,promoPercent:0.03,promoCost:0.6897,totalCost:12.7197,grossProfit:10.2703,roi:0.8074},
+    {id:'m17',dateListed:'2026-03-15',item:'Apple Magic Keyboard 1314 (A)',location:'A101',dateSold:null,salePrice:19.99,grossInc:18.59,postage:0,totalRev:19.99,itemCost:7.5,shipping:2.94,ebayFee:1.4,packaging:0,promoPercent:0.03,promoCost:0.5997,totalCost:12.4697,grossProfit:null,roi:0.6031},
+    {id:'m18',dateListed:'2026-03-15',item:'Apple Magic Keyboard 1314 (B)',location:'A101',dateSold:null,salePrice:19.99,grossInc:18.59,postage:0,totalRev:19.99,itemCost:7.5,shipping:2.94,ebayFee:1.4,packaging:0,promoPercent:0.03,promoCost:0.5997,totalCost:12.4697,grossProfit:null,roi:0.6031},
+    {id:'m19',dateListed:'2026-03-15',item:'Apple Magic Keyboard 1655',location:'A101',dateSold:'2026-03-16',salePrice:24.99,grossInc:23.36,postage:0,totalRev:24.99,itemCost:7.5,shipping:2.94,ebayFee:1.63,packaging:0,promoPercent:0.03,promoCost:0.7497,totalCost:12.8497,grossProfit:12.1403,roi:0.9448},
+    {id:'m20',dateListed:'2026-03-15',item:'Job Lot Magic Keyboards 1314/1255',location:'Bag',dateSold:null,salePrice:9.99,grossInc:9.24,postage:2.94,totalRev:12.93,itemCost:0,shipping:2.94,ebayFee:0.75,packaging:0,promoPercent:0.03,promoCost:0.3879,totalCost:4.1079,grossProfit:null,roi:2.1476},
+    {id:'m21',dateListed:'2026-03-16',item:'HUSKY Tyre Chains',location:'Bedroom',dateSold:null,salePrice:39.99,grossInc:37.78,postage:0,totalRev:39.99,itemCost:15,shipping:5.21,ebayFee:2.21,packaging:0,promoPercent:0.05,promoCost:1.9995,totalCost:24.4695,grossProfit:null,roi:0.6343},
+    {id:'m22',dateListed:'2026-03-17',item:'Samsung TV with remote',location:'Bedroom',dateSold:null,salePrice:59.99,grossInc:57.01,postage:0,totalRev:59.99,itemCost:7.5,shipping:5.21,ebayFee:2.98,packaging:0,promoPercent:0.03,promoCost:1.7997,totalCost:17.5197,grossProfit:null,roi:2.4241},
+  ]
+};
+
+// App state
+let appData = JSON.parse(localStorage.getItem('ebayData2026') || 'null') || {
+  items: {JAN:[],FEB:[...seedData.FEB],MAR:[...seedData.MAR],APR:[],MAY:[],JUN:[],JUL:[],AUG:[],SEP:[],OCT:[],NOV:[],DEC:[]},
+  stockValue: 665.82,
+  stockInput: 513.68
+};
+
+function save() { localStorage.setItem('ebayData2026', JSON.stringify(appData)); }
+
+// ==================== HELPERS ====================
+function £(n) { return n != null ? '£' + parseFloat(n).toFixed(2) : '—'; }
+function pct(n) { return n != null ? (n*100).toFixed(1)+'%' : '—'; }
+function daysBetween(d1, d2) {
+  const a = new Date(d1), b = new Date(d2);
+  return Math.round((b-a)/(1000*60*60*24));
+}
+function calcDaysListed(item) {
+  const end = item.dateSold ? new Date(item.dateSold) : new Date();
+  return daysBetween(item.dateListed, end);
+}
+
+function getMonthSoldItems(m) { return (appData.items[m]||[]).filter(i=>i.dateSold); }
+function getMonthUnsoldItems(m) { return (appData.items[m]||[]).filter(i=>!i.dateSold); }
+
+function monthTotals(m) {
+  const sold = getMonthSoldItems(m);
+  return {
+    revenue: sold.reduce((a,i)=>a+(i.totalRev||0),0),
+    totalCost: sold.reduce((a,i)=>a+(i.totalCost||0),0),
+    grossProfit: sold.reduce((a,i)=>a+(i.grossProfit||0),0),
+    itemsSold: sold.length,
+    itemsListed: (appData.items[m]||[]).length,
+    stockValue: getMonthUnsoldItems(m).reduce((a,i)=>a+(i.itemCost||0),0),
+  };
+}
+
+function yearTotals() {
+  let rev=0,cost=0,profit=0,sold=0,listed=0;
+  MONTHS.forEach(m=>{
+    const t=monthTotals(m);
+    rev+=t.revenue; cost+=t.totalCost; profit+=t.grossProfit; sold+=t.itemsSold; listed+=t.itemsListed;
+  });
+  return {rev,cost,profit,sold,listed};
+}
+
+function allUnsold() {
+  const items=[];
+  MONTHS.forEach(m=>{
+    getMonthUnsoldItems(m).forEach(i=>items.push({...i,month:m}));
+  });
+  return items;
+}
+
+function allSold() {
+  const items=[];
+  MONTHS.forEach(m=>{
+    getMonthSoldItems(m).forEach(i=>items.push({...i,month:m}));
+  });
+  return items;
+}
+
+// ==================== PAGES ====================
+function showPage(page) {
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.nav-tab').forEach(t=>t.classList.remove('active'));
+  document.getElementById('page-'+page).classList.add('active');
+  const tabs = {summary:0,monthly:1,inventory:2,sa:3};
+  document.querySelectorAll('.nav-tab')[tabs[page]]?.classList.add('active');
+  if(page==='summary') renderSummary();
+  if(page==='monthly') renderMonthDetail();
+  if(page==='inventory') renderInventory();
+  if(page==='sa') renderSA();
+}
+
+// ==================== SUMMARY ====================
+function renderSummary() {
+  const yt = yearTotals();
+  const unsold = allUnsold();
+  const unrealisedProfit = unsold.reduce((a,i)=>a+(i.grossProfit||((i.totalRev||i.salePrice||0)-(i.totalCost||0))),0);
+  const unrealisedStock = unsold.reduce((a,i)=>a+(i.itemCost||0),0);
+
+  const kpis = [
+    {label:'Total Revenue',value:£(yt.rev),sub:`${yt.sold} items sold`,color:''},
+    {label:'Gross Profit',value:£(yt.profit),sub:`Margin: ${yt.rev>0?((yt.profit/yt.rev)*100).toFixed(1)+'%':'—'}`,color:'green'},
+    {label:'Total Costs',value:£(yt.cost),sub:'eBay fees + shipping + stock',color:'red'},
+    {label:'Items Listed',value:yt.listed,sub:`${yt.sold} sold · ${yt.listed-yt.sold} active`,color:'blue'},
+    {label:'Stock on Hand',value:unsold.length+' items',sub:£(unrealisedStock)+' cost value',color:'blue'},
+    {label:'Unrealised Profit',value:£(unrealisedProfit),sub:'If all listed items sell',color:''},
+  ];
+  document.getElementById('kpi-grid').innerHTML = kpis.map(k=>`
+    <div class="kpi-card ${k.color}">
+      <div class="kpi-label">${k.label}</div>
+      <div class="kpi-value">${k.value}</div>
+      <div class="kpi-sub">${k.sub}</div>
+    </div>`).join('');
+
+  // Monthly grid
+  document.getElementById('monthly-grid').innerHTML = MONTHS.map(m=>{
+    const t=monthTotals(m);
+    return `<div class="month-card" onclick="goMonth('${m}')">
+      <div class="month-name">${MONTH_NAMES[m]}</div>
+      <div class="month-profit ${t.grossProfit>0?'positive':'zero'}">${t.grossProfit>0?£(t.grossProfit):'—'}</div>
+      <div class="month-items">${t.itemsSold} sold · ${t.itemsListed-t.itemsSold} listed</div>
+    </div>`;
+  }).join('');
+
+  // Top items
+  const top = allSold().filter(i=>i.grossProfit>0).sort((a,b)=>b.grossProfit-a.grossProfit).slice(0,8);
+  document.getElementById('top-items-body').innerHTML = top.map(i=>`<tr>
+    <td>${i.item}</td>
+    <td style="color:var(--muted)">${MONTH_NAMES[i.month]}</td>
+    <td>${£(i.salePrice)}</td>
+    <td style="color:var(--muted)">${£(i.itemCost)}</td>
+    <td class="profit-pos">${£(i.grossProfit)}</td>
+    <td style="color:var(--accent)">${(i.roi*100).toFixed(0)}%</td>
+  </tr>`).join('') || '<tr><td colspan="6" class="empty">No sold items yet</td></tr>';
+}
+
+function goMonth(m) {
+  document.getElementById('month-select').value = m;
+  showPage('monthly');
+}
+
+// ==================== MONTHLY DETAIL ====================
+function renderMonthDetail() {
+  const m = document.getElementById('month-select').value;
+  const items = appData.items[m] || [];
+  const t = monthTotals(m);
+  const sold = getMonthSoldItems(m);
+  const unsold = getMonthUnsoldItems(m);
+  const profitMade = sold.reduce((a,i)=>a+(i.grossProfit||0),0);
+  const profitRemaining = unsold.reduce((a,i)=>{
+    const p=(i.totalRev||i.salePrice||0)-(i.totalCost||0); return a+(p>0?p:0);
+  },0);
+  const totalPotential = profitMade + profitRemaining;
+
+  const el = document.getElementById('month-detail');
+  el.innerHTML = `
+    <div class="month-header">
+      <div class="month-title">${MONTH_NAMES[m]}</div>
+      <div class="month-stats">
+        <div class="month-stat"><div class="month-stat-val green">${£(t.grossProfit)}</div><div class="month-stat-label">Realised Profit</div></div>
+        <div class="month-stat"><div class="month-stat-val amber">${£(t.revenue)}</div><div class="month-stat-label">Revenue</div></div>
+        <div class="month-stat"><div class="month-stat-val" style="color:var(--muted)">${£(t.totalCost)}</div><div class="month-stat-label">Total Costs</div></div>
+        <div class="month-stat"><div class="month-stat-val">${t.itemsSold}/${t.itemsListed}</div><div class="month-stat-label">Sold/Listed</div></div>
+      </div>
+    </div>
+    ${totalPotential>0?`
+    <div style="margin-bottom:24px;">
+      <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-bottom:4px;">
+        <span>Realised: ${£(profitMade)} (${totalPotential>0?((profitMade/totalPotential)*100).toFixed(0):'0'}%)</span>
+        <span>Remaining: ${£(profitRemaining)}</span>
+      </div>
+      <div class="split-bar">
+        <div class="split-made" style="width:${totalPotential>0?((profitMade/totalPotential)*100).toFixed(1):0}%"></div>
+        <div class="split-remaining" style="flex:1"></div>
+      </div>
+    </div>`:''}
+    <div class="section-label">Add New Item</div>
+    <div class="form-section">
+      <div class="form-grid" id="add-form-${m}">
+        <div class="form-group"><label>Item Name</label><input type="text" id="f-item" placeholder="e.g. Nokia 3310"></div>
+        <div class="form-group"><label>Date Listed</label><input type="date" id="f-listed" value="${new Date().toISOString().split('T')[0]}"></div>
+        <div class="form-group"><label>Location</label><input type="text" id="f-loc" placeholder="e.g. Bed, A101"></div>
+        <div class="form-group"><label>Sale Price (£)</label><input type="number" id="f-price" step="0.01" placeholder="0.00"></div>
+        <div class="form-group"><label>Item Cost (£)</label><input type="number" id="f-cost" step="0.01" placeholder="0.00"></div>
+        <div class="form-group"><label>Shipping Cost (£)</label><input type="number" id="f-ship" step="0.01" placeholder="2.94"></div>
+        <div class="form-group"><label>eBay Fee (£)</label><input type="number" id="f-ebay" step="0.01" placeholder="auto"></div>
+        <div class="form-group"><label>Postage Fee (£)</label><input type="number" id="f-post" step="0.01" placeholder="0.00"></div>
+        <div class="form-group"><label>Promo %</label><input type="number" id="f-promo" step="0.01" placeholder="0.05"></div>
+        <div class="form-group"><label>Date Sold</label><input type="date" id="f-sold"></div>
+      </div>
+      <div class="form-actions">
+        <button class="btn btn-primary" onclick="addItem('${m}')">+ Add Item</button>
+        <button class="btn btn-secondary" onclick="autoCalc()">Auto Calculate</button>
+      </div>
+    </div>
+    <div class="section-label">Items This Month (${items.length})</div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr>
+          <th>Status</th><th>Item</th><th>Listed</th><th>Location</th><th>Sale Price</th>
+          <th>Total Rev</th><th>Item Cost</th><th>Ship</th><th>eBay Fee</th><th>Promo</th>
+          <th>Total Cost</th><th>Gross Profit</th><th>ROI</th><th>Actions</th>
+        </tr></thead>
+        <tbody>${items.map(i=>itemRow(i,m)).join('') || '<tr><td colspan="14" class="empty"><div class="empty-icon">📦</div>No items this month</td></tr>'}</tbody>
+      </table>
+    </div>
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px;margin-top:12px;">
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px;font-size:12px;">
+        ${[
+          ['Revenue',£(t.revenue),'var(--accent)'],
+          ['Total Costs',£(t.totalCost),'var(--red)'],
+          ['Gross Profit',£(t.grossProfit),'var(--green)'],
+          ['Profit (Sold Only)',£(profitMade),'var(--green)'],
+          ['Remaining (Unsold)',£(profitRemaining),'var(--muted)'],
+          ['Margin',t.revenue>0?((t.grossProfit/t.revenue)*100).toFixed(1)+'%':'—','var(--text)']
+        ].map(([l,v,c])=>`<div><div style="color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:0.8px;margin-bottom:4px">${l}</div><div style="color:${c};font-family:var(--font-head);font-size:18px;font-weight:700">${v}</div></div>`).join('')}
+      </div>
+    </div>
+  `;
+}
+
+function itemRow(i, m) {
+  const sold = !!i.dateSold;
+  const profit = i.grossProfit;
+  return `<tr>
+    <td><span class="badge ${sold?'badge-sold':'badge-listed'}">${sold?'Sold':'Listed'}</span></td>
+    <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis">${i.item}</td>
+    <td style="color:var(--muted)">${i.dateListed||'—'}</td>
+    <td style="color:var(--muted)">${i.location||'—'}</td>
+    <td>${£(i.salePrice)}</td>
+    <td>${£(i.totalRev)}</td>
+    <td style="color:var(--muted)">${£(i.itemCost)}</td>
+    <td style="color:var(--muted)">${£(i.shipping)}</td>
+    <td style="color:var(--muted)">${£(i.ebayFee)}</td>
+    <td style="color:var(--muted)">${i.promoCost!=null?£(i.promoCost):'—'}</td>
+    <td style="color:var(--red)">${£(i.totalCost)}</td>
+    <td class="${profit>0?'profit-pos':profit<0?'profit-neg':''}">${profit!=null?£(profit):'—'}</td>
+    <td style="color:var(--accent)">${i.roi!=null?(i.roi*100).toFixed(0)+'%':'—'}</td>
+    <td style="display:flex;gap:4px;align-items:center">
+      ${!sold?`<button class="mark-sold-btn" onclick="markSold('${m}','${i.id}')">Mark Sold</button>`:''}
+      <button class="del-btn" onclick="deleteItem('${m}','${i.id}')">✕</button>
+    </td>
+  </tr>`;
+}
+
+function autoCalc() {
+  const price = parseFloat(document.getElementById('f-price').value)||0;
+  const cost = parseFloat(document.getElementById('f-cost').value)||0;
+  const ship = parseFloat(document.getElementById('f-ship').value)||2.94;
+  const post = parseFloat(document.getElementById('f-post').value)||0;
+  const promoP = parseFloat(document.getElementById('f-promo').value)||0.05;
+  // eBay final value fee ~9.3% for most categories
+  const ebayFee = price > 0 ? parseFloat((price * 0.093).toFixed(2)) : 0;
+  document.getElementById('f-ebay').value = ebayFee;
+  toast('eBay fee auto-calculated at 9.3%');
+}
+
+function addItem(m) {
+  const item = document.getElementById('f-item').value.trim();
+  if(!item) { toast('Please enter an item name','error'); return; }
+  const price = parseFloat(document.getElementById('f-price').value)||0;
+  const cost = parseFloat(document.getElementById('f-cost').value)||0;
+  const ship = parseFloat(document.getElementById('f-ship').value)||0;
+  const ebayFee = parseFloat(document.getElementById('f-ebay').value)||0;
+  const post = parseFloat(document.getElementById('f-post').value)||0;
+  const promoP = parseFloat(document.getElementById('f-promo').value)||0;
+  const soldDate = document.getElementById('f-sold').value || null;
+  const promoCost = price * promoP;
+  const totalCost = cost + ship + ebayFee + promoCost;
+  const totalRev = price + post;
+  const grossInc = price * 0.927; // approx after eBay
+  const grossProfit = soldDate ? totalRev - totalCost : null;
+  const roi = cost > 0 ? (totalRev - totalCost) / cost : null;
+
+  const newItem = {
+    id: Date.now().toString(),
+    dateListed: document.getElementById('f-listed').value,
+    item, location: document.getElementById('f-loc').value,
+    dateSold: soldDate,
+    salePrice: price, grossInc, postage: post, totalRev,
+    itemCost: cost, shipping: ship, ebayFee, packaging: 0,
+    promoPercent: promoP, promoCost, totalCost,
+    grossProfit: soldDate ? grossProfit : null,
+    roi
+  };
+  appData.items[m].push(newItem);
+  save();
+  renderMonthDetail();
+  toast('Item added — '+item);
+}
+
+function deleteItem(m, id) {
+  appData.items[m] = appData.items[m].filter(i=>i.id!==id);
+  save(); renderMonthDetail(); toast('Item removed');
+}
+
+function markSold(m, id) {
+  const item = appData.items[m].find(i=>i.id===id);
+  if(!item) return;
+  const dateStr = prompt('Date sold (YYYY-MM-DD):', new Date().toISOString().split('T')[0]);
+  if(!dateStr) return;
+  item.dateSold = dateStr;
+  item.grossProfit = (item.totalRev||item.salePrice||0) - (item.totalCost||0);
+  save(); renderMonthDetail(); toast('Marked as sold!');
+}
+
+// ==================== INVENTORY ====================
+let currentFilter = 'all';
+function filterInv(f, btn) {
+  currentFilter = f;
+  document.querySelectorAll('.filter-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  renderInventory();
+}
+
+function renderInventory() {
+  let items = allUnsold();
+  if(currentFilter !== 'all') items = items.filter(i=>i.location===currentFilter);
+
+  const totalCostVal = items.reduce((a,i)=>a+(i.itemCost||0),0);
+  const totalPotential = items.reduce((a,i)=>a+((i.totalRev||i.salePrice||0)-(i.totalCost||0)),0);
+
+  document.getElementById('inv-kpis').innerHTML = `
+    <div class="kpi-card blue"><div class="kpi-label">Items in Stock</div><div class="kpi-value">${items.length}</div><div class="kpi-sub">Across ${[...new Set(items.map(i=>i.location))].filter(Boolean).length} locations</div></div>
+    <div class="kpi-card"><div class="kpi-label">Stock Cost Value</div><div class="kpi-value">${£(totalCostVal)}</div><div class="kpi-sub">Total capital tied up</div></div>
+    <div class="kpi-card green"><div class="kpi-label">Potential Profit</div><div class="kpi-value">${£(totalPotential)}</div><div class="kpi-sub">If all items sell at list price</div></div>
+  `;
+
+  document.getElementById('inv-table-body').innerHTML = items.length ? items.sort((a,b)=>calcDaysListed(b)-calcDaysListed(a)).map(i=>{
+    const days = calcDaysListed(i);
+    const pot = (i.totalRev||i.salePrice||0)-(i.totalCost||0);
+    return `<tr>
+      <td style="max-width:200px">${i.item}</td>
+      <td style="color:var(--muted)">${i.dateListed||'—'}</td>
+      <td><span class="badge badge-listed">${i.location||'—'}</span></td>
+      <td style="color:${days>30?'var(--red)':days>14?'var(--accent)':'var(--muted)'}">${days}d</td>
+      <td>${£(i.salePrice)}</td>
+      <td style="color:var(--muted)">${£(i.itemCost)}</td>
+      <td class="${pot>0?'profit-pos':'profit-neg'}">${£(pot)}</td>
+      <td style="color:var(--accent)">${i.roi!=null?(i.roi*100).toFixed(0)+'%':'—'}</td>
+      <td><button class="mark-sold-btn" onclick="markSoldFromInv('${i.month}','${i.id}')">Mark Sold</button></td>
+    </tr>`;
+  }).join('') : `<tr><td colspan="9" class="empty"><div class="empty-icon">🎉</div>All items sold!</td></tr>`;
+}
+
+function markSoldFromInv(m, id) {
+  const dateStr = prompt('Date sold (YYYY-MM-DD):', new Date().toISOString().split('T')[0]);
+  if(!dateStr) return;
+  const item = appData.items[m].find(i=>i.id===id);
+  if(!item) return;
+  item.dateSold = dateStr;
+  item.grossProfit = (item.totalRev||item.salePrice||0) - (item.totalCost||0);
+  save(); renderInventory(); toast('Marked as sold!');
+}
+
+// ==================== SELF ASSESSMENT ====================
+function renderSA() {
+  const yt = yearTotals();
+  const unsold = allUnsold();
+  const stockCost = unsold.reduce((a,i)=>a+(i.itemCost||0),0);
+
+  // SA103 figures
+  const grossIncome = yt.rev;
+  const totalExpenses = yt.cost;
+  const netProfit = yt.profit;
+  // Simplified tax estimate (sole trader, basic rate, personal allowance £12,570)
+  const taxableIncome = Math.max(0, netProfit - 12570);
+  const incomeTax = taxableIncome <= 37700 ? taxableIncome * 0.20 : 37700*0.20 + (taxableIncome-37700)*0.40;
+  const ni = Math.max(0,(netProfit - 12570) * 0.09); // Class 4 NI simplified
+
+  document.getElementById('sa-income').innerHTML = [
+    ['Gross Income (Revenue)',£(grossIncome),'amber'],
+    ['Cost of Goods Sold',£(yt.cost),''],
+    ['eBay Fees','(included in costs)',''],
+    ['Postage & Packaging','(included in costs)',''],
+    ['Total Allowable Expenses',£(totalExpenses),'red'],
+    ['Net Profit / Loss',£(netProfit),netProfit>=0?'green':'red'],
+  ].map(([l,v,c])=>`<div class="sa-row"><span>${l}</span><span class="sa-val ${c}">${v}</span></div>`).join('');
+
+  document.getElementById('sa-profit').innerHTML = [
+    ['Net Profit',£(netProfit),netProfit>=0?'green':'red'],
+    ['Personal Allowance','£12,570',''],
+    ['Taxable Income',£(taxableIncome),'amber'],
+    ['Est. Income Tax (20/40%)',£(incomeTax),'red'],
+    ['Est. Class 4 NI (9%)',£(ni),'red'],
+    ['Est. Total Tax Liability',£(incomeTax+ni),'red'],
+    ['Est. Take-Home',£(netProfit-incomeTax-ni),'green'],
+  ].map(([l,v,c])=>`<div class="sa-row"><span>${l}</span><span class="sa-val ${c}">${v}</span></div>`).join('');
+
+  const saText = `SA103 SELF-EMPLOYMENT SUPPLEMENTARY PAGES
+Tax Year: 6 April 2025 – 5 April 2026
+Business Name: eBay Reselling
+Business Description: Online resale of second-hand goods via eBay
+Accounting Method: Cash basis
+
+INCOME
+Box 15 - Business income (turnover): ${grossIncome.toFixed(2)}
+
+EXPENSES
+Box 16 - Cost of goods bought for resale: ${yt.cost.toFixed(2)}
+Box 30 - Total allowable expenses: ${yt.cost.toFixed(2)}
+
+PROFIT
+Box 31 - Net profit: ${netProfit.toFixed(2)}
+
+STOCK
+Stock value (unsold items): ${stockCost.toFixed(2)}
+Number of unsold items: ${unsold.length}
+
+---
+Generated: ${new Date().toLocaleDateString('en-GB')}
+⚠ Estimated figures only — verify with HMRC guidance.`;
+
+  document.getElementById('sa-box').textContent = saText;
+}
+
+function copySA() {
+  navigator.clipboard.writeText(document.getElementById('sa-box').textContent);
+  toast('Copied to clipboard!');
+}
+
+function downloadSA() {
+  const text = document.getElementById('sa-box').textContent;
+  const blob = new Blob([text], {type:'text/plain'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'SA103_eBay_2026.txt';
+  a.click();
+  toast('Downloaded!');
+}
+
+// ==================== TOAST ====================
+function toast(msg, type='success') {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.style.borderColor = type==='error'?'var(--red)':'var(--green)';
+  el.style.color = type==='error'?'var(--red)':'var(--green)';
+  el.classList.add('show');
+  setTimeout(()=>el.classList.remove('show'), 2500);
+}
+
+// ==================== INIT ====================
+renderSummary();
+</script>
+</body>
+</html>
