@@ -26,7 +26,7 @@ nav{position:sticky;top:0;z-index:200;background:rgba(10,11,14,0.97);backdrop-fi
 .kcard::after{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:var(--accent);}
 .kcard.g::after{background:var(--green);}.kcard.r::after{background:var(--red);}.kcard.b::after{background:var(--blue);}.kcard.p::after{background:var(--purple);}
 .klabel{font-size:11px;color:var(--muted2);text-transform:uppercase;letter-spacing:1.2px;margin-bottom:8px;font-weight:500;}
-.kval{font-family:var(--fh);font-size:28px;font-weight:800;line-height:1;}
+.kval{font-family:var(--fh);font-size:24px;font-weight:800;line-height:1.1;white-space:nowrap;letter-spacing:-1px;overflow:hidden;text-overflow:ellipsis;}
 .ksub{font-size:12px;color:var(--muted2);margin-top:6px;}
 .sl{font-size:11px;color:var(--muted2);text-transform:uppercase;letter-spacing:1.2px;margin:28px 0 16px;display:flex;align-items:center;gap:12px;font-weight:500;}
 .sl::after{content:'';flex:1;height:1px;background:var(--border);}
@@ -102,6 +102,22 @@ tbody tr:hover td{background:var(--surface2);}
 #modal input:focus{outline:none;border-color:var(--accent);}
 #modal .mbtns{display:flex;gap:10px;justify-content:flex-end;}
 @media(max-width:600px){nav{padding:0 14px;height:54px;}.brand-general,.brand-007{font-size:16px;}.tab{padding:6px 10px;font-size:13px;}.page{padding:18px 14px;}}
+
+.chart-wrap{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:22px;margin-bottom:28px;}
+.chart-title{font-family:var(--fh);font-size:13px;font-weight:700;color:var(--muted2);text-transform:uppercase;letter-spacing:1px;margin-bottom:18px;display:flex;align-items:center;gap:16px;}
+.chart-legend{display:flex;gap:16px;margin-left:auto;}
+.leg{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--muted2);}
+.leg-dot{width:8px;height:8px;border-radius:2px;}
+.bars-wrap{display:flex;align-items:flex-end;gap:6px;height:160px;padding-bottom:28px;position:relative;}
+.bars-wrap::after{content:'';position:absolute;bottom:28px;left:0;right:0;height:1px;background:var(--border);}
+.bar-group{display:flex;flex-direction:column;align-items:center;gap:2px;flex:1;min-width:0;}
+.bar-pair{display:flex;align-items:flex-end;gap:2px;width:100%;height:132px;}
+.bar-rev{background:var(--blue);border-radius:3px 3px 0 0;width:55%;transition:opacity 0.15s;min-height:2px;}
+.bar-rev:hover{opacity:0.8;}
+.bar-prof{background:var(--green);border-radius:3px 3px 0 0;width:45%;transition:opacity 0.15s;min-height:0;}
+.bar-prof:hover{opacity:0.8;}
+.bar-label{font-size:9px;color:var(--muted);text-align:center;margin-top:4px;font-family:var(--fm);}
+.bar-zero .bar-rev{opacity:0.15;}
 </style>
 </head>
 <body>
@@ -147,6 +163,34 @@ const MN={JAN:'January',FEB:'February',MAR:'March',APR:'April',MAY:'May',JUN:'Ju
 const fmt=n=>n!=null?'£'+parseFloat(n).toFixed(2):'--';
 let DB,invFilter='all',_st=null;
 
+
+function renderChart(){
+  const data=MONTHS.map(m=>{const t=mT(m);return{m,rev:t.rev,profit:t.profit};});
+  const maxRev=Math.max(...data.map(d=>d.rev),1);
+  let bars='';
+  data.forEach(d=>{
+    const revH=Math.round((d.rev/maxRev)*132);
+    const profH=d.profit>0?Math.round((d.profit/maxRev)*132):0;
+    const label=d.m.charAt(0)+d.m.slice(1,3).toLowerCase().charAt(0);
+    const empty=d.rev===0?' bar-zero':'';
+    bars+=`<div class="bar-group${empty}">
+      <div class="bar-pair">
+        <div class="bar-rev" style="height:${revH}px"></div>
+        <div class="bar-prof" style="height:${profH}px"></div>
+      </div>
+      <div class="bar-label">${MN[d.m].slice(0,3)}</div>
+    </div>`;
+  });
+  return`<div class="chart-wrap">
+    <div class="chart-title">Monthly Performance
+      <div class="chart-legend">
+        <div class="leg"><div class="leg-dot" style="background:var(--blue)"></div>Revenue</div>
+        <div class="leg"><div class="leg-dot" style="background:var(--green)"></div>Profit</div>
+      </div>
+    </div>
+    <div class="bars-wrap">${bars}</div>
+  </div>`;
+}
 function initDB(){
   try{const s=localStorage.getItem('g007v3');if(s){DB=JSON.parse(s);return;}}catch(e){}
   DB=JSON.parse(JSON.stringify(SEED));
@@ -183,6 +227,7 @@ function renderSummary(){
     <div class="page-title" style="color:var(--accent)">2026</div>
     <div class="page-sub">eBay Reselling -- Annual Overview</div>
     <div class="kgrid">${kc('Total Revenue',fmt(yt.rev),yt.nSold+' items sold','')}${kc('Gross Profit',fmt(yt.profit),'Margin: '+(yt.rev>0?((yt.profit/yt.rev)*100).toFixed(1)+'%':'--'),'g')}${kc('Total Costs',fmt(yt.cost),'Fees + shipping + stock','r')}${kc('Stock on Hand',u.length+' items',fmt(sc)+' cost value','b')}${kc('Unrealised Profit',fmt(unreal),'If all listed items sell','p')}${kc('Items Listed',yt.nTotal,yt.nSold+' sold · '+(yt.nTotal-yt.nSold)+' active','')}</div>
+    ${renderChart()}
     <div class="sl">Monthly breakdown</div>
     <div class="mgrid">${MONTHS.map(m=>{const t=mT(m);return`<div class="mcard" onclick="goMonth('${m}')"><div class="mname">${MN[m]}</div><div class="mval ${t.profit>0?'pos':'nil'}">${t.profit>0?fmt(t.profit):'--'}</div><div class="msub">${t.nSold} sold · ${t.nTotal-t.nSold} listed</div></div>`;}).join('')}</div>
     <div class="sl">Top performers</div>
