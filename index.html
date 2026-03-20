@@ -4,284 +4,122 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>eBay Tracker 2026</title>
-<link href="https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,400;0,500;1,400&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
 <style>
-:root {
-  --bg: #0c0d10;
-  --surface: #13151a;
-  --surface2: #1a1d25;
-  --border: #252830;
-  --border2: #2e3240;
-  --accent: #f0b429;
-  --green: #2dd4a0;
-  --red: #f56565;
-  --blue: #63b3ed;
-  --purple: #b794f4;
-  --text: #e2e8f0;
-  --muted: #5a6480;
-  --muted2: #8892b0;
-  --fh: 'Syne', sans-serif;
-  --fm: 'DM Mono', monospace;
-}
-* { box-sizing: border-box; margin: 0; padding: 0; }
-html { scroll-behavior: smooth; }
-body { background: var(--bg); color: var(--text); font-family: var(--fm); font-size: 13px; min-height: 100vh; }
-
-/* NAV */
-nav {
-  position: sticky; top: 0; z-index: 200;
-  background: rgba(12,13,16,0.95);
-  backdrop-filter: blur(12px);
-  border-bottom: 1px solid var(--border);
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 0 20px; height: 52px;
-}
-.brand { font-family: var(--fh); font-weight: 800; font-size: 17px; color: var(--accent); letter-spacing: -0.5px; }
-.brand span { color: var(--text); opacity: 0.6; }
-.tabs { display: flex; gap: 2px; }
-.tab {
-  padding: 5px 14px; border-radius: 6px; border: none; cursor: pointer;
-  font-family: var(--fm); font-size: 12px; background: transparent; color: var(--muted2);
-  transition: all 0.15s;
-}
-.tab:hover { color: var(--text); background: var(--surface2); }
-.tab.on { background: var(--accent); color: #000; font-weight: 500; }
-.nav-tag { font-size: 11px; color: var(--muted); }
-
-/* LAYOUT */
-.page { display: none; max-width: 1100px; margin: 0 auto; padding: 28px 20px; }
-.page.on { display: block; }
-
-/* CARDS */
-.kgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(185px,1fr)); gap: 12px; margin-bottom: 28px; }
-.kcard {
-  background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
-  padding: 18px 16px; position: relative; overflow: hidden;
-}
-.kcard::after { content:''; position:absolute; top:0; left:0; right:0; height:2px; background: var(--accent); }
-.kcard.g::after { background: var(--green); }
-.kcard.r::after { background: var(--red); }
-.kcard.b::after { background: var(--blue); }
-.kcard.p::after { background: var(--purple); }
-.klabel { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px; }
-.kval { font-family: var(--fh); font-size: 26px; font-weight: 700; line-height: 1; }
-.ksub { font-size: 11px; color: var(--muted2); margin-top: 5px; }
-
-/* SECTION LABEL */
-.sl { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 1.2px; margin: 24px 0 14px; display: flex; align-items: center; gap: 10px; }
-.sl::after { content:''; flex:1; height:1px; background: var(--border); }
-
-/* MONTH GRID */
-.mgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px,1fr)); gap: 10px; margin-bottom: 28px; }
-.mcard {
-  background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
-  padding: 14px; cursor: pointer; transition: all 0.15s;
-}
-.mcard:hover { border-color: var(--accent); transform: translateY(-1px); }
-.mname { font-family: var(--fh); font-weight: 700; font-size: 13px; margin-bottom: 6px; }
-.mval { font-size: 17px; font-weight: 500; }
-.mval.pos { color: var(--green); }
-.mval.nil { color: var(--muted); }
-.msub { font-size: 10px; color: var(--muted); margin-top: 3px; }
-
-/* TABLE */
-.twrap { overflow-x: auto; border-radius: 8px; border: 1px solid var(--border); margin-bottom: 20px; }
-table { width: 100%; border-collapse: collapse; font-size: 12px; }
-thead { background: var(--surface2); }
-th { padding: 9px 12px; text-align: left; color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: 0.8px; white-space: nowrap; border-bottom: 1px solid var(--border); font-weight: 400; }
-td { padding: 9px 12px; border-bottom: 1px solid var(--border); white-space: nowrap; vertical-align: middle; }
-tr:last-child td { border-bottom: none; }
-tbody tr:hover td { background: var(--surface2); }
-.pos { color: var(--green); }
-.neg { color: var(--red); }
-.dim { color: var(--muted2); }
-
-/* BADGES */
-.badge { display: inline-block; padding: 2px 7px; border-radius: 4px; font-size: 10px; font-weight: 500; }
-.sold-b { background: rgba(45,212,160,0.12); color: var(--green); }
-.listed-b { background: rgba(240,180,41,0.12); color: var(--accent); }
-
-/* FORM */
-.fsec { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 20px; margin-bottom: 20px; }
-.ftitle { font-family: var(--fh); font-weight: 700; font-size: 14px; margin-bottom: 16px; color: var(--accent); }
-.fgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px,1fr)); gap: 10px; }
-.fg { display: flex; flex-direction: column; gap: 5px; }
-.fg label { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.8px; }
-.fg input, .fg select {
-  background: var(--bg); border: 1px solid var(--border2); border-radius: 6px;
-  padding: 7px 9px; color: var(--text); font-family: var(--fm); font-size: 12px;
-  transition: border-color 0.15s; width: 100%;
-}
-.fg input:focus, .fg select:focus { outline: none; border-color: var(--accent); }
-.fg input::placeholder { color: var(--muted); }
-.fbtns { display: flex; gap: 8px; margin-top: 14px; flex-wrap: wrap; }
-.btn { padding: 7px 18px; border-radius: 6px; border: none; cursor: pointer; font-family: var(--fm); font-size: 12px; transition: all 0.15s; }
-.btn-p { background: var(--accent); color: #000; font-weight: 500; }
-.btn-p:hover { opacity: 0.9; }
-.btn-s { background: var(--surface2); color: var(--text); border: 1px solid var(--border2); }
-.btn-s:hover { border-color: var(--accent); color: var(--accent); }
-.btn-d { background: rgba(245,101,101,0.1); color: var(--red); border: 1px solid rgba(245,101,101,0.25); }
-.btn-d:hover { background: rgba(245,101,101,0.2); }
-
-/* MONTH DETAIL */
-.mhdr { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-bottom: 24px; }
-.mtitle { font-family: var(--fh); font-size: 30px; font-weight: 800; }
-.mstats { display: flex; gap: 10px; flex-wrap: wrap; }
-.mstat { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 9px 14px; text-align: center; }
-.msv { font-family: var(--fh); font-size: 18px; font-weight: 700; }
-.msl { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; margin-top: 2px; }
-
-/* PROGRESS BAR */
-.pbar-wrap { margin-bottom: 22px; }
-.pbar-labels { display: flex; justify-content: space-between; font-size: 11px; color: var(--muted2); margin-bottom: 5px; }
-.pbar { height: 6px; border-radius: 3px; background: var(--surface2); overflow: hidden; }
-.pbar-fill { height: 100%; background: var(--green); border-radius: 3px; transition: width 0.5s; }
-
-/* SUMMARY FOOTER */
-.sfooter { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 16px; margin-top: 14px; }
-.sfgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px,1fr)); gap: 12px; }
-.sfitem .sflabel { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 4px; }
-.sfitem .sfval { font-family: var(--fh); font-size: 18px; font-weight: 700; }
-
-/* ACTION BTNS IN TABLE */
-.tbtn { padding: 3px 8px; border-radius: 4px; font-size: 10px; font-family: var(--fm); cursor: pointer; border: 1px solid var(--border2); background: transparent; color: var(--muted2); transition: all 0.12s; white-space: nowrap; }
-.tbtn:hover { border-color: var(--accent); color: var(--accent); }
-.tbtn.del { border-color: rgba(245,101,101,0.3); color: var(--red); }
-.tbtn.del:hover { background: rgba(245,101,101,0.1); }
-
-/* SA PAGE */
-.sa-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px; }
-@media(max-width:640px){ .sa-grid { grid-template-columns: 1fr; } }
-.sacard { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 20px; }
-.sacard-title { font-family: var(--fh); font-weight: 700; font-size: 13px; color: var(--accent); margin-bottom: 14px; }
-.sarow { display: flex; justify-content: space-between; align-items: center; padding: 7px 0; border-bottom: 1px solid var(--border); font-size: 12px; }
-.sarow:last-child { border-bottom: none; font-size: 13px; font-weight: 500; }
-.notice { background: rgba(240,180,41,0.08); border: 1px solid rgba(240,180,41,0.25); border-radius: 7px; padding: 11px 14px; font-size: 12px; color: var(--accent); margin-bottom: 20px; line-height: 1.5; }
-.sabox { background: var(--bg); border: 1px solid var(--border); border-radius: 7px; padding: 14px; font-size: 11px; color: var(--muted2); line-height: 1.9; white-space: pre-wrap; margin-bottom: 12px; font-family: var(--fm); }
-
-/* INV FILTERS */
-.filters { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 16px; }
-.fbtn { padding: 4px 12px; border-radius: 5px; border: 1px solid var(--border2); background: transparent; color: var(--muted2); font-family: var(--fm); font-size: 11px; cursor: pointer; transition: all 0.12s; }
-.fbtn:hover, .fbtn.on { border-color: var(--accent); color: var(--accent); background: rgba(240,180,41,0.06); }
-
-/* SELECT ROW */
-.selrow { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; }
-.selrow select { background: var(--surface); border: 1px solid var(--border2); border-radius: 6px; padding: 6px 10px; color: var(--text); font-family: var(--fm); font-size: 12px; }
-.backbtn { background: none; border: none; color: var(--muted2); font-family: var(--fm); font-size: 12px; cursor: pointer; display: flex; align-items: center; gap: 4px; }
-.backbtn:hover { color: var(--accent); }
-
-/* EMPTY */
-.empty { text-align: center; padding: 40px; color: var(--muted); font-size: 12px; }
-
-/* TOAST */
-#toast { position: fixed; bottom: 20px; right: 20px; background: var(--surface); border: 1px solid var(--green); color: var(--green); padding: 10px 18px; border-radius: 7px; font-size: 12px; z-index: 9999; opacity: 0; transform: translateY(8px); transition: all 0.2s; pointer-events: none; }
-#toast.on { opacity: 1; transform: translateY(0); }
-#toast.err { border-color: var(--red); color: var(--red); }
-
-/* MODAL */
-#modal-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.7); z-index:500; align-items:center; justify-content:center; }
-#modal-overlay.on { display:flex; }
-#modal { background:var(--surface); border:1px solid var(--border2); border-radius:12px; padding:24px; width:90%; max-width:360px; }
-#modal h3 { font-family:var(--fh); font-weight:700; font-size:16px; margin-bottom:16px; }
-#modal input { width:100%; background:var(--bg); border:1px solid var(--border2); border-radius:6px; padding:8px 10px; color:var(--text); font-family:var(--fm); font-size:12px; margin-bottom:14px; }
-#modal input:focus { outline:none; border-color:var(--accent); }
-#modal .mbtns { display:flex; gap:8px; justify-content:flex-end; }
-
-@media(max-width:600px){
-  nav { padding: 0 12px; }
-  .page { padding: 16px 12px; }
-  .tab { padding: 4px 8px; font-size: 11px; }
-}
+:root{--bg:#0c0d10;--surface:#13151a;--surface2:#1a1d25;--border:#252830;--border2:#2e3240;--accent:#f0b429;--green:#2dd4a0;--red:#f56565;--blue:#63b3ed;--purple:#b794f4;--text:#e2e8f0;--muted:#5a6480;--muted2:#8892b0;--fh:'Syne',sans-serif;--fm:'DM Mono',monospace;}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:var(--fm);font-size:13px;min-height:100vh;}
+nav{position:sticky;top:0;z-index:200;background:rgba(12,13,16,0.96);backdrop-filter:blur(12px);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;padding:0 20px;height:52px;}
+.brand{font-family:var(--fh);font-weight:800;font-size:17px;color:var(--accent);letter-spacing:-0.5px;}
+.brand span{color:var(--text);opacity:0.5;}
+.tabs{display:flex;gap:2px;}
+.tab{padding:5px 14px;border-radius:6px;border:none;cursor:pointer;font-family:var(--fm);font-size:12px;background:transparent;color:var(--muted2);transition:all 0.15s;}
+.tab:hover{color:var(--text);background:var(--surface2);}
+.tab.on{background:var(--accent);color:#000;font-weight:500;}
+.page{display:none;max-width:1100px;margin:0 auto;padding:28px 20px;}
+.page.on{display:block;}
+.kgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(185px,1fr));gap:12px;margin-bottom:28px;}
+.kcard{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:18px 16px;position:relative;overflow:hidden;}
+.kcard::after{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:var(--accent);}
+.kcard.g::after{background:var(--green);}.kcard.r::after{background:var(--red);}.kcard.b::after{background:var(--blue);}.kcard.p::after{background:var(--purple);}
+.klabel{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;}
+.kval{font-family:var(--fh);font-size:26px;font-weight:700;line-height:1;}
+.ksub{font-size:11px;color:var(--muted2);margin-top:5px;}
+.sl{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1.2px;margin:24px 0 14px;display:flex;align-items:center;gap:10px;}
+.sl::after{content:'';flex:1;height:1px;background:var(--border);}
+.mgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-bottom:28px;}
+.mcard{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px;cursor:pointer;transition:all 0.15s;}
+.mcard:hover{border-color:var(--accent);transform:translateY(-1px);}
+.mname{font-family:var(--fh);font-weight:700;font-size:13px;margin-bottom:6px;}
+.mval{font-size:17px;font-weight:500;}.mval.pos{color:var(--green);}.mval.nil{color:var(--muted);}
+.msub{font-size:10px;color:var(--muted);margin-top:3px;}
+.twrap{overflow-x:auto;border-radius:8px;border:1px solid var(--border);margin-bottom:20px;}
+table{width:100%;border-collapse:collapse;font-size:12px;}
+thead{background:var(--surface2);}
+th{padding:9px 12px;text-align:left;color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:0.8px;white-space:nowrap;border-bottom:1px solid var(--border);font-weight:400;}
+td{padding:9px 12px;border-bottom:1px solid var(--border);white-space:nowrap;vertical-align:middle;}
+tr:last-child td{border-bottom:none;}
+tbody tr:hover td{background:var(--surface2);}
+.pos{color:var(--green);}.neg{color:var(--red);}.dim{color:var(--muted2);}
+.badge{display:inline-block;padding:2px 7px;border-radius:4px;font-size:10px;font-weight:500;}
+.sold-b{background:rgba(45,212,160,0.12);color:var(--green);}.listed-b{background:rgba(240,180,41,0.12);color:var(--accent);}
+.fsec{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:20px;margin-bottom:20px;}
+.fgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px;}
+.fg{display:flex;flex-direction:column;gap:5px;}
+.fg label{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:0.8px;}
+.fg input,.fg select{background:var(--bg);border:1px solid var(--border2);border-radius:6px;padding:7px 9px;color:var(--text);font-family:var(--fm);font-size:12px;transition:border-color 0.15s;width:100%;}
+.fg input:focus,.fg select:focus{outline:none;border-color:var(--accent);}
+.fg input::placeholder{color:var(--muted);}
+.fbtns{display:flex;gap:8px;margin-top:14px;flex-wrap:wrap;}
+.btn{padding:7px 18px;border-radius:6px;border:none;cursor:pointer;font-family:var(--fm);font-size:12px;transition:all 0.15s;}
+.btn-p{background:var(--accent);color:#000;font-weight:500;}.btn-p:hover{opacity:0.9;}
+.btn-s{background:var(--surface2);color:var(--text);border:1px solid var(--border2);}.btn-s:hover{border-color:var(--accent);color:var(--accent);}
+.mhdr{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:24px;}
+.mtitle{font-family:var(--fh);font-size:30px;font-weight:800;}
+.mstats{display:flex;gap:10px;flex-wrap:wrap;}
+.mstat{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:9px 14px;text-align:center;}
+.msv{font-family:var(--fh);font-size:18px;font-weight:700;}
+.msl{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin-top:2px;}
+.pbar-wrap{margin-bottom:22px;}
+.pbar-labels{display:flex;justify-content:space-between;font-size:11px;color:var(--muted2);margin-bottom:5px;}
+.pbar{height:6px;border-radius:3px;background:var(--surface2);overflow:hidden;}
+.pbar-fill{height:100%;background:var(--green);border-radius:3px;}
+.sfooter{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px;margin-top:14px;}
+.sfgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:12px;}
+.sflabel{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:4px;}
+.sfval{font-family:var(--fh);font-size:18px;font-weight:700;}
+.tbtn{padding:3px 8px;border-radius:4px;font-size:10px;font-family:var(--fm);cursor:pointer;border:1px solid var(--border2);background:transparent;color:var(--muted2);transition:all 0.12s;white-space:nowrap;}
+.tbtn:hover{border-color:var(--accent);color:var(--accent);}
+.tbtn.del{border-color:rgba(245,101,101,0.3);color:var(--red);}.tbtn.del:hover{background:rgba(245,101,101,0.1);}
+.sa-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px;}
+@media(max-width:640px){.sa-grid{grid-template-columns:1fr;}}
+.sacard{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:20px;margin-bottom:16px;}
+.sacard-title{font-family:var(--fh);font-weight:700;font-size:13px;color:var(--accent);margin-bottom:14px;}
+.sarow{display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid var(--border);font-size:12px;}
+.sarow:last-child{border-bottom:none;font-size:13px;font-weight:500;}
+.notice{background:rgba(240,180,41,0.08);border:1px solid rgba(240,180,41,0.25);border-radius:7px;padding:11px 14px;font-size:12px;color:var(--accent);margin-bottom:20px;line-height:1.5;}
+.sabox{background:var(--bg);border:1px solid var(--border);border-radius:7px;padding:14px;font-size:11px;color:var(--muted2);line-height:1.9;white-space:pre-wrap;margin-bottom:12px;font-family:var(--fm);}
+.filters{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px;}
+.fbtn{padding:4px 12px;border-radius:5px;border:1px solid var(--border2);background:transparent;color:var(--muted2);font-family:var(--fm);font-size:11px;cursor:pointer;transition:all 0.12s;}
+.fbtn:hover,.fbtn.on{border-color:var(--accent);color:var(--accent);background:rgba(240,180,41,0.06);}
+.selrow{display:flex;align-items:center;gap:12px;margin-bottom:20px;flex-wrap:wrap;}
+.selrow select{background:var(--surface);border:1px solid var(--border2);border-radius:6px;padding:6px 10px;color:var(--text);font-family:var(--fm);font-size:12px;}
+.backbtn{background:none;border:none;color:var(--muted2);font-family:var(--fm);font-size:12px;cursor:pointer;}
+.backbtn:hover{color:var(--accent);}
+.empty{text-align:center;padding:40px;color:var(--muted);font-size:12px;}
+#toast{position:fixed;bottom:20px;right:20px;background:var(--surface);border:1px solid var(--green);color:var(--green);padding:10px 18px;border-radius:7px;font-size:12px;z-index:9999;opacity:0;transform:translateY(8px);transition:all 0.2s;pointer-events:none;}
+#toast.on{opacity:1;transform:translateY(0);}
+#toast.err{border-color:var(--red);color:var(--red);}
+#modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:500;align-items:center;justify-content:center;}
+#modal-overlay.on{display:flex;}
+#modal{background:var(--surface);border:1px solid var(--border2);border-radius:12px;padding:24px;width:90%;max-width:360px;}
+#modal h3{font-family:var(--fh);font-weight:700;font-size:16px;margin-bottom:16px;}
+#modal input{width:100%;background:var(--bg);border:1px solid var(--border2);border-radius:6px;padding:8px 10px;color:var(--text);font-family:var(--fm);font-size:12px;margin-bottom:14px;}
+#modal input:focus{outline:none;border-color:var(--accent);}
+#modal .mbtns{display:flex;gap:8px;justify-content:flex-end;}
+.sync-bar{position:fixed;top:52px;left:0;right:0;background:rgba(240,180,41,0.1);border-bottom:1px solid rgba(240,180,41,0.25);padding:7px 20px;font-size:11px;color:var(--accent);z-index:150;display:flex;align-items:center;justify-content:space-between;}
+.sync-bar button{background:none;border:none;color:var(--accent);cursor:pointer;font-size:14px;padding:0 4px;}
+@media(max-width:600px){nav{padding:0 12px;}.page{padding:16px 12px;}.tab{padding:4px 8px;font-size:11px;}}
 </style>
 </head>
 <body>
-
 <nav>
   <div class="brand">eBay<span>Tracker</span></div>
   <div class="tabs">
-    <button class="tab on" onclick="nav('summary')">Summary</button>
-    <button class="tab" onclick="nav('monthly')">Monthly</button>
-    <button class="tab" onclick="nav('stock')">Stock</button>
-    <button class="tab" onclick="nav('tax')">Tax / SA</button>
+    <button class="tab on" onclick="goNav('summary')">Summary</button>
+    <button class="tab" onclick="goNav('monthly')">Monthly</button>
+    <button class="tab" onclick="goNav('stock')">Stock</button>
+    <button class="tab" onclick="goNav('tax')">Tax / SA</button>
   </div>
-  <div class="nav-tag">2026</div>
+  <div style="font-size:11px;color:var(--muted)">2026</div>
 </nav>
-
-<!-- SUMMARY -->
-<div id="p-summary" class="page on">
-  <div style="font-family:var(--fh);font-size:44px;font-weight:800;color:var(--accent);line-height:1">2026</div>
-  <div style="color:var(--muted);font-size:12px;margin-bottom:24px;margin-top:4px">eBay Reselling — Annual Overview</div>
-  <div id="s-kpis" class="kgrid"></div>
-  <div class="sl">Monthly breakdown</div>
-  <div id="s-months" class="mgrid"></div>
-  <div class="sl">Top performers (by gross profit)</div>
-  <div class="twrap">
-    <table>
-      <thead><tr><th>Item</th><th>Month</th><th>Sale Price</th><th>Item Cost</th><th>Gross Profit</th><th>ROI</th></tr></thead>
-      <tbody id="s-top"></tbody>
-    </table>
-  </div>
-</div>
-
-<!-- MONTHLY -->
-<div id="p-monthly" class="page">
-  <div class="selrow">
-    <button class="backbtn" onclick="nav('summary')">← Back</button>
-    <select id="msel" onchange="renderMonth()">
-      <option value="JAN">January</option><option value="FEB" selected>February</option>
-      <option value="MAR">March</option><option value="APR">April</option>
-      <option value="MAY">May</option><option value="JUN">June</option>
-      <option value="JUL">July</option><option value="AUG">August</option>
-      <option value="SEP">September</option><option value="OCT">October</option>
-      <option value="NOV">November</option><option value="DEC">December</option>
-    </select>
-  </div>
-  <div id="month-body"></div>
-</div>
-
-<!-- STOCK -->
-<div id="p-stock" class="page">
-  <div style="font-family:var(--fh);font-size:28px;font-weight:800;margin-bottom:6px">Current Stock</div>
-  <div style="color:var(--muted);font-size:12px;margin-bottom:20px">Listed but not yet sold</div>
-  <div class="filters" id="inv-filters">
-    <button class="fbtn on" onclick="setFilter('all',this)">All</button>
-    <button class="fbtn" onclick="setFilter('Bed',this)">Bed</button>
-    <button class="fbtn" onclick="setFilter('A101',this)">A101</button>
-    <button class="fbtn" onclick="setFilter('Wardrobe',this)">Wardrobe</button>
-    <button class="fbtn" onclick="setFilter('Bedroom',this)">Bedroom</button>
-  </div>
-  <div id="inv-kpis" class="kgrid"></div>
-  <div class="twrap">
-    <table>
-      <thead><tr><th>Item</th><th>Month Listed</th><th>Location</th><th>Days Listed</th><th>List Price</th><th>Item Cost</th><th>Potential Profit</th><th>ROI</th><th></th></tr></thead>
-      <tbody id="inv-body"></tbody>
-    </table>
-  </div>
-</div>
-
-<!-- TAX -->
-<div id="p-tax" class="page">
-  <div style="font-family:var(--fh);font-size:28px;font-weight:800;margin-bottom:6px">Self Assessment</div>
-  <div style="color:var(--muted);font-size:12px;margin-bottom:16px">Tax Year: 6 April 2025 – 5 April 2026 &nbsp;·&nbsp; Sole Trader</div>
-  <div class="notice">⚠ Estimated figures only — not financial or tax advice. Always verify with HMRC or a qualified accountant before submitting.</div>
-  <div class="sa-grid">
-    <div class="sacard"><div class="sacard-title">Income & Expenses</div><div id="sa-inc"></div></div>
-    <div class="sacard"><div class="sacard-title">Profit & Tax Estimate</div><div id="sa-tax"></div></div>
-  </div>
-  <div class="sacard" style="margin-bottom:16px">
-    <div class="sacard-title">SA103 Export Summary</div>
-    <div class="sabox" id="sa-box"></div>
-    <div style="display:flex;gap:8px;flex-wrap:wrap">
-      <button class="btn btn-p" onclick="copySA()">Copy to clipboard</button>
-      <button class="btn btn-s" onclick="dlSA()">Download .txt</button>
-    </div>
-  </div>
-</div>
-
-<!-- MODAL -->
+<div id="p-summary" class="page on"><div style="text-align:center;padding:60px;color:var(--muted)">Loading…</div></div>
+<div id="p-monthly" class="page"></div>
+<div id="p-stock" class="page"></div>
+<div id="p-tax" class="page"></div>
 <div id="modal-overlay" onclick="closeModal(event)">
   <div id="modal">
-    <h3 id="modal-title">Mark as sold</h3>
+    <h3>Mark as sold</h3>
     <label style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:0.8px;display:block;margin-bottom:6px">Date sold</label>
     <input type="date" id="modal-date">
     <div class="mbtns">
@@ -290,184 +128,101 @@ tbody tr:hover td { background: var(--surface2); }
     </div>
   </div>
 </div>
-
 <div id="toast"></div>
 
 <script>
-// ── DATA ──────────────────────────────────────────────────────────────
-const MONTHS = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
-const MN = {JAN:'January',FEB:'February',MAR:'March',APR:'April',MAY:'May',JUN:'June',JUL:'July',AUG:'August',SEP:'September',OCT:'October',NOV:'November',DEC:'December'};
+const MONTHS=['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
+const MN={JAN:'January',FEB:'February',MAR:'March',APR:'April',MAY:'May',JUN:'June',JUL:'July',AUG:'August',SEP:'September',OCT:'October',NOV:'November',DEC:'December'};
+const £=n=>n!=null?'£'+parseFloat(n).toFixed(2):'—';
+let DB={};
+let invFilter='all';
+let _soldTarget=null;
 
-function mkItem(id,dl,name,loc,ds,sp,ic,sh,ef,post,pp) {
-  const pc = sp * pp;
-  const tc = ic + sh + ef + pc;
-  const tr = sp + (post||0);
-  const gp = ds ? parseFloat((tr - tc).toFixed(4)) : null;
-  const roi = ic > 0 ? parseFloat(((tr - tc) / ic).toFixed(6)) : null;
-  return {id,dateListed:dl,item:name,location:loc,dateSold:ds,salePrice:sp,
-    postage:post||0,totalRev:tr,itemCost:ic,shipping:sh,ebayFee:ef,
-    promoCost:pc,promoPercent:pp,totalCost:tc,grossProfit:gp,roi};
+async function loadData(){
+  try{
+    const local=localStorage.getItem('ebt26_v3');
+    if(local){DB=JSON.parse(local);renderSummary();return;}
+  }catch(e){}
+  try{
+    const res=await fetch('./data.json');
+    if(!res.ok)throw new Error();
+    DB=await res.json();
+    saveLocal();
+    renderSummary();
+  }catch(e){
+    document.getElementById('p-summary').innerHTML=`<div style="text-align:center;padding:60px"><div style="font-size:28px;margin-bottom:12px;color:var(--accent)">⚠</div><div style="color:var(--text);margin-bottom:8px">Can't load data.json</div><div style="font-size:12px;color:var(--muted)">Make sure both index.html and data.json are in the same folder,<br>then open with Live Server in VS Code (not by double-clicking the file).</div></div>`;
+  }
 }
 
-// Seed from spreadsheet
-const SEED = {
-  FEB:[
-    mkItem('f1','2026-02-18','Grand Turismo 1997 PS1','Bed','2026-02-21',9.99,1.5,2.7,0.75,0,0.05),
-    mkItem('f2','2026-02-19','Mag-Lite Torch','Bed','2026-03-03',26,3.25,2.94,1.67,0,0.03),
-    mkItem('f3','2026-02-19','Band of Brothers','Bed',null,9.99,3,2.7,0.75,0,0.05),
-    mkItem('f4','2026-02-22','Nokia 3410 - Green Mint','A101','2026-03-13',11,2.5,2.7,0.81,0,0.05),
-    mkItem('f5','2026-02-22','Sony Ericsson T610','A101','2026-03-11',10.5,2.5,2.7,0.78,0,0.05),
-    mkItem('f6','2026-02-22','Motorola W377 Pink','A101','2026-03-04',24.99,2.5,2.7,1.63,0,0.05),
-    mkItem('f7','2026-02-22','Blackberry Curve 9320','A101','2026-02-27',14.99,2.5,2.7,1.04,0,0.05),
-    mkItem('f8','2026-02-22','LOTR Blu-Ray Set','A101','2026-03-06',23.47,5,2.94,1.58,0,0.05),
-    mkItem('f9','2026-02-23','Harry Potter Board Game','Bed',null,19.99,0,3.38,1.4,0,0.05),
-    mkItem('f10','2026-02-25','Canon 550D - Complete Kit','Bed','2026-02-28',149.99,80,4.88,11.24,0,0.03),
-    mkItem('f11','2026-02-25','Kids Music Piano Book','Bed','2026-03-14',5.99,0.2,2.94,0.49,2.94,0.05),
-    mkItem('f12','2026-02-25','Star Wars Trilogy VHS','A101',null,12.99,2,2.94,0.94,0,0.05),
-    mkItem('f13','2026-02-25','Top Shine Elite Shoe Care Kit','Bed',null,39.99,6,2.94,2.21,0,0.05),
-    mkItem('f14','2026-02-25','Hugo Boss Glasses Case','Drawer','2026-03-02',12.99,0,2.94,0.94,0,0.05),
-    mkItem('f15','2026-02-26','Toy Story 3 Mr Potato Tub','Wardrobe','2026-03-01',22.99,2.5,3.88,1.56,0,0.05),
-    mkItem('f16','2026-02-26','Tomee Tippee Nappy Bin','Bedroom','2026-02-27',13.99,0,3.71,4.01,0,0.05),
-    mkItem('f17','2026-02-27','Grand Turismo PS1 - Manual Only','Wardrobe',null,4.99,2.5,1,0.32,0,0.05),
-  ],
-  MAR:[
-    mkItem('m1','2026-03-02','Power Rangers Complete Season 1','A101',null,24.99,6,2.94,1.63,0,0.05),
-    mkItem('m2','2026-03-02','Google Nest Mini Gen 1','A101','2026-03-04',23.99,10.15,2.94,1.6,0,0.05),
-    mkItem('m3','2026-03-03','The Singing Machine Lights SML283BK','Wardrobe',null,49.99,15,3.71,2.6,0,0.05),
-    mkItem('m4','2026-03-03','George RR Martin Book Set','Bedroom','2026-03-06',29.99,7,2.94,1.83,0,0.05),
-    mkItem('m5','2026-03-03','Mr & Mrs Potato Head Bundle','Bedroom','2026-03-09',19.99,2,2.94,1.4,0,0.05),
-    mkItem('m6','2026-03-07','DK Illustrated Family Encyclopedia','Wardrobe',null,24.99,6,5.88,1.63,0,0.05),
-    mkItem('m7','2026-03-07','Google Nest Mini Gen 1 (B)','A101',null,23.99,11.2,2.94,1.6,0,0.05),
-    mkItem('m8','2026-03-07','Google Nest Mini Gen 1 (C)','A101',null,23.99,12.25,2.94,1.6,0,0.05),
-    mkItem('m9','2026-03-08','Acer Aspire E5-571','Bed','2026-03-18',114.99,48.59,5.88,5.1,0,0.03),
-    mkItem('m10','2026-03-08','Canon 600D Astro Mod','Bed','2026-03-11',189.99,66.85,4.88,7.98,0,0.03),
-    mkItem('m11','2026-03-09','MSI GeForce GTX 770 4GB','Bedroom',null,54.99,21.7,2.94,2.79,0,0.05),
-    mkItem('m12','2026-03-10','Playstation Backpack - Blue','Bed',null,24.99,5.5,2.94,1.63,0,0.05),
-    mkItem('m13','2026-03-11','Salus RT500RF Wireless Thermostat','Bed','2026-03-16',65,10,2.94,3.17,0,0.03),
-    mkItem('m14','2026-03-12','Siemens Remote Control 13A Adaptor','Bed','2026-03-18',39.99,2,2.94,2.21,0,0.05),
-    mkItem('m15','2026-03-13','Canon 1300D Full Kit and Lens','Wardrobe',null,199.99,120.99,4.88,8.36,0,0.03),
-    mkItem('m16','2026-03-15','Apple Magic Touchpad','A101','2026-03-15',22.99,7.5,2.94,1.56,0,0.03),
-    mkItem('m17','2026-03-15','Apple Magic Keyboard 1314 (A)','A101',null,19.99,7.5,2.94,1.4,0,0.03),
-    mkItem('m18','2026-03-15','Apple Magic Keyboard 1314 (B)','A101',null,19.99,7.5,2.94,1.4,0,0.03),
-    mkItem('m19','2026-03-15','Apple Magic Keyboard 1655','A101','2026-03-16',24.99,7.5,2.94,1.63,0,0.03),
-    mkItem('m20','2026-03-15','Job Lot Magic Keyboards','Bag',null,9.99,0,2.94,0.75,2.94,0.03),
-    mkItem('m21','2026-03-16','HUSKY Tyre Chains','Bedroom',null,39.99,15,5.21,2.21,0,0.05),
-    mkItem('m22','2026-03-17','Samsung TV with Remote','Bedroom',null,59.99,7.5,5.21,2.98,0,0.03),
-  ],
-  JAN:[],APR:[],MAY:[],JUN:[],JUL:[],AUG:[],SEP:[],OCT:[],NOV:[],DEC:[]
-};
-
-// Load from localStorage, merge with seed
-function loadData() {
-  try {
-    const saved = localStorage.getItem('ebt26');
-    if(saved) return JSON.parse(saved);
-  } catch(e) {}
-  return JSON.parse(JSON.stringify(SEED));
-}
-function saveData() {
-  try { localStorage.setItem('ebt26', JSON.stringify(DB)); } catch(e) {}
+function saveLocal(){try{localStorage.setItem('ebt26_v3',JSON.stringify(DB));}catch(e){}}
+function saveData(){
+  saveLocal();
+  if(!document.getElementById('sync-bar')){
+    const bar=document.createElement('div');
+    bar.id='sync-bar';bar.className='sync-bar';
+    bar.innerHTML='<span>Changes saved. To sync across devices: <code style="background:var(--surface2);padding:1px 5px;border-radius:3px">git add . && git commit -m "update data" && git push</code></span><button onclick="this.parentElement.remove()">✕</button>';
+    document.body.appendChild(bar);
+  }
 }
 
-let DB = loadData();
+function daysAgo(d){return Math.round((Date.now()-new Date(d))/86400000);}
+function sold(m){return(DB[m]||[]).filter(i=>i.dateSold);}
+function unsold(m){return(DB[m]||[]).filter(i=>!i.dateSold);}
+function allSold(){return MONTHS.flatMap(m=>sold(m).map(i=>({...i,month:m})));}
+function allUnsold(){return MONTHS.flatMap(m=>unsold(m).map(i=>({...i,month:m})));}
+function mTotals(m){const s=sold(m);return{rev:s.reduce((a,i)=>a+(i.totalRev||0),0),cost:s.reduce((a,i)=>a+(i.totalCost||0),0),profit:s.reduce((a,i)=>a+(i.grossProfit||0),0),nSold:s.length,nTotal:(DB[m]||[]).length};}
+function yTotals(){return MONTHS.reduce((a,m)=>{const t=mTotals(m);a.rev+=t.rev;a.cost+=t.cost;a.profit+=t.profit;a.nSold+=t.nSold;a.nTotal+=t.nTotal;return a;},{rev:0,cost:0,profit:0,nSold:0,nTotal:0});}
+function calcItem(price,post,cost,ship,ebay,pp,ds){const pc=price*pp;const tc=cost+ship+ebay+pc;const tr=price+(post||0);return{totalCost:+tc.toFixed(4),totalRev:+tr.toFixed(4),grossProfit:ds?+((tr-tc).toFixed(2)):null,roi:cost>0?+(((tr-tc)/cost).toFixed(4)):null,promoCost:+pc.toFixed(4)};}
 
-// ── HELPERS ───────────────────────────────────────────────────────────
-const £ = n => n != null ? '£' + parseFloat(n).toFixed(2) : '—';
-const pct = n => n != null ? (n*100).toFixed(1)+'%' : '—';
-function daysAgo(d) {
-  return Math.round((Date.now() - new Date(d)) / 86400000);
-}
-function sold(m) { return (DB[m]||[]).filter(i=>i.dateSold); }
-function unsold(m) { return (DB[m]||[]).filter(i=>!i.dateSold); }
-function allSold() { return MONTHS.flatMap(m=>sold(m).map(i=>({...i,month:m}))); }
-function allUnsold() { return MONTHS.flatMap(m=>unsold(m).map(i=>({...i,month:m}))); }
-
-function mTotals(m) {
-  const s = sold(m);
-  return {
-    rev: s.reduce((a,i)=>a+(i.totalRev||0),0),
-    cost: s.reduce((a,i)=>a+(i.totalCost||0),0),
-    profit: s.reduce((a,i)=>a+(i.grossProfit||0),0),
-    nSold: s.length,
-    nTotal: (DB[m]||[]).length,
-  };
-}
-function yTotals() {
-  return MONTHS.reduce((acc,m)=>{
-    const t=mTotals(m);
-    acc.rev+=t.rev; acc.cost+=t.cost; acc.profit+=t.profit;
-    acc.nSold+=t.nSold; acc.nTotal+=t.nTotal;
-    return acc;
-  },{rev:0,cost:0,profit:0,nSold:0,nTotal:0});
-}
-
-// ── NAVIGATION ────────────────────────────────────────────────────────
-function nav(page) {
+function goNav(page){
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('on'));
   document.querySelectorAll('.tab').forEach(t=>t.classList.remove('on'));
   document.getElementById('p-'+page).classList.add('on');
-  const idx = {summary:0,monthly:1,stock:2,tax:3};
-  document.querySelectorAll('.tab')[idx[page]].classList.add('on');
-  if(page==='summary') renderSummary();
-  if(page==='monthly') renderMonth();
-  if(page==='stock') renderStock();
-  if(page==='tax') renderTax();
+  ['summary','monthly','stock','tax'].forEach((p,i)=>{if(p===page)document.querySelectorAll('.tab')[i].classList.add('on');});
+  if(page==='summary')renderSummary();
+  if(page==='monthly')renderMonthPage();
+  if(page==='stock')renderStock();
+  if(page==='tax')renderTax();
 }
 
-// ── SUMMARY ───────────────────────────────────────────────────────────
-function renderSummary() {
-  const yt = yTotals();
-  const unsd = allUnsold();
-  const unrealised = unsd.reduce((a,i)=>a+((i.totalRev||0)-(i.totalCost||0)),0);
-  const stockCost = unsd.reduce((a,i)=>a+(i.itemCost||0),0);
-
-  document.getElementById('s-kpis').innerHTML = [
-    ['Total Revenue', £(yt.rev), `${yt.nSold} items sold`, ''],
-    ['Gross Profit', £(yt.profit), `Margin: ${yt.rev>0?((yt.profit/yt.rev)*100).toFixed(1)+'%':'—'}`, 'g'],
-    ['Total Costs', £(yt.cost), 'Fees + shipping + stock', 'r'],
-    ['Stock on Hand', unsd.length+' items', £(stockCost)+' cost value', 'b'],
-    ['Unrealised Profit', £(unrealised), 'If all listed items sell', 'p'],
-    ['Items Listed', yt.nTotal, `${yt.nSold} sold · ${yt.nTotal-yt.nSold} active`, ''],
-  ].map(([l,v,s,c])=>`<div class="kcard ${c}"><div class="klabel">${l}</div><div class="kval">${v}</div><div class="ksub">${s}</div></div>`).join('');
-
-  document.getElementById('s-months').innerHTML = MONTHS.map(m=>{
-    const t=mTotals(m);
-    return `<div class="mcard" onclick="goMonth('${m}')">
-      <div class="mname">${MN[m]}</div>
-      <div class="mval ${t.profit>0?'pos':'nil'}">${t.profit>0?£(t.profit):'—'}</div>
-      <div class="msub">${t.nSold} sold · ${t.nTotal-t.nSold} listed</div>
-    </div>`;
-  }).join('');
-
-  const top = allSold().filter(i=>i.grossProfit>0).sort((a,b)=>b.grossProfit-a.grossProfit).slice(0,8);
-  document.getElementById('s-top').innerHTML = top.length ? top.map(i=>`<tr>
-    <td>${i.item}</td>
-    <td class="dim">${MN[i.month]}</td>
-    <td>${£(i.salePrice)}</td>
-    <td class="dim">${£(i.itemCost)}</td>
-    <td class="pos">${£(i.grossProfit)}</td>
-    <td style="color:var(--accent)">${i.roi!=null?(i.roi*100).toFixed(0)+'%':'—'}</td>
-  </tr>`).join('') : `<tr><td colspan="6" class="empty">No sold items yet</td></tr>`;
+function renderSummary(){
+  const yt=yTotals();
+  const unsd=allUnsold();
+  const unrealised=unsd.reduce((a,i)=>a+((i.totalRev||0)-(i.totalCost||0)),0);
+  const stockCost=unsd.reduce((a,i)=>a+(i.itemCost||0),0);
+  document.getElementById('p-summary').innerHTML=`
+    <div style="font-family:var(--fh);font-size:44px;font-weight:800;color:var(--accent);line-height:1">2026</div>
+    <div style="color:var(--muted);font-size:12px;margin-bottom:24px;margin-top:4px">eBay Reselling — Annual Overview</div>
+    <div class="kgrid">
+      ${[['Total Revenue',£(yt.rev),yt.nSold+' items sold',''],['Gross Profit',£(yt.profit),'Margin: '+(yt.rev>0?((yt.profit/yt.rev)*100).toFixed(1)+'%':'—'),'g'],['Total Costs',£(yt.cost),'Fees + shipping + stock','r'],['Stock on Hand',unsd.length+' items',£(stockCost)+' cost value','b'],['Unrealised Profit',£(unrealised),'If all listed items sell','p'],['Items Listed',yt.nTotal,yt.nSold+' sold · '+(yt.nTotal-yt.nSold)+' active','']].map(([l,v,s,c])=>`<div class="kcard ${c}"><div class="klabel">${l}</div><div class="kval">${v}</div><div class="ksub">${s}</div></div>`).join('')}
+    </div>
+    <div class="sl">Monthly breakdown</div>
+    <div class="mgrid">${MONTHS.map(m=>{const t=mTotals(m);return`<div class="mcard" onclick="goMonth('${m}')"><div class="mname">${MN[m]}</div><div class="mval ${t.profit>0?'pos':'nil'}">${t.profit>0?£(t.profit):'—'}</div><div class="msub">${t.nSold} sold · ${t.nTotal-t.nSold} listed</div></div>`;}).join('')}</div>
+    <div class="sl">Top performers</div>
+    <div class="twrap"><table><thead><tr><th>Item</th><th>Month</th><th>Sale Price</th><th>Item Cost</th><th>Gross Profit</th><th>ROI</th></tr></thead>
+    <tbody>${allSold().filter(i=>i.grossProfit>0).sort((a,b)=>b.grossProfit-a.grossProfit).slice(0,10).map(i=>`<tr><td>${i.item}</td><td class="dim">${MN[i.month]}</td><td>${£(i.salePrice)}</td><td class="dim">${£(i.itemCost)}</td><td class="pos">${£(i.grossProfit)}</td><td style="color:var(--accent)">${i.roi!=null?(i.roi*100).toFixed(0)+'%':'—'}</td></tr>`).join('')||'<tr><td colspan="6" class="empty">No sold items yet</td></tr>'}</tbody></table></div>`;
 }
 
-function goMonth(m) {
-  document.getElementById('msel').value = m;
-  nav('monthly');
+function goMonth(m){document.getElementById('msel').value=m;goNav('monthly');}
+
+function renderMonthPage(){
+  const el=document.getElementById('p-monthly');
+  if(!el.querySelector('#msel')){
+    el.innerHTML=`<div class="selrow"><button class="backbtn" onclick="goNav('summary')">← Back</button><select id="msel" onchange="renderMonth()">${MONTHS.map(m=>`<option value="${m}"${m==='MAR'?' selected':''}>${MN[m]}</option>`).join('')}</select></div><div id="month-body"></div>`;
+  }
+  renderMonth();
 }
 
-// ── MONTHLY ───────────────────────────────────────────────────────────
-function renderMonth() {
-  const m = document.getElementById('msel').value;
-  const items = DB[m] || [];
-  const t = mTotals(m);
-  const s = sold(m);
-  const u = unsold(m);
-  const made = s.reduce((a,i)=>a+(i.grossProfit||0),0);
-  const remaining = u.reduce((a,i)=>{ const p=(i.totalRev||0)-(i.totalCost||0); return a+(p>0?p:0); },0);
-  const total = made + remaining;
-  const pct = total > 0 ? ((made/total)*100).toFixed(1) : 0;
-
-  document.getElementById('month-body').innerHTML = `
+function renderMonth(){
+  const m=document.getElementById('msel')?.value||'MAR';
+  const items=DB[m]||[];
+  const t=mTotals(m);
+  const s=sold(m);const u=unsold(m);
+  const made=s.reduce((a,i)=>a+(i.grossProfit||0),0);
+  const remaining=u.reduce((a,i)=>{const p=(i.totalRev||0)-(i.totalCost||0);return a+(p>0?p:0);},0);
+  const total=made+remaining;
+  const pct=total>0?((made/total)*100).toFixed(1):0;
+  document.getElementById('month-body').innerHTML=`
     <div class="mhdr">
       <div class="mtitle">${MN[m]}</div>
       <div class="mstats">
@@ -477,262 +232,164 @@ function renderMonth() {
         <div class="mstat"><div class="msv">${t.nSold}/${t.nTotal}</div><div class="msl">Sold / Listed</div></div>
       </div>
     </div>
-    ${total>0?`<div class="pbar-wrap">
-      <div class="pbar-labels"><span>Realised ${£(made)} (${pct}%)</span><span>Remaining ${£(remaining)}</span></div>
-      <div class="pbar"><div class="pbar-fill" style="width:${pct}%"></div></div>
-    </div>`:''}
+    ${total>0?`<div class="pbar-wrap"><div class="pbar-labels"><span>Realised ${£(made)} (${pct}%)</span><span>Remaining ${£(remaining)}</span></div><div class="pbar"><div class="pbar-fill" style="width:${pct}%"></div></div></div>`:''}
     <div class="sl">Add new item</div>
-    <div class="fsec">
-      <div class="fgrid">
-        <div class="fg"><label>Item name</label><input type="text" id="fi-name" placeholder="e.g. Nokia 3310"></div>
-        <div class="fg"><label>Date listed</label><input type="date" id="fi-listed" value="${new Date().toISOString().split('T')[0]}"></div>
-        <div class="fg"><label>Location</label><input type="text" id="fi-loc" placeholder="Bed, A101, Wardrobe…"></div>
-        <div class="fg"><label>Sale Price (£)</label><input type="number" id="fi-price" step="0.01" placeholder="0.00" oninput="autoCalc()"></div>
-        <div class="fg"><label>Item Cost (£)</label><input type="number" id="fi-cost" step="0.01" placeholder="0.00"></div>
-        <div class="fg"><label>Shipping Cost (£)</label><input type="number" id="fi-ship" step="0.01" placeholder="2.94"></div>
-        <div class="fg"><label>eBay Fee (£)</label><input type="number" id="fi-ebay" step="0.01" placeholder="auto"></div>
-        <div class="fg"><label>Postage charged (£)</label><input type="number" id="fi-post" step="0.01" placeholder="0.00"></div>
-        <div class="fg"><label>Promo % (e.g. 0.05)</label><input type="number" id="fi-promo" step="0.01" placeholder="0.05"></div>
-        <div class="fg"><label>Date Sold (if sold)</label><input type="date" id="fi-sold"></div>
-      </div>
-      <div class="fbtns">
-        <button class="btn btn-p" onclick="addItem('${m}')">+ Add Item</button>
-        <button class="btn btn-s" onclick="autoCalc()">Auto-calc eBay fee</button>
-      </div>
+    <div class="fsec"><div class="fgrid">
+      <div class="fg"><label>Item name</label><input type="text" id="fi-name" placeholder="e.g. Nokia 3310"></div>
+      <div class="fg"><label>Date listed</label><input type="date" id="fi-listed" value="${new Date().toISOString().split('T')[0]}"></div>
+      <div class="fg"><label>Location</label><input type="text" id="fi-loc" placeholder="Bed, A101, Desk…"></div>
+      <div class="fg"><label>Sale Price (£)</label><input type="number" id="fi-price" step="0.01" placeholder="0.00" oninput="autoCalc()"></div>
+      <div class="fg"><label>Item Cost (£)</label><input type="number" id="fi-cost" step="0.01" placeholder="0.00"></div>
+      <div class="fg"><label>Shipping Cost (£)</label><input type="number" id="fi-ship" step="0.01" placeholder="2.94"></div>
+      <div class="fg"><label>eBay Fee (£)</label><input type="number" id="fi-ebay" step="0.01" placeholder="auto"></div>
+      <div class="fg"><label>Postage charged (£)</label><input type="number" id="fi-post" step="0.01" placeholder="0.00"></div>
+      <div class="fg"><label>Promo % (e.g. 0.05)</label><input type="number" id="fi-promo" step="0.01" placeholder="0.05"></div>
+      <div class="fg"><label>Date Sold (optional)</label><input type="date" id="fi-sold"></div>
     </div>
+    <div class="fbtns">
+      <button class="btn btn-p" onclick="addItem('${m}')">+ Add Item</button>
+      <button class="btn btn-s" onclick="autoCalc()">Auto-calc eBay fee</button>
+    </div></div>
     <div class="sl">Items this month (${items.length})</div>
-    <div class="twrap">
-      <table>
-        <thead><tr><th>Status</th><th>Item</th><th>Location</th><th>Listed</th><th>Sale Price</th><th>Item Cost</th><th>Ship</th><th>eBay Fee</th><th>Promo</th><th>Total Cost</th><th>Gross Profit</th><th>ROI</th><th>Actions</th></tr></thead>
-        <tbody>${items.map(i=>iRow(i,m)).join('')||'<tr><td colspan="13" class="empty">No items yet — add one above</td></tr>'}</tbody>
-      </table>
-    </div>
-    <div class="sfooter">
-      <div class="sfgrid">
-        ${[['Revenue',£(t.rev),'var(--accent)'],['Total Cost',£(t.cost),'var(--red)'],['Gross Profit',£(t.profit),'var(--green)'],['Realised',£(made),'var(--green)'],['Remaining',£(remaining),'var(--muted2)'],['Margin',t.rev>0?((t.profit/t.rev)*100).toFixed(1)+'%':'—','var(--text)']].map(([l,v,c])=>`<div class="sfitem"><div class="sflabel">${l}</div><div class="sfval" style="color:${c}">${v}</div></div>`).join('')}
-      </div>
-    </div>`;
+    <div class="twrap"><table>
+      <thead><tr><th>Status</th><th>Item</th><th>Location</th><th>Listed</th><th>Price</th><th>Cost</th><th>Ship</th><th>eBay Fee</th><th>Promo</th><th>Total Cost</th><th>Gross Profit</th><th>ROI</th><th>Actions</th></tr></thead>
+      <tbody>${items.map(i=>iRow(i,m)).join('')||'<tr><td colspan="13" class="empty">No items yet — add one above</td></tr>'}</tbody>
+    </table></div>
+    <div class="sfooter"><div class="sfgrid">
+      ${[['Revenue',£(t.rev),'var(--accent)'],['Total Cost',£(t.cost),'var(--red)'],['Gross Profit',£(t.profit),'var(--green)'],['Realised',£(made),'var(--green)'],['Remaining',£(remaining),'var(--muted2)'],['Margin',t.rev>0?((t.profit/t.rev)*100).toFixed(1)+'%':'—','var(--text)']].map(([l,v,c])=>`<div><div class="sflabel">${l}</div><div class="sfval" style="color:${c}">${v}</div></div>`).join('')}
+    </div></div>`;
 }
 
-function iRow(i,m) {
-  const isSold = !!i.dateSold;
-  return `<tr>
-    <td><span class="badge ${isSold?'sold-b':'listed-b'}">${isSold?'Sold':'Listed'}</span></td>
-    <td style="max-width:160px;overflow:hidden;text-overflow:ellipsis">${i.item}</td>
-    <td class="dim">${i.location||'—'}</td>
-    <td class="dim">${i.dateListed||'—'}</td>
-    <td>${£(i.salePrice)}</td>
-    <td class="dim">${£(i.itemCost)}</td>
-    <td class="dim">${£(i.shipping)}</td>
-    <td class="dim">${£(i.ebayFee)}</td>
-    <td class="dim">${£(i.promoCost)}</td>
-    <td style="color:var(--red)">${£(i.totalCost)}</td>
-    <td class="${i.grossProfit>0?'pos':i.grossProfit<0?'neg':''}">${i.grossProfit!=null?£(i.grossProfit):'—'}</td>
-    <td style="color:var(--accent)">${i.roi!=null?(i.roi*100).toFixed(0)+'%':'—'}</td>
-    <td style="display:flex;gap:4px">
-      ${!isSold?`<button class="tbtn" onclick="openSoldModal('${m}','${i.id}')">Mark sold</button>`:''}
-      <button class="tbtn del" onclick="delItem('${m}','${i.id}')">✕</button>
-    </td>
-  </tr>`;
+function iRow(i,m){
+  const isSold=!!i.dateSold;
+  return`<tr><td><span class="badge ${isSold?'sold-b':'listed-b'}">${isSold?'Sold':'Listed'}</span></td><td style="max-width:160px;overflow:hidden;text-overflow:ellipsis">${i.item}</td><td class="dim">${i.location||'—'}</td><td class="dim">${i.dateListed||'—'}</td><td>${£(i.salePrice)}</td><td class="dim">${£(i.itemCost)}</td><td class="dim">${£(i.shipping)}</td><td class="dim">${£(i.ebayFee)}</td><td class="dim">${£(i.promoCost)}</td><td style="color:var(--red)">${£(i.totalCost)}</td><td class="${i.grossProfit>0?'pos':i.grossProfit<0?'neg':''}">${i.grossProfit!=null?£(i.grossProfit):'—'}</td><td style="color:var(--accent)">${i.roi!=null?(i.roi*100).toFixed(0)+'%':'—'}</td><td style="display:flex;gap:4px">${!isSold?`<button class="tbtn" onclick="openSoldModal('${m}','${i.id}')">Mark sold</button>`:''}<button class="tbtn del" onclick="delItem('${m}','${i.id}')">✕</button></td></tr>`;
 }
 
-function autoCalc() {
-  const price = parseFloat(document.getElementById('fi-price')?.value)||0;
-  if(price>0) {
-    document.getElementById('fi-ebay').value = (price*0.093).toFixed(2);
-  }
+function autoCalc(){const p=parseFloat(document.getElementById('fi-price')?.value)||0;if(p>0)document.getElementById('fi-ebay').value=(p*0.093).toFixed(2);}
+
+function addItem(m){
+  const name=document.getElementById('fi-name').value.trim();
+  if(!name){toast('Enter an item name','err');return;}
+  const price=parseFloat(document.getElementById('fi-price').value)||0;
+  const cost=parseFloat(document.getElementById('fi-cost').value)||0;
+  const ship=parseFloat(document.getElementById('fi-ship').value)||0;
+  const ebay=parseFloat(document.getElementById('fi-ebay').value)||(price*0.093);
+  const post=parseFloat(document.getElementById('fi-post').value)||0;
+  const pp=parseFloat(document.getElementById('fi-promo').value)||0.05;
+  const ds=document.getElementById('fi-sold').value||null;
+  const calc=calcItem(price,post,cost,ship,ebay,pp,ds);
+  DB[m].push({id:Date.now().toString(),dateListed:document.getElementById('fi-listed').value,item:name,location:document.getElementById('fi-loc').value,dateSold:ds,salePrice:price,postage:post,itemCost:cost,shipping:ship,ebayFee:+ebay.toFixed(2),promoPercent:pp,...calc});
+  saveData();renderMonth();toast('Added: '+name);
 }
 
-function addItem(m) {
-  const name = document.getElementById('fi-name').value.trim();
-  if(!name) { toast('Enter an item name','err'); return; }
-  const price = parseFloat(document.getElementById('fi-price').value)||0;
-  const cost = parseFloat(document.getElementById('fi-cost').value)||0;
-  const ship = parseFloat(document.getElementById('fi-ship').value)||0;
-  const ebay = parseFloat(document.getElementById('fi-ebay').value)||(price*0.093);
-  const post = parseFloat(document.getElementById('fi-post').value)||0;
-  const pp = parseFloat(document.getElementById('fi-promo').value)||0.05;
-  const ds = document.getElementById('fi-sold').value || null;
-  const newItem = mkItem(Date.now().toString(),
-    document.getElementById('fi-listed').value, name,
-    document.getElementById('fi-loc').value, ds, price, cost, ship, ebay, post, pp);
-  DB[m].push(newItem);
-  saveData();
-  renderMonth();
-  toast('Added: '+name);
+function delItem(m,id){
+  if(!confirm('Delete this item?'))return;
+  DB[m]=DB[m].filter(i=>i.id!==id);
+  saveData();renderMonth();toast('Deleted');
 }
 
-function delItem(m, id) {
-  if(!confirm('Delete this item?')) return;
-  DB[m] = DB[m].filter(i=>i.id!==id);
-  saveData(); renderMonth(); toast('Item deleted');
-}
-
-// ── MARK SOLD MODAL ───────────────────────────────────────────────────
-let _soldTarget = null;
-function openSoldModal(m, id) {
-  _soldTarget = {m, id};
-  document.getElementById('modal-date').value = new Date().toISOString().split('T')[0];
+function openSoldModal(m,id){
+  _soldTarget={m,id};
+  document.getElementById('modal-date').value=new Date().toISOString().split('T')[0];
   document.getElementById('modal-overlay').classList.add('on');
 }
-function closeModal(e) {
-  if(!e || e.target === document.getElementById('modal-overlay')) {
-    document.getElementById('modal-overlay').classList.remove('on');
-    _soldTarget = null;
-  }
+function closeModal(e){
+  if(!e||e.target===document.getElementById('modal-overlay')){document.getElementById('modal-overlay').classList.remove('on');_soldTarget=null;}
 }
-function confirmSold() {
-  if(!_soldTarget) return;
-  const {m,id} = _soldTarget;
-  const dateStr = document.getElementById('modal-date').value;
-  if(!dateStr) { toast('Pick a date','err'); return; }
-  const item = DB[m].find(i=>i.id===id);
-  if(item) {
-    item.dateSold = dateStr;
-    item.grossProfit = parseFloat(((item.totalRev||0)-(item.totalCost||0)).toFixed(2));
-    saveData();
-  }
+function confirmSold(){
+  if(!_soldTarget)return;
+  const{m,id}=_soldTarget;
+  const ds=document.getElementById('modal-date').value;
+  if(!ds){toast('Pick a date','err');return;}
+  const item=DB[m].find(i=>i.id===id);
+  if(item){const calc=calcItem(item.salePrice,item.postage,item.itemCost,item.shipping,item.ebayFee,item.promoPercent,ds);item.dateSold=ds;item.grossProfit=calc.grossProfit;item.roi=calc.roi;saveData();}
   closeModal();
-  const curPage = document.querySelector('.page.on').id;
-  if(curPage==='p-monthly') renderMonth();
-  if(curPage==='p-stock') renderStock();
+  const cur=document.querySelector('.page.on').id;
+  if(cur==='p-monthly')renderMonth();
+  if(cur==='p-stock')renderStock();
   toast('Marked as sold!');
 }
 
-// ── STOCK ─────────────────────────────────────────────────────────────
-let invFilter = 'all';
-function setFilter(f, btn) {
-  invFilter = f;
-  document.querySelectorAll('.fbtn').forEach(b=>b.classList.remove('on'));
-  btn.classList.add('on');
-  renderStock();
-}
-function renderStock() {
-  let items = allUnsold();
-  if(invFilter !== 'all') items = items.filter(i=>i.location===invFilter);
-  const costVal = items.reduce((a,i)=>a+(i.itemCost||0),0);
-  const potProfit = items.reduce((a,i)=>a+((i.totalRev||0)-(i.totalCost||0)),0);
+function setFilter(f,btn){invFilter=f;document.querySelectorAll('.fbtn').forEach(b=>b.classList.remove('on'));btn.classList.add('on');renderStock();}
 
-  document.getElementById('inv-kpis').innerHTML = [
-    ['Items in Stock', items.length, [...new Set(items.map(i=>i.location).filter(Boolean))].length+' locations', 'b'],
-    ['Stock Cost Value', £(costVal), 'Capital tied up', ''],
-    ['Potential Profit', £(potProfit), 'At current list prices', 'g'],
-  ].map(([l,v,s,c])=>`<div class="kcard ${c}"><div class="klabel">${l}</div><div class="kval">${v}</div><div class="ksub">${s}</div></div>`).join('');
-
-  document.getElementById('inv-body').innerHTML = items.length ? items
-    .sort((a,b)=>daysAgo(a.dateListed)-daysAgo(b.dateListed))
-    .reverse()
-    .map(i=>{
-      const days = daysAgo(i.dateListed);
-      const pot = (i.totalRev||0)-(i.totalCost||0);
-      return `<tr>
-        <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis">${i.item}</td>
-        <td class="dim">${MN[i.month]||i.month}</td>
-        <td><span class="badge listed-b">${i.location||'—'}</span></td>
-        <td style="color:${days>30?'var(--red)':days>14?'var(--accent)':'var(--muted2)'}">${days}d</td>
-        <td>${£(i.salePrice)}</td>
-        <td class="dim">${£(i.itemCost)}</td>
-        <td class="${pot>0?'pos':'neg'}">${£(pot)}</td>
-        <td style="color:var(--accent)">${i.roi!=null?(i.roi*100).toFixed(0)+'%':'—'}</td>
-        <td><button class="tbtn" onclick="openSoldModal('${i.month}','${i.id}')">Mark sold</button></td>
-      </tr>`;
-    }).join('') : `<tr><td colspan="9" class="empty">No stock${invFilter!=='all'?' in '+invFilter:''}</td></tr>`;
+function renderStock(){
+  const allLocs=[...new Set(MONTHS.flatMap(m=>(DB[m]||[]).filter(i=>!i.dateSold).map(i=>i.location).filter(Boolean)))].sort();
+  let items=allUnsold();
+  if(invFilter!=='all')items=items.filter(i=>i.location===invFilter);
+  const costVal=items.reduce((a,i)=>a+(i.itemCost||0),0);
+  const potProfit=items.reduce((a,i)=>a+((i.totalRev||0)-(i.totalCost||0)),0);
+  document.getElementById('p-stock').innerHTML=`
+    <div style="font-family:var(--fh);font-size:28px;font-weight:800;margin-bottom:6px">Current Stock</div>
+    <div style="color:var(--muted);font-size:12px;margin-bottom:20px">Listed but not yet sold</div>
+    <div class="filters">
+      <button class="fbtn ${invFilter==='all'?'on':''}" onclick="setFilter('all',this)">All</button>
+      ${allLocs.map(l=>`<button class="fbtn ${invFilter===l?'on':''}" onclick="setFilter('${l}',this)">${l}</button>`).join('')}
+    </div>
+    <div class="kgrid">${[['Items in Stock',items.length,[...new Set(items.map(i=>i.location).filter(Boolean))].length+' locations','b'],['Stock Cost Value',£(costVal),'Capital tied up',''],['Potential Profit',£(potProfit),'At current list prices','g']].map(([l,v,s,c])=>`<div class="kcard ${c}"><div class="klabel">${l}</div><div class="kval">${v}</div><div class="ksub">${s}</div></div>`).join('')}</div>
+    <div class="twrap"><table>
+      <thead><tr><th>Item</th><th>Month Listed</th><th>Location</th><th>Days Listed</th><th>List Price</th><th>Item Cost</th><th>Potential Profit</th><th>ROI</th><th></th></tr></thead>
+      <tbody>${items.length?items.sort((a,b)=>daysAgo(a.dateListed)-daysAgo(b.dateListed)).reverse().map(i=>{
+        const days=daysAgo(i.dateListed);const pot=(i.totalRev||0)-(i.totalCost||0);
+        return`<tr><td style="max-width:200px;overflow:hidden;text-overflow:ellipsis">${i.item}</td><td class="dim">${MN[i.month]||i.month}</td><td><span class="badge listed-b">${i.location||'—'}</span></td><td style="color:${days>30?'var(--red)':days>14?'var(--accent)':'var(--muted2)'}">${days}d</td><td>${£(i.salePrice)}</td><td class="dim">${£(i.itemCost)}</td><td class="${pot>0?'pos':'neg'}">${£(pot)}</td><td style="color:var(--accent)">${i.roi!=null?(i.roi*100).toFixed(0)+'%':'—'}</td><td><button class="tbtn" onclick="openSoldModal('${i.month}','${i.id}')">Mark sold</button></td></tr>`;
+      }).join(''):`<tr><td colspan="9" class="empty">No stock${invFilter!=='all'?' in '+invFilter:''}</td></tr>`}</tbody>
+    </table></div>`;
 }
 
-// ── TAX / SA ──────────────────────────────────────────────────────────
-function renderTax() {
-  const yt = yTotals();
-  const unsd = allUnsold();
-  const stockCost = unsd.reduce((a,i)=>a+(i.itemCost||0),0);
-  const net = yt.profit;
-  const taxable = Math.max(0, net - 12570);
-  const incomeTax = taxable <= 37700 ? taxable*0.20 : 37700*0.20+(taxable-37700)*0.40;
-  const ni = Math.max(0,(net-12570)*0.09);
-
-  document.getElementById('sa-inc').innerHTML = [
-    ['Gross turnover (revenue)', £(yt.rev), 'var(--accent)'],
-    ['Cost of goods sold', £(yt.cost), 'var(--red)'],
-    ['eBay fees', '(within costs)', 'var(--muted2)'],
-    ['Postage & packaging', '(within costs)', 'var(--muted2)'],
-    ['Total allowable expenses', £(yt.cost), 'var(--red)'],
-    ['Net profit', £(net), net>=0?'var(--green)':'var(--red)'],
-  ].map(([l,v,c])=>`<div class="sarow"><span>${l}</span><span style="color:${c}">${v}</span></div>`).join('');
-
-  document.getElementById('sa-tax').innerHTML = [
-    ['Net profit', £(net), net>=0?'var(--green)':'var(--red)'],
-    ['Personal allowance', '£12,570', 'var(--muted2)'],
-    ['Taxable income', £(taxable), 'var(--accent)'],
-    ['Est. income tax (20/40%)', £(incomeTax), 'var(--red)'],
-    ['Est. Class 4 NI (9%)', £(ni), 'var(--red)'],
-    ['Est. total tax liability', £(incomeTax+ni), 'var(--red)'],
-    ['Est. take-home', £(net-incomeTax-ni), 'var(--green)'],
-  ].map(([l,v,c])=>`<div class="sarow"><span>${l}</span><span style="color:${c}">${v}</span></div>`).join('');
-
-  document.getElementById('sa-box').textContent =
-`SA103 SELF-EMPLOYMENT SUPPLEMENTARY PAGES
+function renderTax(){
+  const yt=yTotals();const unsd=allUnsold();
+  const stockCost=unsd.reduce((a,i)=>a+(i.itemCost||0),0);
+  const net=yt.profit;const taxable=Math.max(0,net-12570);
+  const incomeTax=taxable<=37700?taxable*0.20:37700*0.20+(taxable-37700)*0.40;
+  const ni=Math.max(0,(net-12570)*0.09);
+  document.getElementById('p-tax').innerHTML=`
+    <div style="font-family:var(--fh);font-size:28px;font-weight:800;margin-bottom:6px">Self Assessment</div>
+    <div style="color:var(--muted);font-size:12px;margin-bottom:16px">Tax Year: 6 April 2025 – 5 April 2026 · Sole Trader</div>
+    <div class="notice">⚠ Estimated figures only — not financial or tax advice. Always verify with HMRC or a qualified accountant before submitting.</div>
+    <div class="sa-grid">
+      <div class="sacard"><div class="sacard-title">Income & Expenses</div>${[['Gross turnover',£(yt.rev),'var(--accent)'],['Total allowable expenses',£(yt.cost),'var(--red)'],['Net profit',£(net),net>=0?'var(--green)':'var(--red)']].map(([l,v,c])=>`<div class="sarow"><span>${l}</span><span style="color:${c}">${v}</span></div>`).join('')}</div>
+      <div class="sacard"><div class="sacard-title">Tax Estimate</div>${[['Net profit',£(net),net>=0?'var(--green)':'var(--red)'],['Personal allowance','£12,570','var(--muted2)'],['Taxable income',£(taxable),'var(--accent)'],['Est. income tax',£(incomeTax),'var(--red)'],['Est. Class 4 NI',£(ni),'var(--red)'],['Est. total tax',£(incomeTax+ni),'var(--red)'],['Est. take-home',£(net-incomeTax-ni),'var(--green)']].map(([l,v,c])=>`<div class="sarow"><span>${l}</span><span style="color:${c}">${v}</span></div>`).join('')}</div>
+    </div>
+    <div class="sacard"><div class="sacard-title">SA103 Export</div>
+      <div class="sabox" id="sa-box">SA103 SELF-EMPLOYMENT
 Tax Year: 6 April 2025 – 5 April 2026
-Business Name: eBay Reselling
-Business Description: Online resale of second-hand goods via eBay
-Accounting method: Cash basis
+Business: eBay Reselling (second-hand goods)
+Method: Cash basis
 
-─────────────────────────────────────
 INCOME
-─────────────────────────────────────
-Box 15  Business income / turnover:     ${yt.rev.toFixed(2)}
+Box 15  Turnover:                 ${yt.rev.toFixed(2)}
 
-─────────────────────────────────────
 EXPENSES
-─────────────────────────────────────
-Box 16  Cost of goods bought for resale: ${yt.cost.toFixed(2)}
-Box 30  Total allowable expenses:        ${yt.cost.toFixed(2)}
+Box 16  Cost of goods:            ${yt.cost.toFixed(2)}
+Box 30  Total expenses:           ${yt.cost.toFixed(2)}
 
-─────────────────────────────────────
 PROFIT
-─────────────────────────────────────
-Box 31  Net profit:                      ${net.toFixed(2)}
+Box 31  Net profit:               ${net.toFixed(2)}
 
-─────────────────────────────────────
-STOCK (for your records)
-─────────────────────────────────────
-Unsold items:                            ${unsd.length}
-Stock cost value:                        ${stockCost.toFixed(2)}
+STOCK NOTES
+Unsold items:                     ${unsd.length}
+Stock cost value:                 ${stockCost.toFixed(2)}
 
-─────────────────────────────────────
-TAX ESTIMATE (verify with HMRC)
-─────────────────────────────────────
-Taxable income:                          ${taxable.toFixed(2)}
-Estimated income tax:                    ${incomeTax.toFixed(2)}
-Estimated Class 4 NI:                    ${ni.toFixed(2)}
-Estimated total tax:                     ${(incomeTax+ni).toFixed(2)}
+TAX ESTIMATE
+Taxable income:                   ${taxable.toFixed(2)}
+Income tax:                       ${incomeTax.toFixed(2)}
+Class 4 NI:                       ${ni.toFixed(2)}
+Total estimated tax:              ${(incomeTax+ni).toFixed(2)}
 
 Generated: ${new Date().toLocaleDateString('en-GB')}
-⚠ Estimates only — verify with HMRC or an accountant.`;
+⚠ Verify with HMRC / accountant before submitting.</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-p" onclick="copySA()">Copy to clipboard</button><button class="btn btn-s" onclick="dlSA()">Download .txt</button></div>
+    </div>`;
 }
 
-function copySA() {
-  navigator.clipboard.writeText(document.getElementById('sa-box').textContent)
-    .then(()=>toast('Copied to clipboard!'))
-    .catch(()=>toast('Copy failed — try selecting and copying manually','err'));
-}
-function dlSA() {
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(new Blob([document.getElementById('sa-box').textContent],{type:'text/plain'}));
-  a.download = 'SA103_eBay_2026.txt';
-  a.click();
-  toast('Downloaded!');
+function copySA(){navigator.clipboard.writeText(document.getElementById('sa-box').textContent).then(()=>toast('Copied!')).catch(()=>toast('Copy failed','err'));}
+function dlSA(){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([document.getElementById('sa-box').textContent],{type:'text/plain'}));a.download='SA103_eBay_2026.txt';a.click();toast('Downloaded!');}
+
+function toast(msg,type=''){
+  const el=document.getElementById('toast');el.textContent=msg;el.className=type==='err'?'on err':'on';
+  clearTimeout(el._t);el._t=setTimeout(()=>el.classList.remove('on','err'),2800);
 }
 
-// ── TOAST ─────────────────────────────────────────────────────────────
-function toast(msg, type='') {
-  const el = document.getElementById('toast');
-  el.textContent = msg;
-  el.className = type==='err' ? 'on err' : 'on';
-  clearTimeout(el._t);
-  el._t = setTimeout(()=>el.classList.remove('on','err'), 2800);
-}
-
-// ── INIT ──────────────────────────────────────────────────────────────
-renderSummary();
+loadData();
 </script>
 </body>
 </html>
