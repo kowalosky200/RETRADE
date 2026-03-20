@@ -136,7 +136,7 @@ tbody tr:hover td{background:var(--surface2);}
 </div>
 <div id="toast"></div>
 <script>
-// ── SAFE HTML ESCAPE — prevents & and other chars breaking the app ──
+// ── SAFE HTML ESCAPE -- prevents & and other chars breaking the app ──
 function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 
 // ── ALL DATA EMBEDDED ─────────────────────────────────────────────────
@@ -144,7 +144,7 @@ const SEED={"JAN":[],"FEB":[{"id":"f1","dateListed":"2026-02-18","item":"Grand T
 
 const MONTHS=['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
 const MN={JAN:'January',FEB:'February',MAR:'March',APR:'April',MAY:'May',JUN:'June',JUL:'July',AUG:'August',SEP:'September',OCT:'October',NOV:'November',DEC:'December'};
-const £=n=>n!=null?'£'+parseFloat(n).toFixed(2):'—';
+const fmt=n=>n!=null?'£'+parseFloat(n).toFixed(2):'--';
 let DB,invFilter='all',_st=null;
 
 function initDB(){
@@ -181,13 +181,13 @@ function renderSummary(){
   const top=allSold().filter(i=>i.grossProfit>0).sort((a,b)=>b.grossProfit-a.grossProfit).slice(0,10);
   document.getElementById('p-summary').innerHTML=`
     <div class="page-title" style="color:var(--accent)">2026</div>
-    <div class="page-sub">eBay Reselling — Annual Overview</div>
-    <div class="kgrid">${kc('Total Revenue',£(yt.rev),yt.nSold+' items sold','')}${kc('Gross Profit',£(yt.profit),'Margin: '+(yt.rev>0?((yt.profit/yt.rev)*100).toFixed(1)+'%':'—'),'g')}${kc('Total Costs',£(yt.cost),'Fees + shipping + stock','r')}${kc('Stock on Hand',u.length+' items',£(sc)+' cost value','b')}${kc('Unrealised Profit',£(unreal),'If all listed items sell','p')}${kc('Items Listed',yt.nTotal,yt.nSold+' sold · '+(yt.nTotal-yt.nSold)+' active','')}</div>
+    <div class="page-sub">eBay Reselling -- Annual Overview</div>
+    <div class="kgrid">${kc('Total Revenue',fmt(yt.rev),yt.nSold+' items sold','')}${kc('Gross Profit',fmt(yt.profit),'Margin: '+(yt.rev>0?((yt.profit/yt.rev)*100).toFixed(1)+'%':'--'),'g')}${kc('Total Costs',fmt(yt.cost),'Fees + shipping + stock','r')}${kc('Stock on Hand',u.length+' items',fmt(sc)+' cost value','b')}${kc('Unrealised Profit',fmt(unreal),'If all listed items sell','p')}${kc('Items Listed',yt.nTotal,yt.nSold+' sold · '+(yt.nTotal-yt.nSold)+' active','')}</div>
     <div class="sl">Monthly breakdown</div>
-    <div class="mgrid">${MONTHS.map(m=>{const t=mT(m);return`<div class="mcard" onclick="goMonth('${m}')"><div class="mname">${MN[m]}</div><div class="mval ${t.profit>0?'pos':'nil'}">${t.profit>0?£(t.profit):'—'}</div><div class="msub">${t.nSold} sold · ${t.nTotal-t.nSold} listed</div></div>`;}).join('')}</div>
+    <div class="mgrid">${MONTHS.map(m=>{const t=mT(m);return`<div class="mcard" onclick="goMonth('${m}')"><div class="mname">${MN[m]}</div><div class="mval ${t.profit>0?'pos':'nil'}">${t.profit>0?fmt(t.profit):'--'}</div><div class="msub">${t.nSold} sold · ${t.nTotal-t.nSold} listed</div></div>`;}).join('')}</div>
     <div class="sl">Top performers</div>
     <div class="twrap"><table><thead><tr><th>Item</th><th>Month</th><th>Sale Price</th><th>Item Cost</th><th>Gross Profit</th><th>ROI</th></tr></thead>
-    <tbody>${top.length?top.map(i=>`<tr><td>${esc(i.item)}</td><td class="dim">${MN[i.month]}</td><td>${£(i.salePrice)}</td><td class="dim">${£(i.itemCost)}</td><td class="pos">${£(i.grossProfit)}</td><td style="color:var(--accent)">${i.roi!=null?(i.roi*100).toFixed(0)+'%':'—'}</td></tr>`).join(''):'<tr><td colspan="6" class="empty">No sold items yet</td></tr>'}</tbody></table></div>`;
+    <tbody>${top.length?top.map(i=>`<tr><td>${esc(i.item)}</td><td class="dim">${MN[i.month]}</td><td>${fmt(i.salePrice)}</td><td class="dim">${fmt(i.itemCost)}</td><td class="pos">${fmt(i.grossProfit)}</td><td style="color:var(--accent)">${i.roi!=null?(i.roi*100).toFixed(0)+'%':'--'}</td></tr>`).join(''):'<tr><td colspan="6" class="empty">No sold items yet</td></tr>'}</tbody></table></div>`;
 }
 
 function goMonth(m){document.getElementById('msel').value=m;goNav('monthly');}
@@ -207,13 +207,13 @@ function renderMonth(){
   document.getElementById('mbody').innerHTML=`
     <div class="mhdr"><div class="mtitle">${MN[m]}</div>
       <div class="mstats">
-        <div class="mstat"><div class="msv pos">${£(t.profit)}</div><div class="msl">Realised Profit</div></div>
-        <div class="mstat"><div class="msv" style="color:var(--accent)">${£(t.rev)}</div><div class="msl">Revenue</div></div>
-        <div class="mstat"><div class="msv dim">${£(t.cost)}</div><div class="msl">Total Costs</div></div>
+        <div class="mstat"><div class="msv pos">${fmt(t.profit)}</div><div class="msl">Realised Profit</div></div>
+        <div class="mstat"><div class="msv" style="color:var(--accent)">${fmt(t.rev)}</div><div class="msl">Revenue</div></div>
+        <div class="mstat"><div class="msv dim">${fmt(t.cost)}</div><div class="msl">Total Costs</div></div>
         <div class="mstat"><div class="msv">${t.nSold}/${t.nTotal}</div><div class="msl">Sold / Listed</div></div>
       </div>
     </div>
-    ${tot>0?`<div class="pbar-wrap"><div class="pbar-labels"><span>Realised ${£(made)} (${pct}%)</span><span>Remaining ${£(rem)}</span></div><div class="pbar"><div class="pbar-fill" style="width:${pct}%"></div></div></div>`:''}
+    ${tot>0?`<div class="pbar-wrap"><div class="pbar-labels"><span>Realised ${fmt(made)} (${pct}%)</span><span>Remaining ${fmt(rem)}</span></div><div class="pbar"><div class="pbar-fill" style="width:${pct}%"></div></div></div>`:''}
     <div class="sl">Add new item</div>
     <div class="fsec"><div class="fgrid">
       <div class="fg"><label>Item name</label><input type="text" id="fi-name" placeholder="e.g. Nokia 3310"></div>
@@ -231,12 +231,12 @@ function renderMonth(){
     <div class="sl">Items this month (${items.length})</div>
     <div class="twrap"><table><thead><tr><th>Status</th><th>Item</th><th>Location</th><th>Listed</th><th>Price</th><th>Cost</th><th>Ship</th><th>eBay Fee</th><th>Promo</th><th>Total Cost</th><th>Gross Profit</th><th>ROI</th><th>Actions</th></tr></thead>
     <tbody>${items.map(i=>iRow(i,m)).join('')||'<tr><td colspan="13" class="empty">No items yet</td></tr>'}</tbody></table></div>
-    <div class="sfooter"><div class="sfgrid">${[['Revenue',£(t.rev),'var(--accent)'],['Total Cost',£(t.cost),'var(--red)'],['Gross Profit',£(t.profit),'var(--green)'],['Realised',£(made),'var(--green)'],['Remaining',£(rem),'var(--muted2)'],['Margin',t.rev>0?((t.profit/t.rev)*100).toFixed(1)+'%':'—','var(--text)']].map(([l,v,c])=>`<div><div class="sflabel">${l}</div><div class="sfval" style="color:${c}">${v}</div></div>`).join('')}</div></div>`;
+    <div class="sfooter"><div class="sfgrid">${[['Revenue',fmt(t.rev),'var(--accent)'],['Total Cost',fmt(t.cost),'var(--red)'],['Gross Profit',fmt(t.profit),'var(--green)'],['Realised',fmt(made),'var(--green)'],['Remaining',fmt(rem),'var(--muted2)'],['Margin',t.rev>0?((t.profit/t.rev)*100).toFixed(1)+'%':'--','var(--text)']].map(([l,v,c])=>`<div><div class="sflabel">${l}</div><div class="sfval" style="color:${c}">${v}</div></div>`).join('')}</div></div>`;
 }
 
 function iRow(i,m){
   const s=!!i.dateSold;
-  return`<tr><td><span class="badge ${s?'sold-b':'listed-b'}">${s?'Sold':'Listed'}</span></td><td style="max-width:160px;overflow:hidden;text-overflow:ellipsis">${esc(i.item)}</td><td class="dim">${esc(i.location||'—')}</td><td class="dim">${i.dateListed||'—'}</td><td>${£(i.salePrice)}</td><td class="dim">${£(i.itemCost)}</td><td class="dim">${£(i.shipping)}</td><td class="dim">${£(i.ebayFee)}</td><td class="dim">${£(i.promoCost)}</td><td style="color:var(--red)">${£(i.totalCost)}</td><td class="${i.grossProfit>0?'pos':i.grossProfit<0?'neg':''}">${i.grossProfit!=null?£(i.grossProfit):'—'}</td><td style="color:var(--accent)">${i.roi!=null?(i.roi*100).toFixed(0)+'%':'—'}</td><td style="display:flex;gap:4px">${!s?`<button class="tbtn" onclick="openSold('${m}','${i.id}')">Mark sold</button>`:''}<button class="tbtn del" onclick="delItem('${m}','${i.id}')">✕</button></td></tr>`;
+  return`<tr><td><span class="badge ${s?'sold-b':'listed-b'}">${s?'Sold':'Listed'}</span></td><td style="max-width:160px;overflow:hidden;text-overflow:ellipsis">${esc(i.item)}</td><td class="dim">${esc(i.location||'--')}</td><td class="dim">${i.dateListed||'--'}</td><td>${fmt(i.salePrice)}</td><td class="dim">${fmt(i.itemCost)}</td><td class="dim">${fmt(i.shipping)}</td><td class="dim">${fmt(i.ebayFee)}</td><td class="dim">${fmt(i.promoCost)}</td><td style="color:var(--red)">${fmt(i.totalCost)}</td><td class="${i.grossProfit>0?'pos':i.grossProfit<0?'neg':''}">${i.grossProfit!=null?fmt(i.grossProfit):'--'}</td><td style="color:var(--accent)">${i.roi!=null?(i.roi*100).toFixed(0)+'%':'--'}</td><td style="display:flex;gap:4px">${!s?`<button class="tbtn" onclick="openSold('${m}','${i.id}')">Mark sold</button>`:''}<button class="tbtn del" onclick="delItem('${m}','${i.id}')">✕</button></td></tr>`;
 }
 
 function autoCalc(){const p=parseFloat(document.getElementById('fi-price')?.value)||0;if(p>0)document.getElementById('fi-ebay').value=(p*0.093).toFixed(2);}
@@ -282,11 +282,11 @@ function renderStock(){
   document.getElementById('p-stock').innerHTML=`
     <div class="page-title">Current Stock</div><div class="page-sub">Listed but not yet sold</div>
     <div class="filters"><button class="fbtn ${invFilter==='all'?'on':''}" onclick="setFilter('all',this)">All</button>${locs.map(l=>`<button class="fbtn ${invFilter===l?'on':''}" onclick="setFilter('${esc(l)}',this)">${esc(l)}</button>`).join('')}</div>
-    <div class="kgrid">${kc('Items in Stock',items.length,[...new Set(items.map(i=>i.location).filter(Boolean))].length+' locations','b')}${kc('Stock Cost Value',£(cv),'Capital tied up','')}${kc('Potential Profit',£(pp),'At current list prices','g')}</div>
+    <div class="kgrid">${kc('Items in Stock',items.length,[...new Set(items.map(i=>i.location).filter(Boolean))].length+' locations','b')}${kc('Stock Cost Value',fmt(cv),'Capital tied up','')}${kc('Potential Profit',fmt(pp),'At current list prices','g')}</div>
     <div class="twrap"><table><thead><tr><th>Item</th><th>Month Listed</th><th>Location</th><th>Days Listed</th><th>List Price</th><th>Item Cost</th><th>Potential Profit</th><th>ROI</th><th></th></tr></thead>
     <tbody>${items.length?items.sort((a,b)=>daysAgo(a.dateListed)-daysAgo(b.dateListed)).reverse().map(i=>{
       const d=daysAgo(i.dateListed),p=i.totalRev-i.totalCost;
-      return`<tr><td style="max-width:200px;overflow:hidden;text-overflow:ellipsis">${esc(i.item)}</td><td class="dim">${MN[i.month]||i.month}</td><td><span class="badge listed-b">${esc(i.location||'—')}</span></td><td style="color:${d>30?'var(--red)':d>14?'var(--accent)':'var(--muted2)'}">${d}d</td><td>${£(i.salePrice)}</td><td class="dim">${£(i.itemCost)}</td><td class="${p>0?'pos':'neg'}">${£(p)}</td><td style="color:var(--accent)">${i.roi!=null?(i.roi*100).toFixed(0)+'%':'—'}</td><td><button class="tbtn" onclick="openSold('${i.month}','${i.id}')">Mark sold</button></td></tr>`;
+      return`<tr><td style="max-width:200px;overflow:hidden;text-overflow:ellipsis">${esc(i.item)}</td><td class="dim">${MN[i.month]||i.month}</td><td><span class="badge listed-b">${esc(i.location||'--')}</span></td><td style="color:${d>30?'var(--red)':d>14?'var(--accent)':'var(--muted2)'}">${d}d</td><td>${fmt(i.salePrice)}</td><td class="dim">${fmt(i.itemCost)}</td><td class="${p>0?'pos':'neg'}">${fmt(p)}</td><td style="color:var(--accent)">${i.roi!=null?(i.roi*100).toFixed(0)+'%':'--'}</td><td><button class="tbtn" onclick="openSold('${i.month}','${i.id}')">Mark sold</button></td></tr>`;
     }).join(''):`<tr><td colspan="9" class="empty">No stock${invFilter!=='all'?' in '+invFilter:''}</td></tr>`}</tbody></table></div>`;
 }
 
@@ -297,15 +297,15 @@ function renderTax(){
   const sr=(l,v,c)=>`<div class="sarow"><span>${l}</span><span style="color:${c};font-weight:700">${v}</span></div>`;
   document.getElementById('p-tax').innerHTML=`
     <div class="page-title">Self Assessment</div><div class="page-sub">Tax Year: 6 April 2025 – 5 April 2026 · Sole Trader</div>
-    <div class="notice">⚠ Estimated figures only — not financial or tax advice. Always verify with HMRC or a qualified accountant before submitting.</div>
+    <div class="notice">⚠ Estimated figures only -- not financial or tax advice. Always verify with HMRC or a qualified accountant before submitting.</div>
     <div class="sa-grid">
-      <div class="sacard"><div class="sacard-title">Income & Expenses</div>${sr('Gross turnover',£(yt.rev),'var(--accent)')}${sr('Total expenses',£(yt.cost),'var(--red)')}${sr('Net profit',£(net),net>=0?'var(--green)':'var(--red)')}</div>
-      <div class="sacard"><div class="sacard-title">Tax Estimate</div>${sr('Net profit',£(net),net>=0?'var(--green)':'var(--red)')}${sr('Personal allowance','£12,570','var(--muted2)')}${sr('Taxable income',£(tax),'var(--accent)')}${sr('Est. income tax',£(it),'var(--red)')}${sr('Est. Class 4 NI',£(ni),'var(--red)')}${sr('Est. total tax',£(it+ni),'var(--red)')}${sr('Est. take-home',£(net-it-ni),'var(--green)')}</div>
+      <div class="sacard"><div class="sacard-title">Income & Expenses</div>${sr('Gross turnover',fmt(yt.rev),'var(--accent)')}${sr('Total expenses',fmt(yt.cost),'var(--red)')}${sr('Net profit',fmt(net),net>=0?'var(--green)':'var(--red)')}</div>
+      <div class="sacard"><div class="sacard-title">Tax Estimate</div>${sr('Net profit',fmt(net),net>=0?'var(--green)':'var(--red)')}${sr('Personal allowance','£12,570','var(--muted2)')}${sr('Taxable income',fmt(tax),'var(--accent)')}${sr('Est. income tax',fmt(it),'var(--red)')}${sr('Est. Class 4 NI',fmt(ni),'var(--red)')}${sr('Est. total tax',fmt(it+ni),'var(--red)')}${sr('Est. take-home',fmt(net-it-ni),'var(--green)')}</div>
     </div>
     <div class="sacard"><div class="sacard-title">SA103 Export</div>
     <div class="sabox" id="sa-box">SA103 SELF-EMPLOYMENT
 Tax Year: 6 April 2025 – 5 April 2026
-Business: eBay Reselling — General-007
+Business: eBay Reselling -- General-007
 Description: Online resale of second-hand goods
 Method: Cash basis
 
