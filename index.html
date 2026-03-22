@@ -97,7 +97,7 @@ nav{position:sticky;top:0;z-index:200;background:rgba(10,11,14,0.97);backdrop-fi
 
 /* CHART */
 .chart-wrap{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:28px 28px 20px;margin-bottom:28px;}
-.chart-title{font-family:var(--fh);font-size:12px;font-weight:700;color:var(--muted2);text-transform:uppercase;letter-spacing:1px;margin-bottom:28px;display:flex;align-items:center;gap:16px;}
+.chart-title{font-family:var(--fh);font-size:12px;font-weight:700;color:var(--muted2);text-transform:uppercase;letter-spacing:1px;margin-bottom:56px;display:flex;align-items:center;gap:16px;}
 .chart-legend{display:flex;gap:14px;margin-left:auto;}
 .leg{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--muted2);}
 .leg-dot{width:8px;height:8px;border-radius:2px;}
@@ -236,6 +236,26 @@ tbody tr:hover td{background:var(--surface2);}
   .page{padding:16px 12px 100px;}
   .search-wrap{width:140px;}
 }
+
+.item-hero{display:flex;gap:24px;margin-bottom:28px;flex-wrap:wrap;}
+.item-photo-area{width:200px;height:200px;flex-shrink:0;background:var(--surface2);border:1px solid var(--border);border-radius:12px;display:flex;align-items:center;justify-content:center;overflow:hidden;position:relative;cursor:pointer;}
+.item-photo-area img{width:100%;height:100%;object-fit:cover;border-radius:12px;}
+.item-photo-placeholder{text-align:center;color:var(--muted2);}
+.item-photo-placeholder .ph-icon{font-size:32px;margin-bottom:8px;}
+.item-photo-placeholder .ph-text{font-size:11px;}
+.photo-upload-input{display:none;}
+.item-detail-grid{flex:1;min-width:240px;display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+.idetail{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:12px 14px;}
+.idetail-label{font-size:10px;color:var(--muted2);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:4px;font-weight:500;}
+.idetail-val{font-family:var(--fn);font-size:20px;letter-spacing:0.5px;}
+.idetail-val.pos{color:var(--green);}
+.idetail-val.acc{color:var(--accent);}
+.idetail-val.red{color:var(--red);}
+.cost-breakdown{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px;margin-bottom:20px;}
+.cb-title{font-family:var(--fh);font-weight:700;font-size:13px;color:var(--muted2);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:12px;}
+.cb-row{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);font-size:12px;}
+.cb-row:last-child{border-bottom:none;font-weight:600;font-size:13px;}
+@media(max-width:600px){.item-photo-area{width:100%;height:180px;}.item-detail-grid{grid-template-columns:1fr 1fr;}}
 </style>
 </head>
 <body>
@@ -252,6 +272,7 @@ tbody tr:hover td{background:var(--surface2);}
     <button class="tab" onclick="goNav('monthly')">Monthly</button>
     <button class="tab" onclick="goNav('stock')">Stock</button>
     <button class="tab" onclick="goNav('tax')">Tax / SA</button>
+    <button class="tab" onclick="goNav('trips')">Trips & Costs</button>
   </div>
   <div class="nav-right">
     <div class="search-wrap">
@@ -269,6 +290,8 @@ tbody tr:hover td{background:var(--surface2);}
 <div id="p-stock" class="page"></div>
 <div id="p-tax" class="page"></div>
 <div id="p-search" class="page"></div>
+<div id="p-trips" class="page"></div>
+<div id="p-item" class="page"></div>
 
 <!-- QUICK ADD PANEL -->
 <div class="panel-overlay" id="panel-overlay" onclick="closePanel()"></div>
@@ -291,12 +314,10 @@ tbody tr:hover td{background:var(--surface2);}
     <div class="fg"><label>eBay Fee (£)</label><input type="number" id="qa-ebay" step="0.01" placeholder="auto"></div>
     <div class="fg"><label>Shipping Cost (£)</label><input type="number" id="qa-ship" step="0.01" placeholder="2.94"></div>
     <div class="fg"><label>Promo %</label><input type="number" id="qa-promo" step="0.01" placeholder="0.05"></div>
+    <div class="fg"><label>Source / Where bought</label><input type="text" id="qa-source" placeholder="e.g. Bramley Car Boot"></div>
     <div class="fg"><label>Category</label>
       <select id="qa-cat">
-        <option value="">-- Select --</option>
-        <option>Electronics</option><option>Cameras</option><option>Gaming</option>
-        <option>Books</option><option>Clothing</option><option>Toys</option>
-        <option>Home</option><option>Music</option><option>Phones</option><option>Other</option>
+        <option value="">-- Select --</option><option value="Books">Books</option><option value="Cameras">Cameras</option><option value="Clothing & Accessories">Clothing & Accessories</option><option value="Computers">Computers</option><option value="DVD & Blu-ray">DVD & Blu-ray</option><option value="Home & Garden">Home & Garden</option><option value="Home Phones">Home Phones</option><option value="Mobile Phones">Mobile Phones</option><option value="Music">Music</option><option value="Smart Home">Smart Home</option><option value="Toys & Games">Toys & Games</option><option value="TV & Audio">TV & Audio</option><option value="Vehicle Parts">Vehicle Parts</option><option value="Video Games">Video Games</option><option value="Baby">Baby</option><option value="Jewellery & Watches">Jewellery & Watches</option><option value="Sport & Leisure">Sport & Leisure</option><option value="Collectibles">Collectibles</option><option value="Other">Other</option>
       </select>
     </div>
     <div class="fg"><label>Date Sold (if already sold)</label><input type="date" id="qa-sold"></div>
@@ -328,60 +349,7 @@ function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').
 function fmt(n){if(n==null)return'--';return'\u00a3'+parseFloat(n).toFixed(2);}
 
 // ── DATA ──────────────────────────────────────────────────────────────
-const SEED={"JAN":[],"FEB":[
-{"id":"f1","dateListed":"2026-02-18","item":"Grand Turismo 1997 PS1","location":"Bed","dateSold":"2026-02-21","salePrice":9.99,"postage":0,"itemCost":1.5,"shipping":2.7,"ebayFee":0.75,"promoCost":0.4995,"promoPercent":0.05,"totalCost":5.4995,"totalRev":9.99,"grossProfit":4.4905,"roi":0.8165},
-{"id":"f2","dateListed":"2026-02-19","item":"Mag-Lite Torch","location":"Bed","dateSold":"2026-03-03","salePrice":26,"postage":0,"itemCost":3.25,"shipping":2.94,"ebayFee":1.67,"promoCost":0.78,"promoPercent":0.03,"totalCost":8.67,"totalRev":26,"grossProfit":17.33,"roi":1.9988},
-{"id":"f3","dateListed":"2026-02-19","item":"Band of Brothers","location":"Bed","dateSold":null,"salePrice":9.99,"postage":0,"itemCost":3,"shipping":2.7,"ebayFee":0.75,"promoCost":0.4995,"promoPercent":0.05,"totalCost":6.9995,"totalRev":9.99,"grossProfit":null,"roi":0.4272},
-{"id":"f4","dateListed":"2026-02-22","item":"Nokia 3410 - Green Mint","location":"A101","dateSold":"2026-03-13","salePrice":11,"postage":0,"itemCost":2.5,"shipping":2.7,"ebayFee":0.81,"promoCost":0.55,"promoPercent":0.05,"totalCost":6.61,"totalRev":11,"grossProfit":4.39,"roi":0.6641},
-{"id":"f5","dateListed":"2026-02-22","item":"Sony Ericsson T610","location":"A101","dateSold":"2026-03-11","salePrice":10.5,"postage":0,"itemCost":2.5,"shipping":2.7,"ebayFee":0.78,"promoCost":0.525,"promoPercent":0.05,"totalCost":6.555,"totalRev":10.5,"grossProfit":3.945,"roi":0.6018},
-{"id":"f6","dateListed":"2026-02-22","item":"Motorolla W377 Pink","location":"A101","dateSold":"2026-03-04","salePrice":24.99,"postage":0,"itemCost":2.5,"shipping":2.7,"ebayFee":1.63,"promoCost":1.2495,"promoPercent":0.05,"totalCost":8.1295,"totalRev":24.99,"grossProfit":16.8605,"roi":2.074},
-{"id":"f7","dateListed":"2026-02-22","item":"Blackberry Curve 9320","location":"A101","dateSold":"2026-02-27","salePrice":14.99,"postage":0,"itemCost":2.5,"shipping":2.7,"ebayFee":1.04,"promoCost":0.7495,"promoPercent":0.05,"totalCost":7.0395,"totalRev":14.99,"grossProfit":7.9505,"roi":1.1294},
-{"id":"f8","dateListed":"2026-02-22","item":"LOTR Blue Ray Set - 1 Disc Missing","location":"A101","dateSold":"2026-03-06","salePrice":23.47,"postage":0,"itemCost":5,"shipping":2.94,"ebayFee":1.58,"promoCost":1.1735,"promoPercent":0.05,"totalCost":10.7435,"totalRev":23.47,"grossProfit":12.7265,"roi":1.1846},
-{"id":"f9","dateListed":"2026-02-23","item":"Harry Potter Board Game","location":"Bed","dateSold":null,"salePrice":19.99,"postage":0,"itemCost":0,"shipping":3.38,"ebayFee":1.4,"promoCost":0.9995,"promoPercent":0.05,"totalCost":5.8295,"totalRev":19.99,"grossProfit":null,"roi":null},
-{"id":"f10","dateListed":"2026-02-25","item":"Canon 550D - Complete Kit","location":"Bed","dateSold":"2026-02-28","salePrice":149.99,"postage":0,"itemCost":80,"shipping":4.88,"ebayFee":11.24,"promoCost":4.4997,"promoPercent":0.03,"totalCost":100.6497,"totalRev":149.99,"grossProfit":49.3403,"roi":0.4902},
-{"id":"f11","dateListed":"2026-02-25","item":"Kids Music Piano Book","location":"Bed","dateSold":"2026-03-14","salePrice":5.99,"postage":2.94,"itemCost":0.2,"shipping":2.94,"ebayFee":0.49,"promoCost":0.4465,"promoPercent":0.05,"totalCost":4.1265,"totalRev":8.93,"grossProfit":4.8035,"roi":1.1641},
-{"id":"f12","dateListed":"2026-02-25","item":"Star Wars Trilogy VHS Special Edition","location":"A101","dateSold":null,"salePrice":12.99,"postage":0,"itemCost":2,"shipping":2.94,"ebayFee":0.94,"promoCost":0.6495,"promoPercent":0.05,"totalCost":6.5795,"totalRev":12.99,"grossProfit":null,"roi":0.9743},
-{"id":"f13","dateListed":"2026-02-25","item":"Top Shine Elite Shoe Care Kit","location":"Bed","dateSold":null,"salePrice":39.99,"postage":0,"itemCost":6,"shipping":2.94,"ebayFee":2.21,"promoCost":1.9995,"promoPercent":0.05,"totalCost":13.1995,"totalRev":39.99,"grossProfit":null,"roi":2.0297},
-{"id":"f14","dateListed":"2026-02-25","item":"Hugo Boss Glasses Case","location":"Drawer","dateSold":"2026-03-02","salePrice":12.99,"postage":0,"itemCost":0,"shipping":2.94,"ebayFee":0.94,"promoCost":0.6495,"promoPercent":0.05,"totalCost":4.5795,"totalRev":12.99,"grossProfit":8.4105,"roi":null},
-{"id":"f15","dateListed":"2026-02-26","item":"Toy Story 3 Mr Potato Tub","location":"Wardrobe","dateSold":"2026-03-01","salePrice":22.99,"postage":0,"itemCost":2.5,"shipping":3.88,"ebayFee":1.56,"promoCost":1.1495,"promoPercent":0.05,"totalCost":9.1395,"totalRev":22.99,"grossProfit":13.8505,"roi":1.5155},
-{"id":"f16","dateListed":"2026-02-26","item":"Tomee Tippee Nappy Bin","location":"Bedroom","dateSold":"2026-02-27","salePrice":13.99,"postage":0,"itemCost":0,"shipping":3.71,"ebayFee":4.01,"promoCost":0.6995,"promoPercent":0.05,"totalCost":8.4695,"totalRev":13.99,"grossProfit":5.5205,"roi":null},
-{"id":"f17","dateListed":"2026-02-27","item":"Grand Turismo PS1 - Manual Only","location":"Wardrobe","dateSold":null,"salePrice":4.99,"postage":0,"itemCost":2.5,"shipping":1,"ebayFee":0.32,"promoCost":0.2495,"promoPercent":0.05,"totalCost":4.1195,"totalRev":4.99,"grossProfit":null,"roi":0.2113}
-],"MAR":[
-{"id":"m1","dateListed":"2026-03-02","item":"Power Rangers Complete Season 1","location":"A101","dateSold":null,"salePrice":24.99,"postage":0,"itemCost":6,"shipping":2.94,"ebayFee":1.63,"promoCost":1.2495,"promoPercent":0.05,"totalCost":11.8695,"totalRev":24.99,"grossProfit":null,"roi":1.1054},
-{"id":"m2","dateListed":"2026-03-02","item":"Google Nest Mini Gen 1","location":"A101","dateSold":"2026-03-04","salePrice":23.99,"postage":0,"itemCost":10.15,"shipping":2.94,"ebayFee":1.6,"promoCost":1.1995,"promoPercent":0.05,"totalCost":15.9395,"totalRev":23.99,"grossProfit":8.0505,"roi":0.5051},
-{"id":"m3","dateListed":"2026-03-03","item":"The Singing Machine Lights SML283BK","location":"Wardrobe","dateSold":null,"salePrice":49.99,"postage":0,"itemCost":15,"shipping":3.71,"ebayFee":2.6,"promoCost":2.4995,"promoPercent":0.05,"totalCost":23.8595,"totalRev":49.99,"grossProfit":null,"roi":1.0952},
-{"id":"m4","dateListed":"2026-03-03","item":"George RR Martin Book Set","location":"Bedroom","dateSold":"2026-03-06","salePrice":29.99,"postage":0,"itemCost":7,"shipping":2.94,"ebayFee":1.83,"promoCost":1.4995,"promoPercent":0.05,"totalCost":13.3195,"totalRev":29.99,"grossProfit":16.6705,"roi":1.2516},
-{"id":"m5","dateListed":"2026-03-03","item":"Mr and Mrs Potato Head Bundle","location":"Bedroom","dateSold":"2026-03-09","salePrice":19.99,"postage":0,"itemCost":2,"shipping":2.94,"ebayFee":1.4,"promoCost":0.9995,"promoPercent":0.05,"totalCost":7.3895,"totalRev":19.99,"grossProfit":12.6005,"roi":1.705},
-{"id":"m6","dateListed":"2026-03-07","item":"DK Illustrated Family Encyclopedia 16 Books","location":"Wardrobe","dateSold":null,"salePrice":24.99,"postage":0,"itemCost":6,"shipping":5.88,"ebayFee":1.63,"promoCost":1.2495,"promoPercent":0.05,"totalCost":14.8095,"totalRev":24.99,"grossProfit":null,"roi":0.6874},
-{"id":"m7","dateListed":"2026-03-07","item":"Google Nest Mini Gen 1 (B)","location":"A101","dateSold":"2026-03-18","salePrice":22.82,"postage":0,"itemCost":11.2,"shipping":2.94,"ebayFee":1.55,"promoCost":1.141,"promoPercent":0.05,"totalCost":16.881,"totalRev":22.82,"grossProfit":5.939,"roi":0.3518},
-{"id":"m8","dateListed":"2026-03-07","item":"Google Nest Mini Gen 1 (C)","location":"A101","dateSold":null,"salePrice":23.99,"postage":0,"itemCost":12.25,"shipping":2.94,"ebayFee":1.6,"promoCost":1.1995,"promoPercent":0.05,"totalCost":18.0395,"totalRev":23.99,"grossProfit":null,"roi":0.3299},
-{"id":"m9","dateListed":"2026-03-08","item":"Acer Aspire E5-571","location":"Bed","dateSold":"2026-03-18","salePrice":114.99,"postage":0,"itemCost":48.59,"shipping":5.88,"ebayFee":5.1,"promoCost":3.4497,"promoPercent":0.03,"totalCost":63.0497,"totalRev":114.99,"grossProfit":51.9403,"roi":0.8238},
-{"id":"m10","dateListed":"2026-03-08","item":"Canon 600D Astro Mod","location":"Bed","dateSold":"2026-03-11","salePrice":189.99,"postage":0,"itemCost":66.85,"shipping":4.88,"ebayFee":7.98,"promoCost":5.6997,"promoPercent":0.03,"totalCost":85.4397,"totalRev":189.99,"grossProfit":104.5503,"roi":1.2237},
-{"id":"m11","dateListed":"2026-03-09","item":"MSI GeForce GTX 770 4GB Twin Frozr","location":"Bedroom","dateSold":null,"salePrice":54.99,"postage":0,"itemCost":21.7,"shipping":2.94,"ebayFee":2.79,"promoCost":2.7495,"promoPercent":0.05,"totalCost":30.2295,"totalRev":54.99,"grossProfit":null,"roi":0.8191},
-{"id":"m12","dateListed":"2026-03-10","item":"Playstation Backpack - Blue","location":"Bed","dateSold":null,"salePrice":24.99,"postage":0,"itemCost":5.5,"shipping":2.94,"ebayFee":1.63,"promoCost":1.2495,"promoPercent":0.05,"totalCost":11.3695,"totalRev":24.99,"grossProfit":null,"roi":1.198},
-{"id":"m13","dateListed":"2026-03-11","item":"Salus RT500RF Wireless Thermostat","location":"Bed","dateSold":"2026-03-16","salePrice":65,"postage":0,"itemCost":10,"shipping":2.94,"ebayFee":3.17,"promoCost":1.95,"promoPercent":0.03,"totalCost":18.09,"totalRev":65,"grossProfit":46.91,"roi":2.5931},
-{"id":"m14","dateListed":"2026-03-12","item":"Siemens Remote Control 13A Adaptor 3 Pack","location":"Bed","dateSold":"2026-03-18","salePrice":39.99,"postage":0,"itemCost":2,"shipping":2.94,"ebayFee":2.21,"promoCost":1.9995,"promoPercent":0.05,"totalCost":9.1995,"totalRev":39.99,"grossProfit":30.7905,"roi":3.347},
-{"id":"m15","dateListed":"2026-03-13","item":"Canon 1300D Full Kit and Lens","location":"Wardrobe","dateSold":"2026-03-18","salePrice":189.99,"postage":0,"itemCost":120.99,"shipping":4.88,"ebayFee":7.98,"promoCost":5.6997,"promoPercent":0.03,"totalCost":139.5797,"totalRev":189.99,"grossProfit":50.4103,"roi":0.3612},
-{"id":"m16","dateListed":"2026-03-15","item":"Apple Magic Touchpad","location":"A101","dateSold":"2026-03-15","salePrice":22.99,"postage":0,"itemCost":10,"shipping":2.94,"ebayFee":1.56,"promoCost":0.6897,"promoPercent":0.03,"totalCost":15.2197,"totalRev":22.99,"grossProfit":7.7703,"roi":0.5105},
-{"id":"m17","dateListed":"2026-03-15","item":"Apple Magic Keyboard 1314 (Sold w/ another 1314)","location":"A101","dateSold":"2026-03-18","salePrice":19.99,"postage":0,"itemCost":10,"shipping":0,"ebayFee":1.4,"promoCost":0,"promoPercent":0,"totalCost":11.4,"totalRev":19.99,"grossProfit":8.59,"roi":0.7535},
-{"id":"m18","dateListed":"2026-03-15","item":"Apple Magic Keyboard 1314","location":"A101","dateSold":"2026-03-18","salePrice":19.99,"postage":0,"itemCost":10,"shipping":1.69,"ebayFee":1.4,"promoCost":0.5997,"promoPercent":0.03,"totalCost":13.7197,"totalRev":19.99,"grossProfit":6.2703,"roi":0.457},
-{"id":"m19","dateListed":"2026-03-15","item":"Job Lot Magic Keyboards 1314/1255/1655","location":"Bag","dateSold":null,"salePrice":14.99,"postage":2.94,"itemCost":2.94,"shipping":2.94,"ebayFee":5.75,"promoCost":0.5379,"promoPercent":0.03,"totalCost":12.1979,"totalRev":17.93,"grossProfit":null,"roi":0.4699},
-{"id":"m20","dateListed":"2026-03-16","item":"HUSKY Tyre Chains","location":"Bedroom","dateSold":null,"salePrice":39.99,"postage":0,"itemCost":15,"shipping":5.21,"ebayFee":2.21,"promoCost":1.9995,"promoPercent":0.05,"totalCost":24.4695,"totalRev":39.99,"grossProfit":null,"roi":0.6343},
-{"id":"m21","dateListed":"2026-03-17","item":"Samsung TV with Remote","location":"Bedroom","dateSold":null,"salePrice":47.5,"postage":0,"itemCost":7.5,"shipping":5.21,"ebayFee":2.5,"promoCost":2.375,"promoPercent":0.05,"totalCost":17.635,"totalRev":47.5,"grossProfit":null,"roi":1.6935},
-{"id":"m22","dateListed":"2026-03-19","item":"Geermac Amplidect 295","location":"Bed","dateSold":null,"salePrice":34.99,"postage":0,"itemCost":10,"shipping":2.94,"ebayFee":2.02,"promoCost":1.7495,"promoPercent":0.05,"totalCost":16.7595,"totalRev":34.99,"grossProfit":null,"roi":1.0878},
-{"id":"m23","dateListed":"2026-03-20","item":"Sony Walkman Docking Speaker","location":"Desk","dateSold":null,"salePrice":19.99,"postage":0,"itemCost":2,"shipping":2.94,"ebayFee":1.4,"promoCost":0.9995,"promoPercent":0.05,"totalCost":7.3895,"totalRev":19.99,"grossProfit":null,"roi":1.7052},
-{"id":"m24","dateListed":"2026-03-20","item":"Monopoly Original Hasbro Board Game","location":"Desk","dateSold":null,"salePrice":19.99,"postage":0,"itemCost":3.33,"shipping":2.94,"ebayFee":1.4,"promoCost":0.9995,"promoPercent":0.05,"totalCost":8.7195,"totalRev":19.99,"grossProfit":null,"roi":1.2926},
-{"id":"m25","dateListed":"2026-03-20","item":"Azatom Docking Station HouseDance-Max","location":"Desk","dateSold":null,"salePrice":24.99,"postage":0,"itemCost":5.99,"shipping":2.94,"ebayFee":1.63,"promoCost":1.2495,"promoPercent":0.05,"totalCost":11.8595,"totalRev":24.99,"grossProfit":null,"roi":1.1072},
-{"id":"m26","dateListed":"2026-03-20","item":"Saitek Cyborg Evo USB Joystick","location":"Desk","dateSold":null,"salePrice":24.99,"postage":0,"itemCost":5.99,"shipping":2.94,"ebayFee":1.63,"promoCost":0.7497,"promoPercent":0.03,"totalCost":11.3397,"totalRev":24.99,"grossProfit":null,"roi":1.2038},
-{"id":"m27","dateListed":"2026-03-20","item":"BT4600 Twin Landline Phone","location":"Desk","dateSold":null,"salePrice":24.99,"postage":0,"itemCost":2,"shipping":2.94,"ebayFee":1.63,"promoCost":0.7497,"promoPercent":0.03,"totalCost":7.3497,"totalRev":24.99,"grossProfit":null,"roi":2.4001},
-{"id":"m28","dateListed":"2026-03-20","item":"Saturn V Space Rocket Blocks Building Set","location":"Wardrobe","dateSold":null,"salePrice":34.99,"postage":0,"itemCost":10,"shipping":2.94,"ebayFee":2.02,"promoCost":1.7495,"promoPercent":0.05,"totalCost":16.7595,"totalRev":34.99,"grossProfit":null,"roi":1.0878},
-{"id":"m29","dateListed":"2026-03-20","item":"Big Button Phone for Elderly (A)","location":"Desk","dateSold":null,"salePrice":29.99,"postage":0,"itemCost":3.33,"shipping":2.94,"ebayFee":1.83,"promoCost":1.4995,"promoPercent":0.05,"totalCost":9.6495,"totalRev":29.99,"grossProfit":null,"roi":2.1079},
-{"id":"m30","dateListed":"2026-03-20","item":"Big Button Phone for Elderly (B)","location":"Desk","dateSold":null,"salePrice":29.99,"postage":0,"itemCost":3.33,"shipping":2.94,"ebayFee":1.83,"promoCost":1.4995,"promoPercent":0.05,"totalCost":9.6495,"totalRev":29.99,"grossProfit":null,"roi":2.1079},
-{"id":"m31","dateListed":"2026-03-21","item":"Chad Valley Chess Board","location":"Bed","dateSold":null,"salePrice":9.99,"postage":2.94,"itemCost":1,"shipping":2.94,"ebayFee":0.75,"promoCost":0.6465,"promoPercent":0.05,"totalCost":5.3865,"totalRev":12.93,"grossProfit":null,"roi":1.4004},
-{"id":"m32","dateListed":"2026-03-22","item":"Sony WH-1000XM4 Wireless Headphones","location":"Desk","dateSold":null,"salePrice":89.99,"postage":0,"itemCost":35,"shipping":2.94,"ebayFee":4.13,"promoCost":2.6997,"promoPercent":0.03,"totalCost":44.7997,"totalRev":89.99,"grossProfit":null,"roi":1.0087},
-{"id":"m33","dateListed":"2026-03-22","item":"Solar Powered 1080p Security Camera","location":"Desk","dateSold":null,"salePrice":34.99,"postage":0,"itemCost":2,"shipping":2.94,"ebayFee":2.02,"promoCost":1.7495,"promoPercent":0.05,"totalCost":8.7595,"totalRev":34.99,"grossProfit":null,"roi":2.9945},
-{"id":"m34","dateListed":"2026-03-22","item":"Yamaha PSR-75 No PSU","location":"Bedroom","dateSold":null,"salePrice":19.99,"postage":0,"itemCost":3,"shipping":4.88,"ebayFee":1.4,"promoCost":0.9995,"promoPercent":0.05,"totalCost":10.3295,"totalRev":19.99,"grossProfit":null,"roi":0.9352}
-],"APR":[],"MAY":[],"JUN":[],"JUL":[],"AUG":[],"SEP":[],"OCT":[],"NOV":[],"DEC":[]};
+const SEED={"JAN":[],"FEB":[{"id":"f1","dateListed":"2026-02-18","item":"Grand Turismo 1997 PS1","location":"Bed","dateSold":"2026-02-21","salePrice":9.99,"postage":0,"itemCost":1.5,"shipping":2.7,"ebayFee":0.75,"promoCost":0.4995,"promoPercent":0.05,"totalCost":5.4995,"totalRev":9.99,"grossProfit":4.4905,"roi":0.8165,"category":"Video Games","source":""},{"id":"f2","dateListed":"2026-02-19","item":"Mag-Lite Torch","location":"Bed","dateSold":"2026-03-03","salePrice":26,"postage":0,"itemCost":3.25,"shipping":2.94,"ebayFee":1.67,"promoCost":0.78,"promoPercent":0.03,"totalCost":8.67,"totalRev":26,"grossProfit":17.33,"roi":1.9988,"category":"Home & Garden","source":""},{"id":"f3","dateListed":"2026-02-19","item":"Band of Brothers","location":"Bed","dateSold":null,"salePrice":9.99,"postage":0,"itemCost":3,"shipping":2.7,"ebayFee":0.75,"promoCost":0.4995,"promoPercent":0.05,"totalCost":6.9995,"totalRev":9.99,"grossProfit":null,"roi":0.4272,"category":"DVD & Blu-ray","source":""},{"id":"f4","dateListed":"2026-02-22","item":"Nokia 3410 - Green Mint","location":"A101","dateSold":"2026-03-13","salePrice":11,"postage":0,"itemCost":2.5,"shipping":2.7,"ebayFee":0.81,"promoCost":0.55,"promoPercent":0.05,"totalCost":6.61,"totalRev":11,"grossProfit":4.39,"roi":0.6641,"category":"Mobile Phones","source":""},{"id":"f5","dateListed":"2026-02-22","item":"Sony Ericsson T610","location":"A101","dateSold":"2026-03-11","salePrice":10.5,"postage":0,"itemCost":2.5,"shipping":2.7,"ebayFee":0.78,"promoCost":0.525,"promoPercent":0.05,"totalCost":6.555,"totalRev":10.5,"grossProfit":3.945,"roi":0.6018,"category":"Mobile Phones","source":""},{"id":"f6","dateListed":"2026-02-22","item":"Motorolla W377 Pink","location":"A101","dateSold":"2026-03-04","salePrice":24.99,"postage":0,"itemCost":2.5,"shipping":2.7,"ebayFee":1.63,"promoCost":1.2495,"promoPercent":0.05,"totalCost":8.1295,"totalRev":24.99,"grossProfit":16.8605,"roi":2.074,"category":"Mobile Phones","source":""},{"id":"f7","dateListed":"2026-02-22","item":"Blackberry Curve 9320","location":"A101","dateSold":"2026-02-27","salePrice":14.99,"postage":0,"itemCost":2.5,"shipping":2.7,"ebayFee":1.04,"promoCost":0.7495,"promoPercent":0.05,"totalCost":7.0395,"totalRev":14.99,"grossProfit":7.9505,"roi":1.1294,"category":"Mobile Phones","source":""},{"id":"f8","dateListed":"2026-02-22","item":"LOTR Blue Ray Set - 1 Disc Missing","location":"A101","dateSold":"2026-03-06","salePrice":23.47,"postage":0,"itemCost":5,"shipping":2.94,"ebayFee":1.58,"promoCost":1.1735,"promoPercent":0.05,"totalCost":10.7435,"totalRev":23.47,"grossProfit":12.7265,"roi":1.1846,"category":"DVD & Blu-ray","source":""},{"id":"f9","dateListed":"2026-02-23","item":"Harry Potter Board Game","location":"Bed","dateSold":null,"salePrice":19.99,"postage":0,"itemCost":0,"shipping":3.38,"ebayFee":1.4,"promoCost":0.9995,"promoPercent":0.05,"totalCost":5.8295,"totalRev":19.99,"grossProfit":null,"roi":null,"category":"Toys & Games","source":""},{"id":"f10","dateListed":"2026-02-25","item":"Canon 550D - Complete Kit","location":"Bed","dateSold":"2026-02-28","salePrice":149.99,"postage":0,"itemCost":80,"shipping":4.88,"ebayFee":11.24,"promoCost":4.4997,"promoPercent":0.03,"totalCost":100.6497,"totalRev":149.99,"grossProfit":49.3403,"roi":0.4902,"category":"Cameras","source":""},{"id":"f11","dateListed":"2026-02-25","item":"Kids Music Piano Book","location":"Bed","dateSold":"2026-03-14","salePrice":5.99,"postage":2.94,"itemCost":0.2,"shipping":2.94,"ebayFee":0.49,"promoCost":0.4465,"promoPercent":0.05,"totalCost":4.1265,"totalRev":8.93,"grossProfit":4.8035,"roi":1.1641,"category":"Books","source":""},{"id":"f12","dateListed":"2026-02-25","item":"Star Wars Trilogy VHS Special Edition","location":"A101","dateSold":null,"salePrice":12.99,"postage":0,"itemCost":2,"shipping":2.94,"ebayFee":0.94,"promoCost":0.6495,"promoPercent":0.05,"totalCost":6.5795,"totalRev":12.99,"grossProfit":null,"roi":0.9743,"category":"DVD & Blu-ray","source":""},{"id":"f13","dateListed":"2026-02-25","item":"Top Shine Elite Shoe Care Kit","location":"Bed","dateSold":null,"salePrice":39.99,"postage":0,"itemCost":6,"shipping":2.94,"ebayFee":2.21,"promoCost":1.9995,"promoPercent":0.05,"totalCost":13.1995,"totalRev":39.99,"grossProfit":null,"roi":2.0297,"category":"Clothing & Accessories","source":""},{"id":"f14","dateListed":"2026-02-25","item":"Hugo Boss Glasses Case","location":"Drawer","dateSold":"2026-03-02","salePrice":12.99,"postage":0,"itemCost":0,"shipping":2.94,"ebayFee":0.94,"promoCost":0.6495,"promoPercent":0.05,"totalCost":4.5795,"totalRev":12.99,"grossProfit":8.4105,"roi":null,"category":"Clothing & Accessories","source":""},{"id":"f15","dateListed":"2026-02-26","item":"Toy Story 3 Mr Potato Tub","location":"Wardrobe","dateSold":"2026-03-01","salePrice":22.99,"postage":0,"itemCost":2.5,"shipping":3.88,"ebayFee":1.56,"promoCost":1.1495,"promoPercent":0.05,"totalCost":9.1395,"totalRev":22.99,"grossProfit":13.8505,"roi":1.5155,"category":"Toys & Games","source":""},{"id":"f16","dateListed":"2026-02-26","item":"Tomee Tippee Nappy Bin","location":"Bedroom","dateSold":"2026-02-27","salePrice":13.99,"postage":0,"itemCost":0,"shipping":3.71,"ebayFee":4.01,"promoCost":0.6995,"promoPercent":0.05,"totalCost":8.4695,"totalRev":13.99,"grossProfit":5.5205,"roi":null,"category":"Baby","source":""},{"id":"f17","dateListed":"2026-02-27","item":"Grand Turismo PS1 - Manual Only","location":"Wardrobe","dateSold":null,"salePrice":4.99,"postage":0,"itemCost":2.5,"shipping":1,"ebayFee":0.32,"promoCost":0.2495,"promoPercent":0.05,"totalCost":4.1195,"totalRev":4.99,"grossProfit":null,"roi":0.2113,"category":"Video Games","source":""}],"MAR":[{"id":"m1","dateListed":"2026-03-02","item":"Power Rangers Complete Season 1","location":"A101","dateSold":null,"salePrice":24.99,"postage":0,"itemCost":6,"shipping":2.94,"ebayFee":1.63,"promoCost":1.2495,"promoPercent":0.05,"totalCost":11.8695,"totalRev":24.99,"grossProfit":null,"roi":1.1054,"category":"DVD & Blu-ray","source":""},{"id":"m2","dateListed":"2026-03-02","item":"Google Nest Mini Gen 1","location":"A101","dateSold":"2026-03-04","salePrice":23.99,"postage":0,"itemCost":10.15,"shipping":2.94,"ebayFee":1.6,"promoCost":1.1995,"promoPercent":0.05,"totalCost":15.9395,"totalRev":23.99,"grossProfit":8.0505,"roi":0.5051,"category":"Smart Home","source":""},{"id":"m3","dateListed":"2026-03-03","item":"The Singing Machine Lights SML283BK","location":"Wardrobe","dateSold":null,"salePrice":49.99,"postage":0,"itemCost":15,"shipping":3.71,"ebayFee":2.6,"promoCost":2.4995,"promoPercent":0.05,"totalCost":23.8595,"totalRev":49.99,"grossProfit":null,"roi":1.0952,"category":"Music","source":""},{"id":"m4","dateListed":"2026-03-03","item":"George RR Martin Book Set","location":"Bedroom","dateSold":"2026-03-06","salePrice":29.99,"postage":0,"itemCost":7,"shipping":2.94,"ebayFee":1.83,"promoCost":1.4995,"promoPercent":0.05,"totalCost":13.3195,"totalRev":29.99,"grossProfit":16.6705,"roi":1.2516,"category":"Books","source":""},{"id":"m5","dateListed":"2026-03-03","item":"Mr and Mrs Potato Head Bundle","location":"Bedroom","dateSold":"2026-03-09","salePrice":19.99,"postage":0,"itemCost":2,"shipping":2.94,"ebayFee":1.4,"promoCost":0.9995,"promoPercent":0.05,"totalCost":7.3895,"totalRev":19.99,"grossProfit":12.6005,"roi":1.705,"category":"Toys & Games","source":""},{"id":"m6","dateListed":"2026-03-07","item":"DK Illustrated Family Encyclopedia 16 Books","location":"Wardrobe","dateSold":null,"salePrice":24.99,"postage":0,"itemCost":6,"shipping":5.88,"ebayFee":1.63,"promoCost":1.2495,"promoPercent":0.05,"totalCost":14.8095,"totalRev":24.99,"grossProfit":null,"roi":0.6874,"category":"Books","source":""},{"id":"m7","dateListed":"2026-03-07","item":"Google Nest Mini Gen 1 (B)","location":"A101","dateSold":"2026-03-18","salePrice":22.82,"postage":0,"itemCost":11.2,"shipping":2.94,"ebayFee":1.55,"promoCost":1.141,"promoPercent":0.05,"totalCost":16.881,"totalRev":22.82,"grossProfit":5.939,"roi":0.3518,"category":"Smart Home","source":""},{"id":"m8","dateListed":"2026-03-07","item":"Google Nest Mini Gen 1 (C)","location":"A101","dateSold":null,"salePrice":23.99,"postage":0,"itemCost":12.25,"shipping":2.94,"ebayFee":1.6,"promoCost":1.1995,"promoPercent":0.05,"totalCost":18.0395,"totalRev":23.99,"grossProfit":null,"roi":0.3299,"category":"Smart Home","source":""},{"id":"m9","dateListed":"2026-03-08","item":"Acer Aspire E5-571","location":"Bed","dateSold":"2026-03-18","salePrice":114.99,"postage":0,"itemCost":48.59,"shipping":5.88,"ebayFee":5.1,"promoCost":3.4497,"promoPercent":0.03,"totalCost":63.0497,"totalRev":114.99,"grossProfit":51.9403,"roi":0.8238,"category":"Computers","source":""},{"id":"m10","dateListed":"2026-03-08","item":"Canon 600D Astro Mod","location":"Bed","dateSold":"2026-03-11","salePrice":189.99,"postage":0,"itemCost":66.85,"shipping":4.88,"ebayFee":7.98,"promoCost":5.6997,"promoPercent":0.03,"totalCost":85.4397,"totalRev":189.99,"grossProfit":104.5503,"roi":1.2237,"category":"Cameras","source":""},{"id":"m11","dateListed":"2026-03-09","item":"MSI GeForce GTX 770 4GB Twin Frozr","location":"Bedroom","dateSold":null,"salePrice":54.99,"postage":0,"itemCost":21.7,"shipping":2.94,"ebayFee":2.79,"promoCost":2.7495,"promoPercent":0.05,"totalCost":30.2295,"totalRev":54.99,"grossProfit":null,"roi":0.8191,"category":"Computers","source":""},{"id":"m12","dateListed":"2026-03-10","item":"Playstation Backpack - Blue","location":"Bed","dateSold":null,"salePrice":24.99,"postage":0,"itemCost":5.5,"shipping":2.94,"ebayFee":1.63,"promoCost":1.2495,"promoPercent":0.05,"totalCost":11.3695,"totalRev":24.99,"grossProfit":null,"roi":1.198,"category":"Video Games","source":""},{"id":"m13","dateListed":"2026-03-11","item":"Salus RT500RF Wireless Thermostat","location":"Bed","dateSold":"2026-03-16","salePrice":65,"postage":0,"itemCost":10,"shipping":2.94,"ebayFee":3.17,"promoCost":1.95,"promoPercent":0.03,"totalCost":18.09,"totalRev":65,"grossProfit":46.91,"roi":2.5931,"category":"Home & Garden","source":""},{"id":"m14","dateListed":"2026-03-12","item":"Siemens Remote Control 13A Adaptor 3 Pack","location":"Bed","dateSold":"2026-03-18","salePrice":39.99,"postage":0,"itemCost":2,"shipping":2.94,"ebayFee":2.21,"promoCost":1.9995,"promoPercent":0.05,"totalCost":9.1995,"totalRev":39.99,"grossProfit":30.7905,"roi":3.347,"category":"Home & Garden","source":""},{"id":"m15","dateListed":"2026-03-13","item":"Canon 1300D Full Kit and Lens","location":"Wardrobe","dateSold":"2026-03-18","salePrice":189.99,"postage":0,"itemCost":120.99,"shipping":4.88,"ebayFee":7.98,"promoCost":5.6997,"promoPercent":0.03,"totalCost":139.5797,"totalRev":189.99,"grossProfit":50.4103,"roi":0.3612,"category":"Cameras","source":""},{"id":"m16","dateListed":"2026-03-15","item":"Apple Magic Touchpad","location":"A101","dateSold":"2026-03-15","salePrice":22.99,"postage":0,"itemCost":10,"shipping":2.94,"ebayFee":1.56,"promoCost":0.6897,"promoPercent":0.03,"totalCost":15.2197,"totalRev":22.99,"grossProfit":7.7703,"roi":0.5105,"category":"Computers","source":""},{"id":"m17","dateListed":"2026-03-15","item":"Apple Magic Keyboard 1314 (Sold w/ another 1314)","location":"A101","dateSold":"2026-03-18","salePrice":19.99,"postage":0,"itemCost":10,"shipping":0,"ebayFee":1.4,"promoCost":0,"promoPercent":0,"totalCost":11.4,"totalRev":19.99,"grossProfit":8.59,"roi":0.7535,"category":"Computers","source":""},{"id":"m18","dateListed":"2026-03-15","item":"Apple Magic Keyboard 1314","location":"A101","dateSold":"2026-03-18","salePrice":19.99,"postage":0,"itemCost":10,"shipping":1.69,"ebayFee":1.4,"promoCost":0.5997,"promoPercent":0.03,"totalCost":13.7197,"totalRev":19.99,"grossProfit":6.2703,"roi":0.457,"category":"Computers","source":""},{"id":"m19","dateListed":"2026-03-15","item":"Job Lot Magic Keyboards 1314/1255/1655","location":"Bag","dateSold":null,"salePrice":14.99,"postage":2.94,"itemCost":2.94,"shipping":2.94,"ebayFee":5.75,"promoCost":0.5379,"promoPercent":0.03,"totalCost":12.1979,"totalRev":17.93,"grossProfit":null,"roi":0.4699,"category":"Computers","source":""},{"id":"m20","dateListed":"2026-03-16","item":"HUSKY Tyre Chains","location":"Bedroom","dateSold":null,"salePrice":39.99,"postage":0,"itemCost":15,"shipping":5.21,"ebayFee":2.21,"promoCost":1.9995,"promoPercent":0.05,"totalCost":24.4695,"totalRev":39.99,"grossProfit":null,"roi":0.6343,"category":"Vehicle Parts","source":""},{"id":"m21","dateListed":"2026-03-17","item":"Samsung TV with Remote","location":"Bedroom","dateSold":null,"salePrice":47.5,"postage":0,"itemCost":7.5,"shipping":5.21,"ebayFee":2.5,"promoCost":2.375,"promoPercent":0.05,"totalCost":17.635,"totalRev":47.5,"grossProfit":null,"roi":1.6935,"category":"TV & Audio","source":""},{"id":"m22","dateListed":"2026-03-19","item":"Geermac Amplidect 295","location":"Bed","dateSold":null,"salePrice":34.99,"postage":0,"itemCost":10,"shipping":2.94,"ebayFee":2.02,"promoCost":1.7495,"promoPercent":0.05,"totalCost":16.7595,"totalRev":34.99,"grossProfit":null,"roi":1.0878,"category":"Home Phones","source":""},{"id":"m23","dateListed":"2026-03-20","item":"Sony Walkman Docking Speaker","location":"Desk","dateSold":null,"salePrice":19.99,"postage":0,"itemCost":2,"shipping":2.94,"ebayFee":1.4,"promoCost":0.9995,"promoPercent":0.05,"totalCost":7.3895,"totalRev":19.99,"grossProfit":null,"roi":1.7052,"category":"TV & Audio","source":""},{"id":"m24","dateListed":"2026-03-20","item":"Monopoly Original Hasbro Board Game","location":"Desk","dateSold":null,"salePrice":19.99,"postage":0,"itemCost":3.33,"shipping":2.94,"ebayFee":1.4,"promoCost":0.9995,"promoPercent":0.05,"totalCost":8.7195,"totalRev":19.99,"grossProfit":null,"roi":1.2926,"category":"Toys & Games","source":""},{"id":"m25","dateListed":"2026-03-20","item":"Azatom Docking Station HouseDance-Max","location":"Desk","dateSold":null,"salePrice":24.99,"postage":0,"itemCost":5.99,"shipping":2.94,"ebayFee":1.63,"promoCost":1.2495,"promoPercent":0.05,"totalCost":11.8595,"totalRev":24.99,"grossProfit":null,"roi":1.1072,"category":"TV & Audio","source":""},{"id":"m26","dateListed":"2026-03-20","item":"Saitek Cyborg Evo USB Joystick","location":"Desk","dateSold":null,"salePrice":24.99,"postage":0,"itemCost":5.99,"shipping":2.94,"ebayFee":1.63,"promoCost":0.7497,"promoPercent":0.03,"totalCost":11.3397,"totalRev":24.99,"grossProfit":null,"roi":1.2038,"category":"Video Games","source":""},{"id":"m27","dateListed":"2026-03-20","item":"BT4600 Twin Landline Phone","location":"Desk","dateSold":null,"salePrice":24.99,"postage":0,"itemCost":2,"shipping":2.94,"ebayFee":1.63,"promoCost":0.7497,"promoPercent":0.03,"totalCost":7.3497,"totalRev":24.99,"grossProfit":null,"roi":2.4001,"category":"Home Phones","source":""},{"id":"m28","dateListed":"2026-03-20","item":"Saturn V Space Rocket Blocks Building Set","location":"Wardrobe","dateSold":null,"salePrice":34.99,"postage":0,"itemCost":10,"shipping":2.94,"ebayFee":2.02,"promoCost":1.7495,"promoPercent":0.05,"totalCost":16.7595,"totalRev":34.99,"grossProfit":null,"roi":1.0878,"category":"Toys & Games","source":""},{"id":"m29","dateListed":"2026-03-20","item":"Big Button Phone for Elderly (A)","location":"Desk","dateSold":null,"salePrice":29.99,"postage":0,"itemCost":3.33,"shipping":2.94,"ebayFee":1.83,"promoCost":1.4995,"promoPercent":0.05,"totalCost":9.6495,"totalRev":29.99,"grossProfit":null,"roi":2.1079,"category":"Home Phones","source":""},{"id":"m30","dateListed":"2026-03-20","item":"Big Button Phone for Elderly (B)","location":"Desk","dateSold":null,"salePrice":29.99,"postage":0,"itemCost":3.33,"shipping":2.94,"ebayFee":1.83,"promoCost":1.4995,"promoPercent":0.05,"totalCost":9.6495,"totalRev":29.99,"grossProfit":null,"roi":2.1079,"category":"Home Phones","source":""},{"id":"m31","dateListed":"2026-03-21","item":"Chad Valley Chess Board","location":"Bed","dateSold":null,"salePrice":9.99,"postage":2.94,"itemCost":1,"shipping":2.94,"ebayFee":0.75,"promoCost":0.6465,"promoPercent":0.05,"totalCost":5.3865,"totalRev":12.93,"grossProfit":null,"roi":1.4004,"category":"Toys & Games","source":""},{"id":"m32","dateListed":"2026-03-22","item":"Sony WH-1000XM4 Wireless Headphones","location":"Desk","dateSold":null,"salePrice":89.99,"postage":0,"itemCost":35,"shipping":2.94,"ebayFee":4.13,"promoCost":2.6997,"promoPercent":0.03,"totalCost":44.7997,"totalRev":89.99,"grossProfit":null,"roi":1.0087,"category":"TV & Audio","source":""},{"id":"m33","dateListed":"2026-03-22","item":"Solar Powered 1080p Security Camera","location":"Desk","dateSold":null,"salePrice":34.99,"postage":0,"itemCost":2,"shipping":2.94,"ebayFee":2.02,"promoCost":1.7495,"promoPercent":0.05,"totalCost":8.7595,"totalRev":34.99,"grossProfit":null,"roi":2.9945,"category":"Home & Garden","source":""},{"id":"m34","dateListed":"2026-03-22","item":"Yamaha PSR-75 No PSU","location":"Bedroom","dateSold":null,"salePrice":19.99,"postage":0,"itemCost":3,"shipping":4.88,"ebayFee":1.4,"promoCost":0.9995,"promoPercent":0.05,"totalCost":10.3295,"totalRev":19.99,"grossProfit":null,"roi":0.9352,"category":"Music","source":""}],"APR":[],"MAY":[],"JUN":[],"JUL":[],"AUG":[],"SEP":[],"OCT":[],"NOV":[],"DEC":[]};
 const MONTHS=['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
 const MN={JAN:'January',FEB:'February',MAR:'March',APR:'April',MAY:'May',JUN:'June',JUL:'July',AUG:'August',SEP:'September',OCT:'October',NOV:'November',DEC:'December'};
 let DB,invFilter='all',activeDrill=null,_st=null,_searchQ='';
@@ -421,13 +389,16 @@ function getInsights(){
     return Math.round((b-a)/86400000);
   });
   const avgDays=daysSold.length?Math.round(daysSold.reduce((a,b)=>a+b,0)/daysSold.length):null;
-  // Best location
-  const locMap={};
-  s.forEach(i=>{const l=i.location||'Unknown';if(!locMap[l])locMap[l]={profit:0,count:0};locMap[l].profit+=i.grossProfit||0;locMap[l].count++;});
-  const bestLoc=Object.entries(locMap).sort((a,b)=>b[1].profit-a[1].profit)[0];
+  // Sell-through rate
+  const totalListed=MONTHS.reduce((a,m)=>a+(DB[m]||[]).length,0);
+  const sellThrough=totalListed>0?Math.round((s.length/totalListed)*100):0;
+  // Best source (buying origin)
+  const srcMap={};
+  s.filter(i=>i.source).forEach(i=>{const l=i.source;if(!srcMap[l])srcMap[l]={profit:0,count:0};srcMap[l].profit+=i.grossProfit||0;srcMap[l].count++;});
+  const bestSrc=Object.keys(srcMap).length?Object.entries(srcMap).sort((a,b)=>b[1].profit-a[1].profit)[0]:null;
   // Avg ROI
   const avgROI=s.filter(i=>i.roi!=null).reduce((a,i)=>a+i.roi,0)/s.filter(i=>i.roi!=null).length;
-  return{bestCat,avgDays,bestLoc,avgROI};
+  return{bestCat,avgDays,bestSrc,avgROI,sellThrough};
 }
 
 // ── NAV ───────────────────────────────────────────────────────────────
@@ -435,12 +406,13 @@ function goNav(page){
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('on'));
   document.querySelectorAll('.tab').forEach(t=>t.classList.remove('on'));
   document.getElementById('p-'+page).classList.add('on');
-  ['summary','monthly','stock','tax'].forEach((p,i)=>{if(p===page)document.querySelectorAll('.tab')[i].classList.add('on');});
+  ['summary','monthly','stock','tax','trips'].forEach((p,i)=>{if(p===page)document.querySelectorAll('.tab')[i].classList.add('on');});
   if(page!=='summary')activeDrill=null;
   if(page==='summary')renderSummary();
   if(page==='monthly')renderMonthPage();
   if(page==='stock')renderStock();
   if(page==='tax')renderTax();
+  if(page==='trips')renderTrips();
 }
 
 // ── SEARCH ────────────────────────────────────────────────────────────
@@ -556,7 +528,8 @@ function renderSummary(){
     insHtml=`<div class="insights">
       ${ins.avgDays!=null?`<div class="insight-card"><div class="insight-icon">&#9201;</div><div><div class="insight-label">Avg days to sell</div><div class="insight-val">${ins.avgDays}d</div></div></div>`:''}
       ${ins.avgROI?`<div class="insight-card"><div class="insight-icon">&#128200;</div><div><div class="insight-label">Avg ROI</div><div class="insight-val">${(ins.avgROI*100).toFixed(0)}%</div></div></div>`:''}
-      ${ins.bestLoc?`<div class="insight-card"><div class="insight-icon">&#128205;</div><div><div class="insight-label">Best location</div><div class="insight-val">${esc(ins.bestLoc[0])}</div><div class="insight-sub">${fmt(ins.bestLoc[1].profit)} profit</div></div></div>`:''}
+      <div class="insight-card"><div class="insight-icon">&#127919;</div><div><div class="insight-label">Sell-through rate</div><div class="insight-val" style="color:${ins.sellThrough>=70?'var(--green)':ins.sellThrough>=50?'var(--accent)':'var(--red)'}">${ins.sellThrough}%</div><div class="insight-sub">${ins.sellThrough>=70?'Strong':'Keep repricing'}</div></div></div>
+      ${ins.bestSrc?`<div class="insight-card"><div class="insight-icon">&#128205;</div><div><div class="insight-label">Best source</div><div class="insight-val">${esc(ins.bestSrc[0])}</div><div class="insight-sub">${fmt(ins.bestSrc[1].profit)} profit</div></div></div>`:''}
       ${ins.bestCat?`<div class="insight-card"><div class="insight-icon">&#127942;</div><div><div class="insight-label">Top category</div><div class="insight-val">${esc(ins.bestCat[0])}</div><div class="insight-sub">${fmt(ins.bestCat[1].profit)} profit</div></div></div>`:''}
     </div>`;
   }
@@ -580,7 +553,7 @@ function renderSummary(){
     <div class="mgrid">${MONTHS.map(m=>{const t=mT(m);return`<div class="mcard" onclick="goMonth('${m}')"><div class="mname">${MN[m]}</div><div class="mval ${t.profit>0?'pos':'nil'}">${t.profit>0?fmt(t.profit):'--'}</div><div class="msub">${t.nSold} sold &middot; ${t.nTotal-t.nSold} listed</div></div>`;}).join('')}</div>
     <div class="sl">Top performers</div>
     <div class="twrap"><table><thead><tr><th>Item</th><th>Month</th><th>Sale Price</th><th>Item Cost</th><th>Gross Profit</th><th>ROI</th></tr></thead>
-    <tbody>${top.length?top.map(i=>`<tr><td>${esc(i.item)}</td><td class="dim">${MN[i.month]}</td><td>${fmt(i.salePrice)}</td><td class="dim">${fmt(i.itemCost)}</td><td class="pos">${fmt(i.grossProfit)}</td><td style="color:var(--accent)">${i.roi!=null?(i.roi*100).toFixed(0)+'%':'--'}</td></tr>`).join(''):'<tr><td colspan="6" class="empty">No sold items yet</td></tr>'}</tbody></table></div>`;
+    <tbody>${top.length?top.map(i=>`<tr style="cursor:pointer" onclick="_prevPage='summary';openItem('${i.month}','${i.id}')"><td>${esc(i.item)}</td><td class="dim">${MN[i.month]}</td><td>${fmt(i.salePrice)}</td><td class="dim">${fmt(i.itemCost)}</td><td class="pos">${fmt(i.grossProfit)}</td><td style="color:var(--accent)">${i.roi!=null?(i.roi*100).toFixed(0)+'%':'--'}</td></tr>`).join(''):'<tr><td colspan="6" class="empty">No sold items yet</td></tr>'}</tbody></table></div>`;
 
   if(activeDrill)drillKPI(activeDrill,true);
 }
@@ -681,7 +654,8 @@ function renderMonth(){
 function editRowInner(i){
   return`<div class="editrow-inner"><div class="editrow-grid">
     <div class="fg" style="grid-column:1/-1"><label>Item Name</label><input type="text" id="ei-name-${i.id}" value="${esc(i.item||'')}"></div>
-    <div class="fg"><label>Location</label><input type="text" id="ei-loc-${i.id}" value="${esc(i.location||'')}"></div>
+    <div class="fg"><label>Location (storage)</label><input type="text" id="ei-loc-${i.id}" value="${esc(i.location||'')}"></div>
+    <div class="fg"><label>Source (where bought)</label><input type="text" id="ei-src-${i.id}" value="${esc(i.source||'')}"></div>
     <div class="fg"><label>Category</label><select id="ei-cat-${i.id}"><option value="">--</option><option${i.category==='Electronics'?' selected':''}>Electronics</option><option${i.category==='Cameras'?' selected':''}>Cameras</option><option${i.category==='Gaming'?' selected':''}>Gaming</option><option${i.category==='Books'?' selected':''}>Books</option><option${i.category==='Clothing'?' selected':''}>Clothing</option><option${i.category==='Toys'?' selected':''}>Toys</option><option${i.category==='Home'?' selected':''}>Home</option><option${i.category==='Music'?' selected':''}>Music</option><option${i.category==='Phones'?' selected':''}>Phones</option><option${i.category==='Other'?' selected':''}>Other</option></select></div>
     <div class="fg"><label>Date Listed</label><input type="date" id="ei-listed-${i.id}" value="${i.dateListed||''}"></div>
     <div class="fg"><label>Date Sold</label><input type="date" id="ei-sold-${i.id}" value="${i.dateSold||''}"></div>
@@ -714,6 +688,7 @@ function iRow(i,m){
     <td class="${i.grossProfit>0?'pos':i.grossProfit<0?'neg':''}">${i.grossProfit!=null?fmt(i.grossProfit):'--'}</td>
     <td class="col-hide" style="color:var(--accent)">${i.roi!=null?(i.roi*100).toFixed(0)+'%':'--'}</td>
     <td style="display:flex;gap:4px">
+      <button class="tbtn" onclick="_prevPage='monthly';openItem('${m}','${i.id}')">View</button>
       ${!s?`<button class="tbtn" onclick="openSold('${m}','${i.id}')">Mark sold</button>`:''}
       <button class="tbtn del" onclick="delItem('${m}','${i.id}')">&#x2715;</button>
     </td>
@@ -736,6 +711,7 @@ function saveInlineEdit(m,id){
   if(!item)return;
   item.item=document.getElementById('ei-name-'+id)?.value.trim()||item.item;
   item.location=document.getElementById('ei-loc-'+id)?.value.trim()||'';
+  item.source=document.getElementById('ei-src-'+id)?.value.trim()||'';
   item.category=document.getElementById('ei-cat-'+id)?.value||'';
   item.dateListed=document.getElementById('ei-listed-'+id)?.value||item.dateListed;
   item.dateSold=document.getElementById('ei-sold-'+id)?.value||null;
@@ -752,6 +728,7 @@ function saveInlineEdit(m,id){
   else if(cur==='p-stock')renderStock();
   else if(cur==='p-summary')renderSummary();
   else if(cur==='p-search')renderSearch();
+  else if(cur==='p-item'){if(_currentItem){_currentItem=DB[_currentItem.month].find(i=>i.id===_currentItem.id)||_currentItem;_currentItem.month=_currentItem.month||m;}renderItemPage();}
   toast('Saved');
 }
 function delItem(m,id){
@@ -804,7 +781,8 @@ function renderStock(){
     <div class="kgrid" style="margin-bottom:20px">
       <div class="kcard b"><div class="klabel">Items in Stock</div><div class="kval">${items.length}</div><div class="ksub">${[...new Set(items.map(i=>i.location).filter(Boolean))].length} locations</div></div>
       <div class="kcard"><div class="klabel">Stock Cost Value</div><div class="kval">${fmt(cv)}</div><div class="ksub">Capital tied up</div></div>
-      <div class="kcard g"><div class="klabel">Potential Profit</div><div class="kval">${fmt(pp)}</div><div class="ksub">At current list prices</div></div>
+      <div class="kcard" style="--after-bg:var(--blue)"><div class="klabel">Potential Revenue</div><div class="kval" style="color:var(--blue)">${fmt(items.reduce((a,i)=>a+(i.totalRev||0),0))}</div><div class="ksub">At current list prices</div></div>
+      <div class="kcard g"><div class="klabel">Potential Profit</div><div class="kval">${fmt(pp)}</div><div class="ksub">After all costs</div></div>
       ${stale.length?`<div class="kcard" style="border-color:rgba(246,173,85,0.4)"><div class="klabel" style="color:var(--warn)">Stale Items</div><div class="kval" style="color:var(--warn)">${stale.length}</div><div class="ksub">Listed 30+ days</div></div>`:''}
     </div>
     <div class="twrap"><table>
@@ -822,6 +800,7 @@ function renderStock(){
           <td class="${p>0?'pos':'neg'}">${fmt(p)}</td>
           <td style="color:var(--accent)">${i.roi!=null?(i.roi*100).toFixed(0)+'%':'--'}</td>
           <td style="display:flex;gap:4px">
+            <button class="tbtn" onclick="_prevPage='stock';openItem('${i.month}','${i.id}')">View</button>
             <button class="tbtn" onclick="openSold('${i.month}','${i.id}')">Mark sold</button>
             <button class="tbtn del" onclick="delItem('${i.month}','${i.id}')">&#x2715;</button>
           </td>
@@ -834,7 +813,10 @@ function renderStock(){
 // ── TAX PAGE ──────────────────────────────────────────────────────────
 function renderTax(){
   const yt=yT(),u=allUnsold(),sc=u.reduce((a,i)=>a+i.itemCost,0);
-  const net=yt.profit,tax=Math.max(0,net-12570);
+  const tripsDB=getTripsDB();
+  const extraExp=tripsDB.expenses.reduce((a,e)=>a+(e.amount||0),0);
+  const pkgExp=tripsDB.packaging.items.reduce((a,p)=>a+(p.cost||0),0);
+  const net=yt.profit-extraExp-pkgExp,tax=Math.max(0,net-12570);
   const it=tax<=37700?tax*0.2:37700*0.2+(tax-37700)*0.4,ni=Math.max(0,(net-12570)*0.09);
   const sr=(l,v,c)=>`<div class="sarow"><span>${l}</span><span style="color:${c};font-weight:600">${v}</span></div>`;
   document.getElementById('p-tax').innerHTML=`
@@ -926,13 +908,14 @@ function quickAddItem(){
   const pp=parseFloat(document.getElementById('qa-promo').value)||0.05;
   const ds=document.getElementById('qa-sold').value||null;
   const cat=document.getElementById('qa-cat').value||'';
-  const item={id:Date.now().toString(),dateListed:document.getElementById('qa-listed').value,item:name,location:document.getElementById('qa-loc').value.trim(),category:cat,dateSold:ds,salePrice:price,postage:0,itemCost:cost,shipping:ship,ebayFee:+ebay.toFixed(2),promoPercent:pp};
+  const src=document.getElementById('qa-source')?.value.trim()||'';
+  const item={id:Date.now().toString(),dateListed:document.getElementById('qa-listed').value,item:name,location:document.getElementById('qa-loc').value.trim(),category:cat,source:src,dateSold:ds,salePrice:price,postage:0,itemCost:cost,shipping:ship,ebayFee:+ebay.toFixed(2),promoPercent:pp};
   recalc(item,ds);
   if(!DB[m])DB[m]=[];
   DB[m].push(item);
   saveDB();
   // Reset form
-  ['qa-name','qa-loc','qa-price','qa-cost','qa-ship','qa-ebay','qa-promo','qa-sold'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  ['qa-name','qa-loc','qa-source','qa-price','qa-cost','qa-ship','qa-ebay','qa-promo','qa-sold'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
   document.getElementById('qa-cat').value='';
   closePanel();
   const cur=document.querySelector('.page.on').id;
@@ -940,6 +923,277 @@ function quickAddItem(){
   else if(cur==='p-summary')renderSummary();
   else if(cur==='p-stock')renderStock();
   toast('Added: '+name);
+}
+
+
+// ── TRIPS, EXPENSES, PACKAGING ───────────────────────────────────────
+function getTripsDB(){try{return JSON.parse(localStorage.getItem('g007trips')||'{"trips":[],"expenses":[],"packaging":{"items":[],"perItemCost":0.12}}')}catch(e){return{trips:[],expenses:[],packaging:{items:[],perItemCost:0.12}};}}
+function saveTripsDB(db){try{localStorage.setItem('g007trips',JSON.stringify(db));}catch(e){}}
+
+function renderTrips(){
+  const db=getTripsDB();
+  const totalTripCost=db.trips.reduce((a,t)=>a+(t.totalSpend||0),0);
+  const totalExpenses=db.expenses.reduce((a,e)=>a+(e.amount||0),0);
+  const totalPackaging=db.packaging.items.reduce((a,p)=>a+(p.cost||0),0);
+  const totalDeductions=totalExpenses+totalPackaging;
+  const yt=yT();
+  const adjustedProfit=yt.profit-totalDeductions;
+  const pkgPerItem=db.packaging.perItemCost||0;
+
+  document.getElementById('p-trips').innerHTML=`
+    <div class="page-title">Trips & Costs</div>
+    <div class="page-sub">Buying trips, other expenses, and packaging costs</div>
+
+    <div class="kgrid" style="margin-bottom:24px">
+      <div class="kcard"><div class="klabel">Total Trip Spend</div><div class="kval">${fmt(totalTripCost)}</div><div class="ksub">${db.trips.length} buying trip${db.trips.length!==1?'s':''}</div></div>
+      <div class="kcard r"><div class="klabel">Other Expenses</div><div class="kval">${fmt(totalExpenses)}</div><div class="ksub">Petrol, fees, misc</div></div>
+      <div class="kcard r"><div class="klabel">Packaging Costs</div><div class="kval">${fmt(totalPackaging)}</div><div class="ksub">${fmt(pkgPerItem)}/item allocated</div></div>
+      <div class="kcard g"><div class="klabel">Adjusted Profit</div><div class="kval">${fmt(adjustedProfit)}</div><div class="ksub">After all deductions</div></div>
+    </div>
+
+    <div class="sl">Buying trips</div>
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:18px;margin-bottom:20px">
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-bottom:12px">
+        <div class="fg"><label>Date</label><input type="date" id="trip-date" value="${new Date().toISOString().split('T')[0]}"></div>
+        <div class="fg"><label>Source / Venue</label><input type="text" id="trip-source" placeholder="e.g. Bramley Car Boot"></div>
+        <div class="fg"><label>Total Spend (£)</label><input type="number" id="trip-spend" step="0.01" placeholder="0.00"></div>
+        <div class="fg"><label>Items Bought</label><input type="number" id="trip-items" placeholder="0"></div>
+        <div class="fg"><label>Petrol / Travel (£)</label><input type="number" id="trip-travel" step="0.01" placeholder="0.00"></div>
+        <div class="fg" style="grid-column:1/-1"><label>Notes</label><input type="text" id="trip-notes" placeholder="What did you find?"></div>
+      </div>
+      <button class="btn btn-p" onclick="addTrip()">+ Log Trip</button>
+    </div>
+    ${db.trips.length?`<div class="twrap"><table>
+      <thead><tr><th>Date</th><th>Source</th><th>Total Spend</th><th>Items</th><th>Travel</th><th>Cost/Item</th><th>Notes</th><th></th></tr></thead>
+      <tbody>${db.trips.sort((a,b)=>new Date(b.date)-new Date(a.date)).map(t=>`<tr>
+        <td class="dim">${t.date}</td>
+        <td>${esc(t.source||'--')}</td>
+        <td style="color:var(--red)">${fmt(t.totalSpend)}</td>
+        <td class="dim">${t.itemCount||'--'}</td>
+        <td class="dim">${t.travel>0?fmt(t.travel):'--'}</td>
+        <td style="color:var(--accent)">${t.itemCount>0?fmt((t.totalSpend+t.travel)/t.itemCount):'--'}</td>
+        <td class="dim" style="max-width:160px;overflow:hidden;text-overflow:ellipsis">${esc(t.notes||'')}</td>
+        <td><button class="tbtn del" onclick="deleteTrip('${t.id}')">&#x2715;</button></td>
+      </tr>`).join('')}</tbody>
+    </table></div>`:'<div class="empty">No trips logged yet</div>'}
+
+    <div class="sl">Other expenses</div>
+    <div style="background:rgba(240,180,41,0.06);border:1px solid rgba(240,180,41,0.2);border-radius:8px;padding:12px 14px;font-size:12px;color:var(--muted2);margin-bottom:14px;line-height:1.6">
+      Log any business expense that reduces your taxable profit — petrol to source items, marketplace fees, equipment, storage etc. These are deducted from your gross profit in the Tax / SA summary.
+    </div>
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:18px;margin-bottom:20px">
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-bottom:12px">
+        <div class="fg"><label>Date</label><input type="date" id="exp-date" value="${new Date().toISOString().split('T')[0]}"></div>
+        <div class="fg"><label>Category</label>
+          <select id="exp-cat">
+            <option>Petrol / Travel</option><option>Packaging materials</option><option>eBay fees (other)</option>
+            <option>Equipment</option><option>Storage</option><option>Postage overage</option><option>Other</option>
+          </select>
+        </div>
+        <div class="fg"><label>Amount (£)</label><input type="number" id="exp-amount" step="0.01" placeholder="0.00"></div>
+        <div class="fg" style="grid-column:1/-1"><label>Description</label><input type="text" id="exp-desc" placeholder="e.g. Petrol to Bramley car boot 15 Mar"></div>
+      </div>
+      <button class="btn btn-p" onclick="addExpense()">+ Add Expense</button>
+    </div>
+    ${db.expenses.length?`<div class="twrap"><table>
+      <thead><tr><th>Date</th><th>Category</th><th>Description</th><th>Amount</th><th></th></tr></thead>
+      <tbody>${db.expenses.sort((a,b)=>new Date(b.date)-new Date(a.date)).map(e=>`<tr>
+        <td class="dim">${e.date}</td>
+        <td><span class="badge listed-b">${esc(e.category)}</span></td>
+        <td>${esc(e.description||'--')}</td>
+        <td style="color:var(--red)">${fmt(e.amount)}</td>
+        <td><button class="tbtn del" onclick="deleteExpense('${e.id}')">&#x2715;</button></td>
+      </tr>`).join('')}</tbody>
+    </table></div>`:'<div class="empty">No expenses logged yet</div>'}
+
+    <div class="sl">Packaging costs</div>
+    <div style="background:rgba(240,180,41,0.06);border:1px solid rgba(240,180,41,0.2);border-radius:8px;padding:12px 14px;font-size:12px;color:var(--muted2);margin-bottom:14px;line-height:1.6">
+      Log bulk packaging purchases (bubble wrap, boxes, bags, tape). The system divides total spend by estimated uses to give you a cost-per-item rate, then multiplies by your total items sold to calculate the deduction. Adjust the <strong>uses estimate</strong> based on how many items you typically get from each purchase.
+    </div>
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:18px;margin-bottom:20px">
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-bottom:12px">
+        <div class="fg"><label>Date purchased</label><input type="date" id="pkg-date" value="${new Date().toISOString().split('T')[0]}"></div>
+        <div class="fg"><label>Item</label><input type="text" id="pkg-item" placeholder="e.g. Bubble wrap roll"></div>
+        <div class="fg"><label>Cost (£)</label><input type="number" id="pkg-cost" step="0.01" placeholder="0.00"></div>
+        <div class="fg"><label>Est. uses</label><input type="number" id="pkg-uses" placeholder="e.g. 100"></div>
+      </div>
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;flex-wrap:wrap">
+        <span style="font-size:12px;color:var(--muted2)">Current per-item packaging cost:</span>
+        <span style="font-family:var(--fn);font-size:22px;color:var(--accent)">${fmt(pkgPerItem)}</span>
+        <span style="font-size:11px;color:var(--muted)">(auto-calculated from your logs)</span>
+      </div>
+      <button class="btn btn-p" onclick="addPackaging()">+ Log Packaging Purchase</button>
+    </div>
+    ${db.packaging.items.length?`<div class="twrap"><table>
+      <thead><tr><th>Date</th><th>Item</th><th>Cost</th><th>Est. Uses</th><th>Cost/Use</th><th></th></tr></thead>
+      <tbody>${db.packaging.items.map(p=>`<tr>
+        <td class="dim">${p.date}</td>
+        <td>${esc(p.item)}</td>
+        <td style="color:var(--red)">${fmt(p.cost)}</td>
+        <td class="dim">${p.uses}</td>
+        <td style="color:var(--accent)">${fmt(p.cost/p.uses)}</td>
+        <td><button class="tbtn del" onclick="deletePkg('${p.id}')">&#x2715;</button></td>
+      </tr>`).join('')}</tbody>
+    </table></div>`:'<div class="empty">No packaging purchases logged yet</div>'}`;
+}
+
+function addTrip(){
+  const source=document.getElementById('trip-source').value.trim();
+  const spend=parseFloat(document.getElementById('trip-spend').value)||0;
+  const travel=parseFloat(document.getElementById('trip-travel').value)||0;
+  const items=parseInt(document.getElementById('trip-items').value)||0;
+  if(!source||spend<=0){toast('Enter source and spend','err');return;}
+  const db=getTripsDB();
+  const trip={id:Date.now().toString(),date:document.getElementById('trip-date').value,source,totalSpend:spend,travel,itemCount:items,notes:document.getElementById('trip-notes').value.trim()};
+  db.trips.push(trip);
+  saveTripsDB(db);
+  ['trip-source','trip-spend','trip-travel','trip-items','trip-notes'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  renderTrips();toast('Trip logged: '+source);
+}
+function deleteTrip(id){const db=getTripsDB();db.trips=db.trips.filter(t=>t.id!==id);saveTripsDB(db);renderTrips();toast('Trip deleted');}
+
+function addExpense(){
+  const amount=parseFloat(document.getElementById('exp-amount').value)||0;
+  const desc=document.getElementById('exp-desc').value.trim();
+  if(amount<=0){toast('Enter an amount','err');return;}
+  const db=getTripsDB();
+  db.expenses.push({id:Date.now().toString(),date:document.getElementById('exp-date').value,category:document.getElementById('exp-cat').value,amount,description:desc});
+  saveTripsDB(db);
+  ['exp-amount','exp-desc'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  renderTrips();toast('Expense logged');
+}
+function deleteExpense(id){const db=getTripsDB();db.expenses=db.expenses.filter(e=>e.id!==id);saveTripsDB(db);renderTrips();toast('Expense deleted');}
+
+function addPackaging(){
+  const item=document.getElementById('pkg-item').value.trim();
+  const cost=parseFloat(document.getElementById('pkg-cost').value)||0;
+  const uses=parseInt(document.getElementById('pkg-uses').value)||1;
+  if(!item||cost<=0){toast('Enter item and cost','err');return;}
+  const db=getTripsDB();
+  db.packaging.items.push({id:Date.now().toString(),date:document.getElementById('pkg-date').value,item,cost,uses});
+  // Recalculate per-item cost
+  const totalCost=db.packaging.items.reduce((a,p)=>a+(p.cost||0),0);
+  const totalUses=db.packaging.items.reduce((a,p)=>a+(p.uses||1),0);
+  db.packaging.perItemCost=totalUses>0?+(totalCost/totalUses).toFixed(4):0;
+  saveTripsDB(db);
+  ['pkg-item','pkg-cost','pkg-uses'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  renderTrips();toast('Packaging logged');
+}
+function deletePkg(id){
+  const db=getTripsDB();
+  db.packaging.items=db.packaging.items.filter(p=>p.id!==id);
+  const totalCost=db.packaging.items.reduce((a,p)=>a+(p.cost||0),0);
+  const totalUses=db.packaging.items.reduce((a,p)=>a+(p.uses||1),0);
+  db.packaging.perItemCost=totalUses>0?+(totalCost/totalUses).toFixed(4):0;
+  saveTripsDB(db);renderTrips();toast('Deleted');
+}
+
+
+// ── ITEM DETAIL PAGE ──────────────────────────────────────────────────
+let _currentItem = null;
+
+function openItem(m, id) {
+  const item = (DB[m]||[]).find(i=>i.id===id);
+  if(!item) return;
+  _currentItem = {...item, month: m};
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('on'));
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('on'));
+  document.getElementById('p-item').classList.add('on');
+  renderItemPage();
+}
+
+function renderItemPage() {
+  const i = _currentItem;
+  if(!i) return;
+  const s = !!i.dateSold;
+  const stale = isStale(i);
+  const pot = i.totalRev - i.totalCost;
+  // Load saved photo
+  const photoKey = 'photo_' + i.id;
+  let photoSrc = '';
+  try { photoSrc = localStorage.getItem(photoKey)||''; } catch(e){}
+
+  document.getElementById('p-item').innerHTML = `
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:22px;flex-wrap:wrap">
+      <button class="backbtn" onclick="goBack()">&#8592; Back</button>
+      <span class="badge ${s?'sold-b':stale?'stale-b':'listed-b'}">${s?'Sold':stale?'Stale':'Listed'}</span>
+      ${i.category?`<span class="badge" style="background:var(--surface2);color:var(--muted2)">${esc(i.category)}</span>`:''}
+    </div>
+    <div style="font-family:var(--fn);font-size:36px;letter-spacing:1px;margin-bottom:6px;line-height:1.1">${esc(i.item)}</div>
+    <div style="color:var(--muted2);font-size:12px;margin-bottom:24px">${MN[i.month]} &middot; Listed ${i.dateListed||'--'}${i.dateSold?' &middot; Sold '+i.dateSold:''}</div>
+
+    <div class="item-hero">
+      <div class="item-photo-area" onclick="document.getElementById('photo-upload-${i.id}').click()" title="Click to add photo">
+        ${photoSrc
+          ? `<img src="${photoSrc}" id="item-photo-img" alt="${esc(i.item)}">`
+          : `<div class="item-photo-placeholder"><div class="ph-icon">&#128247;</div><div class="ph-text">Tap to add photo</div></div>`}
+        <input type="file" class="photo-upload-input" id="photo-upload-${i.id}" accept="image/*" onchange="uploadPhoto('${i.id}',this)">
+      </div>
+      <div class="item-detail-grid">
+        <div class="idetail"><div class="idetail-label">Sale Price</div><div class="idetail-val acc">${fmt(i.salePrice)}</div></div>
+        <div class="idetail"><div class="idetail-label">${s?'Gross Profit':'Potential Profit'}</div><div class="idetail-val ${pot>0?'pos':'red'}">${fmt(s?i.grossProfit:pot)}</div></div>
+        <div class="idetail"><div class="idetail-label">Item Cost</div><div class="idetail-val">${fmt(i.itemCost)}</div></div>
+        <div class="idetail"><div class="idetail-label">ROI</div><div class="idetail-val ${i.roi>1?'pos':''}">${i.roi!=null?(i.roi*100).toFixed(0)+'%':'--'}</div></div>
+        <div class="idetail"><div class="idetail-label">Location</div><div class="idetail-val" style="font-size:16px">${esc(i.location||'--')}</div></div>
+        <div class="idetail"><div class="idetail-label">Source</div><div class="idetail-val" style="font-size:16px">${esc(i.source||'--')}</div></div>
+      </div>
+    </div>
+
+    <div class="cost-breakdown">
+      <div class="cb-title">Cost breakdown</div>
+      <div class="cb-row"><span>Item cost</span><span style="color:var(--red)">${fmt(i.itemCost)}</span></div>
+      <div class="cb-row"><span>Shipping cost</span><span style="color:var(--red)">${fmt(i.shipping)}</span></div>
+      <div class="cb-row"><span>eBay fee</span><span style="color:var(--red)">${fmt(i.ebayFee)}</span></div>
+      <div class="cb-row"><span>Promotion cost</span><span style="color:var(--red)">${fmt(i.promoCost)}</span></div>
+      ${i.postage>0?`<div class="cb-row"><span>Postage charged (inc.)</span><span style="color:var(--green)">+${fmt(i.postage)}</span></div>`:''}
+      <div class="cb-row"><span class="dim">Total cost</span><span style="color:var(--red)">${fmt(i.totalCost)}</span></div>
+      <div class="cb-row"><span>Total revenue</span><span style="color:var(--accent)">${fmt(i.totalRev)}</span></div>
+      <div class="cb-row"><span>${s?'Gross Profit':'Potential Profit'}</span><span style="color:${pot>0?'var(--green)':'var(--red)'}">${fmt(s?i.grossProfit:pot)}</span></div>
+    </div>
+
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn btn-s" onclick="toggleItemEdit('${i.month}','${i.id}')">&#9998; Edit Item</button>
+      ${!s?`<button class="btn btn-p" onclick="openSold('${i.month}','${i.id}')">Mark as sold</button>`:''}
+      <button class="btn btn-s" style="color:var(--red);border-color:rgba(245,101,101,0.3)" onclick="if(confirm('Delete this item?')){_prevPage=_prevPage||'summary';DB['${i.month}']=DB['${i.month}'].filter(x=>x.id!=='${i.id}');saveDB();goNav(_prevPage);toast('Deleted')}">Delete</button>
+    </div>
+
+    <div id="editrow-${i.id}" style="display:none;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:0;margin-top:16px;overflow:hidden">
+      <div id="editrow-inner-${i.id}">${editRowInner(i)}</div>
+    </div>`;
+}
+
+
+function toggleItemEdit(m, id) {
+  const box = document.getElementById('editrow-'+id);
+  if(!box) return;
+  const open = box.style.display !== 'none' && box.style.display !== '';
+  box.style.display = open ? 'none' : 'block';
+  if(!open) {
+    const inner = document.getElementById('editrow-inner-'+id);
+    if(inner) inner.innerHTML = editRowInner({..._currentItem, month: m});
+    box.scrollIntoView({behavior:'smooth', block:'nearest'});
+  }
+}
+function uploadPhoto(id, input) {
+  const file = input.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try { localStorage.setItem('photo_'+id, e.target.result); } catch(err) { toast('Photo too large for storage','err'); return; }
+    const img = document.getElementById('item-photo-img');
+    if(img) { img.src = e.target.result; }
+    else {
+      const area = document.querySelector('.item-photo-area');
+      if(area) area.innerHTML = `<img src="${e.target.result}" id="item-photo-img" alt="item"><input type="file" class="photo-upload-input" id="photo-upload-${id}" accept="image/*" onchange="uploadPhoto('${id}',this)">`;
+    }
+    toast('Photo saved');
+  };
+  reader.readAsDataURL(file);
+}
+
+let _prevPage = 'summary';
+function goBack() {
+  goNav(_prevPage);
 }
 
 // ── TOAST ─────────────────────────────────────────────────────────────
