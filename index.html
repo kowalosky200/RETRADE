@@ -62,6 +62,7 @@ nav{position:sticky;top:0;z-index:200;background:rgba(10,11,14,0.97);backdrop-fi
 .kcard{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:18px 16px;position:relative;overflow:hidden;cursor:pointer;transition:all 0.15s;}
 .kcard:hover{border-color:var(--accent);transform:translateY(-1px);}
 .kcard.active-filter{border-color:var(--accent);background:var(--surface2);}
+.kcard.active-filter::before{content:'▾';position:absolute;bottom:6px;right:10px;font-size:14px;color:var(--accent);opacity:0.7;}
 .kcard::after{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:var(--accent);}
 .kcard.g::after{background:var(--green);}.kcard.r::after{background:var(--red);}
 .kcard.b::after{background:var(--blue);}.kcard.p::after{background:var(--purple);}
@@ -122,12 +123,10 @@ tbody tr:hover td{background:var(--surface2);}
 .pos{color:var(--green);font-weight:500;}.neg{color:var(--red);}.dim{color:var(--muted2);}
 
 /* MOBILE TABLE — hide cols on small screens */
-@media(max-width:700px){
-  .col-hide{display:none;}
-  .mobile-expand-btn{display:table-cell !important;}
-  td,th{padding:8px 8px;}
+@media(max-width:800px){
+  .col-hide{display:none !important;}
+  td,th{padding:7px 8px;}
 }
-.mobile-expand-btn{display:none;}
 .row-detail{display:none;background:var(--surface2);}
 .row-detail.on{display:table-row;}
 
@@ -256,6 +255,27 @@ tbody tr:hover td{background:var(--surface2);}
 .cb-row{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);font-size:12px;}
 .cb-row:last-child{border-bottom:none;font-weight:600;font-size:13px;}
 @media(max-width:600px){.item-photo-area{width:100%;height:180px;}.item-detail-grid{grid-template-columns:1fr 1fr;}}
+
+.st-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:18px 20px;margin-bottom:28px;cursor:pointer;transition:border-color 0.15s;user-select:none;}
+.st-card:hover{border-color:var(--accent);}
+.st-card.open{border-color:var(--accent);}
+.st-header{display:flex;align-items:center;justify-content:space-between;gap:16px;}
+.st-left{display:flex;align-items:center;gap:20px;flex-wrap:wrap;}
+.st-label{font-size:10px;color:var(--muted2);text-transform:uppercase;letter-spacing:1.2px;font-weight:500;margin-bottom:4px;}
+.st-val{font-family:var(--fn);font-size:32px;letter-spacing:1px;line-height:1;}
+.st-sub{font-size:11px;color:var(--muted2);margin-top:3px;}
+.st-chevron{font-size:14px;color:var(--accent);transition:transform 0.2s;flex-shrink:0;}
+.st-card.open .st-chevron{transform:rotate(180deg);}
+.st-body{display:none;margin-top:18px;padding-top:18px;border-top:1px solid var(--border);}
+.st-card.open .st-body{display:block;}
+.st-note{font-size:11px;color:var(--muted);margin-bottom:14px;}
+.st-bars{display:flex;flex-direction:column;gap:8px;}
+.st-row{display:flex;align-items:center;gap:10px;font-size:12px;}
+.st-cat{width:150px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex-shrink:0;}
+.st-bar-wrap{flex:1;background:var(--surface2);border-radius:3px;height:8px;overflow:hidden;}
+.st-bar-fill{height:100%;border-radius:3px;}
+.st-pct{width:36px;text-align:right;font-family:var(--fn);font-size:16px;flex-shrink:0;}
+.st-count{width:55px;text-align:right;color:var(--muted2);font-size:11px;flex-shrink:0;}
 </style>
 </head>
 <body>
@@ -389,16 +409,26 @@ function getInsights(){
     return Math.round((b-a)/86400000);
   });
   const avgDays=daysSold.length?Math.round(daysSold.reduce((a,b)=>a+b,0)/daysSold.length):null;
-  // Sell-through rate
-  const totalListed=MONTHS.reduce((a,m)=>a+(DB[m]||[]).length,0);
-  const sellThrough=totalListed>0?Math.round((s.length/totalListed)*100):0;
+  // Sell-through rate — only items listed 7+ days
+  const eligibleListed=MONTHS.flatMap(m=>(DB[m]||[])).filter(i=>i.dateListed&&daysAgo(i.dateListed)>=7);
+  const eligibleSold=eligibleListed.filter(i=>i.dateSold);
+  const sellThrough=eligibleListed.length>0?Math.round((eligibleSold.length/eligibleListed.length)*100):0;
   // Best source (buying origin)
   const srcMap={};
   s.filter(i=>i.source).forEach(i=>{const l=i.source;if(!srcMap[l])srcMap[l]={profit:0,count:0};srcMap[l].profit+=i.grossProfit||0;srcMap[l].count++;});
   const bestSrc=Object.keys(srcMap).length?Object.entries(srcMap).sort((a,b)=>b[1].profit-a[1].profit)[0]:null;
   // Avg ROI
   const avgROI=s.filter(i=>i.roi!=null).reduce((a,i)=>a+i.roi,0)/s.filter(i=>i.roi!=null).length;
-  return{bestCat,avgDays,bestSrc,avgROI,sellThrough};
+    // Category sell-through
+  const catST={};
+  eligibleListed.forEach(i=>{
+    const c=i.category||'Other';
+    if(!catST[c])catST[c]={listed:0,sold:0};
+    catST[c].listed++;
+    if(i.dateSold)catST[c].sold++;
+  });
+  const catSTrates=Object.entries(catST).filter(([,v])=>v.listed>=2).map(([c,v])=>({cat:c,rate:Math.round(v.sold/v.listed*100),listed:v.listed,sold:v.sold})).sort((a,b)=>b.listed-a.listed);
+  return{bestCat,avgDays,bestSrc,avgROI,sellThrough,catSTrates,eligibleListed,eligibleSold};
 }
 
 // ── NAV ───────────────────────────────────────────────────────────────
@@ -479,7 +509,8 @@ function renderSearch(){
 function kc(l,v,s,c,drill=''){
   const act=drill&&activeDrill===drill?' active-filter':'';
   const click=drill?`onclick="drillKPI('${drill}')"`:'';
-  return`<div class="kcard ${c}${act}" ${click}><div class="klabel">${l}</div><div class="kval">${v}</div><div class="ksub">${s}</div></div>`;
+  const hint=drill&&activeDrill===drill?' title="Click to close"':drill?' title="Click to filter"':'';
+  return`<div class="kcard ${c}${act}" ${click}${hint}><div class="klabel">${l}</div><div class="kval">${v}</div><div class="ksub">${s}</div></div>`;
 }
 function renderChart(){
   const data=MONTHS.map(m=>{const t=mT(m);return{m,rev:t.rev,profit:t.profit};});
@@ -534,6 +565,42 @@ function renderSummary(){
     </div>`;
   }
 
+  // Sell-through collapsible card
+  let insHtml2='';
+  if(ins){
+    const stCol=ins.sellThrough>=70?'var(--green)':ins.sellThrough>=50?'var(--accent)':'var(--red)';
+    const stLabel=ins.sellThrough>=70?'Strong':'Consider repricing stale items';
+    const catRows=ins.catSTrates&&ins.catSTrates.length?ins.catSTrates.map(r=>{
+      const col=r.rate>=70?'var(--green)':r.rate>=50?'var(--accent)':'var(--red)';
+      return`<div class="st-row">
+        <div class="st-cat">${esc(r.cat)}</div>
+        <div class="st-bar-wrap"><div class="st-bar-fill" style="width:${r.rate}%;background:${col}"></div></div>
+        <div class="st-pct" style="color:${col}">${r.rate}%</div>
+        <div class="st-count">${r.sold}/${r.listed}</div>
+      </div>`;
+    }).join(''):'<div style="color:var(--muted);font-size:12px">Need more data per category</div>';
+    insHtml2=`<div class="st-card" id="st-card" onclick="toggleST()">
+      <div class="st-header">
+        <div class="st-left">
+          <div>
+            <div class="st-label">Sell-through rate</div>
+            <div class="st-val" style="color:${stCol}">${ins.sellThrough}%</div>
+            <div class="st-sub">${stLabel} &middot; items listed 7+ days</div>
+          </div>
+          <div style="display:flex;gap:16px;flex-wrap:wrap">
+            <div><div class="st-label">Eligible listed</div><div style="font-family:var(--fn);font-size:22px">${ins.eligibleListed.length}</div></div>
+            <div><div class="st-label">Sold</div><div style="font-family:var(--fn);font-size:22px;color:var(--green)">${ins.eligibleSold.length}</div></div>
+            <div><div class="st-label">Still listed</div><div style="font-family:var(--fn);font-size:22px;color:var(--accent)">${ins.eligibleListed.length-ins.eligibleSold.length}</div></div>
+          </div>
+        </div>
+        <div class="st-chevron">&#9660;</div>
+      </div>
+      <div class="st-body">
+        <div class="st-note">Categories with fewer than 2 eligible items are hidden</div>
+        <div class="st-bars">${catRows}</div>
+      </div>
+    </div>`;
+  }
   document.getElementById('p-summary').innerHTML=`
     <div style="font-family:var(--fn);font-size:48px;color:var(--accent);line-height:1;letter-spacing:2px">2026</div>
     <div style="color:var(--muted2);font-size:12px;margin-bottom:22px;margin-top:4px">eBay Reselling &mdash; Annual Overview</div>
@@ -548,6 +615,7 @@ function renderSummary(){
     </div>
     <div id="drill-panel"></div>
     ${insHtml}
+    ${insHtml2}
     ${renderChart()}
     <div class="sl">Monthly breakdown</div>
     <div class="mgrid">${MONTHS.map(m=>{const t=mT(m);return`<div class="mcard" onclick="goMonth('${m}')"><div class="mname">${MN[m]}</div><div class="mval ${t.profit>0?'pos':'nil'}">${t.profit>0?fmt(t.profit):'--'}</div><div class="msub">${t.nSold} sold &middot; ${t.nTotal-t.nSold} listed</div></div>`;}).join('')}</div>
@@ -555,15 +623,24 @@ function renderSummary(){
     <div class="twrap"><table><thead><tr><th>Item</th><th>Month</th><th>Sale Price</th><th>Item Cost</th><th>Gross Profit</th><th>ROI</th></tr></thead>
     <tbody>${top.length?top.map(i=>`<tr style="cursor:pointer" onclick="_prevPage='summary';openItem('${i.month}','${i.id}')"><td>${esc(i.item)}</td><td class="dim">${MN[i.month]}</td><td>${fmt(i.salePrice)}</td><td class="dim">${fmt(i.itemCost)}</td><td class="pos">${fmt(i.grossProfit)}</td><td style="color:var(--accent)">${i.roi!=null?(i.roi*100).toFixed(0)+'%':'--'}</td></tr>`).join(''):'<tr><td colspan="6" class="empty">No sold items yet</td></tr>'}</tbody></table></div>`;
 
-  if(activeDrill)drillKPI(activeDrill,true);
+  if(activeDrill){const t=activeDrill;activeDrill=t;drillKPI(t);}
 }
 
 // ── DRILL KPI ─────────────────────────────────────────────────────────
-function drillKPI(type,skipToggle){
-  if(!skipToggle){
-    if(activeDrill===type){activeDrill=null;renderSummary();return;}
-    activeDrill=type;renderSummary();return;
+function drillKPI(type){
+  if(activeDrill===type){
+    // clicking same card again — close it
+    activeDrill=null;
+    document.getElementById('drill-panel').innerHTML='';
+    document.querySelectorAll('.kcard').forEach(k=>k.classList.remove('active-filter'));
+    return;
   }
+  activeDrill=type;
+  // Update card highlights immediately without full re-render
+  document.querySelectorAll('.kcard').forEach(k=>k.classList.remove('active-filter'));
+  const drillTypes=['revenue','profit','costs','stock','unrealised','listed'];
+  document.querySelectorAll('.kcard').forEach((k,i)=>{if(drillTypes[i]===type)k.classList.add('active-filter');});
+  {const skipToggle=true;
   const panel=document.getElementById('drill-panel');
   if(!panel)return;
   document.querySelectorAll('.kcard').forEach(k=>k.classList.remove('active-filter'));
@@ -589,11 +666,12 @@ function drillKPI(type,skipToggle){
   panel.innerHTML=`<div class="drill-panel">
     <div class="drill-header">
       <div class="drill-title">${drillMap[type]||type} (${items.length})</div>
-      <button class="drill-close" onclick="activeDrill=null;renderSummary()">Close &#x2715;</button>
+      <button class="drill-close" onclick="drillKPI('${type}')">Close &#x2715;</button>
     </div>
     <div class="twrap"><table><thead><tr>${cols}</tr></thead>
     <tbody>${rows||'<tr><td colspan="8" class="empty">No items</td></tr>'}</tbody></table></div>
   </div>`;
+  }
 }
 function goMonth(m){document.getElementById('msel').value=m;goNav('monthly');}
 
@@ -621,6 +699,7 @@ function renderMonth(){
         <div class="mstat"><div class="msv pos">${fmt(t.profit)}</div><div class="msl">Realised Profit</div></div>
         <div class="mstat"><div class="msv" style="color:var(--accent)">${fmt(t.rev)}</div><div class="msl">Revenue</div></div>
         <div class="mstat"><div class="msv dim">${fmt(t.cost)}</div><div class="msl">Total Costs</div></div>
+        <div class="mstat"><div class="msv">${t.rev>0?((t.profit/t.rev)*100).toFixed(1)+'%':'--'}</div><div class="msl">Margin</div></div>
         <div class="mstat"><div class="msv">${t.nSold}/${t.nTotal}</div><div class="msl">Sold / Listed</div></div>
       </div>
     </div>
@@ -632,24 +711,18 @@ function renderMonth(){
         <th style="width:28px"></th>
         <th>Status</th>
         <th>Item</th>
+        <th class="col-hide">Category</th>
         <th class="col-hide">Location</th>
         <th class="col-hide">Listed</th>
         <th>Price</th>
-        <th class="col-hide">Cost</th>
-        <th class="col-hide">Ship</th>
-        <th class="col-hide">eBay</th>
-        <th class="col-hide">Promo</th>
-        <th class="col-hide">Total Cost</th>
+        <th>Cost</th>
         <th>Profit</th>
         <th class="col-hide">ROI</th>
-        <th>Actions</th>
-        <th class="mobile-expand-btn" style="display:none"></th>
+        <th style="width:80px">Actions</th>
       </tr></thead>
       <tbody>${items.map(i=>iRow(i,m)).join('')||'<tr><td colspan="14" class="empty">No items — use the + button to add one</td></tr>'}</tbody>
     </table></div>
-    <div class="sfooter"><div class="sfgrid">
-      ${[['Revenue',fmt(t.rev),'var(--accent)'],['Total Cost',fmt(t.cost),'var(--red)'],['Gross Profit',fmt(t.profit),'var(--green)'],['Realised',fmt(made),'var(--green)'],['Remaining',fmt(rem),'var(--muted2)'],['Margin',t.rev>0?((t.profit/t.rev)*100).toFixed(1)+'%':'--','var(--text)']].map(([l,v,c])=>`<div><div class="sflabel">${l}</div><div class="sfval" style="color:${c}">${v}</div></div>`).join('')}
-    </div></div>`;
+`;
 }
 function editRowInner(i){
   return`<div class="editrow-inner"><div class="editrow-grid">
@@ -674,29 +747,27 @@ function editRowInner(i){
 function iRow(i,m){
   const s=!!i.dateSold;const stale=isStale(i);
   return`<tr id="row-${i.id}">
-    <td style="width:28px;text-align:center"><button class="edit-icon-btn" onclick="toggleRowEdit('${m}','${i.id}')">&#9998;</button></td>
+    <td style="width:28px;text-align:center"><button class="edit-icon-btn" onclick="toggleRowEdit('${m}','${i.id}')" title="Edit">&#9998;</button></td>
     <td><span class="badge ${s?'sold-b':stale?'stale-b':'listed-b'}">${s?'Sold':stale?'Stale':'Listed'}</span></td>
-    <td style="max-width:160px;overflow:hidden;text-overflow:ellipsis">${esc(i.item)}</td>
+    <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis">${esc(i.item)}</td>
+    <td class="dim col-hide">${esc(i.category||'--')}</td>
     <td class="dim col-hide">${esc(i.location||'--')}</td>
     <td class="dim col-hide">${i.dateListed||'--'}</td>
     <td>${fmt(i.salePrice)}</td>
-    <td class="dim col-hide">${fmt(i.itemCost)}</td>
-    <td class="dim col-hide">${fmt(i.shipping)}</td>
-    <td class="dim col-hide">${fmt(i.ebayFee)}</td>
-    <td class="dim col-hide">${fmt(i.promoCost)}</td>
-    <td class="col-hide" style="color:var(--red)">${fmt(i.totalCost)}</td>
+    <td class="dim">${fmt(i.itemCost)}</td>
     <td class="${i.grossProfit>0?'pos':i.grossProfit<0?'neg':''}">${i.grossProfit!=null?fmt(i.grossProfit):'--'}</td>
-    <td class="col-hide" style="color:var(--accent)">${i.roi!=null?(i.roi*100).toFixed(0)+'%':'--'}</td>
-    <td style="display:flex;gap:4px">
-      <button class="tbtn" onclick="_prevPage='monthly';openItem('${m}','${i.id}')">View</button>
-      ${!s?`<button class="tbtn" onclick="openSold('${m}','${i.id}')">Mark sold</button>`:''}
-      <button class="tbtn del" onclick="delItem('${m}','${i.id}')">&#x2715;</button>
+    <td class="dim col-hide" style="color:var(--accent)">${i.roi!=null?(i.roi*100).toFixed(0)+'%':'--'}</td>
+    <td style="display:flex;gap:3px;align-items:center">
+      <button class="tbtn" onclick="_prevPage='monthly';openItem('${m}','${i.id}')" title="View" style="font-size:14px;padding:3px 7px">&#128065;</button>
+      ${!s?`<button class="tbtn" onclick="openSold('${m}','${i.id}')" title="Mark sold" style="font-size:14px;padding:3px 7px">&#10003;</button>`:''}
+      <button class="tbtn del" onclick="delItem('${m}','${i.id}')" title="Delete" style="font-size:11px;padding:3px 6px">&#x2715;</button>
     </td>
   </tr>
   <tr id="editrow-${i.id}" style="display:none;background:var(--surface2)">
-    <td></td><td colspan="13">${editRowInner({...i,month:m})}</td>
+    <td></td><td colspan="10">${editRowInner({...i,month:m})}</td>
   </tr>`;
 }
+
 function toggleRowEdit(m,id){
   const er=document.getElementById('editrow-'+id);
   const btn=document.querySelector('#row-'+id+' .edit-icon-btn');
@@ -762,11 +833,29 @@ function confirmSold(){
 }
 
 // ── STOCK PAGE ────────────────────────────────────────────────────────
-function setFilter(f,btn){invFilter=f;document.querySelectorAll('.fbtn').forEach(b=>b.classList.remove('on'));btn.classList.add('on');renderStock();}
+
+function toggleST(){
+  const card=document.getElementById('st-card');
+  if(card)card.classList.toggle('open');
+}
+function setFilter(f,btn){
+  invFilter=f;
+  document.querySelectorAll('.fbtn').forEach(b=>{
+    b.classList.remove('on');
+    b.style.borderColor='';b.style.color='';b.style.background='';
+  });
+  if(f==='__stale__'){
+    btn.style.borderColor='var(--warn)';btn.style.color='var(--warn)';btn.style.background='rgba(246,173,85,0.07)';
+  } else {
+    btn.classList.add('on');
+  }
+  renderStock();
+}
 function renderStock(){
   const locs=[...new Set(MONTHS.flatMap(m=>(DB[m]||[]).filter(i=>!i.dateSold).map(i=>i.location).filter(Boolean)))].sort();
   let items=allUnsold();
-  if(invFilter!=='all')items=items.filter(i=>i.location===invFilter);
+  if(invFilter==='__stale__')items=items.filter(isStale);
+  else if(invFilter!=='all')items=items.filter(i=>i.location===invFilter);
   const cv=items.reduce((a,i)=>a+i.itemCost,0);
   const pp=items.reduce((a,i)=>a+(i.totalRev-i.totalCost),0);
   const stale=items.filter(isStale);
@@ -776,6 +865,7 @@ function renderStock(){
     ${stale.length?`<div class="stale-alert"><div class="stale-dot"></div><div><div class="stale-text">${stale.length} item${stale.length>1?'s':''} stale (30+ days) &mdash; consider repricing</div><div class="stale-items">${stale.map(i=>esc(i.item)).join(', ')}</div></div></div>`:''}
     <div class="filters">
       <button class="fbtn ${invFilter==='all'?'on':''}" onclick="setFilter('all',this)">All (${allUnsold().length})</button>
+      <button class="fbtn" style="${invFilter==='__stale__'?'border-color:var(--warn);color:var(--warn);background:rgba(246,173,85,0.07)':''}" onclick="setFilter('__stale__',this)">Stale 30d+ (${stale.length})</button>
       ${locs.map(l=>`<button class="fbtn ${invFilter===l?'on':''}" onclick="setFilter('${esc(l)}',this)">${esc(l)}</button>`).join('')}
     </div>
     <div class="kgrid" style="margin-bottom:20px">
@@ -799,10 +889,10 @@ function renderStock(){
           <td class="dim">${fmt(i.itemCost)}</td>
           <td class="${p>0?'pos':'neg'}">${fmt(p)}</td>
           <td style="color:var(--accent)">${i.roi!=null?(i.roi*100).toFixed(0)+'%':'--'}</td>
-          <td style="display:flex;gap:4px">
-            <button class="tbtn" onclick="_prevPage='stock';openItem('${i.month}','${i.id}')">View</button>
-            <button class="tbtn" onclick="openSold('${i.month}','${i.id}')">Mark sold</button>
-            <button class="tbtn del" onclick="delItem('${i.month}','${i.id}')">&#x2715;</button>
+          <td style="display:flex;gap:3px;align-items:center">
+            <button class="tbtn" onclick="_prevPage='stock';openItem('${i.month}','${i.id}')" title="View item" style="font-size:13px;padding:3px 6px">&#128065;</button>
+            <button class="tbtn" onclick="openSold('${i.month}','${i.id}')" title="Mark as sold" style="font-size:13px;padding:3px 6px">&#10003;</button>
+            <button class="tbtn del" onclick="delItem('${i.month}','${i.id}')" title="Delete" style="font-size:11px;padding:3px 6px">&#x2715;</button>
           </td>
         </tr>
         <tr id="editrow-${i.id}" style="display:none;background:var(--surface2)"><td></td><td colspan="9">${editRowInner({...i})}</td></tr>`;
