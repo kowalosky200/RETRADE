@@ -566,7 +566,10 @@ function allSold(){return MONTHS.flatMap(m=>sold(m).map(i=>({...i,month:m})));}
 function allUnsold(){return MONTHS.flatMap(m=>unsold(m).map(i=>({...i,month:m})));}
 function allItems(){return MONTHS.flatMap(m=>(DB[m]||[]).map(i=>({...i,month:m})));}
 function mT(m){const s=sold(m);const ret=(DB[m]||[]).filter(i=>i.returnData);return{rev:s.reduce((a,i)=>a+(i.totalRev||0),0),cost:s.reduce((a,i)=>a+(i.totalCost||0),0),profit:s.reduce((a,i)=>a+(i.grossProfit||0),0),nSold:s.length,nTotal:(DB[m]||[]).length,nReturns:ret.length};}
-function returnedItems(){return MONTHS.flatMap(m=>(DB[m]||[]).filter(i=>i.returnData).map(i=>({...i,month:m})));}
+function returnedItems(){
+  // Include items with active returnData OR returnHistory (previously returned then resold)
+  return MONTHS.flatMap(m=>(DB[m]||[]).filter(i=>i.returnData||i.returnHistory?.length).map(i=>({...i,month:m})));
+}
 function yT(){return MONTHS.reduce((a,m)=>{const t=mT(m);a.rev+=t.rev;a.cost+=t.cost;a.profit+=t.profit;a.nSold+=t.nSold;a.nTotal+=t.nTotal;return a;},{rev:0,cost:0,profit:0,nSold:0,nTotal:0});}
 
 // ── eBAY FEE CALCULATOR ───────────────────────────────────────────────
@@ -649,7 +652,9 @@ function getInsights(){
   s.filter(i=>i.source).forEach(i=>{const l=i.source;if(!srcMap[l])srcMap[l]={profit:0,count:0};srcMap[l].profit+=i.grossProfit||0;srcMap[l].count++;});
   const bestSrc=Object.keys(srcMap).length?Object.entries(srcMap).sort((a,b)=>b[1].profit-a[1].profit)[0]:null;
   // Avg ROI
-  const avgROI=s.filter(i=>i.roi!=null).reduce((a,i)=>a+i.roi,0)/s.filter(i=>i.roi!=null).length;
+  // Only include items with positive cost (exclude £0 cost items which skew ROI)
+  const roiItems=s.filter(i=>i.roi!=null&&i.itemCost>0);
+  const avgROI=roiItems.length?roiItems.reduce((a,i)=>a+i.roi,0)/roiItems.length:0;
     // Category sell-through
   const catST={};
   eligibleListed.forEach(i=>{
@@ -731,7 +736,7 @@ function renderSearch(){
         <td>${fmt(i.salePrice)}</td>
         <td class="dim">${fmt(i.itemCost)}</td>
         <td class="${i.grossProfit>0?'pos':''}">${fmt(i.grossProfit)}</td>
-        <td style="color:var(--accent)">${i.roi!=null?(i.roi*100).toFixed(0)+'%':'--'}</td>
+        <td style="color:var(--accent)">${i.roi!=null&&i.itemCost>0?Math.min(Math.round(i.roi*100),999)+'%':i.roi!=null?'N/A':'--'}</td>
         <td style="display:flex;gap:4px">
           ${!s?`<button class="tbtn" onclick="openSold('${i.month}','${i.id}')">Mark sold</button>`:''}
           <button class="tbtn del" onclick="delItem('${i.month}','${i.id}')">&#x2715;</button>
@@ -894,7 +899,7 @@ function renderSummary(){
     <div class="mgrid">${MONTHS.map(m=>{const t=mT(m);return`<div class="mcard" onclick="goMonth('${m}')"><div class="mname">${MN[m]}</div><div class="mval ${t.profit>0?'pos':'nil'}">${t.profit>0?fmt(t.profit):'--'}</div><div class="msub">${t.nSold} sold &middot; ${t.nTotal-t.nSold} listed</div></div>`;}).join('')}</div>
     <div class="sl">Top performers</div>
     <div class="twrap"><table><thead><tr><th>Item</th><th>Month</th><th>Sale Price</th><th>Item Cost</th><th>Gross Profit</th><th>ROI</th></tr></thead>
-    <tbody>${top.length?top.map(i=>`<tr style="cursor:pointer" onclick="_prevPage='summary';openItem('${i.month}','${i.id}')"><td>${esc(i.item)}</td><td class="dim">${MN[i.month]}</td><td>${fmt(i.salePrice)}</td><td class="dim">${fmt(i.itemCost)}</td><td class="pos">${fmt(i.grossProfit)}</td><td style="color:var(--accent)">${i.roi!=null?(i.roi*100).toFixed(0)+'%':'--'}</td></tr>`).join(''):'<tr><td colspan="6" class="empty">No sold items yet</td></tr>'}</tbody></table></div>`;
+    <tbody>${top.length?top.map(i=>`<tr style="cursor:pointer" onclick="_prevPage='summary';openItem('${i.month}','${i.id}')"><td>${esc(i.item)}</td><td class="dim">${MN[i.month]}</td><td>${fmt(i.salePrice)}</td><td class="dim">${fmt(i.itemCost)}</td><td class="pos">${fmt(i.grossProfit)}</td><td style="color:var(--accent)">${i.roi!=null&&i.itemCost>0?Math.min(Math.round(i.roi*100),999)+'%':i.roi!=null?'N/A':'--'}</td></tr>`).join(''):'<tr><td colspan="6" class="empty">No sold items yet</td></tr>'}</tbody></table></div>`;
 
   if(activeDrill){const t=activeDrill;activeDrill=t;drillKPI(t);}
 }
@@ -945,11 +950,12 @@ function drillKPI(type){
         <td>${vb}</td>
       </tr>`;
     }
-    if(type==='revenue')return`<tr><td>${esc(i.item)}</td><td class="dim">${MN[i.month]}</td><td class="dim">${esc(i.location||'--')}</td><td>${fmt(i.salePrice)}</td><td>${fmt(i.totalRev)}</td><td class="pos">${fmt(i.grossProfit)}</td><td style="color:var(--accent)">${i.roi!=null?(i.roi*100).toFixed(0)+'%':'--'}</td><td style="display:flex;gap:4px">${eb}${ms}</td></tr>`;
-    if(type==='profit')return`<tr><td>${esc(i.item)}</td><td class="dim">${MN[i.month]}</td><td>${fmt(i.salePrice)}</td><td class="dim">${fmt(i.itemCost)}</td><td class="pos">${fmt(i.grossProfit)}</td><td style="color:var(--accent)">${i.roi!=null?(i.roi*100).toFixed(0)+'%':'--'}</td><td>${eb}</td></tr>`;
-    if(type==='costs')return`<tr><td>${esc(i.item)}</td><td class="dim">${MN[i.month]}</td><td class="dim">${fmt(i.itemCost)}</td><td class="dim">${fmt(i.shipping)}</td><td class="dim">${fmt(i.ebayFee)}</td><td class="dim">${fmt(i.promoCost)}</td><td style="color:var(--red)">${fmt(i.totalCost)}</td><td>${eb}</td></tr>`;
-    if(type==='stock'||type==='unrealised'){const p=i.totalRev-i.totalCost;const stale=isStale(i);return`<tr><td>${esc(i.item)}${stale?' <span class="badge stale-b">Stale</span>':''}</td><td class="dim">${MN[i.month]}</td><td class="dim">${esc(i.location||'--')}</td><td>${type==='stock'?i.dateListed||'--':fmt(i.salePrice)}</td><td class="dim">${fmt(i.itemCost)}</td><td class="${p>0?'pos':'neg'}">${fmt(p)}</td><td style="color:var(--accent)">${i.roi!=null?(i.roi*100).toFixed(0)+'%':'--'}</td><td style="display:flex;gap:4px">${eb}${ms}</td></tr>`;}
-    if(type==='listed'){const s=!!i.dateSold;return`<tr><td><span class="badge ${s?'sold-b':'listed-b'}">${s?'Sold':'Listed'}</span></td><td>${esc(i.item)}</td><td class="dim">${MN[i.month]}</td><td class="dim">${esc(i.location||'--')}</td><td>${fmt(i.salePrice)}</td><td class="${i.grossProfit>0?'pos':''}">${fmt(i.grossProfit)}</td><td style="display:flex;gap:4px">${eb}${ms}</td></tr>`;}
+    const openFn=`onclick="_prevPage='summary';openItem('${i.month}','${i.id}')"`;
+    if(type==='revenue')return`<tr style="cursor:pointer" ${openFn}><td>${esc(i.item)}</td><td class="dim">${MN[i.month]}</td><td class="dim">${esc(i.location||'--')}</td><td>${fmt(i.salePrice)}</td><td>${fmt(i.totalRev)}</td><td class="pos">${fmt(i.grossProfit)}</td><td style="color:var(--accent)">${i.roi!=null&&i.itemCost>0?Math.min(Math.round(i.roi*100),999)+'%':i.roi!=null?'N/A':'--'}</td></tr>`;
+    if(type==='profit')return`<tr style="cursor:pointer" ${openFn}><td>${esc(i.item)}</td><td class="dim">${MN[i.month]}</td><td>${fmt(i.salePrice)}</td><td class="dim">${fmt(i.itemCost)}</td><td class="pos">${fmt(i.grossProfit)}</td><td style="color:var(--accent)">${i.roi!=null&&i.itemCost>0?Math.min(Math.round(i.roi*100),999)+'%':i.roi!=null?'N/A':'--'}</td></tr>`;
+    if(type==='costs')return`<tr style="cursor:pointer" ${openFn}><td>${esc(i.item)}</td><td class="dim">${MN[i.month]}</td><td class="dim">${fmt(i.itemCost)}</td><td class="dim">${fmt(i.shipping)}</td><td class="dim">${fmt(i.ebayFee)}</td><td class="dim">${fmt(i.promoCost)}</td><td style="color:var(--red)">${fmt(i.totalCost)}</td></tr>`;
+    if(type==='stock'||type==='unrealised'){const p=i.totalRev-i.totalCost;const stale=isStale(i);return`<tr style="cursor:pointer" ${openFn}><td>${esc(i.item)}${stale?' <span class="badge stale-b">Stale</span>':''}</td><td class="dim">${MN[i.month]}</td><td class="dim">${esc(i.location||'--')}</td><td>${type==='stock'?i.dateListed||'--':fmt(i.salePrice)}</td><td class="dim">${fmt(i.itemCost)}</td><td class="${p>0?'pos':'neg'}">${fmt(p)}</td><td style="color:var(--accent)">${i.roi!=null&&i.itemCost>0?Math.min(Math.round(i.roi*100),999)+'%':i.roi!=null?'N/A':'--'}</td></tr>`;}
+    if(type==='listed'){const s=!!i.dateSold;return`<tr style="cursor:pointer" ${openFn}><td><span class="badge ${s?'sold-b':'listed-b'}">${s?'Sold':'Listed'}</span></td><td>${esc(i.item)}</td><td class="dim">${MN[i.month]}</td><td class="dim">${esc(i.location||'--')}</td><td>${fmt(i.salePrice)}</td><td class="${i.grossProfit>0?'pos':''}">${fmt(i.grossProfit)}</td></tr>`;}
     return'';
   }).join('');
   panel.innerHTML=`<div class="drill-panel">
@@ -1113,7 +1119,7 @@ function iRow(i,m){
     <td class="col-w-parts col-hide num col-parts">${(i.parts&&i.parts.length)?fmt(i.partsCost||0):'--'}</td>
     <td class="col-w-return col-hide ctr col-return">${i.returnData?(i.returnData.type==='full'?'<span class="badge" style="background:rgba(245,101,101,0.15);color:var(--red);font-size:9px">Ret</span>':'<span class="badge" style="background:rgba(245,101,101,0.15);color:var(--red);font-size:9px">Part</span>'):'--'}</td>
     <td class="col-w-profit num ${i.grossProfit>0?'pos':i.grossProfit<0?'neg':''}">${i.grossProfit!=null?fmt(i.grossProfit):'--'}</td>
-    <td class="col-w-roi col-hide num" style="color:var(--accent)">${i.roi!=null?(i.roi*100).toFixed(0)+'%':'--'}</td>
+    <td class="col-w-roi col-hide num" style="color:var(--accent)">${i.roi!=null&&i.itemCost>0?Math.min(Math.round(i.roi*100),999)+'%':i.roi!=null?'N/A':'--'}</td>
     <td class="col-w-acts">
       <div class="acts-wrap">
         <button class="tbtn" onclick="duplicateItem('${m}','${i.id}')" title="Duplicate" style="font-size:12px;padding:2px 5px">&#10697;</button>
@@ -1188,9 +1194,11 @@ function confirmSold(){
   const item=DB[_st.m].find(i=>i.id===_st.id);
   if(item){
     item.dateSold=ds;
-    // If this item had a full return, clear the returnData so revenue
-    // is calculated fresh on the new sale — no double-deduction
+    // If this item had a full return, archive returnData to history
+    // and start fresh so revenue calculates correctly for new sale
     if(item.returnData&&item.returnData.type==='full'){
+      if(!item.returnHistory)item.returnHistory=[];
+      item.returnHistory.push({...item.returnData, relistDate:ds});
       delete item.returnData;
       item.isReturned=false;
     }
@@ -1290,7 +1298,7 @@ function renderStock(){
           <td class="num">${fmt(i.salePrice)}</td>
           <td class="dim num">${fmt(i.itemCost)}</td>
           <td class="${p>0?'pos':'neg'} num">${fmt(p)}</td>
-          <td style="color:var(--accent)">${i.roi!=null?(i.roi*100).toFixed(0)+'%':'--'}</td>
+          <td style="color:var(--accent)">${i.roi!=null&&i.itemCost>0?Math.min(Math.round(i.roi*100),999)+'%':i.roi!=null?'N/A':'--'}</td>
           <td style="display:flex;gap:3px;align-items:center;justify-content:flex-end">
             <button class="tbtn" onclick="duplicateItem('${i.month}','${i.id}')" title="Duplicate" style="font-size:12px;padding:2px 5px">&#10697;</button>
             <button class="tbtn" onclick="openSold('${i.month}','${i.id}')" title="Mark sold" style="font-size:12px;padding:2px 5px">&#10003;</button>
@@ -1634,6 +1642,7 @@ function renderItemPage() {
       <button class="backbtn" onclick="goBack()">&#8592; Back</button>
       <span class="badge ${s?'sold-b':stale?'stale-b':'listed-b'}">${s?'Sold':stale?'Stale':'Listed'}</span>
       ${i.returnData?`<span class="badge" style="background:rgba(245,101,101,0.15);color:var(--red)">${i.returnData.type==='full'?'Returned':'Partial refund'}</span>`:''}
+      ${(!i.returnData&&i.returnHistory?.length)?`<span class="badge" style="background:rgba(246,173,85,0.15);color:var(--warn)">&#9203; Previously returned (${i.returnHistory.length}x)</span>`:''}
       ${i.category?`<span class="badge" style="background:var(--surface2);color:var(--muted2)">${esc(i.category)}</span>`:''}
     </div>
     ${i.gid?`<div style="font-family:var(--fm);font-size:11px;color:var(--muted);letter-spacing:1px;margin-bottom:6px">${i.gid}</div>`:''}
@@ -1651,7 +1660,7 @@ function renderItemPage() {
         <div class="idetail"><div class="idetail-label">Sale Price</div><div class="idetail-val acc">${fmt(i.salePrice)}</div></div>
         <div class="idetail"><div class="idetail-label">${s?'Gross Profit':'Potential Profit'}</div><div class="idetail-val ${pot>0?'pos':'red'}">${fmt(s?i.grossProfit:pot)}</div></div>
         <div class="idetail"><div class="idetail-label">Item Cost</div><div class="idetail-val">${fmt(i.itemCost)}</div></div>
-        <div class="idetail"><div class="idetail-label">ROI</div><div class="idetail-val ${i.roi>1?'pos':''}">${i.roi!=null?(i.roi*100).toFixed(0)+'%':'--'}</div></div>
+        <div class="idetail"><div class="idetail-label">ROI</div><div class="idetail-val ${i.roi>1?'pos':''}">${i.roi!=null&&i.itemCost>0?Math.min(Math.round(i.roi*100),999)+'%':i.roi!=null?'N/A':'--'}</div></div>
         <div class="idetail"><div class="idetail-label">Location</div><div class="idetail-val" style="font-size:16px">${esc(i.location||'--')}</div></div>
         <div class="idetail"><div class="idetail-label">Source</div><div class="idetail-val" style="font-size:16px">${esc(i.source||'--')}</div></div>
       </div>
@@ -1680,6 +1689,23 @@ function renderItemPage() {
       <button class="btn btn-s" style="color:var(--red);border-color:rgba(245,101,101,0.3)" onclick="if(confirm('Delete this item?')){_prevPage=_prevPage||'summary';DB['${i.month}']=DB['${i.month}'].filter(x=>x.id!=='${i.id}');saveDB();goNav(_prevPage);toast('Deleted')}">Delete</button>
     </div>
     ${partsHTML(i,i.month)}
+    ${(i.returnHistory&&i.returnHistory.length)?`
+    <div class="parts-section" style="border-color:rgba(245,101,101,0.25)">
+      <div class="parts-title"><span style="color:var(--red)">&#9888; Return History (${i.returnHistory.length} event${i.returnHistory.length>1?'s':''})</span></div>
+      ${i.returnHistory.map((rh,idx)=>`
+        <div style="background:rgba(245,101,101,0.06);border-radius:6px;padding:10px 12px;margin-bottom:8px;font-size:12px">
+          <div style="font-weight:600;color:var(--red);margin-bottom:4px">Return #${idx+1} — ${rh.type==='full'?'Full return':'Partial refund'} on ${rh.loggedAt}</div>
+          ${rh.type==='full'?`<div class="dim">Original sale reversed. Relisted ${rh.relistDate}.</div>`:''}
+          ${rh.refundAmount>0?`<div>Refund issued: <span style="color:var(--red)">${fmt(rh.refundAmount)}</span></div>`:''}
+          ${rh.returnPostage>0?`<div>Return postage: <span style="color:var(--red)">${fmt(rh.returnPostage)}</span></div>`:''}
+          ${rh.feesKept>0?`<div>eBay fees kept: <span style="color:var(--red)">${fmt(rh.feesKept)}</span></div>`:''}
+          ${rh.notes?`<div class="dim">Notes: ${esc(rh.notes)}</div>`:''}
+          <div style="margin-top:6px;padding-top:6px;border-top:1px solid var(--border);color:var(--muted2)">
+            Total return cost: <span style="color:var(--red);font-weight:600">${fmt((rh.refundAmount||0)+(rh.returnPostage||0)+(rh.feesKept||0))}</span>
+          </div>
+        </div>`).join('')}
+      <div style="font-size:12px;color:var(--muted2);margin-top:4px">Note: return costs are historical — the current sale profit above reflects the resale only.</div>
+    </div>`:''}
     ${returnHTML(i,i.month)}
 
     <div id="editrow-${i.id}" style="display:none;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:0;margin-top:16px;overflow:hidden">
