@@ -432,7 +432,7 @@ tbody tr.selected td{background:rgba(240,180,41,0.05);}
     <div class="fg"><label>Location</label><input type="text" id="qa-loc" placeholder="Bed, A101, Desk..."></div>
     <div class="fg"><label>Date Listed</label><input type="date" id="qa-listed"></div>
     <div class="fg"><label>Sale Price (£)</label><input type="number" id="qa-price" step="0.01" placeholder="0.00" oninput="qaAutoCalc()"></div>
-    <div class="fg"><label>eBay Fee (£) <span id="qa-fee-hint" style="color:var(--muted);font-size:9px;text-transform:none;letter-spacing:0;font-weight:400;margin-left:4px">auto</span></label><input type="number" id="qa-ebay" step="0.01" placeholder="auto" oninput="if(this.value)document.getElementById('qa-fee-hint').textContent='manual'"></div>
+    <div class="fg"><label>Promoted listing % <span style="color:var(--muted);font-size:9px;font-weight:400">(optional)</span></label><input type="number" id="qa-ebay" step="0.01" placeholder="e.g. 0.05 = 5%" title="Only enter if you used a Promoted Listing. Private sellers pay no Final Value Fee."></div>
     <div class="fg"><label>Shipping Cost (£)</label><input type="number" id="qa-ship" step="0.01" placeholder="2.94"></div>
     <div class="fg"><label>Promo %</label><input type="number" id="qa-promo" step="0.01" placeholder="0.05"></div>
     <div class="fg"><label>Source / Where bought</label><input type="text" id="qa-source" placeholder="e.g. Bramley Car Boot"></div>
@@ -498,7 +498,37 @@ function initDB(){
   }catch(e){}
   DB=JSON.parse(JSON.stringify(SEED));
   assignItemIDs();
+  migrateToPrivateFees();
   saveDB();
+}
+
+function migrateToPrivateFees(){
+  // Zero out eBay fees for existing items (now private seller = no FVF)
+  // Keep the fee if it was manually set to a specific promoted listing %
+  // We can't know which were promoted so we zero all and let user re-enter if needed
+  let changed=false;
+  MONTHS.forEach(m=>{
+    (DB[m]||[]).forEach(i=>{
+      if((i.ebayFee||0)>0&&!i.promotedListing){
+        i.ebayFee=0;
+        i.promoPercent=0;
+        i.promoCost=0;
+        // Recalculate totals
+        const partsCost=(i.parts||[]).reduce((a,p)=>a+(p.cost||0),0);
+        const tc=i.itemCost+i.shipping+0+(i.itemCost>0?0:0)+partsCost;
+        const tr=(i.salePrice||0)+(i.postage||0);
+        const rd=i.returnData;
+        const refundAmt=rd?(rd.type==='full'?tr:rd.refundAmount||0):0;
+        const returnCost=(rd?.returnPostage||0)+(rd?.feesKept||0);
+        i.totalCost=+(tc+returnCost).toFixed(4);
+        i.totalRev=+(tr-refundAmt).toFixed(4);
+        i.grossProfit=i.dateSold?+(i.totalRev-i.totalCost).toFixed(2):null;
+        i.roi=i.itemCost>0?+((i.totalRev-i.totalCost)/i.itemCost).toFixed(4):null;
+        changed=true;
+      }
+    });
+  });
+  if(changed)saveDB();
 }
 
 function assignItemIDs(){
@@ -543,38 +573,37 @@ function yT(){return MONTHS.reduce((a,m)=>{const t=mT(m);a.rev+=t.rev;a.cost+=t.
 // UK eBay private seller Final Value Fees (2025/26)
 // Fee = % of (sale price + postage charged to buyer)
 // Per-order fee of £0.00 for private sellers (waived)
-const EBAY_FEE_RATES = {
-  // Media — higher rate
-  'Books':             0.1435,
-  'DVD & Blu-ray':     0.1435,
-  'Music':             0.1435,
-  'Video Games':       0.1435,
-  // Vehicle Parts — lower rate
-  'Vehicle Parts':     0.0872,
-  // Standard rate for everything else
-  'Cameras':           0.128,
-  'Computers':         0.128,
-  'Mobile Phones':     0.128,
-  'Smart Home':        0.128,
-  'TV & Audio':        0.128,
-  'Home Phones':       0.128,
-  'Toys & Games':      0.128,
-  'Clothing & Accessories': 0.128,
-  'Home & Garden':     0.128,
-  'Baby':              0.128,
-  'Other':             0.128,
-};
-const EBAY_FEE_DEFAULT = 0.128; // standard rate fallback
+// ── eBay UK Private Seller Fee Structure (2025/26) ───────────────────
+// eBay removed Final Value Fees for UK private sellers from Oct 2024.
+// The Buyer Protection Fee (BPF) is charged TO THE BUYER, not deducted
+// from your payout. You receive the full sale price.
+// Your only potential fee: Promoted Listings % (if you use them, optional).
+// Motors/Vehicles: still has fees — but not relevant here.
+//
+// RETURN FEE POLICY:
+// - You handle return yourself → eBay credits back any fees charged (£0 net cost)
+// - eBay steps in / forces refund → fees kept (rare for private sellers)
+// - Partial refund you issue → proportional credit
+//
+const EBAY_FEE_RATES = {}; // Private seller — no FVF
+const EBAY_FEE_DEFAULT = 0; // £0 for private sellers
 
-function calcEbayFee(salePrice, postage, category){
+// Promoted listing rate — only if seller uses promoted listings (optional %)
+// Default 0, can be set per item
+const PROMOTED_LISTING_DEFAULT = 0; // standard rate fallback
+
+function calcEbayFee(salePrice, postage, category, promoRate){
+  // Private seller — no Final Value Fee since Oct 2024
+  // Only cost is optional promoted listing fee (if used)
+  const promo = parseFloat(promoRate)||0;
   const total = (parseFloat(salePrice)||0) + (parseFloat(postage)||0);
-  const rate = EBAY_FEE_RATES[category] || EBAY_FEE_DEFAULT;
-  return +(total * rate).toFixed(2);
+  return +(total * promo).toFixed(2);
 }
 
-function ebayFeeLabel(category){
-  const rate = EBAY_FEE_RATES[category] || EBAY_FEE_DEFAULT;
-  return (rate*100).toFixed(2)+'%';
+function ebayFeeLabel(category, promoRate){
+  const promo = parseFloat(promoRate)||0;
+  if(promo>0) return 'Promoted '+( promo*100).toFixed(1)+'%';
+  return 'Private seller — no FVF';
 }
 
 function recalc(i,ds){
@@ -1054,7 +1083,7 @@ function editRowInner(i){
     <div class="fg"><label>Sale Price</label><input type="number" id="ei-price-${i.id}" step="0.01" value="${i.salePrice||''}"></div>
     <div class="fg"><label>Item Cost</label><input type="number" id="ei-cost-${i.id}" step="0.01" value="${i.itemCost||''}"></div>
     <div class="fg"><label>Shipping</label><input type="number" id="ei-ship-${i.id}" step="0.01" value="${i.shipping||''}"></div>
-    <div class="fg"><label>eBay Fee <span style="color:var(--muted);font-size:9px;font-weight:400">(calc: ${fmt(calcEbayFee(i.salePrice,i.postage||0,i.category))})</span></label><input type="number" id="ei-ebay-${i.id}" step="0.01" value="${i.ebayFee||''}" placeholder="${calcEbayFee(i.salePrice,i.postage||0,i.category)}"></div>
+    <div class="fg"><label>Promoted listing fee (£) <span style="color:var(--muted);font-size:9px;font-weight:400">£0 if not promoted</span></label><input type="number" id="ei-ebay-${i.id}" step="0.01" value="${i.ebayFee||''}" placeholder="0.00"></div>
     <div class="fg"><label>Postage</label><input type="number" id="ei-post-${i.id}" step="0.01" value="${i.postage||''}"></div>
     <div class="fg"><label>Promo %</label><input type="number" id="ei-promo-${i.id}" step="0.01" value="${i.promoPercent||''}"></div>
   </div>
@@ -2126,28 +2155,54 @@ function deletePart(m,id,partId){
 
 // ── RETURNS ───────────────────────────────────────────────────────────
 let _returnType='full';
+let _ebayHandled=false;
+function setEbayHandled(ebayIn,btn){
+  _ebayHandled=ebayIn;
+  document.getElementById('ebay-handled-no').classList.toggle('on',!ebayIn);
+  document.getElementById('ebay-handled-yes').classList.toggle('on',ebayIn);
+  const feesInput=document.getElementById('return-fees-kept');
+  const feesHint=document.getElementById('fees-kept-hint');
+  const info=document.getElementById('ebay-handled-info');
+  if(ebayIn){
+    // eBay stepped in — fees kept, user must enter manually
+    if(feesInput){feesInput.readOnly=false;feesInput.style.opacity='1';feesInput.style.cursor='auto';feesInput.placeholder='Enter fees eBay kept';}
+    if(feesHint){feesHint.textContent='eBay kept the fee';feesHint.style.color='var(--red)';}
+    if(info){info.textContent='⚠ eBay keeps fees when they intervene — enter amount manually';info.style.color='var(--warn)';}
+  } else {
+    // Seller handled — fees credited back = £0
+    if(feesInput){feesInput.readOnly=true;feesInput.style.opacity='0.5';feesInput.style.cursor='not-allowed';feesInput.value='';}
+    if(feesHint){feesHint.textContent='£0 — credited back';feesHint.style.color='var(--green)';}
+    if(info){info.textContent='✓ Fees will be fully credited back — no cost to you';info.style.color='var(--green)';}
+  }
+}
 function setReturnType(type,btn){
   _returnType=type;
-  document.querySelectorAll('.rtype-btn').forEach(b=>b.classList.remove('on'));
+  // Only toggle rtype-btns that are NOT the ebay-handled buttons
+  document.querySelectorAll('.rtype-btn').forEach(b=>{
+    if(b.id!=='ebay-handled-no'&&b.id!=='ebay-handled-yes')b.classList.remove('on');
+  });
   btn.classList.add('on');
-  document.getElementById('partial-fields').style.display=type==='partial'?'contents':'none';
-  document.getElementById('full-fields').style.display=type==='full'?'contents':'none';
+  const pf=document.getElementById('partial-fields');
+  const ff=document.getElementById('full-fields');
+  if(pf)pf.style.display=type==='partial'?'block':'none';
+  if(ff)ff.style.display=type==='full'?'contents':'none';
 }
 
 function logReturn(m,id){
   const item=(DB[m]||[]).find(i=>i.id===id);
   if(!item)return;
   const returnPostage=parseFloat(document.getElementById('return-postage')?.value)||0;
-  const feesKept=parseFloat(document.getElementById('return-fees-kept')?.value)||0;
+  // If seller handled it, fees are £0 (credited back by eBay)
+  // If eBay stepped in, use whatever was entered
+  const feesKept=_ebayHandled?(parseFloat(document.getElementById('return-fees-kept')?.value)||0):0;
   const notes=(document.getElementById('return-notes')?.value||'').trim();
   let refundAmount=0;
-  let newSoldStatus=item.dateSold;
 
   if(_returnType==='full'){
     refundAmount=item.totalRev||item.salePrice||0;
-    newSoldStatus=null; // back to listed
     item.returnData={
-      type:'full',refundAmount,returnPostage,feesKept,notes,
+      type:'full',refundAmount,returnPostage,feesKept,
+      ebayHandled:_ebayHandled,notes,
       originalSoldDate:item.dateSold,loggedAt:new Date().toISOString().split('T')[0]
     };
     item.dateSold=null;
@@ -2156,7 +2211,8 @@ function logReturn(m,id){
     refundAmount=parseFloat(document.getElementById('partial-refund-amt')?.value)||0;
     const reason=(document.getElementById('partial-reason')?.value||'').trim();
     item.returnData={
-      type:'partial',refundAmount,returnPostage,feesKept,notes,reason,
+      type:'partial',refundAmount,returnPostage,feesKept,
+      ebayHandled:_ebayHandled,notes,reason,
       loggedAt:new Date().toISOString().split('T')[0]
     };
     toast('Partial refund of '+fmt(refundAmount)+' logged');
@@ -2218,7 +2274,8 @@ function returnHTML(i,m){
         ${rd.type==='partial'?`<div>Partial refund of <strong>${fmt(rd.refundAmount)}</strong> issued ${rd.loggedAt}</div>`:''}
         ${rd.reason?`<div style="color:var(--muted2);margin-top:3px">Reason: ${esc(rd.reason)}</div>`:''}
         ${rd.returnPostage>0?`<div style="color:var(--muted2)">Return postage: ${fmt(rd.returnPostage)}</div>`:''}
-        ${rd.feesKept>0?`<div style="color:var(--muted2)">eBay fees kept: ${fmt(rd.feesKept)}</div>`:''}
+        <div style="color:var(--muted2)">Handled by: ${rd.ebayHandled?'eBay stepped in':'Seller — fees credited back'}</div>
+        ${rd.feesKept>0?`<div style="color:var(--red)">eBay fees kept: ${fmt(rd.feesKept)}</div>`:`<div style="color:var(--green)">eBay fees: £0 (credited back)</div>`}
         ${rd.notes?`<div style="color:var(--muted2)">Notes: ${esc(rd.notes)}</div>`:''}
       </div>
       <div style="margin-top:10px"><button class="btn btn-s" style="font-size:12px;padding:5px 12px;color:var(--red);border-color:rgba(245,101,101,0.3)" onclick="clearReturn('${m}','${i.id}')">Remove return record</button></div>
@@ -2227,68 +2284,45 @@ function returnHTML(i,m){
   // Show return form for sold items
   return`<div class="return-section">
     <div class="return-title">Log Return or Refund</div>
-    <div class="return-type-btns">
-      <button class="rtype-btn on" onclick="setReturnType('full',this)">Full return</button>
-      <button class="rtype-btn" onclick="setReturnType('partial',this)">Partial refund</button>
-    </div>
-    <div class="return-fields">
-      <style>#partial-fields{display:none}
-/* Table alignment */
-.twrap table{table-layout:fixed;width:100%;}
-.twrap th,.twrap td{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:middle;}
-/* Fixed column widths for monthly table */
-.col-w-cb{width:32px;}
-.col-w-edit{width:28px;}
-.col-w-status{width:62px;}
-.col-w-item{width:auto;min-width:120px;}
-.col-w-cat{width:110px;}
-.col-w-loc{width:72px;}
-.col-w-listed{width:84px;}
-.col-w-price{width:72px;text-align:right;}
-.col-w-cost{width:68px;text-align:right;}
-.col-w-parts{width:60px;text-align:right;}
-.col-w-return{width:68px;text-align:center;}
-.col-w-profit{width:72px;text-align:right;}
-.col-w-roi{width:50px;text-align:right;}
-.col-w-acts{width:76px;text-align:right;}
-/* Align td values to match th */
-.twrap td.num{text-align:right;}
-.twrap td.ctr{text-align:center;}
-.twrap td.acts-td{text-align:right;}
-/* Actions cell — no flex, use inline spacing */
-.acts-wrap{display:flex;gap:2px;justify-content:flex-end;align-items:center;}
 
-.ddwrap{position:relative;display:inline-block;}
-.dd-btn{display:flex;align-items:center;gap:6px;padding:7px 12px;border-radius:7px;border:1px solid var(--border2);background:var(--surface);color:var(--muted2);font-family:var(--fh);font-size:12px;font-weight:700;cursor:pointer;transition:all 0.15s;white-space:nowrap;}
-.dd-btn:hover,.ddwrap.open .dd-btn{border-color:var(--accent);color:var(--accent);}
-.dd-btn svg{width:11px;height:11px;flex-shrink:0;transition:transform 0.15s;}
-.ddwrap.open .dd-btn svg{transform:rotate(180deg);}
-.dd-menu{display:none;position:absolute;right:0;top:calc(100% + 5px);background:var(--surface);border:1px solid var(--border2);border-radius:9px;min-width:190px;z-index:300;overflow:hidden;}
-.ddwrap.open .dd-menu{display:block;}
-.dd-item{display:flex;align-items:center;gap:9px;padding:9px 14px;font-size:12px;color:var(--muted2);cursor:pointer;transition:background 0.1s;font-family:var(--fh);font-weight:600;white-space:nowrap;border:none;background:none;width:100%;text-align:left;}
-.dd-item:hover{background:var(--surface2);color:var(--text);}
-.dd-item.primary{color:var(--green);}
-.dd-item.primary:hover{color:var(--green);}
-.dd-item.info{color:var(--blue);}
-.dd-item.info:hover{color:var(--blue);}
-.dd-item.danger{color:var(--red);}
-.dd-item.danger:hover{color:var(--red);}
-.dd-item.disabled{opacity:0.35;cursor:default;pointer-events:none;}
-.dd-item svg{width:11px;height:11px;flex-shrink:0;}
-.dd-sep{height:1px;background:var(--border);margin:3px 0;}
-</style>
-      <div id="partial-fields" style="display:none;grid-column:1/-1;display:none">
-        <div class="fg"><label>Refund amount (£)</label><input type="number" id="partial-refund-amt" step="0.01" placeholder="e.g. 3.00"></div>
-        <div class="fg"><label>Reason</label><input type="text" id="partial-reason" placeholder="e.g. Item not as described"></div>
+    <div style="background:rgba(99,179,237,0.08);border:1px solid rgba(99,179,237,0.2);border-radius:7px;padding:10px 13px;font-size:12px;color:var(--blue);margin-bottom:14px;line-height:1.6">
+      <strong>Private seller note:</strong> As a private seller you pay no Final Value Fee, so eBay fees kept is £0 in almost all cases. eBay only keeps fees if they had to intervene and force the refund through their Money Back Guarantee.
+    </div>
+
+    <div style="margin-bottom:14px">
+      <div style="font-size:11px;color:var(--muted2);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:8px;font-weight:500">How was this resolved?</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="rtype-btn on" id="ebay-handled-no" onclick="setEbayHandled(false,this)">I handled it myself</button>
+        <button class="rtype-btn" id="ebay-handled-yes" onclick="setEbayHandled(true,this)">eBay stepped in</button>
+      </div>
+      <div id="ebay-handled-info" style="font-size:11px;color:var(--green);margin-top:6px">&#10003; Fees will be fully credited back — no cost to you</div>
+    </div>
+
+    <div style="margin-bottom:14px">
+      <div style="font-size:11px;color:var(--muted2);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:8px;font-weight:500">Return type</div>
+      <div class="return-type-btns">
+        <button class="rtype-btn on" onclick="setReturnType('full',this)">Full return</button>
+        <button class="rtype-btn" onclick="setReturnType('partial',this)">Partial refund</button>
+      </div>
+    </div>
+
+    <div class="return-fields">
+      <div id="partial-fields" style="display:none;grid-column:1/-1">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+          <div class="fg"><label>Refund amount (£)</label><input type="number" id="partial-refund-amt" step="0.01" placeholder="e.g. 3.00"></div>
+          <div class="fg"><label>Reason</label><input type="text" id="partial-reason" placeholder="e.g. Item not as described"></div>
+        </div>
       </div>
       <div id="full-fields" style="display:contents">
-        <div style="font-size:12px;color:var(--muted2);padding:6px 0">Full refund of ${fmt(i.totalRev||i.salePrice)} will be recorded. Item returns to Listed.</div>
+        <div style="font-size:12px;color:var(--muted2);padding:6px 0;grid-column:1/-1">Full refund of <strong>${fmt(i.totalRev||i.salePrice)}</strong> will be recorded. Item returns to Listed status.</div>
       </div>
-      <div class="fg"><label>Return postage cost (£)</label><input type="number" id="return-postage" step="0.01" placeholder="0.00"></div>
-      <div class="fg"><label>eBay fees kept (£)</label><input type="number" id="return-fees-kept" step="0.01" placeholder="0.00" title="eBay sometimes keeps a % even on returns"></div>
-      <div class="fg" style="grid-column:1/-1"><label>Notes</label><input type="text" id="return-notes" placeholder="e.g. Buyer claimed damage, agreed £3 goodwill"></div>
+      <div class="fg"><label>Return postage you paid (£)</label><input type="number" id="return-postage" step="0.01" placeholder="0.00"></div>
+      <div class="fg"><label>eBay fees kept (£) <span id="fees-kept-hint" style="color:var(--green);font-size:9px;font-weight:400">£0 — credited back</span></label>
+        <input type="number" id="return-fees-kept" step="0.01" placeholder="0.00" readonly style="opacity:0.5;cursor:not-allowed" title="As a private seller, eBay credits fees back when you handle the return yourself">
+      </div>
+      <div class="fg" style="grid-column:1/-1"><label>Notes</label><input type="text" id="return-notes" placeholder="e.g. Buyer said not as described, agreed full refund"></div>
     </div>
-    <div style="margin-top:12px"><button class="btn btn-p" style="background:var(--red);font-size:13px" onclick="logReturn('${m}','${i.id}')">Log Return / Refund</button></div>
+    <div style="margin-top:14px"><button class="btn btn-p" style="background:var(--red);font-size:13px" onclick="logReturn('${m}','${i.id}')">Log Return / Refund</button></div>
   </div>`;
 }
 
