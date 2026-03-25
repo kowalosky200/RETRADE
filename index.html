@@ -125,6 +125,7 @@ tbody tr:hover td{background:var(--surface2);}
 /* MOBILE TABLE — hide cols on small screens */
 @media(max-width:800px){
   .col-hide{display:none !important;}
+  col.col-hide{display:none !important;}
   td,th{padding:7px 8px;}
 }
 .row-detail{display:none;background:var(--surface2);}
@@ -304,13 +305,7 @@ tbody tr:hover td{background:var(--surface2);}
   border:2px solid #000;border-top:none;border-left:none;
   transform:rotate(45deg);
 }
-.bulk-bar{display:none;align-items:center;gap:10px;padding:10px 14px;background:rgba(240,180,41,0.08);border:1px solid rgba(240,180,41,0.25);border-radius:8px;margin-bottom:12px;flex-wrap:wrap;}
-.bulk-bar.show{display:flex;}
-.bulk-count{font-size:13px;color:var(--accent);font-family:var(--fh);font-weight:700;}
-.bulk-del{padding:6px 14px;border-radius:6px;border:1px solid rgba(245,101,101,0.4);background:rgba(245,101,101,0.08);color:var(--red);font-family:var(--fh);font-size:12px;font-weight:700;cursor:pointer;transition:all 0.15s;}
-.bulk-del:hover{background:rgba(245,101,101,0.18);}
-.bulk-clear{padding:6px 12px;border-radius:6px;border:1px solid var(--border2);background:transparent;color:var(--muted2);font-family:var(--fh);font-size:12px;font-weight:700;cursor:pointer;}
-.bulk-clear:hover{border-color:var(--accent);color:var(--accent);}
+
 tbody tr.selected td{background:rgba(240,180,41,0.05);}
 
 /* Parts & Returns */
@@ -337,6 +332,50 @@ tbody tr.selected td{background:rgba(240,180,41,0.05);}
 /* Monthly table extra cols */
 .col-parts{color:var(--warn);}
 .col-return{color:var(--red);}
+
+/* Table alignment */
+.twrap table{table-layout:fixed;width:100%;}
+.twrap th,.twrap td{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:middle;}
+/* Fixed column widths for monthly table */
+.col-w-cb{width:32px;}
+.col-w-edit{width:28px;}
+.col-w-status{width:62px;}
+.col-w-item{width:auto;min-width:120px;}
+.col-w-cat{width:110px;}
+.col-w-loc{width:72px;}
+.col-w-listed{width:84px;}
+.col-w-price{width:72px;text-align:right;}
+.col-w-cost{width:68px;text-align:right;}
+.col-w-parts{width:60px;text-align:right;}
+.col-w-return{width:68px;text-align:center;}
+.col-w-profit{width:72px;text-align:right;}
+.col-w-roi{width:50px;text-align:right;}
+.col-w-acts{width:76px;text-align:right;}
+/* Align td values to match th */
+.twrap td.num{text-align:right;}
+.twrap td.ctr{text-align:center;}
+.twrap td.acts-td{text-align:right;}
+/* Actions cell — no flex, use inline spacing */
+.acts-wrap{display:flex;gap:2px;justify-content:flex-end;align-items:center;}
+
+.ddwrap{position:relative;display:inline-block;}
+.dd-btn{display:flex;align-items:center;gap:6px;padding:7px 12px;border-radius:7px;border:1px solid var(--border2);background:var(--surface);color:var(--muted2);font-family:var(--fh);font-size:12px;font-weight:700;cursor:pointer;transition:all 0.15s;white-space:nowrap;}
+.dd-btn:hover,.ddwrap.open .dd-btn{border-color:var(--accent);color:var(--accent);}
+.dd-btn svg{width:11px;height:11px;flex-shrink:0;transition:transform 0.15s;}
+.ddwrap.open .dd-btn svg{transform:rotate(180deg);}
+.dd-menu{display:none;position:absolute;right:0;top:calc(100% + 5px);background:var(--surface);border:1px solid var(--border2);border-radius:9px;min-width:190px;z-index:300;overflow:hidden;}
+.ddwrap.open .dd-menu{display:block;}
+.dd-item{display:flex;align-items:center;gap:9px;padding:9px 14px;font-size:12px;color:var(--muted2);cursor:pointer;transition:background 0.1s;font-family:var(--fh);font-weight:600;white-space:nowrap;border:none;background:none;width:100%;text-align:left;}
+.dd-item:hover{background:var(--surface2);color:var(--text);}
+.dd-item.primary{color:var(--green);}
+.dd-item.primary:hover{color:var(--green);}
+.dd-item.info{color:var(--blue);}
+.dd-item.info:hover{color:var(--blue);}
+.dd-item.danger{color:var(--red);}
+.dd-item.danger:hover{color:var(--red);}
+.dd-item.disabled{opacity:0.35;cursor:default;pointer-events:none;}
+.dd-item svg{width:11px;height:11px;flex-shrink:0;}
+.dd-sep{height:1px;background:var(--border);margin:3px 0;}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 </head>
@@ -439,7 +478,7 @@ let DB,invFilter='all',activeDrill=null,_st=null,_searchQ='';
 
 function initDB(){
   try{
-    const s=localStorage.getItem('g007v10');
+    const s=localStorage.getItem('g007v11');
     if(s){
       DB=JSON.parse(s);
       // Migrate: apply categories to any items missing them
@@ -487,7 +526,7 @@ function assignItemIDs(){
   });
   if(changed)saveDB();
 }
-function saveDB(){try{localStorage.setItem('g007v10',JSON.stringify(DB));}catch(e){}}
+function saveDB(){try{localStorage.setItem('g007v11',JSON.stringify(DB));}catch(e){}}
 
 // ── HELPERS ───────────────────────────────────────────────────────────
 function daysAgo(d){return Math.round((Date.now()-new Date(d))/86400000);}
@@ -731,23 +770,31 @@ function renderSummary(){
   document.getElementById('p-summary').innerHTML=`
     <div style="display:flex;align-items:flex-end;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:4px">
       <div style="font-family:var(--fn);font-size:48px;color:var(--accent);line-height:1;letter-spacing:2px">2026</div>
-      <div class="export-bar" style="margin-bottom:0">
-        <button class="export-btn primary" onclick="exportYearCSV()">
-          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 2v8M5 7l3 3 3-3M3 12h10"/></svg>
-          Export annual CSV
+      <div class="ddwrap" id="dd-summary" style="margin-bottom:0">
+        <button class="dd-btn" onclick="toggleDD('dd-summary')">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="4" cy="8" r="1.2" fill="currentColor"/><circle cx="8" cy="8" r="1.2" fill="currentColor"/><circle cx="12" cy="8" r="1.2" fill="currentColor"/></svg>
+          Actions
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 6l4 4 4-4"/></svg>
         </button>
-        <button class="export-btn primary" onclick="backupAll()">
-          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="2" width="12" height="12" rx="2"/><path d="M5 8h6M8 5v6"/></svg>
-          Download backup
-        </button>
-        <button class="export-btn" onclick="restoreBackup()">
-          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 8a5 5 0 1 0 2-4"/><path d="M3 4v4h4"/></svg>
-          Restore backup
-        </button>
-        <button class="export-btn" style="border-color:var(--blue);color:var(--blue)" onclick="importExcel()">
-          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 12V4M5 7l3-3 3 3M3 13h10"/></svg>
-          Import Excel
-        </button>
+        <div class="dd-menu">
+          <button class="dd-item primary" onclick="exportYearCSV();toggleDD('dd-summary')">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 2v8M5 7l3 3 3-3M3 12h10"/></svg>
+            Export annual CSV
+          </button>
+          <button class="dd-item primary" onclick="backupAll();toggleDD('dd-summary')">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="2" width="12" height="12" rx="2"/><path d="M5 8h6M8 5v6"/></svg>
+            Download backup
+          </button>
+          <div class="dd-sep"></div>
+          <button class="dd-item info" onclick="importExcel();toggleDD('dd-summary')">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 12V4M5 7l3-3 3 3M3 13h10"/></svg>
+            Import from Excel
+          </button>
+          <button class="dd-item" onclick="restoreBackup();toggleDD('dd-summary')">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 8a5 5 0 1 0 2-4"/><path d="M3 4v4h4"/></svg>
+            Restore backup
+          </button>
+        </div>
       </div>
     </div>
     <div style="color:var(--muted2);font-size:12px;margin-bottom:22px;margin-top:4px">
@@ -866,12 +913,43 @@ function renderMonth(){_selected.clear();
   const stale=items.filter(isStale);
   document.getElementById('mbody').innerHTML=`
     <div class="mhdr">
-      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+      <div style="display:flex;align-items:center;justify-content:space-between;width:100%;flex-wrap:wrap;gap:10px;margin-bottom:10px">
         <div class="mtitle">${MN[m]}</div>
-        <button class="export-btn" style="margin-bottom:0" onclick="exportMonthCSV('${m}')">
-          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" style="width:13px;height:13px"><path d="M8 2v8M5 7l3 3 3-3M3 12h10"/></svg>
-          Export CSV
-        </button>
+        <div class="ddwrap" id="dd-monthly">
+          <button class="dd-btn" onclick="toggleDD('dd-monthly')">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="4" cy="8" r="1.2" fill="currentColor"/><circle cx="8" cy="8" r="1.2" fill="currentColor"/><circle cx="12" cy="8" r="1.2" fill="currentColor"/></svg>
+            Actions
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 6l4 4 4-4"/></svg>
+          </button>
+          <div class="dd-menu">
+            <button class="dd-item primary" onclick="exportMonthCSV('${m}');toggleDD('dd-monthly')">
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 2v8M5 7l3 3 3-3M3 12h10"/></svg>
+              Export ${MN[m]} CSV
+            </button>
+            <button class="dd-item primary" onclick="exportYearCSV();toggleDD('dd-monthly')">
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 2v8M5 7l3 3 3-3M3 12h10"/></svg>
+              Export annual CSV
+            </button>
+            <button class="dd-item primary" onclick="backupAll();toggleDD('dd-monthly')">
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="2" width="12" height="12" rx="2"/><path d="M5 8h6M8 5v6"/></svg>
+              Download backup
+            </button>
+            <div class="dd-sep"></div>
+            <button class="dd-item info" onclick="importExcel();toggleDD('dd-monthly')">
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 12V4M5 7l3-3 3 3M3 13h10"/></svg>
+              Import from Excel
+            </button>
+            <button class="dd-item" onclick="restoreBackup();toggleDD('dd-monthly')">
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 8a5 5 0 1 0 2-4"/><path d="M3 4v4h4"/></svg>
+              Restore backup
+            </button>
+            <div class="dd-sep" id="bulk-sep" style="display:none"></div>
+            <button class="dd-item danger" id="bulk-del-btn" style="display:none" onclick="bulkDelete('${m}');toggleDD('dd-monthly')">
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 5h10M6 5V3h4v2M5 5l1 8h4l1-8"/></svg>
+              <span id="bulk-del-label">Delete selected</span>
+            </button>
+          </div>
+        </div>
       </div>
       <div class="mstats">
         <div class="mstat"><div class="msv pos">${fmt(t.profit)}</div><div class="msl">Realised Profit</div></div>
@@ -886,26 +964,38 @@ function renderMonth(){_selected.clear();
     ${tot>0?`<div class="pbar-wrap"><div class="pbar-labels"><span>Realised ${fmt(made)} (${pct}%)</span><span>Remaining ${fmt(rem)}</span></div><div class="pbar"><div class="pbar-fill" style="width:${pct}%"></div></div></div>`:''}
     <div class="sl">Items this month (${items.length})</div>
     <div class="twrap"><table>
-      <div class="bulk-bar" id="bulk-bar">
-        <span class="bulk-count" id="bulk-count">0 items selected</span>
-        <button class="bulk-del" onclick="bulkDelete('${m}')">&#x2715; Delete selected</button>
-        <button class="bulk-clear" onclick="clearSelection()">Clear selection</button>
-      </div>
+
+      <colgroup>
+        <col class="col-w-cb">
+        <col class="col-w-edit">
+        <col class="col-w-status">
+        <col class="col-w-item">
+        <col class="col-w-cat col-hide">
+        <col class="col-w-loc col-hide">
+        <col class="col-w-listed col-hide">
+        <col class="col-w-price">
+        <col class="col-w-cost">
+        <col class="col-w-parts col-hide">
+        <col class="col-w-return col-hide">
+        <col class="col-w-profit">
+        <col class="col-w-roi col-hide">
+        <col class="col-w-acts">
+      </colgroup>
       <thead><tr>
-        <th class="cb-cell"><input type="checkbox" id="master-cb" class="row-cb" onchange="toggleSelectAll(this,'${m}')" title="Select all"></th>
-        <th style="width:28px"></th>
-        <th>Status</th>
-        <th>Item</th>
-        <th class="col-hide">Category</th>
-        <th class="col-hide">Location</th>
-        <th class="col-hide">Listed</th>
-        <th>Price</th>
-        <th>Cost</th>
-        <th class="col-hide">Parts</th>
-        <th class="col-hide">Return</th>
-        <th>Profit</th>
-        <th class="col-hide">ROI</th>
-        <th style="width:80px">Actions</th>
+        <th class="col-w-cb"><input type="checkbox" id="master-cb" class="row-cb" onchange="toggleSelectAll(this,'${m}')" title="Select all"></th>
+        <th class="col-w-edit"></th>
+        <th class="col-w-status">Status</th>
+        <th class="col-w-item">Item</th>
+        <th class="col-w-cat col-hide">Category</th>
+        <th class="col-w-loc col-hide">Location</th>
+        <th class="col-w-listed col-hide">Listed</th>
+        <th class="col-w-price" style="text-align:right">Price</th>
+        <th class="col-w-cost" style="text-align:right">Cost</th>
+        <th class="col-w-parts col-hide" style="text-align:right">Parts</th>
+        <th class="col-w-return col-hide" style="text-align:center">Return</th>
+        <th class="col-w-profit" style="text-align:right">Profit</th>
+        <th class="col-w-roi col-hide" style="text-align:right">ROI</th>
+        <th class="col-w-acts" style="text-align:right">Actions</th>
       </tr></thead>
       <tbody>${items.map(i=>iRow(i,m)).join('')||'<tr><td colspan="14" class="empty">No items — use the + button to add one</td></tr>'}</tbody>
     </table></div>
@@ -934,29 +1024,32 @@ function editRowInner(i){
 function iRow(i,m){
   const s=!!i.dateSold;const stale=isStale(i);
   return`<tr id="row-${i.id}">
-    <td class="cb-cell"><input type="checkbox" class="row-cb" data-id="${i.id}" onchange="toggleSelect('${i.id}',this)"></td>
-    <td style="width:28px;text-align:center"><button class="edit-icon-btn" onclick="toggleRowEdit('${m}','${i.id}')" title="Edit">&#9998;</button></td>
-    <td><span class="badge ${s?'sold-b':stale?'stale-b':'listed-b'}">${s?'Sold':stale?'Stale':'Listed'}</span></td>
-    <td style="max-width:210px;overflow:hidden;text-overflow:ellipsis">
-      ${i.gid?`<span style="font-size:9px;color:var(--muted);font-family:var(--fm);margin-right:5px;letter-spacing:0.5px">${i.gid}</span>`:''}${esc(i.item)}
+    <td class="col-w-cb ctr"><input type="checkbox" class="row-cb" data-id="${i.id}" onchange="toggleSelect('${i.id}',this)"></td>
+    <td class="col-w-edit ctr"><button class="edit-icon-btn" onclick="toggleRowEdit('${m}','${i.id}')" title="Edit">&#9998;</button></td>
+    <td class="col-w-status"><span class="badge ${s?'sold-b':stale?'stale-b':'listed-b'}">${s?'Sold':stale?'Stale':'Listed'}</span></td>
+    <td class="col-w-item" style="cursor:pointer" onclick="_prevPage='monthly';openItem('${m}','${i.id}')">
+      ${i.gid?`<span style="font-size:9px;color:var(--muted);font-family:var(--fm);margin-right:4px">${i.gid}</span>`:''}${esc(i.item)}
     </td>
-    <td class="dim col-hide">${esc(i.category||'--')}</td>
-    <td class="dim col-hide">${esc(i.location||'--')}</td>
-    <td class="dim col-hide">${i.dateListed||'--'}</td>
-    <td>${fmt(i.salePrice)}</td>
-    <td class="dim">${fmt(i.itemCost)}</td>
-    <td class="col-hide col-parts">${(i.parts&&i.parts.length)?fmt(i.partsCost||0):'--'}</td>
-    <td class="col-hide col-return">${i.returnData?(i.returnData.type==='full'?'<span class=\'badge\' style=\'background:rgba(245,101,101,0.15);color:var(--red)\'>Returned</span>':'<span class=\'badge\' style=\'background:rgba(245,101,101,0.15);color:var(--red)\'>Partial</span>'):'--'}</td>
-    <td class="${i.grossProfit>0?'pos':i.grossProfit<0?'neg':''}">${i.grossProfit!=null?fmt(i.grossProfit):'--'}</td>
-    <td class="dim col-hide" style="color:var(--accent)">${i.roi!=null?(i.roi*100).toFixed(0)+'%':'--'}</td>
-    <td style="display:flex;gap:3px;align-items:center">
-      <button class="tbtn" onclick="_prevPage='monthly';openItem('${m}','${i.id}')" title="View" style="font-size:14px;padding:3px 7px">&#128065;</button>
-      ${!s?`<button class="tbtn" onclick="openSold('${m}','${i.id}')" title="Mark sold" style="font-size:14px;padding:3px 7px">&#10003;</button>`:''}
-      <button class="tbtn del" onclick="delItem('${m}','${i.id}')" title="Delete" style="font-size:11px;padding:3px 6px">&#x2715;</button>
+    <td class="col-w-cat col-hide dim">${esc(i.category||'--')}</td>
+    <td class="col-w-loc col-hide dim">${esc(i.location||'--')}</td>
+    <td class="col-w-listed col-hide dim">${i.dateListed||'--'}</td>
+    <td class="col-w-price num">${fmt(i.salePrice)}</td>
+    <td class="col-w-cost num dim">${fmt(i.itemCost)}</td>
+    <td class="col-w-parts col-hide num col-parts">${(i.parts&&i.parts.length)?fmt(i.partsCost||0):'--'}</td>
+    <td class="col-w-return col-hide ctr col-return">${i.returnData?(i.returnData.type==='full'?'<span class="badge" style="background:rgba(245,101,101,0.15);color:var(--red);font-size:9px">Ret</span>':'<span class="badge" style="background:rgba(245,101,101,0.15);color:var(--red);font-size:9px">Part</span>'):'--'}</td>
+    <td class="col-w-profit num ${i.grossProfit>0?'pos':i.grossProfit<0?'neg':''}">${i.grossProfit!=null?fmt(i.grossProfit):'--'}</td>
+    <td class="col-w-roi col-hide num" style="color:var(--accent)">${i.roi!=null?(i.roi*100).toFixed(0)+'%':'--'}</td>
+    <td class="col-w-acts">
+      <div class="acts-wrap">
+        <button class="tbtn" onclick="_prevPage='monthly';openItem('${m}','${i.id}')" title="View" style="font-size:12px;padding:2px 5px">&#128065;</button>
+        <button class="tbtn" onclick="duplicateItem('${m}','${i.id}')" title="Duplicate" style="font-size:12px;padding:2px 5px">&#10697;</button>
+        ${!s?`<button class="tbtn" onclick="openSold('${m}','${i.id}')" title="Mark sold" style="font-size:12px;padding:2px 5px">&#10003;</button>`:''}
+        <button class="tbtn del" onclick="delItem('${m}','${i.id}')" title="Delete" style="font-size:11px;padding:2px 5px">&#x2715;</button>
+      </div>
     </td>
   </tr>
   <tr id="editrow-${i.id}" style="display:none;background:var(--surface2)">
-    <td></td><td></td><td colspan="12">${editRowInner({...i,month:m})}</td>
+    <td class="col-w-cb"></td><td class="col-w-edit"></td><td colspan="12">${editRowInner({...i,month:m})}</td>
   </tr>`;
 }
 
@@ -1052,8 +1145,31 @@ function renderStock(){
   const pp=items.reduce((a,i)=>a+(i.totalRev-i.totalCost),0);
   const stale=items.filter(isStale);
   document.getElementById('p-stock').innerHTML=`
-    <div class="page-title">Current Stock</div>
-    <div class="page-sub">Listed but not yet sold</div>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;flex-wrap:wrap;gap:10px">
+      <div><div class="page-title">Current Stock</div><div class="page-sub" style="margin-bottom:0">Listed but not yet sold</div></div>
+      <div class="ddwrap" id="dd-stock">
+        <button class="dd-btn" onclick="toggleDD('dd-stock')">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="4" cy="8" r="1.2" fill="currentColor"/><circle cx="8" cy="8" r="1.2" fill="currentColor"/><circle cx="12" cy="8" r="1.2" fill="currentColor"/></svg>
+          Actions
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 6l4 4 4-4"/></svg>
+        </button>
+        <div class="dd-menu">
+          <button class="dd-item primary" onclick="exportYearCSV();toggleDD('dd-stock')">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 2v8M5 7l3 3 3-3M3 12h10"/></svg>
+            Export annual CSV
+          </button>
+          <button class="dd-item primary" onclick="backupAll();toggleDD('dd-stock')">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="2" width="12" height="12" rx="2"/><path d="M5 8h6M8 5v6"/></svg>
+            Download backup
+          </button>
+          <div class="dd-sep"></div>
+          <button class="dd-item info" onclick="importExcel();toggleDD('dd-stock')">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 12V4M5 7l3-3 3 3M3 13h10"/></svg>
+            Import from Excel
+          </button>
+        </div>
+      </div>
+    </div>
     ${stale.length?`<div class="stale-alert"><div class="stale-dot"></div><div><div class="stale-text">${stale.length} item${stale.length>1?'s':''} stale (30+ days) &mdash; consider repricing</div><div class="stale-items">${stale.map(i=>esc(i.item)).join(', ')}</div></div></div>`:''}
     <div class="filters">
       <button class="fbtn ${invFilter==='all'?'on':''}" onclick="setFilter('all',this)">All (${allUnsold().length})</button>
@@ -1073,20 +1189,21 @@ function renderStock(){
         const d=daysAgo(i.dateListed),p=i.totalRev-i.totalCost,stale=isStale(i);
         return`<tr id="row-${i.id}">
           <td style="width:28px;text-align:center"><button class="edit-icon-btn" onclick="toggleRowEdit('${i.month}','${i.id}')">&#9998;</button></td>
-          <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis">
+          <td style="overflow:hidden;text-overflow:ellipsis;cursor:pointer" onclick="_prevPage='stock';openItem('${i.month}','${i.id}')">
             ${i.gid?`<span style="font-size:9px;color:var(--muted);font-family:var(--fm);margin-right:5px">${i.gid}</span>`:''}${esc(i.item)}${stale?' <span class="badge stale-b">Stale</span>':''}
           </td>
           <td class="dim">${MN[i.month]||i.month}</td>
           <td class="dim">${esc(i.location||'--')}</td>
           <td style="color:${d>=30?'var(--warn)':d>=14?'var(--muted2)':'var(--muted2)'};font-weight:${d>=30?'500':'400'}">${d}d</td>
-          <td>${fmt(i.salePrice)}</td>
-          <td class="dim">${fmt(i.itemCost)}</td>
-          <td class="${p>0?'pos':'neg'}">${fmt(p)}</td>
+          <td class="num">${fmt(i.salePrice)}</td>
+          <td class="dim num">${fmt(i.itemCost)}</td>
+          <td class="${p>0?'pos':'neg'} num">${fmt(p)}</td>
           <td style="color:var(--accent)">${i.roi!=null?(i.roi*100).toFixed(0)+'%':'--'}</td>
-          <td style="display:flex;gap:3px;align-items:center">
-            <button class="tbtn" onclick="_prevPage='stock';openItem('${i.month}','${i.id}')" title="View item" style="font-size:13px;padding:3px 6px">&#128065;</button>
-            <button class="tbtn" onclick="openSold('${i.month}','${i.id}')" title="Mark as sold" style="font-size:13px;padding:3px 6px">&#10003;</button>
-            <button class="tbtn del" onclick="delItem('${i.month}','${i.id}')" title="Delete" style="font-size:11px;padding:3px 6px">&#x2715;</button>
+          <td style="display:flex;gap:3px;align-items:center;justify-content:flex-end">
+            <button class="tbtn" onclick="_prevPage='stock';openItem('${i.month}','${i.id}')" title="View" style="font-size:12px;padding:2px 5px">&#128065;</button>
+            <button class="tbtn" onclick="duplicateItem('${i.month}','${i.id}')" title="Duplicate" style="font-size:12px;padding:2px 5px">&#10697;</button>
+            <button class="tbtn" onclick="openSold('${i.month}','${i.id}')" title="Mark sold" style="font-size:12px;padding:2px 5px">&#10003;</button>
+            <button class="tbtn del" onclick="delItem('${i.month}','${i.id}')" title="Delete" style="font-size:11px;padding:2px 5px">&#x2715;</button>
           </td>
         </tr>
         <tr id="editrow-${i.id}" style="display:none;background:var(--surface2)"><td></td><td colspan="9">${editRowInner({...i})}</td></tr>`;
@@ -1446,8 +1563,9 @@ function renderItemPage() {
     </div>
 
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px">
-      <button class="btn btn-s" onclick="toggleItemEdit('${i.month}','${i.id}')">&#9998; Edit Item</button>
+      <button class="btn btn-s" onclick="toggleItemEdit('${i.month}','${i.id}')">&#9998; Edit</button>
       ${!s?`<button class="btn btn-p" onclick="openSold('${i.month}','${i.id}')">Mark as sold</button>`:''}
+      <button class="btn btn-s" onclick="duplicateItem('${i.month}','${i.id}');goBack()" title="Duplicate this item">&#10697; Duplicate</button>
       <button class="btn btn-s" style="color:var(--red);border-color:rgba(245,101,101,0.3)" onclick="if(confirm('Delete this item?')){_prevPage=_prevPage||'summary';DB['${i.month}']=DB['${i.month}'].filter(x=>x.id!=='${i.id}');saveDB();goNav(_prevPage);toast('Deleted')}">Delete</button>
     </div>
     ${partsHTML(i,i.month)}
@@ -1855,14 +1973,21 @@ function toggleSelectAll(masterCb,m){
 }
 
 function updateBulkBar(){
-  const bar=document.getElementById('bulk-bar');
-  const count=document.getElementById('bulk-count');
-  if(!bar)return;
-  if(_selected.size>0){
-    bar.classList.add('show');
-    if(count)count.textContent=_selected.size+' item'+(+_selected.size!==1?'s':'')+' selected';
-  } else {
-    bar.classList.remove('show');
+  const delBtn=document.getElementById('bulk-del-btn');
+  const sep=document.getElementById('bulk-sep');
+  const lbl=document.getElementById('bulk-del-label');
+  if(delBtn){
+    const show=_selected.size>0;
+    delBtn.style.display=show?'flex':'none';
+    if(sep)sep.style.display=show?'block':'none';
+    if(lbl)lbl.textContent='Delete selected ('+_selected.size+')';
+  }
+  // Also update btn label if dropdown open
+  const ddBtn=document.querySelector('#dd-monthly .dd-btn');
+  if(ddBtn&&_selected.size>0){
+    ddBtn.style.borderColor='var(--warn)';ddBtn.style.color='var(--warn)';
+  } else if(ddBtn){
+    ddBtn.style.borderColor='';ddBtn.style.color='';
   }
 }
 
@@ -2025,7 +2150,51 @@ function returnHTML(i,m){
       <button class="rtype-btn" onclick="setReturnType('partial',this)">Partial refund</button>
     </div>
     <div class="return-fields">
-      <style>#partial-fields{display:none}</style>
+      <style>#partial-fields{display:none}
+/* Table alignment */
+.twrap table{table-layout:fixed;width:100%;}
+.twrap th,.twrap td{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:middle;}
+/* Fixed column widths for monthly table */
+.col-w-cb{width:32px;}
+.col-w-edit{width:28px;}
+.col-w-status{width:62px;}
+.col-w-item{width:auto;min-width:120px;}
+.col-w-cat{width:110px;}
+.col-w-loc{width:72px;}
+.col-w-listed{width:84px;}
+.col-w-price{width:72px;text-align:right;}
+.col-w-cost{width:68px;text-align:right;}
+.col-w-parts{width:60px;text-align:right;}
+.col-w-return{width:68px;text-align:center;}
+.col-w-profit{width:72px;text-align:right;}
+.col-w-roi{width:50px;text-align:right;}
+.col-w-acts{width:76px;text-align:right;}
+/* Align td values to match th */
+.twrap td.num{text-align:right;}
+.twrap td.ctr{text-align:center;}
+.twrap td.acts-td{text-align:right;}
+/* Actions cell — no flex, use inline spacing */
+.acts-wrap{display:flex;gap:2px;justify-content:flex-end;align-items:center;}
+
+.ddwrap{position:relative;display:inline-block;}
+.dd-btn{display:flex;align-items:center;gap:6px;padding:7px 12px;border-radius:7px;border:1px solid var(--border2);background:var(--surface);color:var(--muted2);font-family:var(--fh);font-size:12px;font-weight:700;cursor:pointer;transition:all 0.15s;white-space:nowrap;}
+.dd-btn:hover,.ddwrap.open .dd-btn{border-color:var(--accent);color:var(--accent);}
+.dd-btn svg{width:11px;height:11px;flex-shrink:0;transition:transform 0.15s;}
+.ddwrap.open .dd-btn svg{transform:rotate(180deg);}
+.dd-menu{display:none;position:absolute;right:0;top:calc(100% + 5px);background:var(--surface);border:1px solid var(--border2);border-radius:9px;min-width:190px;z-index:300;overflow:hidden;}
+.ddwrap.open .dd-menu{display:block;}
+.dd-item{display:flex;align-items:center;gap:9px;padding:9px 14px;font-size:12px;color:var(--muted2);cursor:pointer;transition:background 0.1s;font-family:var(--fh);font-weight:600;white-space:nowrap;border:none;background:none;width:100%;text-align:left;}
+.dd-item:hover{background:var(--surface2);color:var(--text);}
+.dd-item.primary{color:var(--green);}
+.dd-item.primary:hover{color:var(--green);}
+.dd-item.info{color:var(--blue);}
+.dd-item.info:hover{color:var(--blue);}
+.dd-item.danger{color:var(--red);}
+.dd-item.danger:hover{color:var(--red);}
+.dd-item.disabled{opacity:0.35;cursor:default;pointer-events:none;}
+.dd-item svg{width:11px;height:11px;flex-shrink:0;}
+.dd-sep{height:1px;background:var(--border);margin:3px 0;}
+</style>
       <div id="partial-fields" style="display:none;grid-column:1/-1;display:none">
         <div class="fg"><label>Refund amount (£)</label><input type="number" id="partial-refund-amt" step="0.01" placeholder="e.g. 3.00"></div>
         <div class="fg"><label>Reason</label><input type="text" id="partial-reason" placeholder="e.g. Item not as described"></div>
@@ -2039,6 +2208,44 @@ function returnHTML(i,m){
     </div>
     <div style="margin-top:12px"><button class="btn btn-p" style="background:var(--red);font-size:13px" onclick="logReturn('${m}','${i.id}')">Log Return / Refund</button></div>
   </div>`;
+}
+
+
+// ── DROPDOWN ──────────────────────────────────────────────────────────
+function toggleDD(id){
+  const el=document.getElementById(id);
+  if(!el)return;
+  const isOpen=el.classList.contains('open');
+  // Close all open dropdowns first
+  document.querySelectorAll('.ddwrap.open').forEach(d=>d.classList.remove('open'));
+  if(!isOpen)el.classList.add('open');
+}
+document.addEventListener('click',function(e){
+  if(!e.target.closest('.ddwrap'))document.querySelectorAll('.ddwrap.open').forEach(d=>d.classList.remove('open'));
+});
+
+
+// ── DUPLICATE ITEM ────────────────────────────────────────────────────
+function duplicateItem(m,id){
+  const item=(DB[m]||[]).find(i=>i.id===id);
+  if(!item)return;
+  // Get next G007 ID
+  let maxId=0;
+  MONTHS.forEach(mo=>(DB[mo]||[]).forEach(i=>{const n=parseInt((i.gid||'').replace('G007-',''))||0;if(n>maxId)maxId=n;}));
+  const copy=JSON.parse(JSON.stringify(item));
+  copy.id='dup_'+Date.now();
+  copy.gid='G007-'+String(maxId+1).padStart(4,'0');
+  copy.dateSold=null;
+  copy.grossProfit=null;
+  copy.isReturned=false;
+  delete copy.returnData;
+  copy.item=item.item+' (copy)';
+  DB[m].push(copy);
+  saveDB();
+  const cur=document.querySelector('.page.on').id;
+  if(cur==='p-monthly')renderMonth();
+  else if(cur==='p-stock')renderStock();
+  toast('Duplicated: '+item.item);
 }
 
 // ── TOAST ─────────────────────────────────────────────────────────────
