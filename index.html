@@ -635,6 +635,9 @@ function getInsights(){
 
 // ── NAV ───────────────────────────────────────────────────────────────
 function goNav(page){
+  // Track previous page for back button
+  const cur=document.querySelector('.page.on')?.id?.replace('p-','');
+  if(cur&&cur!==page&&cur!=='item')_prevPage=cur;
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('on'));
   document.querySelectorAll('.tab').forEach(t=>t.classList.remove('on'));
   document.getElementById('p-'+page).classList.add('on');
@@ -937,7 +940,7 @@ function goMonth(m){
 function renderMonthPage(){
   const el=document.getElementById('p-monthly');
   if(!el.querySelector('#msel')){
-    el.innerHTML=`<div class="selrow"><button class="backbtn" onclick="goNav('summary')">&#8592; Back</button>
+    el.innerHTML=`<div class="selrow"><button class="backbtn" onclick="goBack()">&#8592; Back</button>
     <select id="msel" onchange="renderMonth()">${MONTHS.map(m=>`<option value="${m}"${m==='MAR'?' selected':''}>${MN[m]}</option>`).join('')}</select></div>
     <div id="mbody"></div>`;
   }
@@ -1057,7 +1060,7 @@ function editRowInner(i){
   </div>
   <div style="display:flex;gap:8px;margin-top:8px">
     <button class="btn btn-p" style="padding:6px 14px;font-size:12px" onclick="saveInlineEdit('${i.month||''}','${i.id}')">Save</button>
-    <button class="btn btn-s" style="padding:6px 14px;font-size:12px" onclick="toggleRowEdit('${i.month||''}','${i.id}')">Cancel</button>
+    <button class="btn btn-s" style="padding:6px 14px;font-size:12px" onclick="const pg=document.querySelector('.page.on').id;pg==='p-item'?toggleItemEdit('${i.month||''}','${i.id}'):toggleRowEdit('${i.month||''}','${i.id}')">Cancel</button>
   </div></div>`;
 }
 function iRow(i,m){
@@ -1123,7 +1126,11 @@ function saveInlineEdit(m,id){
   else if(cur==='p-stock')renderStock();
   else if(cur==='p-summary')renderSummary();
   else if(cur==='p-search')renderSearch();
-  else if(cur==='p-item'){if(_currentItem){_currentItem=DB[_currentItem.month].find(i=>i.id===_currentItem.id)||_currentItem;_currentItem.month=_currentItem.month||m;}renderItemPage();}
+  else if(cur==='p-item'){
+    const fresh=(DB[m]||[]).find(i=>i.id===id);
+    if(fresh){_currentItem={...fresh,month:m};}
+    renderItemPage();
+  }
   toast('Saved');
 }
 function delItem(m,id){
@@ -1185,7 +1192,10 @@ function renderStock(){
   const stale=items.filter(isStale);
   document.getElementById('p-stock').innerHTML=`
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;flex-wrap:wrap;gap:10px">
-      <div><div class="page-title">Current Stock</div><div class="page-sub" style="margin-bottom:0">Listed but not yet sold</div></div>
+      <div style="display:flex;align-items:center;gap:12px">
+        <button class="backbtn" onclick="goBack()">&#8592; Back</button>
+        <div><div class="page-title">Current Stock</div><div class="page-sub" style="margin-bottom:0">Listed but not yet sold</div></div>
+      </div>
       <div class="ddwrap" id="dd-stock">
         <button class="dd-btn" onclick="toggleDD('dd-stock')">
           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="4" cy="8" r="1.2" fill="currentColor"/><circle cx="8" cy="8" r="1.2" fill="currentColor"/><circle cx="12" cy="8" r="1.2" fill="currentColor"/></svg>
@@ -1259,8 +1269,13 @@ function renderTax(){
   const it=tax<=37700?tax*0.2:37700*0.2+(tax-37700)*0.4,ni=Math.max(0,(net-12570)*0.09);
   const sr=(l,v,c)=>`<div class="sarow"><span>${l}</span><span style="color:${c};font-weight:600">${v}</span></div>`;
   document.getElementById('p-tax').innerHTML=`
-    <div class="page-title">Self Assessment</div>
-    <div class="page-sub">Tax Year: 6 April 2025 &ndash; 5 April 2026 &middot; Sole Trader</div>
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:4px">
+      <button class="backbtn" onclick="goBack()">&#8592; Back</button>
+      <div>
+        <div class="page-title">Self Assessment</div>
+        <div class="page-sub">Tax Year: 6 April 2025 &ndash; 5 April 2026 &middot; Sole Trader</div>
+      </div>
+    </div>
     <div class="notice">&#9888; Estimated figures only &mdash; not financial or tax advice. Always verify with HMRC or a qualified accountant before submitting.</div>
     <div class="sa-grid">
       <div class="sacard"><div class="sacard-title">Income &amp; Expenses</div>
@@ -1394,8 +1409,13 @@ function renderTrips(){
   const pkgPerItem=db.packaging.perItemCost||0;
 
   document.getElementById('p-trips').innerHTML=`
-    <div class="page-title">Trips & Costs</div>
-    <div class="page-sub">Buying trips, other expenses, and packaging costs</div>
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:4px">
+      <button class="backbtn" onclick="goBack()">&#8592; Back</button>
+      <div>
+        <div class="page-title">Trips & Costs</div>
+        <div class="page-sub">Buying trips, other expenses, and packaging costs</div>
+      </div>
+    </div>
 
     <div class="kgrid" style="margin-bottom:24px">
       <div class="kcard"><div class="klabel">Total Trip Spend</div><div class="kval">${fmt(totalTripCost)}</div><div class="ksub">${db.trips.length} buying trip${db.trips.length!==1?'s':''}</div></div>
@@ -1655,7 +1675,7 @@ function uploadPhoto(id, input) {
 
 let _prevPage = 'summary';
 function goBack() {
-  goNav(_prevPage);
+  goNav(_prevPage||'summary');
 }
 
 
