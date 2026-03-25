@@ -285,7 +285,25 @@ tbody tr:hover td{background:var(--surface2);}
 .export-btn svg{width:13px;height:13px;flex-shrink:0;}
 
 .cb-cell{width:32px;text-align:center;padding:6px 4px !important;}
-.row-cb{width:14px;height:14px;cursor:pointer;accent-color:var(--accent);}
+.row-cb{
+  width:14px;height:14px;cursor:pointer;
+  appearance:none;-webkit-appearance:none;
+  background:var(--surface2);
+  border:1.5px solid var(--border2);
+  border-radius:3px;
+  position:relative;
+  transition:all 0.12s;
+  vertical-align:middle;
+  flex-shrink:0;
+}
+.row-cb:hover{border-color:var(--accent);}
+.row-cb:checked{background:var(--accent);border-color:var(--accent);}
+.row-cb:checked::after{
+  content:'';position:absolute;left:3px;top:1px;
+  width:5px;height:8px;
+  border:2px solid #000;border-top:none;border-left:none;
+  transform:rotate(45deg);
+}
 .bulk-bar{display:none;align-items:center;gap:10px;padding:10px 14px;background:rgba(240,180,41,0.08);border:1px solid rgba(240,180,41,0.25);border-radius:8px;margin-bottom:12px;flex-wrap:wrap;}
 .bulk-bar.show{display:flex;}
 .bulk-count{font-size:13px;color:var(--accent);font-family:var(--fh);font-weight:700;}
@@ -421,7 +439,7 @@ let DB,invFilter='all',activeDrill=null,_st=null,_searchQ='';
 
 function initDB(){
   try{
-    const s=localStorage.getItem('g007v9');
+    const s=localStorage.getItem('g007v10');
     if(s){
       DB=JSON.parse(s);
       // Migrate: apply categories to any items missing them
@@ -469,7 +487,7 @@ function assignItemIDs(){
   });
   if(changed)saveDB();
 }
-function saveDB(){try{localStorage.setItem('g007v9',JSON.stringify(DB));}catch(e){}}
+function saveDB(){try{localStorage.setItem('g007v10',JSON.stringify(DB));}catch(e){}}
 
 // ── HELPERS ───────────────────────────────────────────────────────────
 function daysAgo(d){return Math.round((Date.now()-new Date(d))/86400000);}
@@ -478,7 +496,8 @@ function unsold(m){return(DB[m]||[]).filter(i=>!i.dateSold);}
 function allSold(){return MONTHS.flatMap(m=>sold(m).map(i=>({...i,month:m})));}
 function allUnsold(){return MONTHS.flatMap(m=>unsold(m).map(i=>({...i,month:m})));}
 function allItems(){return MONTHS.flatMap(m=>(DB[m]||[]).map(i=>({...i,month:m})));}
-function mT(m){const s=sold(m);return{rev:s.reduce((a,i)=>a+(i.totalRev||0),0),cost:s.reduce((a,i)=>a+(i.totalCost||0),0),profit:s.reduce((a,i)=>a+(i.grossProfit||0),0),nSold:s.length,nTotal:(DB[m]||[]).length};}
+function mT(m){const s=sold(m);const ret=(DB[m]||[]).filter(i=>i.returnData);return{rev:s.reduce((a,i)=>a+(i.totalRev||0),0),cost:s.reduce((a,i)=>a+(i.totalCost||0),0),profit:s.reduce((a,i)=>a+(i.grossProfit||0),0),nSold:s.length,nTotal:(DB[m]||[]).length,nReturns:ret.length};}
+function returnedItems(){return MONTHS.flatMap(m=>(DB[m]||[]).filter(i=>i.returnData).map(i=>({...i,month:m})));}
 function yT(){return MONTHS.reduce((a,m)=>{const t=mT(m);a.rev+=t.rev;a.cost+=t.cost;a.profit+=t.profit;a.nSold+=t.nSold;a.nTotal+=t.nTotal;return a;},{rev:0,cost:0,profit:0,nSold:0,nTotal:0});}
 function recalc(i,ds){
   const pc=i.salePrice*(i.promoPercent||0);
@@ -743,6 +762,7 @@ function renderSummary(){
       ${kc('Stock on Hand',u.length+' items',fmt(sc)+' cost value','b','stock')}
       ${kc('Unrealised Profit',fmt(unreal),'If all listed items sell','p','unrealised')}
       ${kc('Items Listed',yt.nTotal,yt.nSold+' sold &middot; '+(yt.nTotal-yt.nSold)+' active','','listed')}
+      ${(()=>{const ret=returnedItems();return ret.length?kc('Returns & Refunds',ret.length+' item'+(ret.length!==1?'s':''),ret.filter(i=>i.returnData?.type==='partial').length+' partial &middot; '+ret.filter(i=>i.returnData?.type==='full').length+' full','r','returns'):''})()}
     </div>
     <div id="drill-panel"></div>
     ${insHtml}
@@ -775,7 +795,7 @@ function drillKPI(type){
   const panel=document.getElementById('drill-panel');
   if(!panel)return;
   document.querySelectorAll('.kcard').forEach(k=>k.classList.remove('active-filter'));
-  const drillMap={revenue:'Total Revenue',profit:'Gross Profit',costs:'Total Costs',stock:'Stock on Hand',unrealised:'Unrealised Profit',listed:'All Items'};
+  const drillMap={revenue:'Total Revenue',profit:'Gross Profit',costs:'Total Costs',stock:'Stock on Hand',unrealised:'Unrealised Profit',listed:'All Items',returns:'Returns & Refunds'};
   document.querySelectorAll('.kcard').forEach(k=>{if(k.getAttribute('onclick')&&k.getAttribute('onclick').includes(`'${type}'`))k.classList.add('active-filter');});
   let items=[],cols='';
   if(type==='revenue'){items=allSold();cols='<th>Item</th><th>Month</th><th>Location</th><th>Sale Price</th><th>Revenue</th><th>Profit</th><th>ROI</th><th></th>';}
@@ -784,9 +804,25 @@ function drillKPI(type){
   else if(type==='stock'){items=allUnsold();cols='<th>Item</th><th>Month</th><th>Location</th><th>Listed</th><th>List Price</th><th>Cost</th><th>Pot. Profit</th><th></th>';}
   else if(type==='unrealised'){items=allUnsold();cols='<th>Item</th><th>Month</th><th>Location</th><th>List Price</th><th>Cost</th><th>Pot. Profit</th><th>ROI</th><th></th>';}
   else if(type==='listed'){items=allItems();cols='<th>Status</th><th>Item</th><th>Month</th><th>Location</th><th>Price</th><th>Profit</th><th></th>';}
+  else if(type==='returns'){items=returnedItems();cols='<th>Item</th><th>Month</th><th>Type</th><th>Refund</th><th>Return Postage</th><th>Fees Kept</th><th>Impact on Profit</th><th></th>';}
   const rows=items.map(i=>{
     const eb=`<button class="tbtn" onclick="toggleRowEdit('${i.month}','${i.id}')">&#9998;</button>`;
     const ms=!i.dateSold?`<button class="tbtn" onclick="openSold('${i.month}','${i.id}')">Mark sold</button>`:'';
+    const vb=`<button class="tbtn" onclick="_prevPage='summary';openItem('${i.month}','${i.id}')">View</button>`;
+    if(type==='returns'){
+      const rd=i.returnData||{};
+      const impact=i.grossProfit!=null?fmt(i.grossProfit):'--';
+      return`<tr style="cursor:pointer" onclick="_prevPage='summary';openItem('${i.month}','${i.id}')">
+        <td>${esc(i.item)}</td>
+        <td class="dim">${MN[i.month]}</td>
+        <td><span class="badge" style="background:rgba(245,101,101,0.15);color:var(--red)">${rd.type==='full'?'Full return':'Partial refund'}</span></td>
+        <td style="color:var(--red)">${rd.refundAmount?fmt(rd.refundAmount):'--'}</td>
+        <td class="dim">${rd.returnPostage>0?fmt(rd.returnPostage):'--'}</td>
+        <td class="dim">${rd.feesKept>0?fmt(rd.feesKept):'--'}</td>
+        <td class="${i.grossProfit>0?'pos':'neg'}">${impact}</td>
+        <td>${vb}</td>
+      </tr>`;
+    }
     if(type==='revenue')return`<tr><td>${esc(i.item)}</td><td class="dim">${MN[i.month]}</td><td class="dim">${esc(i.location||'--')}</td><td>${fmt(i.salePrice)}</td><td>${fmt(i.totalRev)}</td><td class="pos">${fmt(i.grossProfit)}</td><td style="color:var(--accent)">${i.roi!=null?(i.roi*100).toFixed(0)+'%':'--'}</td><td style="display:flex;gap:4px">${eb}${ms}</td></tr>`;
     if(type==='profit')return`<tr><td>${esc(i.item)}</td><td class="dim">${MN[i.month]}</td><td>${fmt(i.salePrice)}</td><td class="dim">${fmt(i.itemCost)}</td><td class="pos">${fmt(i.grossProfit)}</td><td style="color:var(--accent)">${i.roi!=null?(i.roi*100).toFixed(0)+'%':'--'}</td><td>${eb}</td></tr>`;
     if(type==='costs')return`<tr><td>${esc(i.item)}</td><td class="dim">${MN[i.month]}</td><td class="dim">${fmt(i.itemCost)}</td><td class="dim">${fmt(i.shipping)}</td><td class="dim">${fmt(i.ebayFee)}</td><td class="dim">${fmt(i.promoCost)}</td><td style="color:var(--red)">${fmt(i.totalCost)}</td><td>${eb}</td></tr>`;
@@ -843,6 +879,7 @@ function renderMonth(){_selected.clear();
         <div class="mstat"><div class="msv dim">${fmt(t.cost)}</div><div class="msl">Total Costs</div></div>
         <div class="mstat"><div class="msv">${t.rev>0?((t.profit/t.rev)*100).toFixed(1)+'%':'--'}</div><div class="msl">Margin</div></div>
         <div class="mstat"><div class="msv">${t.nSold}/${t.nTotal}</div><div class="msl">Sold / Listed</div></div>
+        ${t.nReturns>0?`<div class="mstat" style="border-color:rgba(245,101,101,0.3)"><div class="msv" style="color:var(--red)">${t.nReturns}</div><div class="msl" style="color:var(--red)">Returns</div></div>`:''}
       </div>
     </div>
     ${stale.length?`<div class="stale-alert"><div class="stale-dot"></div><div><div class="stale-text">${stale.length} stale item${stale.length>1?'s':''} (30+ days)</div><div class="stale-items">${stale.map(i=>esc(i.item)).join(', ')}</div></div></div>`:''}
@@ -1633,7 +1670,27 @@ function importExcel(){
             const totalRev=+(salePrice+postage).toFixed(4);
             const grossProfit=dateSold?+(totalRev-totalCost).toFixed(2):null;
             const roi=itemCost>0?+((totalRev-totalCost)/itemCost).toFixed(4):null;
-            const category=CAT_MAP[name]||'Other';
+            // Auto-categorise: exact match first, then keyword fallback
+            let category=CAT_MAP[name]||'';
+            if(!category){
+              const nl=name.toLowerCase();
+              if(/phone|nokia|samsung.*mobile|iphone|motorol|blackberry|sony ericsson|htc/.test(nl))category='Mobile Phones';
+              else if(/camera|canon|nikon|fuji|olympus|dslr|lens/.test(nl))category='Cameras';
+              else if(/laptop|macbook|computer|pc |imac|chromebook|acer|dell|hp |lenovo|asus|msi|keyboard|mouse|touchpad|monitor/.test(nl))category='Computers';
+              else if(/playstation|xbox|nintendo|ps[1-5]|game |gaming|joystick|controller|wii|sega|gameboy/.test(nl))category='Video Games';
+              else if(/dvd|blu.?ray|vhs|series|season|movie|film/.test(nl))category='DVD & Blu-ray';
+              else if(/book|novel|encyclopedia|manual|guide/.test(nl))category='Books';
+              else if(/speaker|headphone|amplifier|hifi|hi-fi|turntable|record|docking|walkman|stereo|tv |television|radio/.test(nl))category='TV & Audio';
+              else if(/phone|landline|bt\d|dect|cordless/.test(nl))category='Home Phones';
+              else if(/nest|alexa|echo|smart.*plug|smart.*bulb|ring|hive|thermostat/.test(nl))category='Smart Home';
+              else if(/toy|lego|game|puzzle|board game|chess|monopoly|playmobil|barbie|action figure|duplo/.test(nl))category='Toys & Games';
+              else if(/clothing|shoes|jacket|shirt|dress|bag|watch|jewel|glasses|sunglasses/.test(nl))category='Clothing & Accessories';
+              else if(/guitar|piano|keyboard.*music|violin|drum|amplifier.*music|musical/.test(nl))category='Music';
+              else if(/garden|tool|drill|vacuum|iron|kettle|toaster|blender|hoover/.test(nl))category='Home & Garden';
+              else if(/tyre|car |van |wheel|exhaust|brake|motorbike/.test(nl))category='Vehicle Parts';
+              else if(/baby|nappy|pram|pushchair|cot|highchair|feeding/.test(nl))category='Baby';
+              else category='Other';
+            }
 
             // Match: same name + same dateListed in same month (handles duplicates)
             const existing=newData[m].find(i=>
