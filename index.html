@@ -284,6 +284,7 @@ tbody tr:hover td{background:var(--surface2);}
 .export-btn.primary:hover{background:rgba(45,212,160,0.08);}
 .export-btn svg{width:13px;height:13px;flex-shrink:0;}
 </style>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 </head>
 <body>
 
@@ -642,9 +643,16 @@ function renderSummary(){
           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 8a5 5 0 1 0 2-4"/><path d="M3 4v4h4"/></svg>
           Restore backup
         </button>
+        <button class="export-btn" style="border-color:var(--blue);color:var(--blue)" onclick="importExcel()">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 12V4M5 7l3-3 3 3M3 13h10"/></svg>
+          Import Excel
+        </button>
       </div>
     </div>
-    <div style="color:var(--muted2);font-size:12px;margin-bottom:22px;margin-top:4px">eBay Reselling &mdash; Annual Overview</div>
+    <div style="color:var(--muted2);font-size:12px;margin-bottom:22px;margin-top:4px">
+      eBay Reselling &mdash; Annual Overview &nbsp;&middot;&nbsp;
+      <span style="color:var(--muted);font-size:11px">Import Excel: upload your EBAY_ACCOUNTS_2026.xlsx to sync new items. Existing items are never overwritten.</span>
+    </div>
     ${staleHtml}
     <div class="kgrid">
       ${kc('Total Revenue',fmt(yt.rev),yt.nSold+' items sold','','revenue')}
@@ -1436,6 +1444,116 @@ function exportYearCSV(){
   ].join('\n');
   dlFile(csv,'general007-annual-summary-2026.csv','text/csv');
   toast('Annual summary exported');
+}
+
+
+// ── IMPORT FROM EXCEL ─────────────────────────────────────────────────
+function importExcel(){
+  const input=document.createElement('input');
+  input.type='file';input.accept='.xlsx,.xls';
+  input.onchange=e=>{
+    const file=e.target.files[0];if(!file)return;
+    const reader=new FileReader();
+    reader.onload=ev=>{
+      try{
+        const wb=XLSX.read(ev.target.result,{type:'array',cellDates:true});
+        let imported=0,skipped=0;
+        // Map sheet names to month keys
+        const sheetToMonth={
+          'JAN-26':'JAN','FEB-26':'FEB','MAR-26':'MAR','APR-26':'APR',
+          'MAY-26':'MAY','JUN-26':'JUN','JUL-26':'JUL','AUG-26':'AUG',
+          'SEP-26':'SEP','OCT-26':'OCT','NOV-26':'NOV','DEC-26':'DEC'
+        };
+        const newData=JSON.parse(JSON.stringify(DB)); // start from current
+
+        wb.SheetNames.forEach(sheetName=>{
+          const m=sheetToMonth[sheetName];
+          if(!m)return;
+          const ws=wb.Sheets[sheetName];
+          const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:null});
+          // Find header row (row with "Item Name")
+          let headerRow=-1;
+          for(let i=0;i<rows.length;i++){
+            if(rows[i]&&rows[i].some(c=>String(c||'').includes('Item Name'))){
+              headerRow=i;break;
+            }
+          }
+          if(headerRow<0)return;
+          const headers=rows[headerRow].map(h=>String(h||'').trim().toLowerCase());
+          const col=name=>headers.findIndex(h=>h.includes(name));
+          const iName=col('item name');
+          const iListed=col('date listed');
+          const iSold=col('date sold');
+          const iSaleP=col('sale price');
+          const iCost=col('item cost');
+          const iShip=col('shipping cost');
+          const iEbay=col('ebay fee');
+          const iPost=col('postage fee');
+          const iPromoP=col('promotion %');
+          const iLoc=col('location');
+          if(iName<0)return;
+
+          const existingNames=new Set((newData[m]||[]).map(i=>i.item));
+          if(!newData[m])newData[m]=[];
+
+          for(let r=headerRow+1;r<rows.length;r++){
+            const row=rows[r];
+            if(!row||!row[iName])continue;
+            const name=String(row[iName]||'').trim();
+            if(!name||name==='MONTH END')continue;
+            // Skip if already exists (don't duplicate)
+            if(existingNames.has(name)){skipped++;continue;}
+            // Parse date helper
+            const parseDate=v=>{
+              if(!v)return null;
+              if(v instanceof Date)return v.toISOString().split('T')[0];
+              if(typeof v==='string'&&v.match(/\d{4}-\d{2}-\d{2}/))return v.split('T')[0];
+              if(typeof v==='number'){
+                // Excel serial date
+                const d=new Date(Math.round((v-25569)*86400*1000));
+                return d.toISOString().split('T')[0];
+              }
+              return null;
+            };
+            const salePrice=parseFloat(row[iSaleP])||0;
+            const itemCost=parseFloat(row[iCost])||0;
+            const shipping=parseFloat(row[iShip])||0;
+            const ebayFee=parseFloat(row[iEbay])||0;
+            const postage=parseFloat(row[iPost])||0;
+            const promoPercent=parseFloat(row[iPromoP])||0;
+            const dateListed=parseDate(row[iListed]);
+            const dateSold=parseDate(row[iSold]);
+            const location=iLoc>=0?String(row[iLoc]||'').trim():'';
+            const promoCost=salePrice*promoPercent;
+            const totalCost=itemCost+shipping+ebayFee+promoCost;
+            const totalRev=salePrice+postage;
+            const grossProfit=dateSold?+(totalRev-totalCost).toFixed(2):null;
+            const roi=itemCost>0?+((totalRev-totalCost)/itemCost).toFixed(4):null;
+            const category=CAT_MAP[name]||'Other';
+            newData[m].push({
+              id:'xl_'+Date.now()+'_'+r,
+              item:name,category,location,source:'',
+              dateListed,dateSold,salePrice,postage,
+              itemCost,shipping,ebayFee,promoPercent,promoCost,
+              totalCost:+totalCost.toFixed(4),
+              totalRev:+totalRev.toFixed(4),
+              grossProfit,roi
+            });
+            imported++;
+          }
+        });
+        DB=newData;
+        saveDB();
+        renderSummary();
+        toast(`Imported ${imported} new items${skipped?' ('+skipped+' skipped — already exist)':''}`);
+      }catch(err){
+        console.error(err);
+        toast('Error reading file — make sure it is the correct Excel format','err');
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  };
+  input.click();
 }
 
 // ── TOAST ─────────────────────────────────────────────────────────────
