@@ -480,7 +480,7 @@ let DB,invFilter='all',activeDrill=null,_st=null,_searchQ='';
 
 function initDB(){
   try{
-    const s=localStorage.getItem('g007v16');
+    const s=localStorage.getItem('g007v18');
     if(s){
       DB=JSON.parse(s);
       // Migrate: apply categories to any items missing them
@@ -500,7 +500,6 @@ function initDB(){
   }catch(e){}
   DB=JSON.parse(JSON.stringify(SEED));
   assignItemIDs();
-  migrateToPrivateFees();
   saveDB();
 }
 
@@ -558,7 +557,7 @@ function assignItemIDs(){
   });
   if(changed)saveDB();
 }
-function saveDB(){try{localStorage.setItem('g007v16',JSON.stringify(DB));}catch(e){}}
+function saveDB(){try{localStorage.setItem('g007v18',JSON.stringify(DB));}catch(e){}}
 
 // ── HELPERS ───────────────────────────────────────────────────────────
 function daysAgo(d){return Math.round((Date.now()-new Date(d))/86400000);}
@@ -598,42 +597,44 @@ const EBAY_FEE_DEFAULT = 0; // £0 for private sellers
 const PROMOTED_LISTING_DEFAULT = 0; // standard rate fallback
 
 function calcEbayFee(salePrice, postage, category, promoRate){
-  // Private seller — no Final Value Fee since Oct 2024
-  // Only cost is optional promoted listing fee (if used)
-  const promo = parseFloat(promoRate)||0;
-  const total = (parseFloat(salePrice)||0) + (parseFloat(postage)||0);
-  return +(total * promo).toFixed(2);
+  // UK Private seller Buyer Protection Fee (from Feb 2025)
+  // Current rate (Nov 2025 update): £0.10 fixed + 4% of item price
+  // This is deducted from your payout by eBay
+  const sp = parseFloat(salePrice)||0;
+  if(sp<=0) return 0;
+  const bpf = +(0.10 + 0.04 * Math.min(sp, 300) + (sp>300?0.02*(sp-300):0)).toFixed(2);
+  return bpf;
 }
 
 function ebayFeeLabel(category, promoRate){
-  const promo = parseFloat(promoRate)||0;
-  if(promo>0) return 'Promoted '+( promo*100).toFixed(1)+'%';
-  return 'Private seller — no FVF';
+  return 'Buyer Protection Fee (£0.10 + 4%)';
 }
 
 function recalc(i,ds){
   const pc=i.salePrice*(i.promoPercent||0);
   const partsCost=(i.parts||[]).reduce((a,p)=>a+(p.cost||0),0);
-  const tc=i.itemCost+i.shipping+i.ebayFee+pc+partsCost;
-  // Active return costs (if item currently returned/partially refunded)
-  const refundAmt=i.returnData?(i.returnData.type==='full'?i.totalRev||i.salePrice:i.returnData.refundAmount||0):0;
+  // eBay fee (Buyer Protection Fee) is deducted from what you receive
+  // Net revenue = salePrice + postage charged - eBay BPF
+  const bpf=i.ebayFee||0;
+  // Your costs: item purchase + shipping you paid + parts
+  const tc=i.itemCost+i.shipping+pc+partsCost;
+  // Your net revenue: what eBay pays you after their deduction
+  const baseRev=i.salePrice+(i.postage||0)-bpf;
+  // Active return adjustments
+  const refundAmt=i.returnData?(i.returnData.type==='full'?baseRev:i.returnData.refundAmount||0):0;
   const returnCost=(i.returnData&&i.returnData.returnPostage||0)+(i.returnData&&i.returnData.feesKept||0);
-  const tr=i.salePrice+(i.postage||0)-refundAmt;
-  // Historical return costs (previous return events archived to returnHistory)
+  const tr=baseRev-refundAmt;
+  // Historical return costs
   const historyCost=(i.returnHistory||[]).reduce((a,rh)=>a+(rh.returnPostage||0)+(rh.feesKept||0),0);
-  // Note: historical refund amounts are NOT deducted from current revenue
-  // (the item was resold at the new price — the refund was a past event)
-  // But the postage/fees from historical returns DO reduce lifetime profit
   i.promoCost=+pc.toFixed(4);
   i.partsCost=+partsCost.toFixed(4);
   i.totalCost=+(tc+returnCost).toFixed(4);
   i.totalRev=+tr.toFixed(4);
-  // grossProfit = current sale only (shown on item page as "this sale")
   i.grossProfit=ds?+(tr-tc-returnCost).toFixed(2):null;
-  // lifetimeProfit = grossProfit minus any historical return costs
   i.lifetimeProfit=ds?+(tr-tc-returnCost-historyCost).toFixed(2):null;
-  // ROI uses lifetimeProfit so it reflects the true return on the original investment
-  i.roi=i.itemCost>0?+((tr-tc-returnCost-historyCost)/i.itemCost).toFixed(4):null;
+  // ROI = profit / total invested (costs you paid out)
+  const totalInvested=tc+bpf+returnCost+historyCost;
+  i.roi=totalInvested>0?+((tr-tc-returnCost-historyCost)/totalInvested).toFixed(4):null;
   i.isReturned=!!(i.returnData&&i.returnData.loggedAt);
 }
 function isStale(i){return !i.dateSold&&i.dateListed&&daysAgo(i.dateListed)>=30;}
@@ -1103,7 +1104,7 @@ function editRowInner(i){
     <div class="fg"><label>Sale Price</label><input type="number" id="ei-price-${i.id}" step="0.01" value="${i.salePrice||''}"></div>
     <div class="fg"><label>Item Cost</label><input type="number" id="ei-cost-${i.id}" step="0.01" value="${i.itemCost||''}"></div>
     <div class="fg"><label>Shipping</label><input type="number" id="ei-ship-${i.id}" step="0.01" value="${i.shipping||''}"></div>
-    <div class="fg"><label>Promoted listing fee (£) <span style="color:var(--muted);font-size:9px;font-weight:400">£0 if not promoted</span></label><input type="number" id="ei-ebay-${i.id}" step="0.01" value="${i.ebayFee||''}" placeholder="0.00"></div>
+    <div class="fg"><label>Buyer Protection Fee (£) <span style="color:var(--muted);font-size:9px;font-weight:400">calc: ${fmt(calcEbayFee(i.salePrice,0))}</span></label><input type="number" id="ei-ebay-${i.id}" step="0.01" value="${i.ebayFee||''}" placeholder="${calcEbayFee(i.salePrice,0).toFixed(2)}"></div>
     <div class="fg"><label>Postage</label><input type="number" id="ei-post-${i.id}" step="0.01" value="${i.postage||''}"></div>
     <div class="fg"><label>Promo %</label><input type="number" id="ei-promo-${i.id}" step="0.01" value="${i.promoPercent||''}"></div>
   </div>
@@ -1412,14 +1413,10 @@ function closePanel(){
 }
 function qaAutoCalc(){
   const p=parseFloat(document.getElementById('qa-price')?.value)||0;
-  const post=parseFloat(document.getElementById('qa-post-input')?.value)||0;
-  const cat=document.getElementById('qa-cat')?.value||'';
   if(p>0){
-    const fee=calcEbayFee(p,post,cat);
-    document.getElementById('qa-ebay').value=fee.toFixed(2);
-    // Show rate hint
-    const hint=document.getElementById('qa-fee-hint');
-    if(hint)hint.textContent=ebayFeeLabel(cat)+' FVF';
+    const fee=calcEbayFee(p,0,'',0);
+    const el=document.getElementById('qa-ebay');
+    if(el&&!el.dataset.manual)el.value=fee.toFixed(2);
   }
 }
 function quickAddItem(){
@@ -1682,7 +1679,7 @@ function renderItemPage() {
       <div class="cb-title">Cost breakdown</div>
       <div class="cb-row"><span>Item cost</span><span style="color:var(--red)">${fmt(i.itemCost)}</span></div>
       <div class="cb-row"><span>Shipping cost</span><span style="color:var(--red)">${fmt(i.shipping)}</span></div>
-      <div class="cb-row"><span>eBay Final Value Fee <span style="color:var(--muted);font-size:11px">(${ebayFeeLabel(i.category)})</span></span><span style="color:var(--red)">${fmt(i.ebayFee)}</span></div>
+      <div class="cb-row"><span>eBay Buyer Protection Fee <span style="color:var(--muted);font-size:11px">(deducted from payout)</span></span><span style="color:var(--red)">${fmt(i.ebayFee)}</span></div>
       <div class="cb-row"><span>Promotion cost</span><span style="color:var(--red)">${fmt(i.promoCost)}</span></div>
       ${i.postage>0?`<div class="cb-row"><span>Postage charged (inc.)</span><span style="color:var(--green)">+${fmt(i.postage)}</span></div>`:''}
       ${(i.parts&&i.parts.length)?`<div class="cb-row"><span style="color:var(--warn)">Parts &amp; additional costs</span><span style="color:var(--warn)">${fmt(i.partsCost||0)}</span></div>`:''}
@@ -1943,10 +1940,11 @@ function importExcel(){
             const salePrice=parseFloat(row[iSaleP])||0;
             const itemCost=parseFloat(row[iCost])||0;
             const shipping=parseFloat(row[iShip])||0;
-            // Private seller — no eBay FVF since Oct 2024
+            // Use spreadsheet fee as-is — reflects what eBay actually charged
+            // (fees may have applied before Oct 2024 private seller change)
             const ebayFeeRaw=parseFloat(row[iEbay])||0;
-            const ebayFee=0; // Private seller pays no FVF
-            const ebayFeeCalc=0;
+            const ebayFee=ebayFeeRaw; // Trust the spreadsheet
+            const ebayFeeCalc=ebayFeeRaw;
             const feeDiscrepancy=false;
             const postage=parseFloat(row[iPost])||0;
             const promoPercent=parseFloat(row[iPromoP])||0;
