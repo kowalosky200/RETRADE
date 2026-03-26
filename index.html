@@ -480,7 +480,7 @@ let DB,invFilter='all',activeDrill=null,_st=null,_searchQ='';
 
 function initDB(){
   try{
-    const s=localStorage.getItem('g007v21');
+    const s=localStorage.getItem('g007v22');
     if(s){
       DB=JSON.parse(s);
       // Migrate: apply categories to any items missing them
@@ -557,7 +557,7 @@ function assignItemIDs(){
   });
   if(changed)saveDB();
 }
-function saveDB(){try{localStorage.setItem('g007v21',JSON.stringify(DB));}catch(e){}}
+function saveDB(){try{localStorage.setItem('g007v22',JSON.stringify(DB));}catch(e){}}
 
 // ── HELPERS ───────────────────────────────────────────────────────────
 function daysAgo(d){return Math.round((Date.now()-new Date(d))/86400000);}
@@ -636,7 +636,7 @@ function recalc(i,ds){
   const returnCost=(i.returnData&&i.returnData.returnPostage||0)+(i.returnData&&i.returnData.feesKept||0);
   const tr=baseRev-refundAmt;
   // Historical return costs
-  const historyCost=(i.returnHistory||[]).reduce((a,rh)=>a+(rh.returnPostage||0)+(rh.feesKept||0),0);
+  const historyCost=(i.returnHistory||[]).reduce((a,rh)=>a+(rh.returnPostage||0)+(rh.feesKept||0)+(rh.outboundShipping||0),0);
   i.promoCost=+pc.toFixed(4);
   i.partsCost=+partsCost.toFixed(4);
   i.totalCost=+(tc+returnCost).toFixed(4);
@@ -1105,654 +1105,101 @@ function renderMonth(){_selected.clear();
 `;
 }
 function editRowInner(i){
-  return`<div class="editrow-inner"><div class="editrow-grid">
-    <div class="fg" style="grid-column:1/-1"><label>Item Name</label><input type="text" id="ei-name-${i.id}" value="${esc(i.item||'')}"></div>
-    <div class="fg"><label>Location (storage)</label><input type="text" id="ei-loc-${i.id}" value="${esc(i.location||'')}"></div>
-    <div class="fg"><label>Source (where bought)</label><input type="text" id="ei-src-${i.id}" value="${esc(i.source||'')}"></div>
-    <div class="fg"><label>Category</label><select id="ei-cat-${i.id}"><option value="">--</option><option${i.category==='Electronics'?' selected':''}>Electronics</option><option${i.category==='Cameras'?' selected':''}>Cameras</option><option${i.category==='Gaming'?' selected':''}>Gaming</option><option${i.category==='Books'?' selected':''}>Books</option><option${i.category==='Clothing'?' selected':''}>Clothing</option><option${i.category==='Toys'?' selected':''}>Toys</option><option${i.category==='Home'?' selected':''}>Home</option><option${i.category==='Music'?' selected':''}>Music</option><option${i.category==='Phones'?' selected':''}>Phones</option><option${i.category==='Other'?' selected':''}>Other</option></select></div>
-    <div class="fg"><label>Date Listed</label><input type="date" id="ei-listed-${i.id}" value="${i.dateListed||''}"></div>
-    <div class="fg"><label>Date Sold</label><input type="date" id="ei-sold-${i.id}" value="${i.dateSold||''}"></div>
-    <div class="fg"><label>Sale Price</label><input type="number" id="ei-price-${i.id}" step="0.01" value="${i.salePrice||''}"></div>
-    <div class="fg"><label>Item Cost</label><input type="number" id="ei-cost-${i.id}" step="0.01" value="${i.itemCost||''}"></div>
-    <div class="fg"><label>Shipping</label><input type="number" id="ei-ship-${i.id}" step="0.01" value="${i.shipping||''}"></div>
-    <div class="fg"><label>Buyer Protection Fee (£) <span style="color:var(--muted);font-size:9px;font-weight:400">calc: ${fmt(calcEbayFee(i.salePrice))}</span></label><input type="number" id="ei-ebay-${i.id}" step="0.01" value="${i.ebayFee||''}" placeholder="${calcEbayFee(i.salePrice).toFixed(2)}"></div>
-    <div class="fg"><label>Postage</label><input type="number" id="ei-post-${i.id}" step="0.01" value="${i.postage||''}"></div>
-    <div class="fg"><label>Promo %</label><input type="number" id="ei-promo-${i.id}" step="0.01" value="${i.promoPercent||''}"></div>
-  </div>
-  <div style="display:flex;gap:8px;margin-top:8px">
-    <button class="btn btn-p" style="padding:6px 14px;font-size:12px" onclick="saveInlineEdit('${i.month||''}','${i.id}')">Save</button>
-    <button class="btn btn-s" style="padding:6px 14px;font-size:12px" onclick="const pg=document.querySelector('.page.on').id;pg==='p-item'?toggleItemEdit('${i.month||''}','${i.id}'):toggleRowEdit('${i.month||''}','${i.id}')">Cancel</button>
-  </div></div>`;
-}
-function iRow(i,m){
-  const s=!!i.dateSold;const stale=isStale(i);
-  return`<tr id="row-${i.id}">
-    <td class="col-w-cb ctr"><input type="checkbox" class="row-cb" data-id="${i.id}" onchange="toggleSelect('${i.id}',this)"></td>
-    <td class="col-w-edit ctr"><button class="edit-icon-btn" onclick="toggleRowEdit('${m}','${i.id}')" title="Edit">&#9998;</button></td>
-    <td class="col-w-status">
-      <span class="badge ${s?'sold-b':stale?'stale-b':'listed-b'}">${s?'Sold':stale?'Stale':'Listed'}</span>
-      ${(i.returnData||i.returnHistory?.length)?'<span class="badge" style="background:rgba(245,101,101,0.12);color:var(--red);font-size:8px;margin-left:2px">R</span>':''}
-    </td>
-    <td class="col-w-item" style="cursor:pointer" onclick="_prevPage='monthly';openItem('${m}','${i.id}')">
-      ${i.gid?`<span style="font-size:9px;color:var(--muted);font-family:var(--fm);margin-right:4px">${i.gid}</span>`:''}${esc(i.item)}
-    </td>
-    <td class="col-w-cat col-hide dim">${esc(i.category||'--')}</td>
-    <td class="col-w-loc col-hide dim">${esc(i.location||'--')}</td>
-    <td class="col-w-listed col-hide dim">${i.dateListed||'--'}</td>
-    <td class="col-w-price num">${fmt(i.salePrice)}</td>
-    <td class="col-w-cost num dim">${fmt(i.itemCost)}</td>
-
-    <td class="col-w-profit num ${(i.lifetimeProfit||i.grossProfit||0)>0?'pos':(i.lifetimeProfit||i.grossProfit||0)<0?'neg':''}">${i.grossProfit!=null?fmt(i.lifetimeProfit!=null?i.lifetimeProfit:i.grossProfit):'--'}</td>
-    <td class="col-w-roi col-hide num" style="color:var(--accent)">${i.roi!=null&&i.itemCost>0?Math.min(Math.round(i.roi*100),999)+'%':i.roi!=null?'N/A':'--'}</td>
-    <td class="col-w-acts">
-      <div class="acts-wrap">
-        <button class="tbtn" onclick="duplicateItem('${m}','${i.id}')" title="Duplicate" style="font-size:12px;padding:2px 5px">&#10697;</button>
-        ${!s?`<button class="tbtn" onclick="openSold('${m}','${i.id}')" title="Mark sold" style="font-size:12px;padding:2px 5px">&#10003;</button>`:''}
-        <button class="tbtn del" onclick="delItem('${m}','${i.id}')" title="Delete" style="font-size:11px;padding:2px 5px">&#x2715;</button>
+  // Uses 'ip-' prefix for IDs to avoid collision with monthly table row edits
+  const prefix='ip-';
+  const cats=['Books', 'Cameras', 'Clothing & Accessories', 'Computers', 'DVD & Blu-ray', 'Home & Garden', 'Home Phones', 'Mobile Phones', 'Music', 'Smart Home', 'Toys & Games', 'TV & Audio', 'Vehicle Parts', 'Video Games', 'Baby', 'Jewellery & Watches', 'Sport & Leisure', 'Collectibles', 'Other'];
+  const catOpts=cats.map(c=>`<option value="${c}"${i.category===c?' selected':''}>${c}</option>`).join('');
+  return`<div class="editrow-inner">
+    <div style="font-size:11px;color:var(--muted2);padding:0 0 10px 0;border-bottom:1px solid var(--border);margin-bottom:12px">
+      Edit item — calculated fields (BPF, profit, ROI) update automatically on save
+    </div>
+    <div class="editrow-grid">
+      <div class="fg" style="grid-column:1/-1"><label>Item Name</label>
+        <input type="text" id="${prefix}name-${i.id}" value="${esc(i.item||'')}">
       </div>
-    </td>
-  </tr>
-  <tr id="editrow-${i.id}" style="display:none;background:var(--surface2)">
-    <td class="col-w-cb"></td><td class="col-w-edit"></td><td colspan="12">${editRowInner({...i,month:m})}</td>
-  </tr>`;
+      <div class="fg"><label>Category</label>
+        <select id="${prefix}cat-${i.id}">
+          <option value="">-- Select --</option>${catOpts}
+        </select>
+      </div>
+      <div class="fg"><label>Location</label>
+        <input type="text" id="${prefix}loc-${i.id}" value="${esc(i.location||'')}">
+      </div>
+      <div class="fg"><label>Source</label>
+        <input type="text" id="${prefix}src-${i.id}" value="${esc(i.source||'')}">
+      </div>
+      <div class="fg"><label>Date Listed</label>
+        <input type="date" id="${prefix}listed-${i.id}" value="${i.dateListed||''}">
+      </div>
+      <div class="fg"><label>Date Sold</label>
+        <input type="date" id="${prefix}sold-${i.id}" value="${i.dateSold||''}">
+      </div>
+      <div class="fg"><label>Sale Price (£)</label>
+        <input type="number" id="${prefix}price-${i.id}" step="0.01" value="${i.salePrice||''}" placeholder="0.00"
+          oninput="const f=document.getElementById('${prefix}ebay-${i.id}');if(f&&!f.dataset.manual)f.value=calcEbayFee(parseFloat(this.value)||0).toFixed(2)">
+      </div>
+      <div class="fg"><label>Item Cost (£)</label>
+        <input type="number" id="${prefix}cost-${i.id}" step="0.01" value="${i.itemCost||''}" placeholder="0.00">
+      </div>
+      <div class="fg"><label>Postage charged (£)</label>
+        <input type="number" id="${prefix}post-${i.id}" step="0.01" value="${i.postage||''}" placeholder="0.00">
+      </div>
+      <div class="fg"><label>Shipping cost (£)</label>
+        <input type="number" id="${prefix}ship-${i.id}" step="0.01" value="${i.shipping||''}" placeholder="0.00">
+      </div>
+      <div class="fg"><label>Buyer Protection Fee (£)
+        <span style="color:var(--muted);font-size:9px;font-weight:400">calc: ${fmt(calcEbayFee(i.salePrice||0))}</span>
+      </label>
+        <input type="number" id="${prefix}ebay-${i.id}" step="0.01" value="${i.ebayFee||''}"
+          placeholder="${calcEbayFee(i.salePrice||0).toFixed(2)}"
+          oninput="this.dataset.manual=this.value?'1':''">
+      </div>
+      <div class="fg"><label>Promo rate
+        <span style="color:var(--muted);font-size:9px;font-weight:400">+20% VAT added</span>
+      </label>
+        <input type="number" id="${prefix}promo-${i.id}" step="0.001" value="${i.promoPercent||''}" placeholder="e.g. 0.03">
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:12px">
+      <button class="btn btn-p" style="padding:7px 18px;font-size:13px"
+        onclick="saveItemEdit('${i.month||''}','${i.id}')">Save changes</button>
+      <button class="btn btn-s" style="padding:7px 14px;font-size:13px"
+        onclick="toggleItemEdit('${i.month||''}','${i.id}')">Cancel</button>
+    </div>
+  </div>`;
 }
 
-function toggleRowEdit(m,id){
-  const er=document.getElementById('editrow-'+id);
-  const btn=document.querySelector('#row-'+id+' .edit-icon-btn');
-  if(!er)return;
-  const open=er.style.display!=='none';
-  er.style.display=open?'none':'table-row';
-  if(btn)btn.style.color=open?'':'var(--accent)';
-}
-function saveInlineEdit(m,id){
+function saveItemEdit(m,id){
   if(!m||!DB[m])return;
   const item=DB[m].find(i=>i.id===id);
   if(!item)return;
-  item.item=document.getElementById('ei-name-'+id)?.value.trim()||item.item;
-  item.location=document.getElementById('ei-loc-'+id)?.value.trim()||'';
-  item.source=document.getElementById('ei-src-'+id)?.value.trim()||'';
-  item.category=document.getElementById('ei-cat-'+id)?.value||'';
-  item.dateListed=document.getElementById('ei-listed-'+id)?.value||item.dateListed;
-  item.dateSold=document.getElementById('ei-sold-'+id)?.value||null;
-  item.salePrice=parseFloat(document.getElementById('ei-price-'+id)?.value)||item.salePrice||0;
-  item.itemCost=parseFloat(document.getElementById('ei-cost-'+id)?.value)||0;
-  item.shipping=parseFloat(document.getElementById('ei-ship-'+id)?.value)||0;
-  const ebayInput2=parseFloat(document.getElementById('ei-ebay-'+id)?.value);
-  item.ebayFee=ebayInput2>0?ebayInput2:calcEbayFee(item.salePrice);
-  item.postage=parseFloat(document.getElementById('ei-post-'+id)?.value)||0;
-  item.promoPercent=parseFloat(document.getElementById('ei-promo-'+id)?.value)||0;
+  const g=k=>document.getElementById('ip-'+k+'-'+id);
+  item.item=g('name')?.value.trim()||item.item;
+  item.category=g('cat')?.value||item.category||'';
+  item.location=g('loc')?.value.trim()||'';
+  item.source=g('src')?.value.trim()||'';
+  item.dateListed=g('listed')?.value||item.dateListed;
+  const soldVal=g('sold')?.value;
+  item.dateSold=soldVal||null;
+  item.salePrice=parseFloat(g('price')?.value)||item.salePrice||0;
+  item.itemCost=parseFloat(g('cost')?.value)||0;
+  item.postage=parseFloat(g('post')?.value)||0;
+  item.shipping=parseFloat(g('ship')?.value)||0;
+  const bpfInput=parseFloat(g('ebay')?.value);
+  item.ebayFee=bpfInput>0?bpfInput:calcEbayFee(item.salePrice);
+  item.promoPercent=parseFloat(g('promo')?.value)||0;
   recalc(item,item.dateSold);
   saveDB();
-  const cur=document.querySelector('.page.on').id;
-  if(cur==='p-monthly')renderMonth();
-  else if(cur==='p-stock')renderStock();
-  else if(cur==='p-summary')renderSummary();
-  else if(cur==='p-search')renderSearch();
-  else if(cur==='p-item'){
-    const fresh=(DB[m]||[]).find(i=>i.id===id);
-    if(fresh){_currentItem={...fresh,month:m};}
-    renderItemPage();
-  }
+  const fresh=(DB[m]||[]).find(i=>i.id===id);
+  if(fresh)_currentItem={...fresh,month:m};
+  renderItemPage();
   toast('Saved');
 }
-function delItem(m,id){
-  if(!confirm('Delete this item?'))return;
-  DB[m]=DB[m].filter(i=>i.id!==id);
-  saveDB();
-  const cur=document.querySelector('.page.on').id;
-  if(cur==='p-monthly')renderMonth();
-  else if(cur==='p-stock')renderStock();
-  else if(cur==='p-summary')renderSummary();
-  else renderSearch();
-  toast('Deleted');
-}
-
-// ── MARK SOLD ─────────────────────────────────────────────────────────
-function openSold(m,id){_st={m,id};document.getElementById('modal-date').value=new Date().toISOString().split('T')[0];document.getElementById('modal-overlay').classList.add('on');}
-function closeModal(e){if(!e||e.target===document.getElementById('modal-overlay')){document.getElementById('modal-overlay').classList.remove('on');_st=null;}}
-function confirmSold(){
-  if(!_st)return;
-  const ds=document.getElementById('modal-date').value;
-  if(!ds){toast('Pick a date','err');return;}
-  const item=DB[_st.m].find(i=>i.id===_st.id);
-  if(item){
-    item.dateSold=ds;
-    // If this item had a full return, archive returnData to history
-    // and start fresh so revenue calculates correctly for new sale
-    if(item.returnData&&item.returnData.type==='full'){
-      if(!item.returnHistory)item.returnHistory=[];
-      item.returnHistory.push({...item.returnData, relistDate:ds});
-      delete item.returnData;
-      item.isReturned=false;
-    }
-    recalc(item,ds);
-    saveDB();
-  }
-  closeModal();
-  const cur=document.querySelector('.page.on').id;
-  if(cur==='p-monthly')renderMonth();
-  else if(cur==='p-stock')renderStock();
-  else if(cur==='p-summary')renderSummary();
-  else renderSearch();
-  toast('Marked as sold!');
-}
-
-// ── STOCK PAGE ────────────────────────────────────────────────────────
-
-function toggleST(){
-  const card=document.getElementById('st-card');
-  if(card)card.classList.toggle('open');
-}
-function setFilter(f,btn){
-  invFilter=f;
-  document.querySelectorAll('.fbtn').forEach(b=>{
-    b.classList.remove('on');
-    b.style.borderColor='';b.style.color='';b.style.background='';
-  });
-  if(f==='__stale__'){
-    btn.style.borderColor='var(--warn)';btn.style.color='var(--warn)';btn.style.background='rgba(246,173,85,0.07)';
-  } else {
-    btn.classList.add('on');
-  }
-  renderStock();
-}
-function renderStock(){
-  const locs=[...new Set(MONTHS.flatMap(m=>(DB[m]||[]).filter(i=>!i.dateSold).map(i=>i.location).filter(Boolean)))].sort();
-  let items=allUnsold();
-  if(invFilter==='__stale__')items=items.filter(isStale);
-  else if(invFilter!=='all')items=items.filter(i=>i.location===invFilter);
-  const cv=items.reduce((a,i)=>a+i.itemCost,0);
-  const pp=items.reduce((a,i)=>a+(i.totalRev-i.totalCost),0);
-  const stale=items.filter(isStale);
-  document.getElementById('p-stock').innerHTML=`
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;flex-wrap:wrap;gap:10px">
-      <div style="display:flex;align-items:center;gap:12px">
-        <button class="backbtn" onclick="goBack()">&#8592; Back</button>
-        <div><div class="page-title">Current Stock</div><div class="page-sub" style="margin-bottom:0">Listed but not yet sold</div></div>
-      </div>
-      <div class="ddwrap" id="dd-stock">
-        <button class="dd-btn" onclick="toggleDD('dd-stock')">
-          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="4" cy="8" r="1.2" fill="currentColor"/><circle cx="8" cy="8" r="1.2" fill="currentColor"/><circle cx="12" cy="8" r="1.2" fill="currentColor"/></svg>
-          Actions
-          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 6l4 4 4-4"/></svg>
-        </button>
-        <div class="dd-menu">
-          <button class="dd-item primary" onclick="exportYearCSV();toggleDD('dd-stock')">
-            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 2v8M5 7l3 3 3-3M3 12h10"/></svg>
-            Export annual CSV
-          </button>
-          <button class="dd-item primary" onclick="backupAll();toggleDD('dd-stock')">
-            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="2" width="12" height="12" rx="2"/><path d="M5 8h6M8 5v6"/></svg>
-            Download backup
-          </button>
-          <div class="dd-sep"></div>
-          <button class="dd-item info" onclick="importExcel();toggleDD('dd-stock')">
-            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 12V4M5 7l3-3 3 3M3 13h10"/></svg>
-            Import from Excel
-          </button>
-        </div>
-      </div>
-    </div>
-    ${stale.length?`<div class="stale-alert"><div class="stale-dot"></div><div><div class="stale-text">${stale.length} item${stale.length>1?'s':''} stale (30+ days) &mdash; consider repricing</div><div class="stale-items">${stale.map(i=>esc(i.item)).join(', ')}</div></div></div>`:''}
-    <div class="filters">
-      <button class="fbtn ${invFilter==='all'?'on':''}" onclick="setFilter('all',this)">All (${allUnsold().length})</button>
-      <button class="fbtn" style="${invFilter==='__stale__'?'border-color:var(--warn);color:var(--warn);background:rgba(246,173,85,0.07)':''}" onclick="setFilter('__stale__',this)">Stale 30d+ (${stale.length})</button>
-      ${locs.map(l=>`<button class="fbtn ${invFilter===l?'on':''}" onclick="setFilter('${esc(l)}',this)">${esc(l)}</button>`).join('')}
-    </div>
-    <div class="kgrid" style="margin-bottom:20px">
-      <div class="kcard b"><div class="klabel">Items in Stock</div><div class="kval">${items.length}</div><div class="ksub">${[...new Set(items.map(i=>i.location).filter(Boolean))].length} locations</div></div>
-      <div class="kcard"><div class="klabel">Stock Cost Value</div><div class="kval">${fmt(cv)}</div><div class="ksub">Capital tied up</div></div>
-      <div class="kcard" style="--after-bg:var(--blue)"><div class="klabel">Potential Revenue</div><div class="kval" style="color:var(--blue)">${fmt(items.reduce((a,i)=>a+(i.totalRev||0),0))}</div><div class="ksub">At current list prices</div></div>
-      <div class="kcard g"><div class="klabel">Potential Profit</div><div class="kval">${fmt(pp)}</div><div class="ksub">After all costs</div></div>
-      ${stale.length?`<div class="kcard" style="border-color:rgba(246,173,85,0.4)"><div class="klabel" style="color:var(--warn)">Stale Items</div><div class="kval" style="color:var(--warn)">${stale.length}</div><div class="ksub">Listed 30+ days</div></div>`:''}
-    </div>
-    <div class="twrap"><table>
-      <thead><tr><th style="width:28px"></th><th>Item</th><th>Month</th><th>Location</th><th>Days</th><th>List Price</th><th>Cost</th><th>Pot. Profit</th><th>ROI</th><th>Actions</th></tr></thead>
-      <tbody>${items.length?items.sort((a,b)=>daysAgo(a.dateListed)-daysAgo(b.dateListed)).reverse().map(i=>{
-        const d=daysAgo(i.dateListed),p=i.totalRev-i.totalCost,stale=isStale(i);
-        return`<tr id="row-${i.id}">
-          <td style="width:28px;text-align:center"><button class="edit-icon-btn" onclick="toggleRowEdit('${i.month}','${i.id}')">&#9998;</button></td>
-          <td style="overflow:hidden;text-overflow:ellipsis;cursor:pointer" onclick="_prevPage='stock';openItem('${i.month}','${i.id}')">
-            ${i.gid?`<span style="font-size:9px;color:var(--muted);font-family:var(--fm);margin-right:5px">${i.gid}</span>`:''}${esc(i.item)}${stale?' <span class="badge stale-b">Stale</span>':''}
-          </td>
-          <td class="dim">${MN[i.month]||i.month}</td>
-          <td class="dim">${esc(i.location||'--')}</td>
-          <td style="color:${d>=30?'var(--warn)':d>=14?'var(--muted2)':'var(--muted2)'};font-weight:${d>=30?'500':'400'}">${d}d</td>
-          <td class="num">${fmt(i.salePrice)}</td>
-          <td class="dim num">${fmt(i.itemCost)}</td>
-          <td class="${p>0?'pos':'neg'} num">${fmt(p)}</td>
-          <td style="color:var(--accent)">${i.roi!=null&&i.itemCost>0?Math.min(Math.round(i.roi*100),999)+'%':i.roi!=null?'N/A':'--'}</td>
-          <td style="display:flex;gap:3px;align-items:center;justify-content:flex-end">
-            <button class="tbtn" onclick="duplicateItem('${i.month}','${i.id}')" title="Duplicate" style="font-size:12px;padding:2px 5px">&#10697;</button>
-            <button class="tbtn" onclick="openSold('${i.month}','${i.id}')" title="Mark sold" style="font-size:12px;padding:2px 5px">&#10003;</button>
-            <button class="tbtn del" onclick="delItem('${i.month}','${i.id}')" title="Delete" style="font-size:11px;padding:2px 5px">&#x2715;</button>
-          </td>
-        </tr>
-        <tr id="editrow-${i.id}" style="display:none;background:var(--surface2)"><td></td><td colspan="9">${editRowInner({...i})}</td></tr>`;
-      }).join(''):`<tr><td colspan="10" class="empty">No stock${invFilter!=='all'?' in '+invFilter:''}</td></tr>`}</tbody>
-    </table></div>`;
-}
-
-// ── TAX PAGE ──────────────────────────────────────────────────────────
-function renderTax(){
-  const yt=yT(),u=allUnsold(),sc=u.reduce((a,i)=>a+i.itemCost,0);
-  const tripsDB=getTripsDB();
-  const extraExp=tripsDB.expenses.reduce((a,e)=>a+(e.amount||0),0);
-  const pkgExp=tripsDB.packaging.items.reduce((a,p)=>a+(p.cost||0),0);
-  const net=yt.profit-extraExp-pkgExp,tax=Math.max(0,net-12570);
-  const it=tax<=37700?tax*0.2:37700*0.2+(tax-37700)*0.4,ni=Math.max(0,(net-12570)*0.09);
-  const sr=(l,v,c)=>`<div class="sarow"><span>${l}</span><span style="color:${c};font-weight:600">${v}</span></div>`;
-  document.getElementById('p-tax').innerHTML=`
-    <div style="display:flex;align-items:center;gap:12px;margin-bottom:4px">
-      <button class="backbtn" onclick="goBack()">&#8592; Back</button>
-      <div>
-        <div class="page-title">Self Assessment</div>
-        <div class="page-sub">Tax Year: 6 April 2025 &ndash; 5 April 2026 &middot; Sole Trader</div>
-      </div>
-    </div>
-    <div class="notice">&#9888; Estimated figures only &mdash; not financial or tax advice. Always verify with HMRC or a qualified accountant before submitting.</div>
-    <div class="sa-grid">
-      <div class="sacard"><div class="sacard-title">Income &amp; Expenses</div>
-        ${sr('Gross turnover',fmt(yt.rev),'var(--accent)')}
-        ${sr('Total allowable expenses',fmt(yt.cost),'var(--red)')}
-        ${sr('Net profit',fmt(net),net>=0?'var(--green)':'var(--red)')}
-      </div>
-      <div class="sacard"><div class="sacard-title">Tax Estimate</div>
-        ${sr('Net profit',fmt(net),net>=0?'var(--green)':'var(--red)')}
-        ${sr('Personal allowance','&pound;12,570','var(--muted2)')}
-        ${sr('Taxable income',fmt(tax),'var(--accent)')}
-        ${sr('Est. income tax (20/40%)',fmt(it),'var(--red)')}
-        ${sr('Est. Class 4 NI (9%)',fmt(ni),'var(--red)')}
-        ${sr('Est. total tax',fmt(it+ni),'var(--red)')}
-        ${sr('Est. take-home',fmt(net-it-ni),'var(--green)')}
-      </div>
-    </div>
-    <div class="sacard" style="margin-bottom:0">
-      <div class="sacard-title">SA103 Export</div>
-      <div class="sabox" id="sa-box">SA103 SELF-EMPLOYMENT
-Tax Year: 6 April 2025 - 5 April 2026
-Business: eBay Reselling - General-007
-Description: Online resale of second-hand goods
-Method: Cash basis
-
-INCOME
-Box 15  Turnover:             ${yt.rev.toFixed(2)}
-
-EXPENSES
-Box 16  Cost of goods:        ${yt.cost.toFixed(2)}
-Box 30  Total expenses:       ${yt.cost.toFixed(2)}
-
-PROFIT
-Box 31  Net profit:           ${net.toFixed(2)}
-
-STOCK (for records)
-Unsold items:                 ${u.length}
-Stock cost value:             ${sc.toFixed(2)}
-
-TAX ESTIMATE
-Taxable income:               ${tax.toFixed(2)}
-Income tax:                   ${it.toFixed(2)}
-Class 4 NI:                   ${ni.toFixed(2)}
-Total estimated tax:          ${(it+ni).toFixed(2)}
-
-Generated: ${new Date().toLocaleDateString('en-GB')}
-Verify with HMRC / accountant before submitting.</div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap">
-        <button class="btn btn-p" onclick="copySA()">Copy to clipboard</button>
-        <button class="btn btn-s" onclick="dlSA()">Download .txt</button>
-      </div>
-    </div>`;
-}
-function copySA(){navigator.clipboard.writeText(document.getElementById('sa-box').textContent).then(()=>toast('Copied!')).catch(()=>toast('Copy failed','err'));}
-function dlSA(){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([document.getElementById('sa-box').textContent],{type:'text/plain'}));a.download='SA103_General007_2026.txt';a.click();toast('Downloaded!');}
-
-// ── QUICK ADD PANEL ───────────────────────────────────────────────────
-function openPanel(){
-  // Set month to current active month if on monthly page
-  const msel=document.getElementById('msel');
-  const qamon=document.getElementById('qa-month');
-  if(msel&&qamon)qamon.value=msel.value;
-  document.getElementById('qa-listed').value=new Date().toISOString().split('T')[0];
-  document.getElementById('panel-overlay').classList.add('on');
-  document.getElementById('slide-panel').classList.add('on');
-  document.getElementById('qa-name').focus();
-}
-function closePanel(){
-  document.getElementById('panel-overlay').classList.remove('on');
-  document.getElementById('slide-panel').classList.remove('on');
-}
-function qaAutoCalc(){
-  const p=parseFloat(document.getElementById('qa-price')?.value)||0;
-  if(p>0){
-    const fee=calcEbayFee(p);
-    const el=document.getElementById('qa-ebay');
-    if(el&&!el.dataset.manual)el.value=fee.toFixed(2);
-  }
-}
-function quickAddItem(){
-  const name=document.getElementById('qa-name').value.trim();
-  if(!name){toast('Enter an item name','err');return;}
-  const m=document.getElementById('qa-month').value;
-  const price=parseFloat(document.getElementById('qa-price').value)||0;
-  const cost=parseFloat(document.getElementById('qa-cost').value)||0;
-  const ship=parseFloat(document.getElementById('qa-ship').value)||0;
-  const post=parseFloat(document.getElementById('qa-post-input')?.value)||0;
-  const cat=document.getElementById('qa-cat')?.value||'';
-  const ebayInput=parseFloat(document.getElementById('qa-ebay').value);
-  const ebay=ebayInput||calcEbayFee(price);
-  const pp=parseFloat(document.getElementById('qa-promo').value)||0.05;
-  const ds=document.getElementById('qa-sold').value||null;
-  const src=document.getElementById('qa-source')?.value.trim()||'';
-  const item={id:Date.now().toString(),dateListed:document.getElementById('qa-listed').value,item:name,location:document.getElementById('qa-loc').value.trim(),category:cat,source:src,dateSold:ds,salePrice:price,postage:0,itemCost:cost,shipping:ship,ebayFee:+ebay.toFixed(2),promoPercent:pp};
-  recalc(item,ds);
-  if(!DB[m])DB[m]=[];
-  // Assign next G007 ID
-  let maxId=0;
-  MONTHS.forEach(mo=>(DB[mo]||[]).forEach(i=>{const n=parseInt((i.gid||'').replace('G007-',''))||0;if(n>maxId)maxId=n;}));
-  item.gid='G007-'+String(maxId+1).padStart(4,'0');
-  DB[m].push(item);
-  saveDB();
-  // Reset form
-  ['qa-name','qa-loc','qa-source','qa-price','qa-cost','qa-ship','qa-ebay','qa-promo','qa-sold'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
-  document.getElementById('qa-cat').value='';
-  closePanel();
-  const cur=document.querySelector('.page.on').id;
-  if(cur==='p-monthly'&&document.getElementById('msel')?.value===m)renderMonth();
-  else if(cur==='p-summary')renderSummary();
-  else if(cur==='p-stock')renderStock();
-  toast('Added: '+name);
-}
-
-
-// ── TRIPS, EXPENSES, PACKAGING ───────────────────────────────────────
-function getTripsDB(){try{return JSON.parse(localStorage.getItem('g007trips')||'{"trips":[],"expenses":[],"packaging":{"items":[],"perItemCost":0.12}}')}catch(e){return{trips:[],expenses:[],packaging:{items:[],perItemCost:0.12}};}}
-function saveTripsDB(db){try{localStorage.setItem('g007trips',JSON.stringify(db));}catch(e){}}
-
-function renderTrips(){
-  const db=getTripsDB();
-  const totalTripCost=db.trips.reduce((a,t)=>a+(t.totalSpend||0),0);
-  const totalExpenses=db.expenses.reduce((a,e)=>a+(e.amount||0),0);
-  const totalPackaging=db.packaging.items.reduce((a,p)=>a+(p.cost||0),0);
-  const totalDeductions=totalExpenses+totalPackaging;
-  const yt=yT();
-  const adjustedProfit=yt.profit-totalDeductions;
-  const pkgPerItem=db.packaging.perItemCost||0;
-
-  document.getElementById('p-trips').innerHTML=`
-    <div style="display:flex;align-items:center;gap:12px;margin-bottom:4px">
-      <button class="backbtn" onclick="goBack()">&#8592; Back</button>
-      <div>
-        <div class="page-title">Trips & Costs</div>
-        <div class="page-sub">Buying trips, other expenses, and packaging costs</div>
-      </div>
-    </div>
-
-    <div class="kgrid" style="margin-bottom:24px">
-      <div class="kcard"><div class="klabel">Total Trip Spend</div><div class="kval">${fmt(totalTripCost)}</div><div class="ksub">${db.trips.length} buying trip${db.trips.length!==1?'s':''}</div></div>
-      <div class="kcard r"><div class="klabel">Other Expenses</div><div class="kval">${fmt(totalExpenses)}</div><div class="ksub">Petrol, fees, misc</div></div>
-      <div class="kcard r"><div class="klabel">Packaging Costs</div><div class="kval">${fmt(totalPackaging)}</div><div class="ksub">${fmt(pkgPerItem)}/item allocated</div></div>
-      <div class="kcard g"><div class="klabel">Adjusted Profit</div><div class="kval">${fmt(adjustedProfit)}</div><div class="ksub">After all deductions</div></div>
-    </div>
-
-    <div class="sl">Buying trips</div>
-    <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:18px;margin-bottom:20px">
-      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-bottom:12px">
-        <div class="fg"><label>Date</label><input type="date" id="trip-date" value="${new Date().toISOString().split('T')[0]}"></div>
-        <div class="fg"><label>Source / Venue</label><input type="text" id="trip-source" placeholder="e.g. Bramley Car Boot"></div>
-        <div class="fg"><label>Total Spend (£)</label><input type="number" id="trip-spend" step="0.01" placeholder="0.00"></div>
-        <div class="fg"><label>Items Bought</label><input type="number" id="trip-items" placeholder="0"></div>
-        <div class="fg"><label>Petrol / Travel (£)</label><input type="number" id="trip-travel" step="0.01" placeholder="0.00"></div>
-        <div class="fg" style="grid-column:1/-1"><label>Notes</label><input type="text" id="trip-notes" placeholder="What did you find?"></div>
-      </div>
-      <button class="btn btn-p" onclick="addTrip()">+ Log Trip</button>
-    </div>
-    ${db.trips.length?`<div class="twrap"><table>
-      <thead><tr><th>Date</th><th>Source</th><th>Total Spend</th><th>Items</th><th>Travel</th><th>Cost/Item</th><th>Notes</th><th></th></tr></thead>
-      <tbody>${db.trips.sort((a,b)=>new Date(b.date)-new Date(a.date)).map(t=>`<tr>
-        <td class="dim">${t.date}</td>
-        <td>${esc(t.source||'--')}</td>
-        <td style="color:var(--red)">${fmt(t.totalSpend)}</td>
-        <td class="dim">${t.itemCount||'--'}</td>
-        <td class="dim">${t.travel>0?fmt(t.travel):'--'}</td>
-        <td style="color:var(--accent)">${t.itemCount>0?fmt((t.totalSpend+t.travel)/t.itemCount):'--'}</td>
-        <td class="dim" style="max-width:160px;overflow:hidden;text-overflow:ellipsis">${esc(t.notes||'')}</td>
-        <td><button class="tbtn del" onclick="deleteTrip('${t.id}')">&#x2715;</button></td>
-      </tr>`).join('')}</tbody>
-    </table></div>`:'<div class="empty">No trips logged yet</div>'}
-
-    <div class="sl">Other expenses</div>
-    <div style="background:rgba(240,180,41,0.06);border:1px solid rgba(240,180,41,0.2);border-radius:8px;padding:12px 14px;font-size:12px;color:var(--muted2);margin-bottom:14px;line-height:1.6">
-      Log any business expense that reduces your taxable profit — petrol to source items, marketplace fees, equipment, storage etc. These are deducted from your gross profit in the Tax / SA summary.
-    </div>
-    <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:18px;margin-bottom:20px">
-      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-bottom:12px">
-        <div class="fg"><label>Date</label><input type="date" id="exp-date" value="${new Date().toISOString().split('T')[0]}"></div>
-        <div class="fg"><label>Category</label>
-          <select id="exp-cat">
-            <option>Petrol / Travel</option><option>Packaging materials</option><option>eBay fees (other)</option>
-            <option>Equipment</option><option>Storage</option><option>Postage overage</option><option>Other</option>
-          </select>
-        </div>
-        <div class="fg"><label>Amount (£)</label><input type="number" id="exp-amount" step="0.01" placeholder="0.00"></div>
-        <div class="fg" style="grid-column:1/-1"><label>Description</label><input type="text" id="exp-desc" placeholder="e.g. Petrol to Bramley car boot 15 Mar"></div>
-      </div>
-      <button class="btn btn-p" onclick="addExpense()">+ Add Expense</button>
-    </div>
-    ${db.expenses.length?`<div class="twrap"><table>
-      <thead><tr><th>Date</th><th>Category</th><th>Description</th><th>Amount</th><th></th></tr></thead>
-      <tbody>${db.expenses.sort((a,b)=>new Date(b.date)-new Date(a.date)).map(e=>`<tr>
-        <td class="dim">${e.date}</td>
-        <td><span class="badge listed-b">${esc(e.category)}</span></td>
-        <td>${esc(e.description||'--')}</td>
-        <td style="color:var(--red)">${fmt(e.amount)}</td>
-        <td><button class="tbtn del" onclick="deleteExpense('${e.id}')">&#x2715;</button></td>
-      </tr>`).join('')}</tbody>
-    </table></div>`:'<div class="empty">No expenses logged yet</div>'}
-
-    <div class="sl">Packaging costs</div>
-    <div style="background:rgba(240,180,41,0.06);border:1px solid rgba(240,180,41,0.2);border-radius:8px;padding:12px 14px;font-size:12px;color:var(--muted2);margin-bottom:14px;line-height:1.6">
-      Log bulk packaging purchases (bubble wrap, boxes, bags, tape). The system divides total spend by estimated uses to give you a cost-per-item rate, then multiplies by your total items sold to calculate the deduction. Adjust the <strong>uses estimate</strong> based on how many items you typically get from each purchase.
-    </div>
-    <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:18px;margin-bottom:20px">
-      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-bottom:12px">
-        <div class="fg"><label>Date purchased</label><input type="date" id="pkg-date" value="${new Date().toISOString().split('T')[0]}"></div>
-        <div class="fg"><label>Item</label><input type="text" id="pkg-item" placeholder="e.g. Bubble wrap roll"></div>
-        <div class="fg"><label>Cost (£)</label><input type="number" id="pkg-cost" step="0.01" placeholder="0.00"></div>
-        <div class="fg"><label>Est. uses</label><input type="number" id="pkg-uses" placeholder="e.g. 100"></div>
-      </div>
-      <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;flex-wrap:wrap">
-        <span style="font-size:12px;color:var(--muted2)">Current per-item packaging cost:</span>
-        <span style="font-family:var(--fn);font-size:22px;color:var(--accent)">${fmt(pkgPerItem)}</span>
-        <span style="font-size:11px;color:var(--muted)">(auto-calculated from your logs)</span>
-      </div>
-      <button class="btn btn-p" onclick="addPackaging()">+ Log Packaging Purchase</button>
-    </div>
-    ${db.packaging.items.length?`<div class="twrap"><table>
-      <thead><tr><th>Date</th><th>Item</th><th>Cost</th><th>Est. Uses</th><th>Cost/Use</th><th></th></tr></thead>
-      <tbody>${db.packaging.items.map(p=>`<tr>
-        <td class="dim">${p.date}</td>
-        <td>${esc(p.item)}</td>
-        <td style="color:var(--red)">${fmt(p.cost)}</td>
-        <td class="dim">${p.uses}</td>
-        <td style="color:var(--accent)">${fmt(p.cost/p.uses)}</td>
-        <td><button class="tbtn del" onclick="deletePkg('${p.id}')">&#x2715;</button></td>
-      </tr>`).join('')}</tbody>
-    </table></div>`:'<div class="empty">No packaging purchases logged yet</div>'}`;
-}
-
-function addTrip(){
-  const source=document.getElementById('trip-source').value.trim();
-  const spend=parseFloat(document.getElementById('trip-spend').value)||0;
-  const travel=parseFloat(document.getElementById('trip-travel').value)||0;
-  const items=parseInt(document.getElementById('trip-items').value)||0;
-  if(!source||spend<=0){toast('Enter source and spend','err');return;}
-  const db=getTripsDB();
-  const trip={id:Date.now().toString(),date:document.getElementById('trip-date').value,source,totalSpend:spend,travel,itemCount:items,notes:document.getElementById('trip-notes').value.trim()};
-  db.trips.push(trip);
-  saveTripsDB(db);
-  ['trip-source','trip-spend','trip-travel','trip-items','trip-notes'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
-  renderTrips();toast('Trip logged: '+source);
-}
-function deleteTrip(id){const db=getTripsDB();db.trips=db.trips.filter(t=>t.id!==id);saveTripsDB(db);renderTrips();toast('Trip deleted');}
-
-function addExpense(){
-  const amount=parseFloat(document.getElementById('exp-amount').value)||0;
-  const desc=document.getElementById('exp-desc').value.trim();
-  if(amount<=0){toast('Enter an amount','err');return;}
-  const db=getTripsDB();
-  db.expenses.push({id:Date.now().toString(),date:document.getElementById('exp-date').value,category:document.getElementById('exp-cat').value,amount,description:desc});
-  saveTripsDB(db);
-  ['exp-amount','exp-desc'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
-  renderTrips();toast('Expense logged');
-}
-function deleteExpense(id){const db=getTripsDB();db.expenses=db.expenses.filter(e=>e.id!==id);saveTripsDB(db);renderTrips();toast('Expense deleted');}
-
-function addPackaging(){
-  const item=document.getElementById('pkg-item').value.trim();
-  const cost=parseFloat(document.getElementById('pkg-cost').value)||0;
-  const uses=parseInt(document.getElementById('pkg-uses').value)||1;
-  if(!item||cost<=0){toast('Enter item and cost','err');return;}
-  const db=getTripsDB();
-  db.packaging.items.push({id:Date.now().toString(),date:document.getElementById('pkg-date').value,item,cost,uses});
-  // Recalculate per-item cost
-  const totalCost=db.packaging.items.reduce((a,p)=>a+(p.cost||0),0);
-  const totalUses=db.packaging.items.reduce((a,p)=>a+(p.uses||1),0);
-  db.packaging.perItemCost=totalUses>0?+(totalCost/totalUses).toFixed(4):0;
-  saveTripsDB(db);
-  ['pkg-item','pkg-cost','pkg-uses'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
-  renderTrips();toast('Packaging logged');
-}
-function deletePkg(id){
-  const db=getTripsDB();
-  db.packaging.items=db.packaging.items.filter(p=>p.id!==id);
-  const totalCost=db.packaging.items.reduce((a,p)=>a+(p.cost||0),0);
-  const totalUses=db.packaging.items.reduce((a,p)=>a+(p.uses||1),0);
-  db.packaging.perItemCost=totalUses>0?+(totalCost/totalUses).toFixed(4):0;
-  saveTripsDB(db);renderTrips();toast('Deleted');
-}
-
-
-// ── ITEM DETAIL PAGE ──────────────────────────────────────────────────
-let _currentItem = null;
-
-function openItem(m, id) {
-  const item = (DB[m]||[]).find(i=>i.id===id);
-  if(!item) return;
-  _currentItem = {...item, month: m};
-  document.querySelectorAll('.page').forEach(p=>p.classList.remove('on'));
-  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('on'));
-  document.getElementById('p-item').classList.add('on');
-  renderItemPage();
-}
-
-function renderItemPage() {
-  const i = _currentItem;
-  if(!i) return;
-  const s = !!i.dateSold;
-  const stale = isStale(i);
-  const pot = i.totalRev - i.totalCost;
-  // Load saved photo
-  const photoKey = 'photo_' + i.id;
-  let photoSrc = '';
-  try { photoSrc = localStorage.getItem(photoKey)||''; } catch(e){}
-
-  document.getElementById('p-item').innerHTML = `
-    <div style="display:flex;align-items:center;gap:12px;margin-bottom:22px;flex-wrap:wrap">
-      <button class="backbtn" onclick="goBack()">&#8592; Back</button>
-      <span class="badge ${s?'sold-b':stale?'stale-b':'listed-b'}">${s?'Sold':stale?'Stale':'Listed'}</span>
-      ${i.returnData?`<span class="badge" style="background:rgba(245,101,101,0.15);color:var(--red)">${i.returnData.type==='full'?'Returned':'Partial refund'}</span>`:''}
-      ${(!i.returnData&&i.returnHistory?.length)?`<span class="badge" style="background:rgba(246,173,85,0.15);color:var(--warn)">&#9203; Previously returned (${i.returnHistory.length}x)</span>`:''}
-      ${i.category?`<span class="badge" style="background:var(--surface2);color:var(--muted2)">${esc(i.category)}</span>`:''}
-    </div>
-    ${i.gid?`<div style="font-family:var(--fm);font-size:11px;color:var(--muted);letter-spacing:1px;margin-bottom:6px">${i.gid}</div>`:''}
-    <div style="font-family:var(--fn);font-size:36px;letter-spacing:1px;margin-bottom:6px;line-height:1.1">${esc(i.item)}</div>
-    <div style="color:var(--muted2);font-size:12px;margin-bottom:24px">${MN[i.month]} &middot; Listed ${i.dateListed||'--'}${i.dateSold?' &middot; Sold '+i.dateSold:''}</div>
-
-    <div class="item-hero">
-      <div class="item-photo-area" onclick="document.getElementById('photo-upload-${i.id}').click()" title="Click to add photo">
-        ${photoSrc
-          ? `<img src="${photoSrc}" id="item-photo-img" alt="${esc(i.item)}">`
-          : `<div class="item-photo-placeholder"><div class="ph-icon">&#128247;</div><div class="ph-text">Tap to add photo</div></div>`}
-        <input type="file" class="photo-upload-input" id="photo-upload-${i.id}" accept="image/*" onchange="uploadPhoto('${i.id}',this)">
-      </div>
-      <div class="item-detail-grid">
-        <div class="idetail"><div class="idetail-label">Sale Price</div><div class="idetail-val acc">${fmt(i.salePrice)}</div></div>
-        <div class="idetail"><div class="idetail-label">${s?(i.returnHistory?.length?'Lifetime Profit':'Gross Profit'):'Potential Profit'}</div><div class="idetail-val ${(s?i.lifetimeProfit||i.grossProfit:pot)>0?'pos':'red'}">${fmt(s?(i.lifetimeProfit||i.grossProfit):pot)}</div></div>
-        <div class="idetail"><div class="idetail-label">Item Cost</div><div class="idetail-val">${fmt(i.itemCost)}</div></div>
-        <div class="idetail"><div class="idetail-label">ROI</div><div class="idetail-val ${i.roi>1?'pos':''}">${i.roi!=null&&i.itemCost>0?Math.min(Math.round(i.roi*100),999)+'%':i.roi!=null?'N/A':'--'}</div></div>
-        <div class="idetail"><div class="idetail-label">Location</div><div class="idetail-val" style="font-size:16px">${esc(i.location||'--')}</div></div>
-        <div class="idetail"><div class="idetail-label">Source</div><div class="idetail-val" style="font-size:16px">${esc(i.source||'--')}</div></div>
-      </div>
-    </div>
-
-    <div class="cost-breakdown">
-      <div class="cb-title">Cost breakdown</div>
-      <div class="cb-row"><span>Item cost</span><span style="color:var(--red)">${fmt(i.itemCost)}</span></div>
-      <div class="cb-row"><span>Shipping cost</span><span style="color:var(--red)">${fmt(i.shipping)}</span></div>
-      <div class="cb-row"><span>eBay Buyer Protection Fee <span style="color:var(--muted);font-size:11px">(deducted from payout)</span></span><span style="color:var(--red)">${fmt(i.ebayFee)}</span></div>
-      <div class="cb-row"><span>Promotion cost</span><span style="color:var(--red)">${fmt(i.promoCost)}</span></div>
-      ${i.postage>0?`<div class="cb-row"><span>Postage charged (inc.)</span><span style="color:var(--green)">+${fmt(i.postage)}</span></div>`:''}
-      ${(i.parts&&i.parts.length)?`<div class="cb-row"><span style="color:var(--warn)">Parts &amp; additional costs</span><span style="color:var(--warn)">${fmt(i.partsCost||0)}</span></div>`:''}
-      ${i.returnData&&i.returnData.returnPostage?`<div class="cb-row"><span style="color:var(--red)">Return postage</span><span style="color:var(--red)">${fmt(i.returnData.returnPostage)}</span></div>`:''}
-      ${i.returnData&&i.returnData.feesKept?`<div class="cb-row"><span style="color:var(--red)">eBay fees kept on return</span><span style="color:var(--red)">${fmt(i.returnData.feesKept)}</span></div>`:''}
-      ${i.returnData&&i.returnData.refundAmount?`<div class="cb-row"><span style="color:var(--red)">Refund issued</span><span style="color:var(--red)">-${fmt(i.returnData.refundAmount)}</span></div>`:''}
-      ${(()=>{if(!i.returnHistory||!i.returnHistory.length)return'';
-        const totalReturnCost=i.returnHistory.reduce((a,rh)=>(a+(rh.returnPostage||0)+(rh.feesKept||0)),0);
-        const totalRefunded=i.returnHistory.reduce((a,rh)=>a+(rh.refundAmount||0),0);
-        return`<div class="cb-row" style="background:rgba(245,101,101,0.05);border-radius:4px;padding:4px 0">
-          <span style="color:var(--warn)">Previous return costs (${i.returnHistory.length}x)</span>
-          <span style="color:var(--warn)">${fmt(totalReturnCost+totalRefunded)}</span>
-        </div>
-        ${i.returnHistory.map((rh,n)=>`
-        <div class="cb-row" style="padding-left:10px">
-          <span class="dim" style="font-size:11px">Return #${n+1}: refund ${fmt(rh.refundAmount||0)} + postage ${fmt(rh.returnPostage||0)}</span>
-          <span style="color:var(--red);font-size:11px">-${fmt((rh.refundAmount||0)+(rh.returnPostage||0))}</span>
-        </div>`).join('')}`;
-      })()
-      }
-      <div class="cb-row"><span class="dim">Total cost (this sale)</span><span style="color:var(--red)">${fmt(i.totalCost)}</span></div>
-      <div class="cb-row"><span>Total revenue (this sale)</span><span style="color:var(--accent)">${fmt(i.totalRev)}</span></div>
-      <div class="cb-row"><span>${s?'Gross Profit (this sale)':'Potential Profit'}</span><span style="color:${pot>0?'var(--green)':'var(--red)'}">${fmt(s?i.grossProfit:pot)}</span></div>
-      ${(s&&i.returnHistory&&i.returnHistory.length)?`<div class="cb-row" style="border-top:2px solid var(--border);margin-top:4px;padding-top:8px"><span style="font-weight:700">Lifetime Profit</span><span style="color:${(i.lifetimeProfit||0)>0?'var(--green)':'var(--red)'};font-weight:700">${fmt(i.lifetimeProfit||0)}</span></div>`:''}
-    </div>
-
-    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px">
-      <button class="btn btn-s" onclick="toggleItemEdit('${i.month}','${i.id}')">&#9998; Edit</button>
-      ${!s?`<button class="btn btn-p" onclick="openSold('${i.month}','${i.id}')">Mark as sold</button>`:''}
-      <button class="btn btn-s" onclick="duplicateItem('${i.month}','${i.id}');goBack()" title="Duplicate this item">&#10697; Duplicate</button>
-      <button class="btn btn-s" style="color:var(--red);border-color:rgba(245,101,101,0.3)" onclick="if(confirm('Delete this item?')){_prevPage=_prevPage||'summary';DB['${i.month}']=DB['${i.month}'].filter(x=>x.id!=='${i.id}');saveDB();goNav(_prevPage);toast('Deleted')}">Delete</button>
-    </div>
-    ${partsHTML(i,i.month)}
-    ${(i.returnHistory&&i.returnHistory.length)?`
-    <div class="parts-section" style="border-color:rgba(245,101,101,0.25)">
-      <div class="parts-title"><span style="color:var(--red)">&#9888; Return History (${i.returnHistory.length} event${i.returnHistory.length>1?'s':''})</span></div>
-      ${i.returnHistory.map((rh,idx)=>`
-        <div style="background:rgba(245,101,101,0.06);border-radius:6px;padding:10px 12px;margin-bottom:8px;font-size:12px">
-          <div style="font-weight:600;color:var(--red);margin-bottom:4px">Return #${idx+1} — ${rh.type==='full'?'Full return':'Partial refund'} on ${rh.loggedAt}</div>
-          ${rh.type==='full'?`<div class="dim">Original sale reversed. Relisted ${rh.relistDate}.</div>`:''}
-          ${rh.refundAmount>0?`<div>Refund issued: <span style="color:var(--red)">${fmt(rh.refundAmount)}</span></div>`:''}
-          ${rh.returnPostage>0?`<div>Return postage: <span style="color:var(--red)">${fmt(rh.returnPostage)}</span></div>`:''}
-          ${rh.feesKept>0?`<div>eBay fees kept: <span style="color:var(--red)">${fmt(rh.feesKept)}</span></div>`:''}
-          ${rh.notes?`<div class="dim">Notes: ${esc(rh.notes)}</div>`:''}
-          <div style="margin-top:6px;padding-top:6px;border-top:1px solid var(--border);color:var(--muted2)">
-            Total return cost: <span style="color:var(--red);font-weight:600">${fmt((rh.refundAmount||0)+(rh.returnPostage||0)+(rh.feesKept||0))}</span>
-          </div>
-        </div>`).join('')}
-      <div style="font-size:12px;color:var(--muted2);margin-top:4px">Note: return costs are historical — the current sale profit above reflects the resale only.</div>
-    </div>`:''}
-    ${returnHTML(i,i.month)}
-
-    <div id="editrow-${i.id}" style="display:none;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:0;margin-top:16px;overflow:hidden">
-      <div id="editrow-inner-${i.id}">${editRowInner(i)}</div>
-    </div>`;
-}
-
 
 function toggleItemEdit(m, id) {
   const box = document.getElementById('editrow-'+id);
   if(!box) return;
-  const open = box.style.display !== 'none' && box.style.display !== '';
+  const open = box.style.display === 'block';
   box.style.display = open ? 'none' : 'block';
   if(!open) {
     const inner = document.getElementById('editrow-inner-'+id);
@@ -1959,11 +1406,7 @@ function importExcel(){
             const postage=parseFloat(row[iPost])||0;
             const promoPercent=parseFloat(row[iPromoP])||0;
             const location=iLoc>=0?String(row[iLoc]||'').trim():'';
-            const promoCost=+(salePrice*promoPercent).toFixed(4);
-            const totalCost=+(itemCost+shipping+ebayFee+promoCost).toFixed(4);
-            const totalRev=+(salePrice+postage).toFixed(4);
-            const grossProfit=dateSold?+(totalRev-totalCost).toFixed(2):null;
-            const roi=itemCost>0?+((totalRev-totalCost)/itemCost).toFixed(4):null;
+            // promoCost/totalCost/totalRev/grossProfit/roi computed via recalc() below
             // Auto-categorise: exact match first, then keyword fallback
             let category=CAT_MAP[name]||'';
             if(!category){
@@ -2014,9 +1457,9 @@ function importExcel(){
                   ...preserve,
                   item:name,location:location||existing.location,
                   dateListed,dateSold,salePrice,postage,
-                  itemCost,shipping,ebayFee,promoPercent,promoCost,
-                  totalCost,totalRev,grossProfit,roi
+                  itemCost,shipping,ebayFee,promoPercent
                 });
+                recalc(existing,dateSold);
                 changes.push({action:'updated',month:MN[m],item:name,changes:diff.join(', ')});
                 updated++;
               } else {
@@ -2027,14 +1470,15 @@ function importExcel(){
               // Get next available ID
               let xlMax=0;
               MONTHS.forEach(mo=>(newData[mo]||[]).forEach(i=>{const n=parseInt((i.gid||'').replace('G007-',''))||0;if(n>xlMax)xlMax=n;}));
-              newData[m].push({
+              const newItem={
                 id:'xl_'+Date.now()+'_'+r+'_'+Math.random().toString(36).slice(2,6),
                 gid:'G007-'+String(xlMax+1).padStart(4,'0'),
                 item:name,category,location,source:'',
                 dateListed,dateSold,salePrice,postage,
-                itemCost,shipping,ebayFee,promoPercent,promoCost,
-                totalCost,totalRev,grossProfit,roi
-              });
+                itemCost,shipping,ebayFee,promoPercent
+              };
+              recalc(newItem,dateSold);
+              newData[m].push(newItem);
               const feeNote=feeDiscrepancy?` (fee corrected: sheet had ${fmt(ebayFeeRaw)}, using ${fmt(ebayFeeCalc)} at ${ebayFeeLabel()})`:'';
               changes.push({action:'added',month:MN[m],item:name,changes:'new item'+feeNote,feeFixed:feeDiscrepancy,ebayFeeRaw,ebayFeeCalc,category});
               if(feeDiscrepancy)feeCorrections++;
@@ -2297,8 +1741,45 @@ function logReturn(m,id){
   recalc(item,item.dateSold);
   saveDB();
   _currentItem={...item,month:m};
+  _editingReturn=null;
   renderItemPage();
 }
+
+function editReturn(m,id){
+  // Switch from showing the logged return summary to the edit form
+  const item=(DB[m]||[]).find(i=>i.id===id);
+  if(!item||!item.returnData)return;
+  const rd=item.returnData;
+  // Temporarily clear returnData so returnHTML shows the form
+  // Store it so we can pre-fill
+  _editingReturn={m,id,rd};
+  item.returnData=null;
+  _currentItem={...item,month:m};
+  renderItemPage();
+  // Pre-fill form fields after render
+  setTimeout(()=>{
+    const typeBtn=rd.type==='partial'?
+      document.querySelector('.rtype-btn:not(#ebay-handled-no):not(#ebay-handled-yes):last-child'):
+      document.querySelector('.rtype-btn:not(#ebay-handled-no):not(#ebay-handled-yes):first-child');
+    if(rd.type==='partial')setReturnType('partial',typeBtn);
+    setEbayHandled(rd.ebayHandled||false,
+      document.getElementById(rd.ebayHandled?'ebay-handled-yes':'ebay-handled-no'));
+    const rp=document.getElementById('return-postage');
+    const fk=document.getElementById('return-fees-kept');
+    const rn=document.getElementById('return-notes');
+    const pa=document.getElementById('partial-refund-amt');
+    const pr=document.getElementById('partial-reason');
+    if(rp)rp.value=rd.returnPostage||'';
+    if(fk)fk.value=rd.feesKept||'';
+    if(rn)rn.value=rd.notes||'';
+    if(pa)pa.value=rd.refundAmount||'';
+    if(pr)pr.value=rd.reason||'';
+    // Restore returnData in case user cancels
+    item.returnData=rd;
+    _currentItem={...item,month:m};
+  },100);
+}
+let _editingReturn=null;
 
 function clearReturn(m,id){
   if(!confirm('Remove return record and restore original sale?'))return;
@@ -2311,6 +1792,145 @@ function clearReturn(m,id){
   _currentItem={...item,month:m};
   renderItemPage();
   toast('Return record cleared');
+}
+
+
+// ── ITEM DETAIL PAGE ──────────────────────────────────────────────────
+let _currentItem=null;
+function openItem(m,id){
+  const item=(DB[m]||[]).find(i=>i.id===id);
+  if(!item)return;
+  _currentItem={...item,month:m};
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('on'));
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('on'));
+  document.getElementById('p-item').classList.add('on');
+  renderItemPage();
+}
+
+function renderItemPage(){
+  const i=_currentItem;
+  if(!i)return;
+  const s=!!i.dateSold;
+  const stale=isStale(i);
+  const pot=i.totalRev-i.totalCost;
+  const photoKey='photo_'+i.id;
+  let photoSrc='';
+  try{photoSrc=localStorage.getItem(photoKey)||'';}catch(e){}
+
+  const displayProfit=s?(i.returnHistory?.length?i.lifetimeProfit:i.grossProfit):null;
+  const profitLabel=s?(i.returnHistory?.length?'Lifetime Profit':'Gross Profit'):'Potential Profit';
+  const profitVal=s?displayProfit:pot;
+
+  document.getElementById('p-item').innerHTML=`
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap">
+      <button class="backbtn" onclick="goBack()">&#8592; Back</button>
+      <span class="badge ${s?'sold-b':stale?'stale-b':'listed-b'}">${s?'Sold':stale?'Stale':'Listed'}</span>
+      ${i.returnData?`<span class="badge" style="background:rgba(245,101,101,0.15);color:var(--red)">${i.returnData.type==='full'?'Returned':'Partial refund'}</span>`:''}
+      ${(!i.returnData&&i.returnHistory?.length)?`<span class="badge" style="background:rgba(246,173,85,0.15);color:var(--warn)">&#9203; Previously returned (${i.returnHistory.length}x)</span>`:''}
+      <span class="dim" style="font-size:12px">${i.gid||''}</span>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr auto;gap:20px;margin-bottom:16px;align-items:start">
+      <div>
+        <div style="font-size:20px;font-weight:700;margin-bottom:6px">${esc(i.item)}</div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;font-size:12px;color:var(--muted2)">
+          ${i.category?`<span>${i.category}</span>`:''}
+          ${i.location?`<span>&#128205; ${esc(i.location)}</span>`:''}
+          ${i.source?`<span>Sourced: ${esc(i.source)}</span>`:''}
+          ${i.dateListed?`<span>Listed: ${i.dateListed}</span>`:''}
+          ${i.dateSold?`<span>Sold: ${i.dateSold}</span>`:''}
+        </div>
+      </div>
+      <div style="text-align:right">
+        <div style="font-size:28px;font-weight:700;color:${(profitVal||0)>0?'var(--green)':'var(--red)'}">${fmt(profitVal||0)}</div>
+        <div style="font-size:11px;color:var(--muted2)">${profitLabel}</div>
+        ${i.roi!=null?`<div style="font-size:13px;color:var(--accent);margin-top:2px">${Math.round(i.roi*100)}% ROI</div>`:''}
+      </div>
+    </div>
+
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px">
+      <button class="btn btn-s" onclick="toggleItemEdit('${i.month}','${i.id}')">&#9998; Edit</button>
+      ${!s?`<button class="btn btn-p" onclick="openSold('${i.month}','${i.id}')">Mark as sold</button>`:''}
+      <button class="btn btn-s" onclick="duplicateItem('${i.month}','${i.id}');goBack()" title="Duplicate">&#10697; Duplicate</button>
+      <button class="btn btn-s" style="color:var(--red);border-color:rgba(245,101,101,0.3)"
+        onclick="if(confirm('Delete this item?')){_prevPage=_prevPage||'summary';DB['${i.month}']=DB['${i.month}'].filter(x=>x.id!=='${i.id}');saveDB();goNav(_prevPage);toast('Deleted')}">Delete</button>
+    </div>
+
+    <div id="editrow-${i.id}" style="display:none;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:0;margin-bottom:16px;overflow:hidden">
+      <div id="editrow-inner-${i.id}">${editRowInner({...i,month:i.month})}</div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px;margin-bottom:16px">
+      <div class="idetail"><div class="idetail-label">Sale Price</div><div class="idetail-val">${fmt(i.salePrice)}</div></div>
+      <div class="idetail"><div class="idetail-label">BPF</div><div class="idetail-val red">${fmt(i.ebayFee)}</div></div>
+      <div class="idetail"><div class="idetail-label">Net Revenue</div><div class="idetail-val">${fmt(i.totalRev)}</div></div>
+      <div class="idetail"><div class="idetail-label">Item Cost</div><div class="idetail-val dim">${fmt(i.itemCost)}</div></div>
+      <div class="idetail"><div class="idetail-label">Shipping</div><div class="idetail-val dim">${fmt(i.shipping)}</div></div>
+      ${(i.promoPercent||0)>0?`<div class="idetail"><div class="idetail-label">Promo cost</div><div class="idetail-val dim">${fmt(i.promoCost)}</div></div>`:''}
+    </div>
+
+    <div class="cost-breakdown">
+      <div class="cb-title">Cost breakdown</div>
+      <div class="cb-row"><span>Item cost</span><span style="color:var(--red)">${fmt(i.itemCost)}</span></div>
+      <div class="cb-row"><span>Shipping paid</span><span style="color:var(--red)">${fmt(i.shipping)}</span></div>
+      ${(i.promoPercent||0)>0?`<div class="cb-row"><span>Promoted listing (${((i.promoPercent||0)*100).toFixed(1)}% + 20% VAT)</span><span style="color:var(--red)">${fmt(i.promoCost)}</span></div>`:''}
+      ${(i.parts&&i.parts.length)?`<div class="cb-row"><span style="color:var(--warn)">Parts &amp; additional</span><span style="color:var(--warn)">${fmt(i.partsCost||0)}</span></div>`:''}
+      <div class="cb-row"><span class="dim">─ Total cost</span><span style="color:var(--red)">${fmt(i.totalCost)}</span></div>
+      <div class="cb-row"><span>Buyer Protection Fee</span><span style="color:var(--red)">-${fmt(i.ebayFee)}</span></div>
+      <div class="cb-row"><span class="dim">─ Net revenue (after BPF)</span><span style="color:var(--accent)">${fmt(i.totalRev)}</span></div>
+      ${i.returnData&&i.returnData.returnPostage?`<div class="cb-row"><span style="color:var(--red)">Return postage</span><span style="color:var(--red)">-${fmt(i.returnData.returnPostage)}</span></div>`:''}
+      ${i.returnData&&i.returnData.feesKept?`<div class="cb-row"><span style="color:var(--red)">eBay fees kept</span><span style="color:var(--red)">-${fmt(i.returnData.feesKept)}</span></div>`:''}
+      ${i.returnData&&i.returnData.refundAmount?`<div class="cb-row"><span style="color:var(--red)">Refund to buyer</span><span style="color:var(--red)">-${fmt(i.returnData.refundAmount)}</span></div>`:''}
+      ${(()=>{
+        if(!i.returnHistory||!i.returnHistory.length)return'';
+        const histCost=i.returnHistory.reduce((a,rh)=>a+(rh.returnPostage||0)+(rh.feesKept||0)+(rh.outboundShipping||0),0);
+        return`<div class="cb-row" style="background:rgba(245,101,101,0.05);border-radius:4px">
+          <span style="color:var(--warn);font-size:12px">&#9888; Previous return costs (${i.returnHistory.length}x)</span>
+          <span style="color:var(--warn)">-${fmt(histCost)}</span>
+        </div>
+        ${i.returnHistory.map((rh,n)=>`
+        <div class="cb-row" style="padding-left:10px">
+          <span class="dim" style="font-size:11px">Return #${n+1}: outbound £${fmt(rh.outboundShipping||0)} + return post £${fmt(rh.returnPostage||0)}</span>
+          <span style="color:var(--red);font-size:11px">-${fmt((rh.outboundShipping||0)+(rh.returnPostage||0)+(rh.feesKept||0))}</span>
+        </div>`).join('')}`;
+      })()}
+      ${s?`<div class="cb-row" style="border-top:2px solid var(--border);margin-top:4px;padding-top:8px">
+        <span style="font-weight:700">${i.returnHistory?.length?'Lifetime Profit':'Gross Profit'}</span>
+        <span style="font-weight:700;color:${(displayProfit||0)>0?'var(--green)':'var(--red)'}">${fmt(displayProfit||0)}</span>
+      </div>`:''}
+    </div>
+
+    ${photoSrc?`<div style="margin-bottom:16px"><img src="${photoSrc}" style="max-width:100%;max-height:240px;border-radius:10px;border:1px solid var(--border)"></div>`:''}
+    <div style="margin-bottom:16px">
+      <button class="btn btn-s" style="font-size:12px;padding:5px 12px" onclick="uploadPhoto('${i.id}')">&#128247; ${photoSrc?'Change':'Add'} Photo</button>
+    </div>
+
+    ${(()=>{
+      if(!i.returnHistory||!i.returnHistory.length)return'';
+      return`<div class="parts-section" style="border-color:rgba(245,101,101,0.25)">
+        <div class="parts-title"><span style="color:var(--red)">&#9888; Return History (${i.returnHistory.length} event${i.returnHistory.length>1?'s':''})</span></div>
+        ${i.returnHistory.map((rh,n)=>`
+        <div style="background:rgba(245,101,101,0.06);border-radius:6px;padding:10px 12px;margin-bottom:8px;font-size:12px">
+          <div style="font-weight:600;color:var(--red);margin-bottom:8px">Return #${n+1} — ${rh.type==='full'?'Full return':'Partial refund'} on ${rh.loggedAt}</div>
+          <div style="display:grid;grid-template-columns:1fr auto;gap:2px 12px">
+            <span class="dim">Revenue received (before return)</span><span style="color:var(--green)">+${fmt(rh.refundAmount||0)}</span>
+            <span class="dim">Outbound shipping paid</span><span style="color:var(--red)">-${fmt(rh.outboundShipping||0)}</span>
+            ${rh.returnPostage>0?`<span class="dim">Return postage paid</span><span style="color:var(--red)">-${fmt(rh.returnPostage)}</span>`:''}
+            ${rh.feesKept>0?`<span class="dim">eBay fees kept</span><span style="color:var(--red)">-${fmt(rh.feesKept)}</span>`:''}
+          </div>
+          <div style="margin-top:6px;padding-top:6px;border-top:1px solid var(--border);display:flex;justify-content:space-between">
+            <span class="dim">Net position from this return</span>
+            <span style="color:var(--red);font-weight:600">-${fmt((rh.outboundShipping||0)+(rh.returnPostage||0)+(rh.feesKept||0))}</span>
+          </div>
+          ${rh.notes?`<div class="dim" style="margin-top:4px">Notes: ${esc(rh.notes)}</div>`:''}
+        </div>`).join('')}
+        <div style="font-size:11px;color:var(--muted2);margin-top:4px">These costs are included in the Lifetime Profit calculation above.</div>
+      </div>`;
+    })()}
+
+    ${partsHTML(i,i.month)}
+    ${returnHTML(i,i.month)}
+  `;
 }
 
 function partsHTML(i,m){
@@ -2340,8 +1960,9 @@ function partsHTML(i,m){
 function returnHTML(i,m){
   const rd=i.returnData;
   const isSold=!!i.dateSold;
-  // Only show return section for sold items or items with existing return
-  if(!isSold&&!rd)return'';
+  const hasHistory=!!(i.returnHistory&&i.returnHistory.length);
+  // Show return section for: sold items, items with active return, items with history
+  if(!isSold&&!rd&&!hasHistory)return'';
   if(rd){
     // Show logged return summary
     return`<div class="return-section">
@@ -2355,7 +1976,10 @@ function returnHTML(i,m){
         ${rd.feesKept>0?`<div style="color:var(--red)">eBay fees kept: ${fmt(rd.feesKept)}</div>`:`<div style="color:var(--green)">eBay fees: £0 (credited back)</div>`}
         ${rd.notes?`<div style="color:var(--muted2)">Notes: ${esc(rd.notes)}</div>`:''}
       </div>
-      <div style="margin-top:10px"><button class="btn btn-s" style="font-size:12px;padding:5px 12px;color:var(--red);border-color:rgba(245,101,101,0.3)" onclick="clearReturn('${m}','${i.id}')">Remove return record</button></div>
+      <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn btn-s" style="font-size:12px;padding:5px 12px" onclick="editReturn('${m}','${i.id}')">&#9998; Edit return</button>
+        <button class="btn btn-s" style="font-size:12px;padding:5px 12px;color:var(--red);border-color:rgba(245,101,101,0.3)" onclick="clearReturn('${m}','${i.id}')">Remove return record</button>
+      </div>
     </div>`;
   }
   // Show return form for sold items
