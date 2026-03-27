@@ -54,6 +54,20 @@ nav{position:sticky;top:0;z-index:200;background:var(--surface);backdrop-filter:
 .search-clear.show{display:block;}
 .search-clear:hover{color:var(--text);}
 /* Search dropdown */
+.item-full-page{max-width:720px;margin:0 auto;padding:20px 24px;}
+.item-full-section{background:var(--surface2);border-radius:12px;padding:16px;margin-bottom:14px;}
+.item-full-section-title{font-size:11px;font-weight:700;color:var(--muted);letter-spacing:0.08em;text-transform:uppercase;margin-bottom:12px;}
+.history-entry{padding:10px 0;border-bottom:1px solid var(--border);font-size:13px;}
+.history-entry:last-child{border-bottom:none;}
+.history-entry-header{display:flex;align-items:center;gap:8px;margin-bottom:4px;}
+.history-badge{font-size:11px;font-weight:700;border-radius:4px;padding:2px 7px;}
+.history-badge.listed{background:rgba(100,116,139,0.15);color:var(--muted);}
+.history-badge.sale{background:rgba(34,197,94,0.15);color:var(--green);}
+.history-badge.return-full{background:rgba(239,68,68,0.15);color:var(--red);}
+.history-badge.return-partial{background:rgba(245,158,11,0.15);color:var(--accent);}
+.pnl-row{display:flex;justify-content:space-between;padding:5px 0;font-size:13px;border-bottom:1px solid var(--border);}
+.pnl-row:last-child{border-bottom:none;}
+.pnl-row.total{font-weight:700;font-size:14px;margin-top:4px;padding-top:8px;}
 .search-dropdown{position:absolute;top:calc(100% + 6px);left:0;right:0;background:var(--surface);border:1px solid var(--border);border-radius:10px;box-shadow:0 8px 32px var(--shadow-md);z-index:600;overflow:hidden;display:none;min-width:320px;}
 .search-dropdown.open{display:block;}
 .search-result{display:flex;align-items:center;gap:10px;padding:10px 14px;cursor:pointer;transition:background 0.1s;border-bottom:1px solid var(--border);}
@@ -315,6 +329,7 @@ nav{position:sticky;top:0;z-index:200;background:var(--surface);backdrop-filter:
 <div class="page" id="p-expenses"></div>
 <div class="page" id="p-data"></div>
 <div class="page" id="p-search"></div>
+<div class="page" id="p-item"></div>
 
 <div id="toast"></div>
 
@@ -392,6 +407,13 @@ function initDB(){
     MONTHS.forEach(m=>(DB[m]||[]).forEach(i=>{
       const fresh=autoCategory(i.item);
       if(i.category!==fresh){i.category=fresh;changed=true;}
+      // Migration: strip return postage that old saveReturn baked into shippingCost
+      if((i.returnHistory||[]).length>0&&!i._shippingMigrated){
+        const bakedIn=(i.returnHistory||[]).reduce(function(s,r){return s+(r.returnPostage||0);},0);
+        if(bakedIn>0){i.shippingCost=Math.max(0,(i.shippingCost||0)-bakedIn);}
+        i._shippingMigrated=true;
+        changed=true;
+      }
     }));
     if(changed)saveDB();
   }
@@ -416,7 +438,210 @@ function goToTab(name){
   else if(name==='expenses')renderExpenses();
   else if(name==='data')renderData();
   else if(name==='search')renderSearchResults();
+  else if(name==='item'){}
 }
+
+let _itemPageOrigin='p-summary';
+
+function openItemPage(m,id,origin){
+  _itemPageOrigin=origin||(document.querySelector('.page.on')?document.querySelector('.page.on').id:'p-summary');
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('on'));
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('on'));
+  document.getElementById('p-item').classList.add('on');
+  renderItemPage(m,id);
+}
+
+function exitItemPage(){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('on'));
+  const origin=_itemPageOrigin||'p-summary';
+  document.getElementById(origin).classList.add('on');
+  const tabMap={'p-summary':'summary','p-monthly':'monthly','p-stock':'stock','p-expenses':'expenses','p-data':'data'};
+  const tabName=tabMap[origin];
+  if(tabName){const tab=document.querySelector('.tab[onclick*="'+tabName+'"]');if(tab)tab.classList.add('on');}
+  if(origin==='p-monthly')renderMonth();
+  else if(origin==='p-stock')renderStock();
+  else if(origin==='p-summary')renderSummary();
+  else if(origin==='p-search')renderSearchResults();
+}
+
+function renderItemPage(m,id){
+  const i=(DB[m]||[]).find(x=>x.id===id);
+  const page=document.getElementById('p-item');
+  if(!i){page.innerHTML='<div style="padding:40px;text-align:center;color:var(--muted)">Item not found</div>';return;}
+
+  const bpf=calcEbayBPF(i.salePrice||0);
+  const grossInc=(i.salePrice||0)-bpf;
+  const promoCost=grossInc*(i.promoPercent||0)*1.20;
+  const profit=calcGrossProfit(i);
+  const roi=calcROI(i);
+  const status=i.isReturned?'returned':i.dateSold?'sold':'active';
+  const hasReturn=(i.returnHistory||[]).length>0;
+  const totalRefunded=(i.returnHistory||[]).reduce((s,r)=>s+(r.refundAmount||0),0);
+  const totalReturnPostage=(i.returnHistory||[]).reduce((s,r)=>s+(r.returnPostage||0),0);
+
+  // ── Timeline ──────────────────────────────────────────────────────────
+  const timeline=[];
+  timeline.push({
+    date:i.dateListed||'',
+    badge:'listed',
+    label:'Listed on eBay',
+    detail:'Price: '+fmt(i.salePrice)+' · Cost: '+fmt(i.costPrice||0)
+  });
+  if(i.dateSold||(hasReturn&&i.isReturned)){
+    const sd=i.dateSold||((i.returnHistory||[])[0]?(i.returnHistory[0].loggedAt||''):'');
+    timeline.push({
+      date:sd,
+      badge:'sale',
+      label:'Sold',
+      detail:'Sale price: '+fmt(i.salePrice)+' → You received: '+fmt(grossInc)+' after BPF'
+    });
+  }
+  (i.returnHistory||[]).forEach(function(r,rtnIdx){
+    const lbl={
+      full_seller:'Full refund — seller handled',
+      full_ebay:'Full refund — eBay stepped in',
+      partial_seller:'Partial refund — seller agreed',
+      partial_ebay:'Partial refund — eBay decided'
+    };
+    const bc=r.type.startsWith('full')?'return-full':'return-partial';
+    const parts=['Refund: '+fmt(r.refundAmount||0)];
+    if(r.returnPostage>0)parts.push('Return postage: '+fmt(r.returnPostage));
+    if(r.notes)parts.push('Note: '+esc(r.notes));
+    timeline.push({date:r.loggedAt||'',badge:bc,label:lbl[r.type]||r.type,detail:parts.join(' · '),rtnIdx:rtnIdx});
+  });
+  timeline.sort(function(a,b){return a.date<b.date?-1:a.date>b.date?1:0;});
+
+  const badgeLbl={listed:'listed',sale:'sold','return-full':'full return','return-partial':'partial return'};
+  const timelineHTML=timeline.map(function(t){
+    let undoBtn='';
+    if(t.badge==='sale'){
+      undoBtn='<button onclick="event.stopPropagation();undoSale(\''+m+'\',\''+id+'\')" style="margin-left:auto;background:none;border:1px solid var(--border);border-radius:4px;padding:1px 7px;font-size:11px;color:var(--muted);cursor:pointer">✕ undo</button>';
+    } else if(t.badge==='return-full'||t.badge==='return-partial'){
+      undoBtn='<button onclick="event.stopPropagation();undoReturnEntry(\''+m+'\',\''+id+'\','+t.rtnIdx+')" style="margin-left:auto;background:none;border:1px solid var(--border);border-radius:4px;padding:1px 7px;font-size:11px;color:var(--muted);cursor:pointer">✕ undo</button>';
+    }
+    return '<div class="history-entry">'
+      +'<div class="history-entry-header">'
+      +'<span class="history-badge '+t.badge+'">'+(badgeLbl[t.badge]||t.badge)+'</span>'
+      +'<span style="color:var(--muted);font-size:12px"> '+t.date+'</span>'
+      +undoBtn
+      +'</div>'
+      +'<div style="font-weight:600;font-size:13px">'+t.label+'</div>'
+      +(t.detail?'<div style="color:var(--muted);font-size:12px;margin-top:3px">'+t.detail+'</div>':'')
+      +'</div>';
+  }).join('');
+
+  // ── P&L ───────────────────────────────────────────────────────────────
+  let pnl='';
+  pnl+='<div class="pnl-row"><span>Sale price</span><span style="color:var(--green)">'+fmt(i.salePrice||0)+'</span></div>';
+  pnl+='<div class="pnl-row"><span>eBay BPF</span><span style="color:var(--red)">−'+fmt(bpf)+'</span></div>';
+  if((i.shippingCost||0)>0)pnl+='<div class="pnl-row"><span>Postage (outbound)</span><span style="color:var(--red)">−'+fmt(i.shippingCost)+'</span></div>';
+  if((i.packagingCost||0)>0)pnl+='<div class="pnl-row"><span>Packaging</span><span style="color:var(--red)">−'+fmt(i.packagingCost)+'</span></div>';
+  if(i.promoPercent)pnl+='<div class="pnl-row"><span>Promo fee ('+((i.promoPercent*100).toFixed(0))+'% +VAT)</span><span style="color:var(--red)">−'+fmt(promoCost)+'</span></div>';
+  pnl+='<div class="pnl-row"><span>Item cost</span><span style="color:var(--red)">−'+fmt(i.costPrice||0)+'</span></div>';
+  if(hasReturn){
+    pnl+='<div class="pnl-row" style="border-top:2px dashed var(--border);margin-top:4px;padding-top:8px"><span style="color:var(--accent);font-weight:600">Return impact</span><span></span></div>';
+    (i.returnHistory||[]).forEach(function(r){
+      const sh=(r.type==='full_seller'||r.type==='partial_seller');
+      const netRefund=sh?Math.max(0,(r.refundAmount||0)-bpf):(r.refundAmount||0);
+      const lbl={full_seller:'Full refund — you handled',full_ebay:'Full refund — eBay involved',partial_seller:'Partial refund — you handled',partial_ebay:'Partial refund — eBay involved'}[r.type]||r.type;
+      pnl+='<div class="pnl-row"><span style="color:var(--accent)">'+lbl+'</span><span style="color:var(--red)">−'+fmt(r.refundAmount||0)+'</span></div>';
+      if(sh)pnl+='<div class="pnl-row"><span style="color:var(--muted);font-size:12px">  eBay refunds BPF back to you</span><span style="color:var(--green);font-size:12px">+'+fmt(bpf)+'</span></div>';
+      if((r.returnPostage||0)>0)pnl+='<div class="pnl-row"><span style="color:var(--accent)">Return postage</span><span style="color:var(--red)">−'+fmt(r.returnPostage)+'</span></div>';
+    });
+  }
+  pnl+='<div class="pnl-row total"><span>Net profit / loss</span><span style="color:'+(profit>=0?'var(--green)':'var(--red)')+'">'+fmt(profit)+'</span></div>';
+  if(roi!==null)pnl+='<div class="pnl-row"><span style="color:var(--muted)">ROI</span><span style="color:var(--muted)">'+roi.toFixed(1)+'%</span></div>';
+
+  // ── Re-list projection (returned items only) ──────────────────────
+  let relistHTML='';
+  if(i.isReturned){
+    const rlBPF=calcEbayBPF(i.salePrice||0);
+    const rlGrossInc=(i.salePrice||0)-rlBPF;
+    const rlPromo=rlGrossInc*(i.promoPercent||0)*1.20;
+    const rlRev=(i.salePrice||0)+(i.postage||0)-rlBPF;
+    const rlCost=(i.shippingCost||0)+(i.packagingCost||0)+rlPromo;
+    const rlProfit=+(rlRev-rlCost).toFixed(2);
+    const combinedP=+(profit+rlProfit).toFixed(2);
+    relistHTML='<div class="item-full-section" style="border:1px dashed var(--accent)">';
+    relistHTML+='<div class="item-full-section-title" style="color:var(--accent)">Re-list Projection — same price</div>';
+    relistHTML+='<div class="pnl-row" style="margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid var(--border)"><span style="color:var(--muted)">Current P&L after return</span><span style="font-weight:700;color:'+(profit>=0?'var(--green)':'var(--red)')+'">'+fmt(profit)+'</span></div>';
+    relistHTML+='<div class="pnl-row"><span>Expected sale</span><span style="color:var(--green)">'+fmt(i.salePrice||0)+'</span></div>';
+    relistHTML+='<div class="pnl-row"><span>eBay BPF</span><span style="color:var(--red)">−'+fmt(rlBPF)+'</span></div>';
+    relistHTML+='<div class="pnl-row"><span>Postage to ship (same rate)</span><span style="color:var(--red)">−'+fmt(i.shippingCost||0)+'</span></div>';
+    if(i.promoPercent)relistHTML+='<div class="pnl-row"><span>Promo fee</span><span style="color:var(--red)">−'+fmt(rlPromo)+'</span></div>';
+    relistHTML+='<div class="pnl-row"><span style="color:var(--muted)">Item cost (already sunk)</span><span style="color:var(--muted)">—</span></div>';
+    relistHTML+='<div class="pnl-row total"><span>Profit from re-sale</span><span style="color:'+(rlProfit>=0?'var(--green)':'var(--red)')+'">'+fmt(rlProfit)+'</span></div>';
+    relistHTML+='<div class="pnl-row" style="margin-top:6px;padding:8px;background:var(--surface);border-radius:6px"><span style="font-weight:600">Combined both sales</span><span style="font-weight:700;color:'+(combinedP>=0?'var(--green)':'var(--red)')+'">'+fmt(combinedP)+'</span></div>';
+    relistHTML+='</div>';
+  }
+
+  // ── Action buttons ────────────────────────────────────────────────────
+  let actions='';
+  actions+='<button class="btn btn-p" onclick="editItem(\''+m+'\',\''+id+'\')">✏️ Edit</button>';
+  if(!i.dateSold&&!i.isReturned)actions+=' <button class="btn btn-s" onclick="markSold(\''+m+'\',\''+id+'\')">✅ Mark Sold</button>';
+  if(i.dateSold&&!i.isReturned)actions+=' <button class="btn btn-s" onclick="openReturn(\''+m+'\',\''+id+'\')">↩️ Log Return</button>';
+  actions+=' <button class="btn btn-s" onclick="duplicateItem(\''+m+'\',\''+id+'\')">📋 Duplicate</button>';
+  actions+=' <button class="btn btn-s danger" onclick="deleteItem(\''+m+'\',\''+id+'\')">🗑️ Delete</button>';
+
+  // ── Render ────────────────────────────────────────────────────────────
+  let html='<div class="item-full-page">';
+
+  // Header
+  html+='<div style="display:flex;align-items:center;gap:12px;margin-bottom:6px;flex-wrap:wrap">';
+  html+='<button class="btn btn-s" onclick="exitItemPage()">← Back</button>';
+  html+='<div style="font-size:20px;font-weight:700;flex:1;min-width:0;word-break:break-word">'+esc(i.item)+'</div>';
+  html+='<div class="item-badge '+status+'">'+status+'</div>';
+  html+='</div>';
+
+  // Sub-header
+  html+='<div style="display:flex;gap:8px;align-items:center;margin-bottom:20px;flex-wrap:wrap">';
+  if(i.gid)html+='<span style="font-size:12px;color:var(--muted);font-family:monospace">'+esc(i.gid)+'</span>';
+  html+='<span style="font-size:12px;color:var(--muted)">'+m+'</span>';
+  if(i.category)html+='<span style="font-size:12px;background:var(--surface2);border:1px solid var(--border);border-radius:4px;padding:1px 6px;color:var(--muted)">'+esc(i.category)+'</span>';
+  html+='</div>';
+
+  // KPI cards
+  html+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">';
+  html+='<div class="kcard"><div class="klabel">Sale Price</div><div class="kval" style="font-size:20px">'+fmt(i.salePrice||0)+'</div><div class="ksub">Buyer pays</div></div>';
+  html+='<div class="kcard"><div class="klabel">Item Cost</div><div class="kval" style="font-size:20px">'+fmt(i.costPrice||0)+'</div><div class="ksub">What you paid</div></div>';
+  html+='<div class="kcard '+(profit>=0?'g':'r')+'"><div class="klabel">Net Profit</div><div class="kval" style="font-size:20px">'+fmt(profit)+'</div><div class="ksub">'+(hasReturn?'After return impact':'After all fees')+'</div></div>';
+  if(roi!==null)html+='<div class="kcard"><div class="klabel">ROI</div><div class="kval" style="font-size:20px">'+roi.toFixed(1)+'%</div><div class="ksub">Return on investment</div></div>';
+  html+='</div>';
+
+  // Timeline section
+  html+='<div class="item-full-section">';
+  html+='<div class="item-full-section-title">Item Timeline</div>';
+  html+=timelineHTML||'<div style="color:var(--muted);font-size:13px">No history yet</div>';
+  html+='</div>';
+
+  // P&L section
+  html+='<div class="item-full-section">';
+  html+='<div class="item-full-section-title">P&L Breakdown</div>';
+  html+=pnl;
+  html+='</div>';
+  if(relistHTML)html+=relistHTML;
+
+  // Details section
+  html+='<div class="item-full-section">';
+  html+='<div class="item-full-section-title">Details</div>';
+  html+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:13px">';
+  html+='<div><span style="color:var(--muted)">Listed:</span> '+(i.dateListed||'—')+'</div>';
+  html+='<div><span style="color:var(--muted)">Sold:</span> '+(i.dateSold||'—')+'</div>';
+  html+='<div><span style="color:var(--muted)">Location:</span> '+esc(i.location||'—')+'</div>';
+  html+='<div><span style="color:var(--muted)">Source:</span> '+esc(i.source||'—')+'</div>';
+  html+='<div><span style="color:var(--muted)">Promo:</span> '+(i.promoPercent?((i.promoPercent*100).toFixed(0)+'%'):'None')+'</div>';
+  html+='<div><span style="color:var(--muted)">Postage charged:</span> '+fmt(i.postage||0)+'</div>';
+  html+='</div>';
+  if(i.notes)html+='<div style="margin-top:10px;font-size:13px;color:var(--muted)">Notes: '+esc(i.notes)+'</div>';
+  html+='</div>';
+
+  // Actions
+  html+='<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px">'+actions+'</div>';
+  html+='</div>';
+
+  page.innerHTML=html;
+}
+
 
 // SEARCH
 const CATEGORY_ICONS={
@@ -997,6 +1222,11 @@ function renderSummary(){
         <div class="kval">${stats.totalItems}</div>
         <div class="ksub">${stats.listedCount} active ›</div>
       </div>
+      <div class="kcard ${stats.returnCount>0?'r':''} clickable" onclick="showReturnedItems()">
+        <div class="klabel">Return Rate</div>
+        <div class="kval">${stats.returnRate.toFixed(1)}%</div>
+        <div class="ksub">${stats.returnCount} returned ›</div>
+      </div>
     </div>
 
     ${stats.stale.length>0?`
@@ -1271,7 +1501,8 @@ function openItemDetail(m,id){
         ${i.returnHistory.map(r=>`<div style="padding:6px 0;border-bottom:1px solid var(--border)">${r.loggedAt||'—'} · ${r.type} · Refund: ${fmt(r.refundAmount||0)}</div>`).join('')}
       </div>`:''}
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
-      <button class="btn btn-p" onclick="closePanel();editItem('${m}','${id}')">✏️ Edit</button>
+      <button class="btn btn-p" onclick="closePanel();openItemPage('${m}','${id}')">📄 Full Page</button>
+      <button class="btn btn-s" onclick="closePanel();editItem('${m}','${id}')">✏️ Edit</button>
       ${!i.dateSold?`<button class="btn btn-s" onclick="closePanel();markSold('${m}','${id}')">✅ Mark Sold</button>`:''}
       ${i.dateSold&&!i.isReturned?`<button class="btn btn-s" onclick="closePanel();openReturn('${m}','${id}')">↩️ Log Return</button>`:''}
       <button class="btn btn-s" onclick="closePanel();duplicateItem('${m}','${id}')">📋 Duplicate</button>
@@ -1967,28 +2198,116 @@ function saveReturn(m,id){
     i.isReturned=true;
     i.dateSold=null; // remove from sold — back to stock
   }
-  // For partial: keep as sold but log the hit
-  // Add return postage to shippingCost so profit calc reflects it
-  i.shippingCost=(i.shippingCost||0)+returnPostage;
-
   saveDB();
   closePanel();
   toast('Return logged');
-  const cur=document.querySelector('.page.on').id;
-  if(cur==='p-monthly')renderMonth();
-  else if(cur==='p-stock')renderStock();
-  else if(cur==='p-summary')renderSummary();
+  openItemPage(m,id);
+}
+
+
+// ── Undo timeline events ───────────────────────────────────────────────────
+function undoReturnEntry(m,id,rtnIdx){
+  const i=(DB[m]||[]).find(x=>x.id===id);
+  if(!i||!i.returnHistory)return;
+  const r=i.returnHistory[rtnIdx];
+  if(!r)return;
+  i.returnHistory.splice(rtnIdx,1);
+  // If this was a full return and there are no more full returns, restore sold status
+  const stillFullyReturned=i.returnHistory.some(function(r2){return r2.type==='full_seller'||r2.type==='full_ebay';});
+  if(!stillFullyReturned&&i.isReturned){
+    i.isReturned=false;
+    // Restore dateSold from the entry we just removed (best guess)
+    i.dateSold=r.loggedAt||null;
+  }
+  saveDB();
+  renderItemPage(m,id);
+  toast('Return entry removed');
+}
+
+function undoSale(m,id){
+  const i=(DB[m]||[]).find(x=>x.id===id);
+  if(!i)return;
+  i.dateSold=null;
+  i.isReturned=false;
+  i.returnHistory=[];
+  saveDB();
+  renderItemPage(m,id);
+  toast('Sale undone — item back to Listed');
+}
+
+// ── Returned items panel (opened from KPI card) ────────────────────────────
+function showReturnedItems(){
+  const items=[];
+  MONTHS.forEach(function(m){
+    (DB[m]||[]).forEach(function(i){
+      if(i.isReturned||(i.returnHistory&&i.returnHistory.length>0)){
+        items.push(Object.assign({},i,{month:m}));
+      }
+    });
+  });
+
+  const totalRefundedAll=items.reduce(function(s,i){
+    return s+(i.returnHistory||[]).reduce(function(s2,r){return s2+(r.refundAmount||0);},0);
+  },0);
+  const fullyReturned=items.filter(function(i){return i.isReturned;}).length;
+  const partialOnly=items.filter(function(i){return !i.isReturned&&i.returnHistory&&i.returnHistory.length>0;}).length;
+
+  const rows=items.map(function(i){
+    const status=i.isReturned?'returned':'partial return';
+    const badgeCls=i.isReturned?'returned':'sold';
+    const lastReturn=i.returnHistory&&i.returnHistory.length>0?i.returnHistory[i.returnHistory.length-1]:null;
+    const refundTotal=(i.returnHistory||[]).reduce(function(s,r){return s+(r.refundAmount||0);},0);
+    const profit=calcGrossProfit(i);
+    return '<div style="padding:10px;background:var(--surface2);border-radius:8px;margin-bottom:8px;cursor:pointer" onclick="closePanel();openItemPage(\''+i.month+'\',\''+i.id+'\')">'
+      +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">'
+      +'<div class="item-badge '+badgeCls+'">'+status+'</div>'
+      +(i.gid?'<span style="font-size:11px;color:var(--muted);font-family:monospace">'+esc(i.gid)+'</span>':'')
+      +'<span style="font-size:11px;color:var(--muted)">'+i.month+'</span>'
+      +'</div>'
+      +'<div style="font-weight:600;font-size:14px;margin-bottom:4px">'+esc(i.item)+'</div>'
+      +'<div style="display:flex;gap:12px;font-size:12px;flex-wrap:wrap">'
+      +'<span>Sale: <strong>'+fmt(i.salePrice)+'</strong></span>'
+      +'<span>Refunded: <strong style="color:var(--red)">'+fmt(refundTotal)+'</strong></span>'
+      +'<span>Net P&L: <strong style="color:'+(profit>=0?'var(--green)':'var(--red)')+'">'+fmt(profit)+'</strong></span>'
+      +(lastReturn?'<span style="color:var(--muted)">'+lastReturn.loggedAt+'</span>':'')
+      +'</div>'
+      +'</div>';
+  }).join('');
+
+  const summary='<div style="display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap">'
+    +'<div style="background:var(--surface2);border-radius:8px;padding:10px 14px;flex:1;min-width:100px">'
+    +'<div style="font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:0.06em">Total items</div>'
+    +'<div style="font-size:22px;font-weight:700">'+items.length+'</div>'
+    +'</div>'
+    +'<div style="background:var(--surface2);border-radius:8px;padding:10px 14px;flex:1;min-width:100px">'
+    +'<div style="font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:0.06em">Fully returned</div>'
+    +'<div style="font-size:22px;font-weight:700;color:var(--red)">'+fullyReturned+'</div>'
+    +'</div>'
+    +'<div style="background:var(--surface2);border-radius:8px;padding:10px 14px;flex:1;min-width:100px">'
+    +'<div style="font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:0.06em">Total refunded</div>'
+    +'<div style="font-size:22px;font-weight:700;color:var(--red)">'+fmt(totalRefundedAll)+'</div>'
+    +'</div>'
+    +'</div>';
+
+  const content=items.length>0
+    ? summary+rows
+    : '<div style="padding:30px;text-align:center;color:var(--muted)">No returns logged yet</div>';
+
+  openPanel('Returns — '+items.length+' item'+(items.length!==1?'s':''),content);
 }
 
 // STATS
 function calcYearlyStats(){
   let totalRev=0,realisedProfit=0,unrealisedProfit=0,stockValue=0;
-  let soldCount=0,listedCount=0,totalItems=0;
+  let soldCount=0,listedCount=0,totalItems=0,returnCount=0;
   let soldItems=[],stale=[];
   MONTHS.forEach(m=>{
     (DB[m]||[]).forEach(i=>{
       if((i.item||"").trim().toUpperCase()==="MONTH END")return;
       totalItems++;
+      if(i.isReturned){
+        returnCount++;
+      }
       if(i.dateSold && !i.isReturned){
         soldCount++;
         const prof=calcGrossProfit(i);
@@ -2021,7 +2340,8 @@ function calcYearlyStats(){
     });
   });
   const byCat=Object.entries(catMap).map(([cat,v])=>({cat,sold:v.sold,total:v.total,pct:v.total?Math.round(v.sold/v.total*100):0})).sort((a,b)=>b.pct-a.pct);
-  return{totalRev,realisedProfit,unrealisedProfit,stockValue,soldCount,listedCount,totalItems,avgROI,avgSale,avgProfit,sellThrough,avgDays,stale,byCat};
+  const returnRate=(soldCount+returnCount)>0?returnCount/(soldCount+returnCount)*100:0;
+  return{totalRev,realisedProfit,unrealisedProfit,stockValue,soldCount,listedCount,totalItems,returnCount,returnRate,avgROI,avgSale,avgProfit,sellThrough,avgDays,stale,byCat};
 }
 
 function calcMonthStats(m){
@@ -2060,12 +2380,17 @@ function calcEbayBPF(salePrice){
 function calcGrossProfit(i){
   if(!i.salePrice)return null;
   const bpf=calcEbayBPF(i.salePrice);
-  // Promo fee base = GrossInc (salePrice - bpf) * rate * 1.20 VAT
-  // Matches spreadsheet: PromoCost = GrossInc * PromoPercent * 1.2
   const grossInc=i.salePrice-bpf;
   const promoCost=grossInc*(i.promoPercent||0)*1.20;
   const rev=i.salePrice+(i.postage||0)-bpf;
-  const cost=(i.costPrice||0)+(i.shippingCost||0)+(i.packagingCost||0)+promoCost;
+  // Seller-handled returns: eBay refunds BPF back to seller, so net cash out = refund - BPF
+  // eBay-handled returns: eBay keeps BPF, net cash out = full refund
+  const returnCost=(i.returnHistory||[]).reduce(function(s,r){
+    const sellerHandled=(r.type==='full_seller'||r.type==='partial_seller');
+    const netRefund=sellerHandled?Math.max(0,(r.refundAmount||0)-bpf):(r.refundAmount||0);
+    return s+netRefund+(r.returnPostage||0);
+  },0);
+  const cost=(i.costPrice||0)+(i.shippingCost||0)+(i.packagingCost||0)+promoCost+returnCost;
   return+(rev-cost).toFixed(2);
 }
 
