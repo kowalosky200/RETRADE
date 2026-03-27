@@ -1111,115 +1111,125 @@ function processExcelFile(file){
   reader.onload=function(e){
     try{
       const data=new Uint8Array(e.target.result);
-      const workbook=XLSX.read(data,{type:'array',cellDates:true});
+      // cellDates:true + raw:true gives JS Date objects for date cells - most reliable
+      const workbook=XLSX.read(data,{type:'array',cellDates:true,raw:true});
       let importCount=0;
+      let updateCount=0;
       let skipCount=0;
-      
-      console.log('Available sheets:',workbook.SheetNames);
-      
+
       function safeFloat(val){
         if(val===null||val===undefined||val==='')return 0;
         if(typeof val==='number')return val;
         if(typeof val==='string'&&val.startsWith('#'))return 0;
-        try{return parseFloat(val)||0;}catch{return 0;}
+        try{return parseFloat(String(val).replace(/[^0-9.-]/g,''))||0;}catch{return 0;}
       }
-      
-      MONTHS.forEach(month=>{
-        // Try both uppercase and mixed case
-        let sheetName=`${month}-26`;
-        if(!workbook.SheetNames.includes(sheetName)){
-          sheetName=`${month.toUpperCase()}-26`;
+
+      function toDateStr(val){
+        if(!val)return null;
+        // JS Date object (from cellDates:true)
+        if(val instanceof Date){
+          if(isNaN(val.getTime()))return null;
+          const y=val.getFullYear();
+          const m=String(val.getMonth()+1).padStart(2,'0');
+          const d=String(val.getDate()).padStart(2,'0');
+          return `${y}-${m}-${d}`;
         }
+        // Already a yyyy-mm-dd string
+        if(typeof val==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(val))return val;
+        // Excel serial number
+        const serial=parseFloat(val);
+        if(!isNaN(serial)&&serial>40000){
+          const d=new Date(Math.round((serial-25569)*86400*1000));
+          const y=d.getUTCFullYear();
+          const mo=String(d.getUTCMonth()+1).padStart(2,'0');
+          const dy=String(d.getUTCDate()).padStart(2,'0');
+          return `${y}-${mo}-${dy}`;
+        }
+        return null;
+      }
+
+      MONTHS.forEach(month=>{
+        const sheetName=`${month}-26`;
         if(!workbook.SheetNames.includes(sheetName))return;
-        
-        console.log(`Processing sheet: ${sheetName}`);
-        
+
         const worksheet=workbook.Sheets[sheetName];
-        const jsonData=XLSX.utils.sheet_to_json(worksheet,{header:1,raw:false,dateNF:'yyyy-mm-dd',defval:''});
-        
-        // Header is in row 3 (index 2)
+        // raw:true preserves types; defval:'' fills empty cells
+        const jsonData=XLSX.utils.sheet_to_json(worksheet,{header:1,raw:true,defval:''});
+
+        // Row 1=blank, Row 2=section headers, Row 3=column headers, Row 4+=data
         const headerRow=jsonData[2]||[];
         const dataRows=jsonData.slice(3);
-        
+
         const colMap={};
-        headerRow.forEach((header,idx)=>{if(header)colMap[header]=idx;});
-        
-        console.log(`Column mapping for ${sheetName}:`,colMap);
-        
-        dataRows.forEach((row,rowIdx)=>{
+        headerRow.forEach((h,i)=>{if(h)colMap[String(h).trim()]=i;});
+
+        if(!colMap['Item Name']&&!colMap['Date Listed'])return; // sheet has no real headers
+
+        dataRows.forEach(row=>{
           if(!row||row.length===0)return;
-          
-          const dateListedStr=row[colMap['Date Listed']];
-          const itemName=row[colMap['Item Name']];
-          const dateSoldStr=row[colMap['Date Sold']];
-          
-          if(!dateListedStr||!itemName||itemName==='MONTH END')return;
-          
-          const dateListed=parseExcelDate(dateListedStr);
-          const dateSold=dateSoldStr?parseExcelDate(dateSoldStr):null;
-          
-          if(!itemName||itemName.trim().toUpperCase()==="MONTH END"){skipCount++;return;}
-          const exists=(DB[month]||[]).some(i=>i.item===itemName && i.dateListed===dateListed);
-          if(exists){skipCount++;return;}
-          
-          const item={
-            id:'excel_'+Date.now()+'_'+Math.random().toString(36).substr(2,9),
-            gid:'G007-'+String(getNextGID()).padStart(4,'0'),
-            dateListed:dateListed,
-            item:itemName||'Untitled',
-            source:'',
-            category:'',
-            location:row[colMap['Location']]||'',
+          const itemName=String(row[colMap['Item Name']]||'').trim();
+          const dateListedRaw=row[colMap['Date Listed']];
+          if(!itemName||itemName.toUpperCase()==='MONTH END'||!dateListedRaw)return;
+
+          const dateListed=toDateStr(dateListedRaw);
+          if(!dateListed)return;
+          const dateSold=toDateStr(row[colMap['Date Sold']])||null;
+
+          // Build incoming item using correct field names
+          const incoming={
+            dateListed,
+            item:itemName,
+            location:String(row[colMap['Location']]||'').trim(),
             costPrice:safeFloat(row[colMap['Item Cost']]),
             salePrice:safeFloat(row[colMap['Sale Price']]),
             postage:safeFloat(row[colMap['Postage Fee']]),
             shippingCost:safeFloat(row[colMap['Shipping Cost']]),
             packagingCost:safeFloat(row[colMap['Packeging Cost']]),
-            promoPercent:safeFloat(row[colMap['Promotion %']]),// stored as decimal e.g. 0.03
-            dateSold:dateSold,
-            grossProfit:null,
-            isReturned:false
+            promoPercent:safeFloat(row[colMap['Promotion %']]),
+            dateSold,
           };
-          
-          if(item.dateSold){item.grossProfit=calcGrossProfit(item);}
+
           if(!DB[month])DB[month]=[];
-          DB[month].push(item);
-          importCount++;
+          const existIdx=DB[month].findIndex(i=>i.item===itemName&&i.dateListed===dateListed);
+
+          if(existIdx>=0){
+            // UPDATE: merge numeric/date fields, preserve app-only fields (source, notes, returns)
+            const ex=DB[month][existIdx];
+            ex.costPrice=incoming.costPrice;
+            ex.salePrice=incoming.salePrice;
+            ex.postage=incoming.postage;
+            ex.shippingCost=incoming.shippingCost;
+            ex.packagingCost=incoming.packagingCost;
+            ex.promoPercent=incoming.promoPercent;
+            ex.dateSold=incoming.dateSold;
+            ex.location=incoming.location||ex.location;
+            updateCount++;
+          }else{
+            // NEW item
+            DB[month].push({
+              id:'xl_'+Date.now()+'_'+Math.random().toString(36).substr(2,6),
+              gid:'G007-'+String(getNextGID()).padStart(4,'0'),
+              source:'',category:'',notes:'',parts:[],
+              returnData:null,returnHistory:[],isReturned:false,
+              ...incoming
+            });
+            importCount++;
+          }
         });
       });
-      
+
       saveDB();
-      console.log(`Import complete: ${importCount} imported, ${skipCount} skipped`);
-      toast(`Imported ${importCount} items, skipped ${skipCount} duplicates`);
-      renderSummary();
+      toast(`Import done: ${importCount} new, ${updateCount} updated, ${skipCount} skipped`);
+      const cur=document.querySelector('.page.on').id;
+      if(cur==='p-summary')renderSummary();
+      else if(cur==='p-monthly')renderMonth();
+      else if(cur==='p-stock')renderStock();
     }catch(err){
-      console.error('Excel import error:',err);
-      toast('Excel import failed: '+err.message,'err');
+      console.error('Import error:',err);
+      toast('Import failed: '+err.message,'err');
     }
   };
   reader.readAsArrayBuffer(file);
-}
-
-function parseExcelDate(dateStr){
-  if(!dateStr)return null;
-  if(/^\d{4}-\d{2}-\d{2}$/.test(dateStr))return dateStr;
-  const serial=parseFloat(dateStr);
-  if(!isNaN(serial)){
-    const excelEpoch=new Date(1899,11,30);
-    const date=new Date(excelEpoch.getTime()+serial*86400000);
-    const year=date.getFullYear();
-    const month=String(date.getMonth()+1).padStart(2,'0');
-    const day=String(date.getDate()).padStart(2,'0');
-    return`${year}-${month}-${day}`;
-  }
-  const date=new Date(dateStr);
-  if(!isNaN(date.getTime())){
-    const year=date.getFullYear();
-    const month=String(date.getMonth()+1).padStart(2,'0');
-    const day=String(date.getDate()).padStart(2,'0');
-    return`${year}-${month}-${day}`;
-  }
-  return null;
 }
 
 function clearAllData(){
