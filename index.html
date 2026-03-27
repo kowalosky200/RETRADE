@@ -25,7 +25,7 @@ body{background:var(--bg);color:var(--text);font-family:'Inter',system-ui,-apple
 
 /* NAV */
 nav{position:sticky;top:0;z-index:200;background:var(--surface);backdrop-filter:blur(12px);border-bottom:1px solid var(--border);box-shadow:0 1px 3px var(--shadow);}
-.nav-inner{max-width:1400px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;padding:12px 20px;gap:16px;}
+.nav-inner{max-width:1400px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;padding:12px 20px;gap:16px;flex-wrap:nowrap;min-width:0;}
 .brand{display:flex;align-items:center;gap:8px;cursor:pointer;user-select:none;transition:opacity 0.15s;}
 .brand:hover{opacity:0.8;}
 .brand-text{font-weight:700;font-size:18px;letter-spacing:-0.02em;}
@@ -78,6 +78,8 @@ nav{position:sticky;top:0;z-index:200;background:var(--surface);backdrop-filter:
 /* CARDS */
 .kgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:16px;margin-bottom:32px;}
 .kcard{background:var(--surface);border:2px solid var(--border);border-radius:12px;padding:20px;position:relative;overflow:hidden;cursor:pointer;transition:all 0.2s;box-shadow:0 1px 3px var(--shadow);}
+.kcard.clickable{cursor:pointer;transition:border-color 0.15s,transform 0.1s;}
+.kcard.clickable:hover{border-color:var(--accent);transform:translateY(-1px);}
 .kcard:hover{border-color:var(--accent);transform:translateY(-2px);box-shadow:0 4px 12px var(--shadow-md);}
 .kcard.active-filter{border-color:var(--accent);background:var(--surface2);}
 .kcard.active-filter::before{content:'▾';position:absolute;bottom:8px;right:12px;font-size:16px;color:var(--accent);}
@@ -168,6 +170,7 @@ nav{position:sticky;top:0;z-index:200;background:var(--surface);backdrop-filter:
 
 /* DROPDOWN */
 .ddwrap{position:relative;}
+.item-checkbox{display:flex;align-items:center;padding:0 6px;}
 .ddbtn{padding:8px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;cursor:pointer;font-size:14px;color:var(--text);transition:all 0.15s;display:flex;align-items:center;gap:6px;}
 .ddbtn:hover{border-color:var(--accent);background:var(--accent);color:#000;}
 .ddmenu{display:none;position:absolute;top:calc(100% + 4px);right:0;min-width:180px;background:var(--surface);border:1px solid var(--border);border-radius:8px;box-shadow:0 4px 20px var(--shadow-md);z-index:100;overflow:hidden;}
@@ -241,7 +244,7 @@ nav{position:sticky;top:0;z-index:200;background:var(--surface);backdrop-filter:
   <div class="nav-inner">
     <div class="brand" onclick="goToTab('summary')">
       <div class="brand-text">
-        <span class="brand-general">GENERAL</span><span class="brand-007"> 007</span>
+        <span class="brand-general">GENERAL</span><span class="brand-007">007</span>
       </div>
     </div>
     <div class="tabs">
@@ -491,7 +494,7 @@ function formHTML(){
         <input type="number" id="qa-cost" step="0.01" placeholder="0.00">
       </div>
       <div class="fg">
-        <label>Listed Price (£)</label>
+        <label>Listed Price — what buyer pays (£)</label>
         <input type="number" id="qa-price" step="0.01" placeholder="0.00" oninput="updateBPFPreview()">
       </div>
     </div>
@@ -542,29 +545,83 @@ function updateBPFPreview(){
 }
 
 // SUMMARY PAGE
+function toggleSellThrough(card, byCat){
+  const bd=card.querySelector('.st-breakdown');
+  if(bd.style.display==='none'){
+    bd.style.display='block';
+    if(!byCat||!byCat.length){bd.innerHTML='<div style="font-size:12px;color:var(--muted)">No category data yet — add categories to items</div>';return;}
+    bd.innerHTML=byCat.map(c=>`
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;font-size:12px">
+        <div style="width:110px;color:var(--text-secondary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${esc(c.cat)}">${esc(c.cat)}</div>
+        <div style="flex:1;background:var(--surface2);border-radius:4px;height:8px;overflow:hidden">
+          <div style="width:${c.pct}%;background:var(--accent);height:100%;border-radius:4px"></div>
+        </div>
+        <div style="width:40px;text-align:right;font-weight:600">${c.pct}%</div>
+        <div style="width:40px;text-align:right;color:var(--muted)">${c.sold}/${c.total}</div>
+      </div>
+    `).join('');
+  }else{
+    bd.style.display='none';
+  }
+}
+
+function showFilteredItems(filter){
+  let items=[];
+  MONTHS.forEach(m=>{
+    (DB[m]||[]).forEach(i=>{
+      if((i.item||"").trim().toUpperCase()==="MONTH END")return;
+      const sold=i.dateSold&&!i.isReturned;
+      if(filter==='revenue'&&sold)items.push({...i,month:m});
+      else if(filter==='realised'&&sold)items.push({...i,month:m});
+      else if(filter==='unrealised'&&!sold&&!i.isReturned)items.push({...i,month:m});
+      else if(filter==='stock'&&!sold&&!i.isReturned)items.push({...i,month:m});
+    });
+  });
+  const titles={revenue:'Sold Items — Revenue',realised:'Sold Items — Realised Profit',unrealised:'Active Listings — Unrealised Profit',stock:'Active Stock'};
+  const cols={
+    revenue:i=>`<div style="font-size:12px;margin-top:4px;color:var(--muted)">${i.dateSold} · ${fmt(i.salePrice)}</div>`,
+    realised:i=>`<div style="font-size:12px;margin-top:4px"><span style="color:var(--green);font-weight:600">${fmt(calcGrossProfit(i))}</span> · ROI ${calcROI(i)!==null?calcROI(i).toFixed(1)+'%':'—'}</div>`,
+    unrealised:i=>`<div style="font-size:12px;margin-top:4px;color:var(--muted)">Potential: <span style="color:var(--accent)">${fmt(calcGrossProfit(i))}</span></div>`,
+    stock:i=>`<div style="font-size:12px;margin-top:4px;color:var(--muted)">Listed: ${fmt(i.salePrice)} · Cost: ${fmt(i.costPrice)}</div>`,
+  };
+  const html=`
+    <div style="margin-bottom:12px;font-size:13px;color:var(--muted)">${items.length} items</div>
+    ${items.map(i=>`
+      <div style="padding:10px;background:var(--surface2);border-radius:8px;margin-bottom:8px;cursor:pointer" onclick="closePanel();openItemDetail('${i.month}','${i.id}')">
+        <div style="display:flex;align-items:center;gap:8px">
+          <div style="flex:1;font-weight:600;font-size:14px">${esc(i.item)}</div>
+          <div class="item-badge ${i.dateSold?'sold':'listed'}">${i.month}</div>
+        </div>
+        ${cols[filter](i)}
+      </div>
+    `).join('')}
+  `;
+  openPanel(titles[filter]||'Items',html);
+}
+
 function renderSummary(){
   const stats=calcYearlyStats();
   const html=`
     <div class="kgrid">
-      <div class="kcard">
+      <div class="kcard clickable" onclick="showFilteredItems('revenue')">
         <div class="klabel">Total Revenue</div>
         <div class="kval">${fmt(stats.totalRev)}</div>
-        <div class="ksub">Gross income</div>
+        <div class="ksub">${stats.soldCount} sold ›</div>
       </div>
-      <div class="kcard g">
+      <div class="kcard g clickable" onclick="showFilteredItems('realised')">
         <div class="klabel">Realised Profit</div>
         <div class="kval">${fmt(stats.realisedProfit)}</div>
-        <div class="ksub">${stats.soldCount} items sold</div>
+        <div class="ksub">${stats.soldCount} sold ›</div>
       </div>
-      <div class="kcard p">
+      <div class="kcard p clickable" onclick="showFilteredItems('unrealised')">
         <div class="klabel">Unrealised Profit</div>
         <div class="kval">${fmt(stats.unrealisedProfit)}</div>
-        <div class="ksub">${stats.listedCount} items listed</div>
+        <div class="ksub">${stats.listedCount} listed ›</div>
       </div>
-      <div class="kcard b">
+      <div class="kcard b clickable" onclick="showFilteredItems('stock')">
         <div class="klabel">Stock Value</div>
         <div class="kval">${fmt(stats.stockValue)}</div>
-        <div class="ksub">Current inventory</div>
+        <div class="ksub">Listed value ›</div>
       </div>
       <div class="kcard">
         <div class="klabel">Avg ROI</div>
@@ -589,13 +646,16 @@ function renderSummary(){
     `:''}
 
     <div class="insights">
-      <div class="insight-card">
-        <div class="insight-icon">📊</div>
-        <div>
-          <div class="insight-label">Sell-through</div>
-          <div class="insight-val">${stats.sellThrough.toFixed(1)}%</div>
-          <div class="insight-sub">Of all listings</div>
+      <div class="insight-card clickable" onclick="toggleSellThrough(this,${JSON.stringify(stats.byCat).replace(/"/g,'&quot;')})" style="flex-direction:column;align-items:flex-start;cursor:pointer">
+        <div style="display:flex;align-items:center;gap:12px;width:100%">
+          <div class="insight-icon">📊</div>
+          <div style="flex:1">
+            <div class="insight-label">Sell-through <span style="font-size:11px;color:var(--muted)">(tap for categories)</span></div>
+            <div class="insight-val">${stats.sellThrough.toFixed(1)}%</div>
+            <div class="insight-sub">Of all listings</div>
+          </div>
         </div>
+        <div class="st-breakdown" style="display:none;width:100%;margin-top:10px;border-top:1px solid var(--border);padding-top:10px"></div>
       </div>
       <div class="insight-card">
         <div class="insight-icon">⏱️</div>
@@ -690,6 +750,7 @@ function renderMonth(){
         <select onchange="SELECTED_MONTH=this.value;renderMonth()" style="padding:10px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:14px;cursor:pointer">
           ${MONTHS.map(mo=>`<option value="${mo}" ${mo===m?'selected':''}>${mo}</option>`).join('')}
         </select>
+        <button class="btn btn-s" onclick="selectAllMonth()">☑ All</button>
         <button class="btn btn-p" onclick="openQuickAdd()">+ Add Item</button>
       </div>
     </div>
@@ -713,7 +774,7 @@ function renderMonth(){
       <div class="kcard b">
         <div class="klabel">Stock</div>
         <div class="kval">${fmt(stats.stockValue)}</div>
-        <div class="ksub">Investment</div>
+        <div class="ksub">Listed value</div>
       </div>
     </div>
 
@@ -750,7 +811,7 @@ function renderItemRow(m,i){
   const bpf=calcBuyerProtectionFee(i.salePrice||0);
   
   return`
-    <div class="item-row ${selected?'selected':''}" onclick="toggleSelect('${i.id}')">
+    <div class="item-row ${selected?'selected':''}" onclick="openItemDetail('${m}','${i.id}')">
       <div class="item-main">
         <div class="item-header">
           <div class="item-name">${esc(i.item)}</div>
@@ -765,12 +826,15 @@ function renderItemRow(m,i){
           ${i.category?`<div class="item-meta-item">📁 ${esc(i.category)}</div>`:''}
         </div>
         <div class="item-meta">
-          <div class="item-meta-item">💰 Listed: ${fmt(i.salePrice)}</div>
-          ${bpf>0?`<div class="item-meta-item" style="font-size:11px;color:var(--muted)">Buyer pays: ${fmt((i.salePrice||0)+bpf)}</div>`:''}
+          <div class="item-meta-item">🏷️ Listed: ${fmt(i.salePrice)}</div>
+          ${bpf>0?`<div class="item-meta-item" style="font-size:11px;color:var(--muted)">You receive: ${fmt((i.salePrice||0)-bpf)} (after £${bpf} BPF)</div>`:''}
           ${i.dateSold?`<div class="item-meta-item" style="color:var(--green);font-weight:600">Profit: ${fmt(calcGrossProfit(i))}</div><div class="item-meta-item" style="color:var(--muted);font-size:12px">ROI: ${calcROI(i)!==null?calcROI(i).toFixed(1)+'%':'—'}</div>`:''}
         </div>
       </div>
       <div class="item-actions">
+        <label class="item-checkbox" onclick="event.stopPropagation()" title="Select">
+          <input type="checkbox" ${selected?'checked':''} onchange="toggleSelect('${i.id}')" style="width:16px;height:16px;accent-color:var(--accent);cursor:pointer">
+        </label>
         <div class="ddwrap" id="dd-${i.id}">
           <button class="ddbtn" onclick="event.stopPropagation();toggleDD('dd-${i.id}')">⋮</button>
           <div class="ddmenu">
@@ -786,8 +850,79 @@ function renderItemRow(m,i){
   `;
 }
 
+
+function openItemDetail(m,id){
+  const i=(DB[m]||[]).find(x=>x.id===id);
+  if(!i)return;
+  const bpf=calcEbayBPF(i.salePrice||0);
+  const grossInc=(i.salePrice||0)-bpf;
+  const promoCost=grossInc*(i.promoPercent||0)*1.20;
+  const profit=calcGrossProfit(i);
+  const roi=calcROI(i);
+  const status=i.isReturned?'returned':i.dateSold?'sold':'listed';
+  const html=`
+    <div style="margin-bottom:16px">
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px">
+        <div class="item-badge ${status}">${status}</div>
+        ${i.gid?`<div style="font-size:12px;color:var(--muted);font-family:monospace">${i.gid}</div>`:''}
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px">
+      <div class="kcard">
+        <div class="klabel">Buyer Pays</div>
+        <div class="kval" style="font-size:20px">${fmt(i.salePrice)}</div>
+        <div class="ksub">You receive: ${fmt(grossInc)}</div>
+      </div>
+      <div class="kcard">
+        <div class="klabel">Item Cost</div>
+        <div class="kval" style="font-size:20px">${fmt(i.costPrice||0)}</div>
+        <div class="ksub">Purchase price</div>
+      </div>
+      ${i.dateSold?`<div class="kcard g"><div class="klabel">Profit</div><div class="kval" style="font-size:20px">${fmt(profit)}</div><div class="ksub">After all fees</div></div>`:''}
+      ${roi!==null?`<div class="kcard"><div class="klabel">ROI</div><div class="kval" style="font-size:20px">${roi.toFixed(1)}%</div><div class="ksub">Return on investment</div></div>`:''}
+    </div>
+    <div style="background:var(--surface2);border-radius:10px;padding:14px;margin-bottom:16px;display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:13px">
+      <div><span style="color:var(--muted)">Listed:</span> ${i.dateListed||'—'}</div>
+      <div><span style="color:var(--muted)">Sold:</span> ${i.dateSold||'Not sold'}</div>
+      <div><span style="color:var(--muted)">Location:</span> ${esc(i.location||'—')}</div>
+      <div><span style="color:var(--muted)">Source:</span> ${esc(i.source||'—')}</div>
+      <div><span style="color:var(--muted)">Category:</span> ${esc(i.category||'—')}</div>
+      <div><span style="color:var(--muted)">Promo rate:</span> ${i.promoPercent?((i.promoPercent*100).toFixed(0)+'%'):'None'}</div>
+    </div>
+    <div style="background:var(--surface2);border-radius:10px;padding:14px;margin-bottom:16px;font-size:13px">
+      <div style="font-weight:600;margin-bottom:8px;color:var(--muted)">COST BREAKDOWN</div>
+      <div style="display:flex;justify-content:space-between;padding:4px 0"><span>eBay BPF</span><span>−${fmt(bpf)}</span></div>
+      <div style="display:flex;justify-content:space-between;padding:4px 0"><span>Postage (you paid)</span><span>−${fmt(i.shippingCost||0)}</span></div>
+      ${(i.packagingCost||0)>0?`<div style="display:flex;justify-content:space-between;padding:4px 0"><span>Packaging</span><span>−${fmt(i.packagingCost)}</span></div>`:''}
+      ${i.promoPercent?`<div style="display:flex;justify-content:space-between;padding:4px 0"><span>Promo fee (${((i.promoPercent||0)*100).toFixed(0)}% +VAT)</span><span>−${fmt(promoCost)}</span></div>`:''}
+      <div style="display:flex;justify-content:space-between;padding:4px 0;border-top:1px solid var(--border);margin-top:4px;font-weight:600"><span>Total invested</span><span>${fmt((i.costPrice||0)+(i.shippingCost||0)+(i.packagingCost||0)+bpf+promoCost)}</span></div>
+    </div>
+    ${i.returnHistory&&i.returnHistory.length>0?`
+      <div style="background:var(--surface2);border-radius:10px;padding:14px;margin-bottom:16px;font-size:13px">
+        <div style="font-weight:600;margin-bottom:6px;color:var(--muted)">RETURN HISTORY</div>
+        ${i.returnHistory.map(r=>`<div style="padding:6px 0;border-bottom:1px solid var(--border)">${r.loggedAt||'—'} · ${r.type} · Refund: ${fmt(r.refundAmount||0)}</div>`).join('')}
+      </div>`:''}
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
+      <button class="btn btn-p" onclick="closePanel();editItem('${m}','${id}')">✏️ Edit</button>
+      ${!i.dateSold?`<button class="btn btn-s" onclick="closePanel();markSold('${m}','${id}')">✅ Mark Sold</button>`:''}
+      ${i.dateSold&&!i.isReturned?`<button class="btn btn-s" onclick="closePanel();openReturn('${m}','${id}')">↩️ Log Return</button>`:''}
+      <button class="btn btn-s" onclick="closePanel();duplicateItem('${m}','${id}')">📋 Duplicate</button>
+      <button class="btn btn-s danger" onclick="closePanel();deleteItem('${m}','${id}')">🗑️ Delete</button>
+    </div>
+  `;
+  openPanel(esc(i.item),html);
+}
+
 function toggleSelect(id){
   if(SELECTED_ITEMS.has(id)){SELECTED_ITEMS.delete(id);}else{SELECTED_ITEMS.add(id);}
+  renderMonth();
+}
+
+function selectAllMonth(){
+  const items=(DB[SELECTED_MONTH]||[]);
+  const allSelected=items.length>0&&items.every(i=>SELECTED_ITEMS.has(i.id));
+  if(allSelected){items.forEach(i=>SELECTED_ITEMS.delete(i.id));}
+  else{items.forEach(i=>SELECTED_ITEMS.add(i.id));}
   renderMonth();
 }
 
@@ -824,7 +959,7 @@ function renderStock(){
     if(!i.dateSold && !i.isReturned)allListed.push({...i,month:m});
   }));
   
-  const totalValue=allListed.reduce((s,i)=>s+i.costPrice,0);
+  const totalValue=allListed.reduce((s,i)=>s+(i.salePrice||0),0);
   const potentialProfit=allListed.reduce((s,i)=>s+(calcGrossProfit(i)||0),0);
   
   const html=`
@@ -1281,7 +1416,7 @@ function editItem(m,id){
         <input type="number" id="edit-cost" step="0.01" value="${item.costPrice}">
       </div>
       <div class="fg">
-        <label>Listed Price</label>
+        <label>Listed Price — what buyer pays (£)</label>
         <input type="number" id="edit-price" step="0.01" value="${item.salePrice}">
       </div>
     </div>
@@ -1413,7 +1548,7 @@ function calcYearlyStats(){
         soldItems.push({...i,profit:prof});
       }else if(!i.isReturned){
         listedCount++;
-        stockValue+=i.costPrice||0;
+        stockValue+=i.salePrice||0;
         unrealisedProfit+=calcGrossProfit(i)||0;
         const days=daysBetween(i.dateListed,new Date().toISOString().split('T')[0]);
         if(days>=60)stale.push(i);
@@ -1425,7 +1560,19 @@ function calcYearlyStats(){
   const avgProfit=soldItems.length?realisedProfit/soldItems.length:0;
   const sellThrough=totalItems?soldCount/totalItems*100:0;
   const avgDays=soldItems.length?Math.round(soldItems.reduce((s,i)=>s+daysBetween(i.dateListed,i.dateSold),0)/soldItems.length):0;
-  return{totalRev,realisedProfit,unrealisedProfit,stockValue,soldCount,listedCount,totalItems,avgROI,avgSale,avgProfit,sellThrough,avgDays,stale};
+  // Build category sell-through data
+  const catMap={};
+  MONTHS.forEach(m=>{
+    (DB[m]||[]).forEach(i=>{
+      if((i.item||"").trim().toUpperCase()==="MONTH END")return;
+      const cat=i.category||'Uncategorised';
+      if(!catMap[cat])catMap[cat]={sold:0,total:0};
+      catMap[cat].total++;
+      if(i.dateSold&&!i.isReturned)catMap[cat].sold++;
+    });
+  });
+  const byCat=Object.entries(catMap).map(([cat,v])=>({cat,sold:v.sold,total:v.total,pct:v.total?Math.round(v.sold/v.total*100):0})).sort((a,b)=>b.pct-a.pct);
+  return{totalRev,realisedProfit,unrealisedProfit,stockValue,soldCount,listedCount,totalItems,avgROI,avgSale,avgProfit,sellThrough,avgDays,stale,byCat};
 }
 
 function calcMonthStats(m){
@@ -1439,7 +1586,7 @@ function calcMonthStats(m){
       realisedProfit+=calcGrossProfit(i);
     }else if(!i.isReturned){
       listedCount++;
-      stockValue+=i.costPrice||0;
+      stockValue+=i.salePrice||0;
       unrealisedProfit+=calcGrossProfit(i)||0;
     }
   });
