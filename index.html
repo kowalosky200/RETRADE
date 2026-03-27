@@ -314,6 +314,7 @@ nav{position:sticky;top:0;z-index:200;background:var(--surface);backdrop-filter:
 <div class="page" id="p-stock"></div>
 <div class="page" id="p-expenses"></div>
 <div class="page" id="p-data"></div>
+<div class="page" id="p-search"></div>
 
 <div id="toast"></div>
 
@@ -414,6 +415,7 @@ function goToTab(name){
   else if(name==='stock')renderStock();
   else if(name==='expenses')renderExpenses();
   else if(name==='data')renderData();
+  else if(name==='search')renderSearchResults();
 }
 
 // SEARCH
@@ -495,7 +497,7 @@ function showSearchDropdown(q){
       <div class="sr-price">${price}</div>
     </div>`;
   }).join('');
-  const footer=extra>0?`<div class="search-footer">+${extra} more — keep typing to narrow results</div>`:'';
+  const footer=extra>0?`<div class="search-footer" style="cursor:pointer" onclick="openSearchPage('${esc(q)}')">See all ${_searchResults.length} results for "${esc(q)}" →</div>`:'';
   dd.innerHTML=rows+footer;
   dd.classList.add('open');
 }
@@ -524,7 +526,7 @@ function handleSearchKey(e){
   const count=Math.min(_searchResults.length,8);
   if(e.key==='ArrowDown'){e.preventDefault();setSearchActive(Math.min(_searchIdx+1,count-1));}
   else if(e.key==='ArrowUp'){e.preventDefault();setSearchActive(Math.max(_searchIdx-1,0));}
-  else if(e.key==='Enter'){e.preventDefault();if(_searchIdx>=0)selectSearchResult(_searchIdx);}
+  else if(e.key==='Enter'){e.preventDefault();if(_searchIdx>=0){selectSearchResult(_searchIdx);}else{const q=document.getElementById('global-search').value.trim();if(q)openSearchPage(q);}}
 }
 
 function closeSearchDropdown(){
@@ -542,6 +544,91 @@ function clearSearch(){
   document.getElementById('global-search').value='';
   document.querySelector('.search-clear').classList.remove('show');
   closeSearchDropdown();
+}
+
+function openSearchPage(q){
+  closeSearchDropdown();
+  document.getElementById('global-search').value=q;
+  document.querySelector('.search-clear').classList.add('show');
+  // Switch to search page without using goToTab (no tab element to highlight)
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('on'));
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('on'));
+  document.getElementById('p-search').classList.add('on');
+  renderSearchResults(q);
+}
+
+function renderSearchResults(q){
+  // q may be passed directly or read from the input
+  if(q===undefined)q=document.getElementById('global-search').value.trim();
+  const page=document.getElementById('p-search');
+  if(!q){page.innerHTML='<div style="padding:40px;text-align:center;color:var(--muted)">No search query</div>';return;}
+  const results=searchAllItems(q);
+  const total=results.length;
+  const soldItems=results.filter(i=>i.dateSold&&!i.isReturned);
+  const totalProfit=soldItems.reduce((s,i)=>s+calcGrossProfit(i),0);
+
+  const rows=results.map(i=>{
+    const status=i.isReturned?'returned':i.dateSold?'sold':'listed';
+    const profit=i.dateSold&&!i.isReturned?calcGrossProfit(i):null;
+    const roi=calcROI(i);
+    const icon=CATEGORY_ICONS[i.category]||'📦';
+    return`<div class="item-row" onclick="openItemDetail('${i.month}','${i.id}')">
+      <div class="item-main">
+        <div class="item-header">
+          <div class="item-name">${icon} ${esc(i.item)}</div>
+          <div class="item-badge ${status}">${status}</div>
+          ${i.gid?`<div style="font-size:12px;color:var(--muted);font-family:monospace">${i.gid}</div>`:''}
+        </div>
+        <div class="item-meta">
+          <div class="item-meta-item">📅 ${i.dateListed||'—'}</div>
+          ${i.dateSold?`<div class="item-meta-item">✅ ${i.dateSold}</div>`:''}
+          <div class="item-meta-item">📆 ${i.month}</div>
+          ${i.category?`<div class="item-meta-item">📁 ${esc(i.category)}</div>`:''}
+        </div>
+        <div class="item-meta">
+          <div class="item-meta-item">🏷️ ${fmt(i.salePrice)}</div>
+          ${profit!==null?`<div class="item-meta-item" style="color:var(--green);font-weight:600">Profit: ${fmt(profit)}</div>`:''}
+          ${roi!==null?`<div class="item-meta-item" style="color:var(--muted);font-size:12px">ROI: ${roi.toFixed(1)}%</div>`:''}
+        </div>
+      </div>
+      <div class="item-actions">
+        <button class="btn btn-s" onclick="event.stopPropagation();closePanel();editItem('${i.month}','${i.id}')">✏️</button>
+      </div>
+    </div>`;
+  }).join('');
+
+  const noResults=`<div style="padding:60px 20px;text-align:center;color:var(--muted)">
+    <div style="font-size:48px;margin-bottom:12px">🔍</div>
+    <div style="font-size:18px;font-weight:600;margin-bottom:6px">No results for "${esc(q)}"</div>
+    <div style="font-size:14px">Try a different keyword or category</div>
+  </div>`;
+
+  page.innerHTML=`
+    <div style="padding:20px 24px 0">
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:4px">
+        <button class="btn btn-s" onclick="exitSearchPage()" style="font-size:13px">← Back</button>
+        <div style="font-size:20px;font-weight:700">Search Results</div>
+      </div>
+      <div style="font-size:14px;color:var(--muted);margin-bottom:16px">
+        <strong style="color:var(--text)">${total}</strong> item${total!==1?'s':''} matching <strong style="color:var(--accent)">"${esc(q)}"</strong>
+        ${soldItems.length>0?` · <strong style="color:var(--green)">${soldItems.length} sold</strong> · Total profit: <strong style="color:var(--green)">${fmt(totalProfit)}</strong>`:''}
+      </div>
+    </div>
+    <div style="border-top:1px solid var(--border)">
+      ${total>0?rows:noResults}
+    </div>`;
+}
+
+function exitSearchPage(){
+  document.getElementById('global-search').value='';
+  document.querySelector('.search-clear').classList.remove('show');
+  closeSearchDropdown();
+  // Return to summary
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('on'));
+  document.getElementById('p-summary').classList.add('on');
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('on'));
+  const summaryTab=document.querySelector('.tab[onclick*="summary"]');
+  if(summaryTab)summaryTab.classList.add('on');
 }
 
 // Close dropdown when clicking outside
@@ -1720,7 +1807,7 @@ function editItem(m,id){
       </div>
       <div class="fg">
         <label>Promo %</label>
-        <input type="number" id="edit-promo" step="0.1" value="${item.promoPercent||0}">
+        <input type="number" id="edit-promo" step="0.1" value="${((item.promoPercent||0)*100).toFixed(1).replace(/\.0$/,'')}">
       </div>
     </div>
     <button class="btn btn-p" style="width:100%;margin-top:16px" onclick="saveEdit('${m}','${id}')">Save Changes</button>
@@ -1741,7 +1828,7 @@ function saveEdit(m,id){
   item.postage=parseFloat(document.getElementById('edit-postage').value)||0;
   item.shippingCost=parseFloat(document.getElementById('edit-shipping').value)||0;
   item.packagingCost=parseFloat(document.getElementById('edit-packaging').value)||0;
-  item.promoPercent=parseFloat(document.getElementById('edit-promo').value)||0;
+  item.promoPercent=(parseFloat(document.getElementById('edit-promo').value)||0)/100;
   if(item.dateSold){item.grossProfit=calcGrossProfit(item);}
   saveDB();
   closePanel();
@@ -1811,7 +1898,86 @@ function duplicateItem(m,id){
 }
 
 function openReturn(m,id){
-  toast('Return logging to be implemented');
+  const i=(DB[m]||[]).find(x=>x.id===id);
+  if(!i)return;
+  const today=new Date().toISOString().split('T')[0];
+  const html=`
+    <div style="margin-bottom:16px">
+      <div style="font-size:13px;color:var(--muted);margin-bottom:4px">Item</div>
+      <div style="font-weight:600">${esc(i.item)}</div>
+      <div style="font-size:12px;color:var(--muted)">Sold: ${fmt(i.salePrice)} on ${i.dateSold||'—'}</div>
+    </div>
+    <div class="fg" style="margin-bottom:12px">
+      <label>Return type</label>
+      <select id="rtn-type" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:8px 10px;color:var(--text);font-size:13px">
+        <option value="full_seller">Full refund — seller handled</option>
+        <option value="full_ebay">Full refund — eBay stepped in</option>
+        <option value="partial_seller">Partial refund — seller agreed</option>
+        <option value="partial_ebay">Partial refund — eBay decided</option>
+      </select>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+      <div class="fg">
+        <label>Refund amount (£)</label>
+        <input type="number" id="rtn-refund" step="0.01" value="${(i.salePrice||0).toFixed(2)}" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:8px 10px;color:var(--text);font-size:13px">
+      </div>
+      <div class="fg">
+        <label>Return date</label>
+        <input type="date" id="rtn-date" value="${today}" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:8px 10px;color:var(--text);font-size:13px">
+      </div>
+    </div>
+    <div class="fg" style="margin-bottom:12px">
+      <label>Return postage cost (£) — what you paid to receive it back</label>
+      <input type="number" id="rtn-postage" step="0.01" value="0" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:8px 10px;color:var(--text);font-size:13px">
+    </div>
+    <div class="fg" style="margin-bottom:16px">
+      <label>Notes (optional)</label>
+      <input type="text" id="rtn-notes" placeholder="e.g. buyer claimed not as described" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:8px 10px;color:var(--text);font-size:13px">
+    </div>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-p" style="flex:1" onclick="saveReturn('${m}','${id}')">Log Return</button>
+      <button class="btn btn-s" onclick="closePanel()">Cancel</button>
+    </div>
+  `;
+  openPanel('↩️ Log Return — '+esc(i.item), html);
+}
+
+function saveReturn(m,id){
+  const i=(DB[m]||[]).find(x=>x.id===id);
+  if(!i)return;
+  const type=document.getElementById('rtn-type').value;
+  const refundAmount=parseFloat(document.getElementById('rtn-refund').value)||0;
+  const returnDate=document.getElementById('rtn-date').value;
+  const returnPostage=parseFloat(document.getElementById('rtn-postage').value)||0;
+  const notes=document.getElementById('rtn-notes').value.trim();
+
+  const entry={
+    loggedAt:returnDate,
+    type:type,
+    refundAmount:refundAmount,
+    returnPostage:returnPostage,
+    notes:notes
+  };
+
+  if(!i.returnHistory)i.returnHistory=[];
+  i.returnHistory.push(entry);
+
+  // Mark as fully returned only for full refund types
+  if(type==='full_seller'||type==='full_ebay'){
+    i.isReturned=true;
+    i.dateSold=null; // remove from sold — back to stock
+  }
+  // For partial: keep as sold but log the hit
+  // Add return postage to shippingCost so profit calc reflects it
+  i.shippingCost=(i.shippingCost||0)+returnPostage;
+
+  saveDB();
+  closePanel();
+  toast('Return logged');
+  const cur=document.querySelector('.page.on').id;
+  if(cur==='p-monthly')renderMonth();
+  else if(cur==='p-stock')renderStock();
+  else if(cur==='p-summary')renderSummary();
 }
 
 // STATS
