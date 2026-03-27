@@ -545,24 +545,102 @@ function updateBPFPreview(){
 }
 
 // SUMMARY PAGE
-function toggleSellThrough(card, byCat){
+function toggleSellThroughBar(card, byCat){
   const bd=card.querySelector('.st-breakdown');
   if(bd.style.display==='none'){
     bd.style.display='block';
-    if(!byCat||!byCat.length){bd.innerHTML='<div style="font-size:12px;color:var(--muted)">No category data yet — add categories to items</div>';return;}
+    if(!byCat||!byCat.length){bd.innerHTML='<div style="font-size:12px;color:var(--muted)">No category data yet</div>';return;}
     bd.innerHTML=byCat.map(c=>`
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;font-size:12px">
-        <div style="width:110px;color:var(--text-secondary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${esc(c.cat)}">${esc(c.cat)}</div>
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;font-size:12px">
+        <div style="width:130px;color:var(--text-secondary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${esc(c.cat)}">${esc(c.cat)}</div>
         <div style="flex:1;background:var(--surface2);border-radius:4px;height:8px;overflow:hidden">
           <div style="width:${c.pct}%;background:var(--accent);height:100%;border-radius:4px"></div>
         </div>
-        <div style="width:40px;text-align:right;font-weight:600">${c.pct}%</div>
-        <div style="width:40px;text-align:right;color:var(--muted)">${c.sold}/${c.total}</div>
+        <div style="width:36px;text-align:right;font-weight:600">${c.pct}%</div>
+        <div style="width:36px;text-align:right;color:var(--muted)">${c.sold}/${c.total}</div>
       </div>
     `).join('');
   }else{
     bd.style.display='none';
   }
+}
+
+function showROIItems(){
+  let items=[];
+  MONTHS.forEach(m=>{
+    (DB[m]||[]).forEach(i=>{
+      if((i.item||"").trim().toUpperCase()==="MONTH END")return;
+      if(i.dateSold&&!i.isReturned){
+        const roi=calcROI(i);
+        if(roi!==null)items.push({...i,month:m,_roi:roi});
+      }
+    });
+  });
+  items.sort((a,b)=>b._roi-a._roi);
+  const avgROI=items.length?items.reduce((s,i)=>s+i._roi,0)/items.length:0;
+  const html=`
+    <div style="margin-bottom:16px;display:flex;align-items:center;gap:12px;background:var(--surface2);border-radius:10px;padding:14px">
+      <div style="font-size:28px;font-weight:700;color:var(--accent)">${avgROI.toFixed(1)}%</div>
+      <div><div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px">Average ROI</div><div style="font-size:13px;color:var(--text-secondary)">${items.length} items calculated</div></div>
+    </div>
+    <div style="margin-bottom:12px;font-size:13px;color:var(--muted)">${items.length} sold items — sorted by ROI</div>
+    ${items.map(i=>`
+      <div style="padding:12px;background:var(--surface2);border-radius:8px;margin-bottom:8px;cursor:pointer;border-left:3px solid ${i._roi>=50?'var(--green)':i._roi>=20?'var(--accent)':'var(--muted)'}" onclick="closePanel();openItemDetail('${i.month}','${i.id}')">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+          <div style="flex:1;font-weight:600;font-size:14px">${esc(i.item)}</div>
+          <div style="font-size:16px;font-weight:700;color:${i._roi>=50?'var(--green)':i._roi>=20?'var(--accent)':'var(--text)'}">${i._roi.toFixed(1)}%</div>
+        </div>
+        <div style="display:flex;gap:16px;font-size:12px;color:var(--text-secondary)">
+          <span>Sale: <strong>${fmt(i.salePrice)}</strong></span>
+          <span>Profit: <strong style="color:var(--green)">${fmt(calcGrossProfit(i))}</strong></span>
+          <span style="color:var(--muted)">${i.month}</span>
+        </div>
+      </div>
+    `).join('')}
+  `;
+  openPanel('Avg ROI — All Items',html);
+}
+
+function showAllItemsPanel(defaultFilter){
+  _renderAllItemsPanel(defaultFilter||'sold');
+}
+
+function _renderAllItemsPanel(filter){
+  let soldItems=[],activeItems=[];
+  MONTHS.forEach(m=>{
+    (DB[m]||[]).forEach(i=>{
+      if((i.item||"").trim().toUpperCase()==="MONTH END")return;
+      if(i.dateSold&&!i.isReturned)soldItems.push({...i,month:m});
+      else if(!i.isReturned)activeItems.push({...i,month:m});
+    });
+  });
+  const items=filter==='sold'?soldItems:activeItems;
+  const html=`
+    <div style="display:flex;gap:8px;margin-bottom:16px">
+      <button style="flex:1;padding:10px;border-radius:8px;border:2px solid ${filter==='sold'?'var(--accent)':'var(--border)'};background:${filter==='sold'?'var(--accent)':'var(--surface2)'};color:${filter==='sold'?'#000':'var(--text)'};font-weight:600;cursor:pointer;font-size:13px" onclick="_renderAllItemsPanel('sold')">Sold (${soldItems.length})</button>
+      <button style="flex:1;padding:10px;border-radius:8px;border:2px solid ${filter==='active'?'var(--accent)':'var(--border)'};background:${filter==='active'?'var(--accent)':'var(--surface2)'};color:${filter==='active'?'#000':'var(--text)'};font-weight:600;cursor:pointer;font-size:13px" onclick="_renderAllItemsPanel('active')">Active (${activeItems.length})</button>
+    </div>
+    <div style="margin-bottom:12px;font-size:13px;color:var(--muted)">${items.length} items</div>
+    ${items.map(i=>{
+      const prof=i.dateSold?calcGrossProfit(i):null;
+      const roi=calcROI(i);
+      return`
+        <div style="padding:10px;background:var(--surface2);border-radius:8px;margin-bottom:8px;cursor:pointer" onclick="closePanel();openItemDetail('${i.month}','${i.id}')">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+            <div style="flex:1;font-weight:600;font-size:14px">${esc(i.item)}</div>
+            <div class="item-badge ${i.dateSold?'sold':'listed'}">${i.month}</div>
+          </div>
+          <div style="display:flex;gap:12px;font-size:12px;color:var(--text-secondary);flex-wrap:wrap">
+            <span>${fmt(i.salePrice)}</span>
+            ${prof!==null?`<span style="color:var(--green);font-weight:600">${fmt(prof)}</span>`:''}
+            ${roi!==null?`<span style="color:var(--muted)">ROI ${roi.toFixed(1)}%</span>`:''}
+            ${i.category?`<span>📁 ${esc(i.category)}</span>`:''}
+          </div>
+        </div>
+      `;
+    }).join('')}
+  `;
+  openPanel('All Items',html);
 }
 
 function showFilteredItems(filter){
@@ -577,7 +655,27 @@ function showFilteredItems(filter){
       else if(filter==='stock'&&!sold&&!i.isReturned)items.push({...i,month:m});
     });
   });
-  const titles={revenue:'Sold Items — Revenue',realised:'Sold Items — Realised Profit',unrealised:'Active Listings — Unrealised Profit',stock:'Active Stock'};
+  const titles={revenue:'Total Revenue',realised:'Realised Profit',unrealised:'Unrealised Profit',stock:'Stock Value'};
+  let summaryVal='',summaryLabel='',summaryColor='var(--accent)';
+  if(filter==='revenue'){
+    summaryVal=fmt(items.reduce((s,i)=>s+(i.salePrice||0),0));
+    summaryLabel=`${items.length} sold items`;
+    summaryColor='var(--accent)';
+  }else if(filter==='realised'){
+    const total=items.reduce((s,i)=>s+calcGrossProfit(i),0);
+    const avgROI=items.length?items.reduce((s,i)=>s+(calcROI(i)||0),0)/items.length:0;
+    summaryVal=fmt(total);
+    summaryLabel=`${items.length} items · Avg ROI ${avgROI.toFixed(1)}%`;
+    summaryColor='var(--green)';
+  }else if(filter==='unrealised'){
+    summaryVal=fmt(items.reduce((s,i)=>s+(calcGrossProfit(i)||0),0));
+    summaryLabel=`${items.length} active listings`;
+    summaryColor='var(--purple)';
+  }else if(filter==='stock'){
+    summaryVal=fmt(items.reduce((s,i)=>s+(i.salePrice||0),0));
+    summaryLabel=`${items.length} items listed`;
+    summaryColor='var(--blue)';
+  }
   const cols={
     revenue:i=>`<div style="font-size:12px;margin-top:4px;color:var(--muted)">${i.dateSold} · ${fmt(i.salePrice)}</div>`,
     realised:i=>`<div style="font-size:12px;margin-top:4px"><span style="color:var(--green);font-weight:600">${fmt(calcGrossProfit(i))}</span> · ROI ${calcROI(i)!==null?calcROI(i).toFixed(1)+'%':'—'}</div>`,
@@ -585,7 +683,10 @@ function showFilteredItems(filter){
     stock:i=>`<div style="font-size:12px;margin-top:4px;color:var(--muted)">Listed: ${fmt(i.salePrice)} · Cost: ${fmt(i.costPrice)}</div>`,
   };
   const html=`
-    <div style="margin-bottom:12px;font-size:13px;color:var(--muted)">${items.length} items</div>
+    <div style="margin-bottom:16px;display:flex;align-items:center;gap:12px;background:var(--surface2);border-radius:10px;padding:14px">
+      <div style="font-size:28px;font-weight:700;color:${summaryColor}">${summaryVal}</div>
+      <div><div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px">${titles[filter]}</div><div style="font-size:13px;color:var(--text-secondary)">${summaryLabel}</div></div>
+    </div>
     ${items.map(i=>`
       <div style="padding:10px;background:var(--surface2);border-radius:8px;margin-bottom:8px;cursor:pointer" onclick="closePanel();openItemDetail('${i.month}','${i.id}')">
         <div style="display:flex;align-items:center;gap:8px">
@@ -598,6 +699,7 @@ function showFilteredItems(filter){
   `;
   openPanel(titles[filter]||'Items',html);
 }
+
 
 function renderSummary(){
   const stats=calcYearlyStats();
@@ -645,18 +747,23 @@ function renderSummary(){
       </div>
     `:''}
 
-    <div class="insights">
-      <div class="insight-card clickable" onclick="toggleSellThrough(this,${JSON.stringify(stats.byCat).replace(/"/g,'&quot;')})" style="flex-direction:column;align-items:flex-start;cursor:pointer">
-        <div style="display:flex;align-items:center;gap:12px;width:100%">
-          <div class="insight-icon">📊</div>
-          <div style="flex:1">
-            <div class="insight-label">Sell-through <span style="font-size:11px;color:var(--muted)">(tap for categories)</span></div>
-            <div class="insight-val">${stats.sellThrough.toFixed(1)}%</div>
-            <div class="insight-sub">Of all listings</div>
-          </div>
-        </div>
-        <div class="st-breakdown" style="display:none;width:100%;margin-top:10px;border-top:1px solid var(--border);padding-top:10px"></div>
+    <div class="chart-wrap" style="cursor:pointer;margin-bottom:16px" onclick="toggleSellThroughBar(this,${JSON.stringify(stats.byCat).replace(/"/g,'&quot;')})">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+        <div style="font-size:11px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:1px">📊 Sell-through Rate <span style="font-size:11px;color:var(--muted);font-weight:400">(tap for categories)</span></div>
+        <div style="font-size:24px;font-weight:700;letter-spacing:-0.01em">${Math.min(stats.sellThrough,100).toFixed(1)}%</div>
       </div>
+      <div style="background:var(--surface2);border-radius:8px;height:14px;overflow:hidden;margin-bottom:8px">
+        <div style="width:${Math.min(stats.sellThrough,100)}%;background:var(--accent);height:100%;border-radius:8px;transition:width 0.5s ease"></div>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--muted)">
+        <span>${stats.soldCount} sold</span>
+        <span>${stats.listedCount} active</span>
+        <span>${stats.totalItems} total</span>
+      </div>
+      <div class="st-breakdown" style="display:none;margin-top:14px;border-top:1px solid var(--border);padding-top:14px"></div>
+    </div>
+
+    <div class="insights" style="grid-template-columns:repeat(3,1fr);margin-bottom:32px">
       <div class="insight-card">
         <div class="insight-icon">⏱️</div>
         <div>
