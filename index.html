@@ -25,18 +25,17 @@ body{background:var(--bg);color:var(--text);font-family:'Inter',system-ui,-apple
 
 /* NAV */
 nav{position:sticky;top:0;z-index:200;background:var(--surface);backdrop-filter:blur(12px);border-bottom:1px solid var(--border);box-shadow:0 1px 3px var(--shadow);}
-.nav-inner{max-width:1400px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;padding:12px 20px;gap:12px;flex-wrap:nowrap;min-width:0;}
-.nav-tabs-wrap{display:flex;align-items:center;gap:4px;flex:1;min-width:0;overflow:hidden;}
+.nav-inner{max-width:1400px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;padding:12px 20px;gap:16px;flex-wrap:nowrap;min-width:0;}
 .brand{display:flex;align-items:center;gap:8px;cursor:pointer;user-select:none;transition:opacity 0.15s;}
 .brand:hover{opacity:0.8;}
 .brand-text{font-weight:700;font-size:18px;letter-spacing:-0.02em;}
 .brand-general{color:var(--text);}
 .brand-007{color:var(--accent);}
-.tabs{display:flex;gap:4px;flex-wrap:nowrap;overflow:hidden;min-width:0;}
+.tabs{display:flex;gap:4px;flex-wrap:wrap;}
 .tab{padding:8px 16px;border-radius:8px;border:none;cursor:pointer;font-weight:600;font-size:13px;background:transparent;color:var(--text-secondary);transition:all 0.15s;white-space:nowrap;}
 .tab:hover{color:var(--text);background:var(--surface2);}
 .tab.on{background:var(--accent);color:#000;}
-.nav-more{position:relative;display:none;}
+.nav-more{position:relative;}
 .nav-more-btn{padding:8px 16px;border-radius:8px;border:none;cursor:pointer;font-weight:600;font-size:13px;background:transparent;color:var(--text-secondary);transition:all 0.15s;display:flex;align-items:center;gap:4px;}
 .nav-more-btn:hover{color:var(--text);background:var(--surface2);}
 .nav-more-btn.has-items{display:flex;}
@@ -77,7 +76,7 @@ nav{position:sticky;top:0;z-index:200;background:var(--surface);backdrop-filter:
 .page.on{display:block;}
 
 /* CARDS */
-.kgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(200px,45%),1fr));gap:16px;margin-bottom:32px;}
+.kgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:16px;margin-bottom:32px;}
 .kcard{background:var(--surface);border:2px solid var(--border);border-radius:12px;padding:20px;position:relative;overflow:hidden;cursor:pointer;transition:all 0.2s;box-shadow:0 1px 3px var(--shadow);}
 .kcard.clickable{cursor:pointer;transition:border-color 0.15s,transform 0.1s;}
 .kcard.clickable:hover{border-color:var(--accent);transform:translateY(-1px);}
@@ -188,10 +187,11 @@ nav{position:sticky;top:0;z-index:200;background:var(--surface);backdrop-filter:
 
 /* MOBILE */
 @media (max-width:768px){
-  .nav-inner{padding:10px 16px;gap:8px;}
-  .nav-right{gap:8px;}
-  .search-wrap{width:160px;}
-  .kgrid{grid-template-columns:repeat(2,1fr);gap:10px;}
+  .nav-inner{flex-direction:column;gap:12px;}
+  .tabs{justify-content:center;width:100%;}
+  .nav-right{width:100%;justify-content:center;}
+  .search-wrap{max-width:300px;}
+  .kgrid{grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px;}
   .insights{grid-template-columns:1fr;}
   .chart-wrap{padding:20px 16px;}
   .chart-title{flex-direction:column;align-items:flex-start;}
@@ -577,30 +577,7 @@ function showFilteredItems(filter){
       else if(filter==='stock'&&!sold&&!i.isReturned)items.push({...i,month:m});
     });
   });
-  const titles={revenue:'Total Revenue',realised:'Realised Profit',unrealised:'Unrealised Profit',stock:'Stock Value'};
-
-  // Summary stat for each filter type
-  let summaryVal='', summaryLabel='', summaryColor='var(--accent)';
-  if(filter==='revenue'){
-    summaryVal=fmt(items.reduce((s,i)=>s+(i.salePrice||0),0));
-    summaryLabel=`${items.length} sold items`;
-    summaryColor='var(--accent)';
-  }else if(filter==='realised'){
-    const total=items.reduce((s,i)=>s+calcGrossProfit(i),0);
-    const avgROI=items.length?items.reduce((s,i)=>s+(calcROI(i)||0),0)/items.length:0;
-    summaryVal=fmt(total);
-    summaryLabel=`${items.length} items · Avg ROI ${avgROI.toFixed(1)}%`;
-    summaryColor='var(--green)';
-  }else if(filter==='unrealised'){
-    summaryVal=fmt(items.reduce((s,i)=>s+(calcGrossProfit(i)||0),0));
-    summaryLabel=`${items.length} active listings`;
-    summaryColor='var(--purple)';
-  }else if(filter==='stock'){
-    summaryVal=fmt(items.reduce((s,i)=>s+(i.salePrice||0),0));
-    summaryLabel=`${items.length} items listed`;
-    summaryColor='var(--blue)';
-  }
-
+  const titles={revenue:'Sold Items — Revenue',realised:'Sold Items — Realised Profit',unrealised:'Active Listings — Unrealised Profit',stock:'Active Stock'};
   const cols={
     revenue:i=>`<div style="font-size:12px;margin-top:4px;color:var(--muted)">${i.dateSold} · ${fmt(i.salePrice)}</div>`,
     realised:i=>`<div style="font-size:12px;margin-top:4px"><span style="color:var(--green);font-weight:600">${fmt(calcGrossProfit(i))}</span> · ROI ${calcROI(i)!==null?calcROI(i).toFixed(1)+'%':'—'}</div>`,
@@ -608,10 +585,7 @@ function showFilteredItems(filter){
     stock:i=>`<div style="font-size:12px;margin-top:4px;color:var(--muted)">Listed: ${fmt(i.salePrice)} · Cost: ${fmt(i.costPrice)}</div>`,
   };
   const html=`
-    <div style="margin-bottom:16px;display:flex;align-items:center;gap:12px;background:var(--surface2);border-radius:10px;padding:14px">
-      <div style="font-size:28px;font-weight:700;color:${summaryColor}">${summaryVal}</div>
-      <div><div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px">${titles[filter]}</div><div style="font-size:13px;color:var(--text-secondary)">${summaryLabel}</div></div>
-    </div>
+    <div style="margin-bottom:12px;font-size:13px;color:var(--muted)">${items.length} items</div>
     ${items.map(i=>`
       <div style="padding:10px;background:var(--surface2);border-radius:8px;margin-bottom:8px;cursor:pointer" onclick="closePanel();openItemDetail('${i.month}','${i.id}')">
         <div style="display:flex;align-items:center;gap:8px">
@@ -649,15 +623,15 @@ function renderSummary(){
         <div class="kval">${fmt(stats.stockValue)}</div>
         <div class="ksub">Listed value ›</div>
       </div>
-      <div class="kcard">
+      <div class="kcard clickable" onclick="showROIItems()">
         <div class="klabel">Avg ROI</div>
         <div class="kval">${stats.avgROI.toFixed(1)}%</div>
-        <div class="ksub">Sold items</div>
+        <div class="ksub">Sold items ›</div>
       </div>
-      <div class="kcard">
+      <div class="kcard clickable" onclick="showAllItemsPanel('sold')">
         <div class="klabel">Total Items</div>
         <div class="kval">${stats.totalItems}</div>
-        <div class="ksub">${stats.listedCount} active</div>
+        <div class="ksub">${stats.listedCount} active ›</div>
       </div>
     </div>
 
@@ -1687,38 +1661,36 @@ function toggleNavMore(){
 // Handle responsive navigation
 function handleNavResize(){
   const tabs=document.querySelector('.tabs');
-  const tabButtons=Array.from(tabs.querySelectorAll('.tab'));
-  const moreWrap=tabs.querySelector('.nav-more');
+  const tabButtons=tabs.querySelectorAll('.tab');
   const moreBtn=tabs.querySelector('.nav-more-btn');
-  const moreMenu=document.getElementById('nav-more-menu');
-
+  const moreMenu=tabs.querySelector('.nav-more-menu');
+  
   if(!tabs||!moreBtn||!moreMenu)return;
-
-  // Show all tabs first to measure
-  tabButtons.forEach(t=>{t.style.display='';});
+  
+  // Reset visibility
+  tabButtons.forEach(t=>t.style.display='');
+  moreBtn.classList.remove('has-items');
   moreMenu.innerHTML='';
-  moreWrap.style.display='none';
-
-  // Available width = nav-inner width minus brand minus nav-right minus gaps
-  const navInner=document.querySelector('.nav-inner');
-  const brand=document.querySelector('.brand');
+  
+  // Check if tabs overflow
   const navRight=document.querySelector('.nav-right');
-  const moreBtnWidth=moreBtn.offsetWidth+8;
-  const available=navInner.offsetWidth-(brand?.offsetWidth||0)-(navRight?.offsetWidth||0)-48;
-
-  // Measure all tabs
-  let used=0;
-  const toHide=[];
+  const brandWidth=document.querySelector('.brand')?.offsetWidth||0;
+  const navRightWidth=navRight?.offsetWidth||0;
+  const availableWidth=tabs.parentElement.offsetWidth - brandWidth - navRightWidth - 100;
+  
+  let totalWidth=0;
+  const hiddenTabs=[];
+  
   tabButtons.forEach((tab,idx)=>{
-    used+=tab.offsetWidth+4;
-    if(used+moreBtnWidth>available && idx>=1){
-      toHide.push(tab);
+    totalWidth+=tab.offsetWidth+4;
+    if(totalWidth>availableWidth && idx>=2){
+      hiddenTabs.push(tab);
     }
   });
-
-  if(toHide.length>0){
-    moreWrap.style.display='';
-    toHide.forEach(tab=>{
+  
+  if(hiddenTabs.length>0){
+    moreBtn.classList.add('has-items');
+    hiddenTabs.forEach(tab=>{
       tab.style.display='none';
       const btn=document.createElement('button');
       btn.textContent=tab.textContent;
