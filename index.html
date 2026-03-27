@@ -35,10 +35,9 @@ nav{position:sticky;top:0;z-index:200;background:var(--surface);backdrop-filter:
 .tab{padding:8px 16px;border-radius:8px;border:none;cursor:pointer;font-weight:600;font-size:13px;background:transparent;color:var(--text-secondary);transition:all 0.15s;white-space:nowrap;}
 .tab:hover{color:var(--text);background:var(--surface2);}
 .tab.on{background:var(--accent);color:#000;}
-.nav-more{position:relative;}
+.nav-more{position:relative;display:none;}
 .nav-more-btn{padding:8px 16px;border-radius:8px;border:none;cursor:pointer;font-weight:600;font-size:13px;background:transparent;color:var(--text-secondary);transition:all 0.15s;display:flex;align-items:center;gap:4px;}
 .nav-more-btn:hover{color:var(--text);background:var(--surface2);}
-.nav-more-btn.has-items{display:flex;}
 .nav-more-menu{display:none;position:absolute;top:calc(100% + 4px);right:0;min-width:150px;background:var(--surface);border:1px solid var(--border);border-radius:8px;box-shadow:0 4px 20px var(--shadow-md);z-index:100;overflow:hidden;}
 .nav-more.open .nav-more-menu{display:block;}
 .nav-more-menu button{width:100%;padding:10px 16px;background:none;border:none;text-align:left;cursor:pointer;font-size:13px;font-weight:600;color:var(--text-secondary);transition:all 0.15s;}
@@ -350,82 +349,1346 @@ function updateThemeIcon(theme){
 
 // DATABASE
 function initDB(){
-  const raw=localStorage.getItem(STORAGE_KEY);
-  if(raw){
-    try{DB=JSON.parse(raw);}catch(e){DB={};}
-  }else{
-    // First time - check if we should load sample/imported data
-    DB={};
-  }
-  MONTHS.forEach(m=>{if(!DB[m])DB[m]=[];});
-  if(!DB.trips)DB.trips=[];
-  if(!DB.expenses)DB.expenses=[];
+  const preloadedData = {
+  "JAN": [
+    {
+      "id": "jan_1",
+      "gid": "G007-0001",
+      "item": "MONTH END",
+      "category": "",
+      "location": "",
+      "source": "",
+      "dateListed": "2026-01-31",
+      "dateSold": null,
+      "salePrice": 0.0,
+      "postage": 0.0,
+      "itemCost": 0.0,
+      "shipping": 0.0,
+      "packaging": 0.0,
+      "promoPercent": 0,
+      "notes": "",
+      "parts": [],
+      "returnData": null,
+      "returnHistory": [],
+      "isReturned": false
+    }
+  ],
+  "FEB": [
+    {
+      "id": "feb_1",
+      "gid": "G007-0002",
+      "item": "Grand Turismo 1997 PS1",
+      "category": "",
+      "location": "Bed",
+      "source": "",
+      "dateListed": "2026-02-18",
+      "dateSold": "2026-02-21",
+      "salePrice": 9.99,
+      "postage": 0.0,
+      "itemCost": 1.5,
+      "shipping": 2.7,
+      "packaging": 0.0,
+      "promoPercent": 0.0,
+      "notes": "",
+      "parts": [],
+      "returnData": null,
+      "returnHistory": [],
+      "isReturned": false
+    },
+    {
+      "id": "feb_2",
+      "gid": "G007-0003",
+      "item": "Mag-Lite Torch",
+      "category": "",
+      "location": "Bed",
+      "source": "",
+      "dateListed": "2026-02-19",
+      "dateSold": "2026-03-03",
+      "salePrice": 26.0,
+      "postage": 0.0,
+      "itemCost": 3.25,
+      "shipping": 2.94,
+      "packaging": 0.0,
+      "promoPercent": 0.03,
+      "notes": "",
+      "parts": [],
+      "returnData": null,
+      "returnHistory": [],
+      "isReturned": false
+    },
+    {
+      "id": "feb_3",
+      "gid": "G007-0004",
+      "item": "Band of Brothers",
+      "category": "",
+      "location": "Bed",
+      "source": "",
+      "dateListed": "2026-02-19",
+      "dateSold": null,
+      "salePrice": 9.99,
+      "postage": 0.0,
+      "itemCost": 3.0,
+      "shipping": 2.7,
+      "packaging": 0.0,
+      "promoPercent": 0.05,
+      "notes": "",
+      "parts": [],
+      "returnData": null,
+      "returnHistory": [],
+      "isReturned": false
+    },
+    {
+      "id": "feb_4",
+      "gid": "G007-0005",
+      "item": "Nokia 3410 - Green Mint",
+      "category": "",
+      "location": "A101",
+      "source": "",
+      "dateListed": "2026-02-22",
+      "dateSold": "2026-03-13",
+      "salePrice": 11.0,
+      "postage": 0.0,
+      "itemCost": 2.5,
+      "shipping": 2.7,
+      "packaging": 0.0,
+      "promoPercent": 0.05,
+      "notes": "",
+      "parts": [],
+      "returnData": null,
+      "returnHistory": [],
+      "isReturned": false
+    },
+    {
+      "id": "feb_5",
+      "gid": "G007-0006",
+      "item": "Sony Ericsson T610",
+      "category": "",
+      "location": "A101",
+      "source": "",
+      "dateListed": "2026-02-22",
+      "dateSold": "2026-03-11",
+      "salePrice": 10.5,
+      "postage": 0.0,
+      "itemCost": 2.5,
+      "shipping": 2.7,
+      "packaging": 0.0,
+      "promoPercent": 0.05,
+      "notes": "",
+      "parts": [],
+      "returnData": null,
+      "returnHistory": [],
+      "isReturned": false
+    },
+    {
+      "id": "feb_6",
+      "gid": "G007-0007",
+      "item": "Motorolla W377 Pink",
+      "category": "",
+      "location": "A101",
+      "source": "",
+      "dateListed": "2026-02-22",
+      "dateSold": "2026-03-04",
+      "salePrice": 24.99,
+      "postage": 0.0,
+      "itemCost": 2.5,
+      "shipping": 2.7,
+      "packaging": 0.0,
+      "promoPercent": 0.05,
+      "notes": "",
+      "parts": [],
+      "returnData": null,
+      "returnHistory": [],
+      "isReturned": false
+    },
+    {
+      "id": "feb_7",
+      "gid": "G007-0008",
+      "item": "Blackberry Curve 9320",
+      "category": "",
+      "location": "A101",
+      "source": "",
+      "dateListed": "2026-02-22",
+      "dateSold": "2026-02-27",
+      "salePrice": 14.99,
+      "postage": 0.0,
+      "itemCost": 2.5,
+      "shipping": 2.7,
+      "packaging": 0.0,
+      "promoPercent": 0.05,
+      "notes": "",
+      "parts": [],
+      "returnData": null,
+      "returnHistory": [],
+      "isReturned": false
+    },
+    {
+      "id": "feb_8",
+      "gid": "G007-0009",
+      "item": "LOTR Blue Ray Set - 1 Disc Missing",
+      "category": "",
+      "location": "A101",
+      "source": "",
+      "dateListed": "2026-02-22",
+      "dateSold": "2026-03-06",
+      "salePrice": 23.47,
+      "postage": 0.0,
+      "itemCost": 5.0,
+      "shipping": 2.94,
+      "packaging": 0.0,
+      "promoPercent": 0.05,
+      "notes": "",
+      "parts": [],
+      "returnData": null,
+      "returnHistory": [],
+      "isReturned": false
+    },
+    {
+      "id": "feb_9",
+      "gid": "G007-0010",
+      "item": "Canon 550D - Complete Kit",
+      "category": "",
+      "location": "Bed",
+      "source": "",
+      "dateListed": "2026-02-25",
+      "dateSold": "2026-02-28",
+      "salePrice": 149.99,
+      "postage": 0.0,
+      "itemCost": 80.0,
+      "shipping": 4.88,
+      "packaging": 0.0,
+      "promoPercent": 0.03,
+      "notes": "",
+      "parts": [],
+      "returnData": null,
+      "returnHistory": [],
+      "isReturned": false
+    },
+    {
+      "id": "feb_10",
+      "gid": "G007-0011",
+      "item": "Kids Music Piano Book",
+      "category": "",
+      "location": "Bed",
+      "source": "",
+      "dateListed": "2026-02-25",
+      "dateSold": "2026-03-14",
+      "salePrice": 5.99,
+      "postage": 2.94,
+      "itemCost": 0.2,
+      "shipping": 2.94,
+      "packaging": 0.0,
+      "promoPercent": 0.05,
+      "notes": "",
+      "parts": [],
+      "returnData": null,
+      "returnHistory": [],
+      "isReturned": false
+    },
+    {
+      "id": "feb_11",
+      "gid": "G007-0012",
+      "item": "Star Wars Trilogy VHS Special Edition",
+      "category": "",
+      "location": "A101",
+      "source": "",
+      "dateListed": "2026-02-25",
+      "dateSold": null,
+      "salePrice": 12.99,
+      "postage": 0.0,
+      "itemCost": 2.0,
+      "shipping": 2.94,
+      "packaging": 0.0,
+      "promoPercent": 0.05,
+      "notes": "",
+      "parts": [],
+      "returnData": null,
+      "returnHistory": [],
+      "isReturned": false
+    },
+    {
+      "id": "feb_12",
+      "gid": "G007-0013",
+      "item": "Top Shine Elite Shoe Care Kit",
+      "category": "",
+      "location": "Bed",
+      "source": "",
+      "dateListed": "2026-02-25",
+      "dateSold": null,
+      "salePrice": 39.99,
+      "postage": 0.0,
+      "itemCost": 6.0,
+      "shipping": 2.94,
+      "packaging": 0.0,
+      "promoPercent": 0.05,
+      "notes": "",
+      "parts": [],
+      "returnData": null,
+      "returnHistory": [],
+      "isReturned": false
+    },
+    {
+      "id": "feb_13",
+      "gid": "G007-0014",
+      "item": "Toy Story 3 Mr Potato Tub",
+      "category": "",
+      "location": "Wardrobe",
+      "source": "",
+      "dateListed": "2026-02-26",
+      "dateSold": "2026-03-01",
+      "salePrice": 22.99,
+      "postage": 0.0,
+      "itemCost": 2.5,
+      "shipping": 3.88,
+      "packaging": 0.0,
+      "promoPercent": 0.05,
+      "notes": "",
+      "parts": [],
+      "returnData": null,
+      "returnHistory": [],
+      "isReturned": false
+    },
+    {
+      "id": "feb_14",
+      "gid": "G007-0015",
+      "item": "Grand Turismo PS1 - Manual Only",
+      "category": "",
+      "location": "Wardrobe",
+      "source": "",
+      "dateListed": "2026-02-27",
+      "dateSold": null,
+      "salePrice": 4.99,
+      "postage": 0.0,
+      "itemCost": 2.5,
+      "shipping": 1.0,
+      "packaging": 0.0,
+      "promoPercent": 0.05,
+      "notes": "",
+      "parts": [],
+      "returnData": null,
+      "returnHistory": [],
+      "isReturned": false
+    },
+    {
+      "id": "feb_15",
+      "gid": "G007-0016",
+      "item": "MONTH END",
+      "category": "",
+      "location": "",
+      "source": "",
+      "dateListed": "2026-02-28",
+      "dateSold": null,
+      "salePrice": 367.87000000000006,
+      "postage": 2.94,
+      "itemCost": 115.95,
+      "shipping": 40.66,
+      "packaging": 0.0,
+      "promoPercent": 0.04357142857142858,
+      "notes": "",
+      "parts": [],
+      "returnData": null,
+      "returnHistory": [],
+      "isReturned": false
+    }
+  ],
+  "MAR": [
+    {
+      "id": "mar_1",
+      "gid": "G007-0017",
+      "item": "Power Rangers Complete Season 1",
+      "category": "",
+      "location": "A101",
+      "source": "",
+      "dateListed": "2026-03-02",
+      "dateSold": null,
+      "salePrice": 24.99,
+      "postage": 0.0,
+      "itemCost": 6.0,
+      "shipping": 2.94,
+      "packaging": 0.0,
+      "promoPercent": 0.05,
+      "notes": "",
+      "parts": [],
+      "returnData": null,
+      "returnHistory": [],
+      "isReturned": false
+    },
+    {
+      "id": "mar_2",
+      "gid": "G007-0018",
+      "item": "Google Nest Mini Gen 1 - 1",
+      "category": "",
+      "location": "A101",
+      "source": "",
+      "dateListed": "2026-03-02",
+      "dateSold": "2026-03-04",
+      "salePrice": 23.99,
+      "postage": 0.0,
+      "itemCost": 10.15,
+      "shipping": 2.94,
+      "packaging": 0.0,
+      "promoPercent": 0.05,
+      "notes": "",
+      "parts": [],
+      "returnData": null,
+      "returnHistory": [],
+      "isReturned": false
+    },
+    {
+      "id": "mar_3",
+      "gid": "G007-0019",
+      "item": "The Singing Machine Lights SML283BK",
+      "category": "",
+      "location": "Wardrobe",
+      "source": "",
+      "dateListed": "2026-03-03",
+      "dateSold": null,
+      "salePrice": 49.99,
+      "postage": 0.0,
+      "itemCost": 15.0,
+      "shipping": 3.71,
+      "packaging": 0.0,
+      "promoPercent": 0.05,
+      "notes": "",
+      "parts": [],
+      "returnData": null,
+      "returnHistory": [],
+      "isReturned": false
+    },
+    {
+      "id": "mar_4",
+      "gid": "G007-0020",
+      "item": "George RR Martin Book Set",
+      "category": "",
+      "location": "Bedroom",
+      "source": "",
+      "dateListed": "2026-03-03",
+      "dateSold": "2026-03-06",
+      "salePrice": 29.99,
+      "postage": 0.0,
+      "itemCost": 7.0,
+      "shipping": 2.94,
+      "packaging": 0.0,
+      "promoPercent": 0.05,
+      "notes": "",
+      "parts": [],
+      "returnData": null,
+      "returnHistory": [],
+      "isReturned": false
+    },
+    {
+      "id": "mar_5",
+      "gid": "G007-0021",
+      "item": "Mr & Mrs Potato Head Bundle",
+      "category": "",
+      "location": "Bedroom",
+      "source": "",
+      "dateListed": "2026-03-03",
+      "dateSold": "2026-03-09",
+      "salePrice": 19.99,
+      "postage": 0.0,
+      "itemCost": 2.0,
+      "shipping": 2.94,
+      "packaging": 0.0,
+      "promoPercent": 0.05,
+      "notes": "",
+      "parts": [],
+      "returnData": null,
+      "returnHistory": [],
+      "isReturned": false
+    },
+    {
+      "id": "mar_6",
+      "gid": "G007-0022",
+      "item": "DK Illustrated Family Encyclopedia 16 Books",
+      "category": "",
+      "location": "Wardrobe",
+      "source": "",
+      "dateListed": "2026-03-07",
+      "dateSold": null,
+      "salePrice": 24.99,
+      "postage": 0.0,
+      "itemCost": 6.0,
+      "shipping": 5.88,
+      "packaging": 0.0,
+      "promoPercent": 0.05,
+      "notes": "",
+      "parts": [],
+      "returnData": null,
+      "returnHistory": [],
+      "isReturned": false
+    },
+    {
+      "id": "mar_7",
+      "gid": "G007-0023",
+      "item": "Google Nest Mini Gen 1 - 2",
+      "category": "",
+      "location": "A101",
+      "source": "",
+      "dateListed": "2026-03-07",
+      "dateSold": "2026-03-18",
+      "salePrice": 22.82,
+      "postage": 0.0,
+      "itemCost": 11.2,
+      "shipping": 2.94,
+      "packaging": 0.0,
+      "promoPercent": 0.05,
+      "notes": "",
+      "parts": [],
+      "returnData": null,
+      "returnHistory": [],
+      "isReturned": false
+    },
+    {
+      "id": "mar_8",
+      "gid": "G007-0024",
+      "item": "Google Nest Mini Gen 1 - 3",
+      "category": "",
+      "location": "A101",
+      "source": "",
+      "dateListed": "2026-03-07",
+      "dateSold": null,
+      "salePrice": 23.99,
+      "postage": 0.0,
+      "itemCost": 12.25,
+      "shipping": 2.94,
+      "packaging": 0.0,
+      "promoPercent": 0.05,
+      "notes": "",
+      "parts": [],
+      "returnData": null,
+      "returnHistory": [],
+      "isReturned": false
+    },
+    {
+      "id": "mar_9",
+      "gid": "G007-0025",
+      "item": "Acer Aspire E5-571",
+      "category": "",
+      "location": "Bed",
+      "source": "",
+      "dateListed": "2026-03-08",
+      "dateSold": "2026-03-18",
+      "salePrice": 114.99,
+      "postage": 0.0,
+      "itemCost": 48.59,
+      "shipping": 5.88,
+      "packaging": 0.0,
+      "promoPercent": 0.03,
+      "notes": "",
+      "parts": [],
+      "returnData": null,
+      "returnHistory": [],
+      "isReturned": false
+    },
+    {
+      "id": "mar_10",
+      "gid": "G007-0026",
+      "item": "Canon 600D Astro Mod",
+      "category": "",
+      "location": "Bed",
+      "source": "",
+      "dateListed": "2026-03-08",
+      "dateSold": "2026-03-11",
+      "salePrice": 189.99,
+      "postage": 0.0,
+      "itemCost": 66.85,
+      "shipping": 4.88,
+      "packaging": 0.0,
+      "promoPercent": 0.03,
+      "notes": "",
+      "parts": [],
+      "returnData": null,
+      "returnHistory": [],
+      "isReturned": false
+    },
+    {
+      "id": "mar_11",
+      "gid": "G007-0027",
+      "item": "MSI GeForce GTX 770 4GB Twin Frozr",
+      "category": "",
+      "location": "Bedroom",
+      "source": "",
+      "dateListed": "2026-03-09",
+      "dateSold": null,
+      "salePrice": 54.99,
+      "postage": 0.0,
+      "itemCost": 21.7,
+      "shipping": 2.94,
+      "packaging": 0.0,
+      "promoPercent": 0.05,
+      "notes": "",
+      "parts": [],
+      "returnData": null,
+      "returnHistory": [],
+      "isReturned": false
+    },
+    {
+      "id": "mar_12",
+      "gid": "G007-0028",
+      "item": "Playstation Backpack - Blue",
+      "category": "",
+      "location": "Bed",
+      "source": "",
+      "dateListed": "2026-03-10",
+      "dateSold": null,
+      "salePrice": 24.99,
+      "postage": 0.0,
+      "itemCost": 5.5,
+      "shipping": 2.94,
+      "packaging": 0.0,
+      "promoPercent": 0.05,
+      "notes": "",
+      "parts": [],
+      "returnData": null,
+      "returnHistory": [],
+      "isReturned": false
+    },
+    {
+      "id": "mar_13",
+      "gid": "G007-0029",
+      "item": "Salus RT500RF Wireless Thermostat",
+      "category": "",
+      "location": "Bed",
+      "source": "",
+      "dateListed": "2026-03-11",
+      "dateSold": "2026-03-16",
+      "salePrice": 65.0,
+      "postage": 0.0,
+      "itemCost": 10.0,
+      "shipping": 2.94,
+      "packaging": 0.0,
+      "promoPercent": 0.03,
+      "notes": "",
+      "parts": [],
+      "returnData": null,
+      "returnHistory": [],
+      "isReturned": false
+    },
+    {
+      "id": "mar_14",
+      "gid": "G007-0030",
+      "item": "Siemens Remote Control 13A Adaptor 3 Pack",
+      "category": "",
+      "location": "Bed",
+      "source": "",
+      "dateListed": "2026-03-12",
+      "dateSold": "2026-03-18",
+      "salePrice": 39.99,
+      "postage": 0.0,
+      "itemCost": 2.0,
+      "shipping": 2.94,
+      "packaging": 0.0,
+      "promoPercent": 0.05,
+      "notes": "",
+      "parts": [],
+      "returnData": null,
+      "returnHistory": [],
+      "isReturned": false
+    },
+    {
+      "id": "mar_15",
+      "gid": "G007-0031",
+      "item": "Canon 1300D Full Kit and Lens",
+      "category": "",
+      "location": "Wardrobe",
+      "source": "",
+      "dateListed": "2026-03-13",
+      "dateSold": "2026-03-18",
+      "salePrice": 189.99,
+      "postage": 0.0,
+      "itemCost": 120.99,
+      "shipping": 4.88,
+      "packaging": 0.0,
+      "promoPercent": 0.03,
+      "notes": "",
+      "parts": [],
+      "returnData": null,
+      "returnHistory": [],
+      "isReturned": false
+    },
+    {
+      "id": "mar_16",
+      "gid": "G007-0032",
+      "item": "Apple Magic Touchpad",
+      "category": "",
+      "location": "A101",
+      "source": "",
+      "dateListed": "2026-03-15",
+      "dateSold": "2026-03-15",
+      "salePrice": 22.99,
+      "postage": 0.0,
+      "itemCost": 10.0,
+      "shipping": 2.94,
+      "packaging": 0.0,
+      "promoPercent": 0.03,
+      "notes": "",
+      "parts": [],
+      "returnData": null,
+      "returnHistory": [],
+      "isReturned": false
+    },
+    {
+      "id": "mar_17",
+      "gid": "G007-0033",
+      "item": "Apple Magic Keyboard 1314 - 1",
+      "category": "",
+      "location": "A101",
+      "source": "",
+      "dateListed": "2026-03-15",
+      "dateSold": null,
+      "salePrice": 19.99,
+      "postage": 0.0,
+      "itemCost": 10.0,
+      "shipping": 4.88,
+      "packaging": 0.0,
+      "promoPercent": 0.03,
+      "notes": "",
+      "parts": [],
+      "returnData": null,
+      "returnHistory": [],
+      "isReturned": false
+    },
+    {
+      "id": "mar_18",
+      "gid": "G007-0034",
+      "item": "Apple Magic Keyboard 1314 -2 (sold 2 - 1 rtn)",
+      "category": "",
+      "location": "A101",
+      "source": "",
+      "dateListed": "2026-03-15",
+      "dateSold": "2026-03-18",
+      "salePrice": 19.99,
+      "postage": 0.0,
+      "itemCost": 10.0,
+      "shipping": 4.63,
+      "packaging": 0.0,
+      "promoPercent": 0.03,
+      "notes": "",
+      "parts": [],
+      "returnData": null,
+      "returnHistory": [],
+      "isReturned": false
+    },
+    {
+      "id": "mar_19",
+      "gid": "G007-0035",
+      "item": "Job Lot Magic Keyboards 1314/1255/1655 (one returned)",
+      "category": "",
+      "location": "Bag",
+      "source": "",
+      "dateListed": "2026-03-15",
+      "dateSold": null,
+      "salePrice": 14.99,
+      "postage": 2.94,
+      "itemCost": 2.94,
+      "shipping": 2.94,
+      "packaging": 0.0,
+      "promoPercent": 0.03,
+      "notes": "",
+      "parts": [],
+      "returnData": null,
+      "returnHistory": [],
+      "isReturned": false
+    },
+    {
+      "id": "mar_20",
+      "gid": "G007-0036",
+      "item": "HUSKY Tyre Chains",
+      "category": "",
+      "location": "Bedroom",
+      "source": "",
+      "dateListed": "2026-03-16",
+      "dateSold": null,
+      "salePrice": 39.99,
+      "postage": 0.0,
+      "itemCost": 15.0,
+      "shipping": 5.21,
+      "packaging": 0.0,
+      "promoPercent": 0.05,
+      "notes": "",
+      "parts": [],
+      "returnData": null,
+      "returnHistory": [],
+      "isReturned": false
+    },
+    {
+      "id": "mar_21",
+      "gid": "G007-0037",
+      "item": "Samsung TV with remote",
+      "category": "",
+      "location": "Bedroom",
+      "source": "",
+      "dateListed": "2026-03-17",
+      "dateSold": null,
+      "salePrice": 47.5,
+      "postage": 0.0,
+      "itemCost": 7.5,
+      "shipping": 5.21,
+      "packaging": 0.0,
+      "promoPercent": 0.05,
+      "notes": "",
+      "parts": [],
+      "returnData": null,
+      "returnHistory": [],
+      "isReturned": false
+    },
+    {
+      "id": "mar_22",
+      "gid": "G007-0038",
+      "item": "Geermac Amplidect 295",
+      "category": "",
+      "location": "Bed",
+      "source": "",
+      "dateListed": "2026-03-19",
+      "dateSold": "2026-03-26",
+      "salePrice": 34.99,
+      "postage": 0.0,
+      "itemCost": 10.0,
+      "shipping": 2.94,
+      "packaging": 0.0,
+      "promoPercent": 0.05,
+      "notes": "",
+      "parts": [],
+      "returnData": null,
+      "returnHistory": [],
+      "isReturned": false
+    },
+    {
+      "id": "mar_23",
+      "gid": "G007-0039",
+      "item": "Sony Walkman Docking Speaker",
+      "category": "",
+      "location": "Desk",
+      "source": "",
+      "dateListed": "2026-03-20",
+      "dateSold": null,
+      "salePrice": 19.99,
+      "postage": 0.0,
+      "itemCost": 2.0,
+      "shipping": 2.94,
+      "packaging": 0.0,
+      "promoPercent": 0.05,
+      "notes": "",
+      "parts": [],
+      "returnData": null,
+      "returnHistory": [],
+      "isReturned": false
+    },
+    {
+      "id": "mar_24",
+      "gid": "G007-0040",
+      "item": "Monopoly Original Hasbro Board Game",
+      "category": "",
+      "location": "Desk",
+      "source": "",
+      "dateListed": "2026-03-20",
+      "dateSold": null,
+      "salePrice": 19.99,
+      "postage": 0.0,
+      "itemCost": 3.33,
+      "shipping": 2.94,
+      "packaging": 0.0,
+      "promoPercent": 0.05,
+      "notes": "",
+      "parts": [],
+      "returnData": null,
+      "returnHistory": [],
+      "isReturned": false
+    },
+    {
+      "id": "mar_25",
+      "gid": "G007-0041",
+      "item": "Azatom Docking Station HouseDance-Max",
+      "category": "",
+      "location": "Desk",
+      "source": "",
+      "dateListed": "2026-03-20",
+      "dateSold": null,
+      "salePrice": 24.99,
+      "postage": 0.0,
+      "itemCost": 5.99,
+      "shipping": 2.94,
+      "packaging": 0.0,
+      "promoPercent": 0.05,
+      "notes": "",
+      "parts": [],
+      "returnData": null,
+      "returnHistory": [],
+      "isReturned": false
+    },
+    {
+      "id": "mar_26",
+      "gid": "G007-0042",
+      "item": "Saitek Cyborg Evo USB Joystick",
+      "category": "",
+      "location": "Desk",
+      "source": "",
+      "dateListed": "2026-03-20",
+      "dateSold": null,
+      "salePrice": 24.99,
+      "postage": 0.0,
+      "itemCost": 5.99,
+      "shipping": 2.94,
+      "packaging": 0.0,
+      "promoPercent": 0.03,
+      "notes": "",
+      "parts": [],
+      "returnData": null,
+      "returnHistory": [],
+      "isReturned": false
+    },
+    {
+      "id": "mar_27",
+      "gid": "G007-0043",
+      "item": "BT4600 Twin Landline Phone",
+      "category": "",
+      "location": "Desk",
+      "source": "",
+      "dateListed": "2026-03-20",
+      "dateSold": null,
+      "salePrice": 24.99,
+      "postage": 0.0,
+      "itemCost": 2.0,
+      "shipping": 2.94,
+      "packaging": 0.0,
+      "promoPercent": 0.03,
+      "notes": "",
+      "parts": [],
+      "returnData": null,
+      "returnHistory": [],
+      "isReturned": false
+    },
+    {
+      "id": "mar_28",
+      "gid": "G007-0044",
+      "item": "Saturn V Space Rocket Blocks Building Set",
+      "category": "",
+      "location": "Wardrobe",
+      "source": "",
+      "dateListed": "2026-03-20",
+      "dateSold": null,
+      "salePrice": 34.99,
+      "postage": 0.0,
+      "itemCost": 10.0,
+      "shipping": 2.94,
+      "packaging": 0.0,
+      "promoPercent": 0.05,
+      "notes": "",
+      "parts": [],
+      "returnData": null,
+      "returnHistory": [],
+      "isReturned": false
+    },
+    {
+      "id": "mar_29",
+      "gid": "G007-0045",
+      "item": "Big Button Phone for Elderly - 1",
+      "category": "",
+      "location": "Desk",
+      "source": "",
+      "dateListed": "2026-03-20",
+      "dateSold": null,
+      "salePrice": 29.99,
+      "postage": 0.0,
+      "itemCost": 3.33,
+      "shipping": 2.94,
+      "packaging": 0.0,
+      "promoPercent": 0.05,
+      "notes": "",
+      "parts": [],
+      "returnData": null,
+      "returnHistory": [],
+      "isReturned": false
+    },
+    {
+      "id": "mar_30",
+      "gid": "G007-0046",
+      "item": "Big Button Phone for Elderly - 2",
+      "category": "",
+      "location": "Desk",
+      "source": "",
+      "dateListed": "2026-03-20",
+      "dateSold": null,
+      "salePrice": 29.99,
+      "postage": 0.0,
+      "itemCost": 3.33,
+      "shipping": 2.94,
+      "packaging": 0.0,
+      "promoPercent": 0.05,
+      "notes": "",
+      "parts": [],
+      "returnData": null,
+      "returnHistory": [],
+      "isReturned": false
+    },
+    {
+      "id": "mar_31",
+      "gid": "G007-0047",
+      "item": "Chad Valley Chess Board",
+      "category": "",
+      "location": "Bed",
+      "source": "",
+      "dateListed": "2026-03-21",
+      "dateSold": null,
+      "salePrice": 9.99,
+      "postage": 2.94,
+      "itemCost": 1.0,
+      "shipping": 2.94,
+      "packaging": 0.0,
+      "promoPercent": 0.05,
+      "notes": "",
+      "parts": [],
+      "returnData": null,
+      "returnHistory": [],
+      "isReturned": false
+    },
+    {
+      "id": "mar_32",
+      "gid": "G007-0048",
+      "item": "Sony WH-100XM4 WIreless",
+      "category": "",
+      "location": "Desk",
+      "source": "",
+      "dateListed": "2026-03-22",
+      "dateSold": "2026-03-23",
+      "salePrice": 85.0,
+      "postage": 0.0,
+      "itemCost": 35.0,
+      "shipping": 2.94,
+      "packaging": 0.0,
+      "promoPercent": 0.03,
+      "notes": "",
+      "parts": [],
+      "returnData": null,
+      "returnHistory": [],
+      "isReturned": false
+    },
+    {
+      "id": "mar_33",
+      "gid": "G007-0049",
+      "item": "Solar Powered 1080p Security Camera",
+      "category": "",
+      "location": "Desk",
+      "source": "",
+      "dateListed": "2026-03-22",
+      "dateSold": "2026-03-24",
+      "salePrice": 25.0,
+      "postage": 0.0,
+      "itemCost": 2.0,
+      "shipping": 2.94,
+      "packaging": 0.0,
+      "promoPercent": 0.05,
+      "notes": "",
+      "parts": [],
+      "returnData": null,
+      "returnHistory": [],
+      "isReturned": false
+    },
+    {
+      "id": "mar_34",
+      "gid": "G007-0050",
+      "item": "Yamaha PSR-75 No PSU",
+      "category": "",
+      "location": "Bedroom",
+      "source": "",
+      "dateListed": "2026-03-22",
+      "dateSold": "2026-03-25",
+      "salePrice": 19.0,
+      "postage": 0.0,
+      "itemCost": 3.0,
+      "shipping": 3.71,
+      "packaging": 0.0,
+      "promoPercent": 0.05,
+      "notes": "",
+      "parts": [],
+      "returnData": null,
+      "returnHistory": [],
+      "isReturned": false
+    },
+    {
+      "id": "mar_35",
+      "gid": "G007-0051",
+      "item": "Netgear N300 Wireless Router",
+      "category": "",
+      "location": "Bed",
+      "source": "",
+      "dateListed": "2026-03-25",
+      "dateSold": null,
+      "salePrice": 19.99,
+      "postage": 0.0,
+      "itemCost": 5.0,
+      "shipping": 2.94,
+      "packaging": 0.0,
+      "promoPercent": 0.03,
+      "notes": "",
+      "parts": [],
+      "returnData": null,
+      "returnHistory": [],
+      "isReturned": false
+    },
+    {
+      "id": "mar_36",
+      "gid": "G007-0052",
+      "item": "Smarter FridgeCam",
+      "category": "",
+      "location": "Desk",
+      "source": "",
+      "dateListed": "2026-03-25",
+      "dateSold": null,
+      "salePrice": 24.99,
+      "postage": 0.0,
+      "itemCost": 0.0,
+      "shipping": 2.94,
+      "packaging": 0.0,
+      "promoPercent": 0.03,
+      "notes": "",
+      "parts": [],
+      "returnData": null,
+      "returnHistory": [],
+      "isReturned": false
+    },
+    {
+      "id": "mar_37",
+      "gid": "G007-0053",
+      "item": "MONTH END",
+      "category": "",
+      "location": "",
+      "source": "",
+      "dateListed": "2026-03-31",
+      "dateSold": null,
+      "salePrice": 1495.0200000000002,
+      "postage": 5.88,
+      "itemCost": 492.63999999999993,
+      "shipping": 125.30999999999995,
+      "packaging": 0.0,
+      "promoPercent": 0.0427777777777778,
+      "notes": "",
+      "parts": [],
+      "returnData": null,
+      "returnHistory": [],
+      "isReturned": false
+    }
+  ],
+  "APR": [
+    {
+      "id": "apr_1",
+      "gid": "G007-0054",
+      "item": "MONTH END",
+      "category": "",
+      "location": "",
+      "source": "",
+      "dateListed": "2026-03-31",
+      "dateSold": null,
+      "salePrice": 0.0,
+      "postage": 0.0,
+      "itemCost": 0.0,
+      "shipping": 0.0,
+      "packaging": 0.0,
+      "promoPercent": 0,
+      "notes": "",
+      "parts": [],
+      "returnData": null,
+      "returnHistory": [],
+      "isReturned": false
+    }
+  ],
+  "MAY": [
+    {
+      "id": "may_1",
+      "gid": "G007-0055",
+      "item": "MONTH END",
+      "category": "",
+      "location": "",
+      "source": "",
+      "dateListed": "2026-03-31",
+      "dateSold": null,
+      "salePrice": 0.0,
+      "postage": 0.0,
+      "itemCost": 0.0,
+      "shipping": 0.0,
+      "packaging": 0.0,
+      "promoPercent": 0,
+      "notes": "",
+      "parts": [],
+      "returnData": null,
+      "returnHistory": [],
+      "isReturned": false
+    }
+  ],
+  "JUN": [
+    {
+      "id": "jun_1",
+      "gid": "G007-0056",
+      "item": "MONTH END",
+      "category": "",
+      "location": "",
+      "source": "",
+      "dateListed": "2026-03-31",
+      "dateSold": null,
+      "salePrice": 0.0,
+      "postage": 0.0,
+      "itemCost": 0.0,
+      "shipping": 0.0,
+      "packaging": 0.0,
+      "promoPercent": 0,
+      "notes": "",
+      "parts": [],
+      "returnData": null,
+      "returnHistory": [],
+      "isReturned": false
+    }
+  ],
+  "JUL": [
+    {
+      "id": "jul_1",
+      "gid": "G007-0057",
+      "item": "MONTH END",
+      "category": "",
+      "location": "",
+      "source": "",
+      "dateListed": "2026-03-31",
+      "dateSold": null,
+      "salePrice": 0.0,
+      "postage": 0.0,
+      "itemCost": 0.0,
+      "shipping": 0.0,
+      "packaging": 0.0,
+      "promoPercent": 0,
+      "notes": "",
+      "parts": [],
+      "returnData": null,
+      "returnHistory": [],
+      "isReturned": false
+    }
+  ],
+  "AUG": [
+    {
+      "id": "aug_1",
+      "gid": "G007-0058",
+      "item": "MONTH END",
+      "category": "",
+      "location": "",
+      "source": "",
+      "dateListed": "2026-03-31",
+      "dateSold": null,
+      "salePrice": 0.0,
+      "postage": 0.0,
+      "itemCost": 0.0,
+      "shipping": 0.0,
+      "packaging": 0.0,
+      "promoPercent": 0,
+      "notes": "",
+      "parts": [],
+      "returnData": null,
+      "returnHistory": [],
+      "isReturned": false
+    }
+  ],
+  "SEP": [
+    {
+      "id": "sep_1",
+      "gid": "G007-0059",
+      "item": "MONTH END",
+      "category": "",
+      "location": "",
+      "source": "",
+      "dateListed": "2026-03-31",
+      "dateSold": null,
+      "salePrice": 0.0,
+      "postage": 0.0,
+      "itemCost": 0.0,
+      "shipping": 0.0,
+      "packaging": 0.0,
+      "promoPercent": 0,
+      "notes": "",
+      "parts": [],
+      "returnData": null,
+      "returnHistory": [],
+      "isReturned": false
+    }
+  ],
+  "OCT": [
+    {
+      "id": "oct_1",
+      "gid": "G007-0060",
+      "item": "MONTH END",
+      "category": "",
+      "location": "",
+      "source": "",
+      "dateListed": "2026-03-31",
+      "dateSold": null,
+      "salePrice": 0.0,
+      "postage": 0.0,
+      "itemCost": 0.0,
+      "shipping": 0.0,
+      "packaging": 0.0,
+      "promoPercent": 0,
+      "notes": "",
+      "parts": [],
+      "returnData": null,
+      "returnHistory": [],
+      "isReturned": false
+    }
+  ],
+  "NOV": [
+    {
+      "id": "nov_1",
+      "gid": "G007-0061",
+      "item": "MONTH END",
+      "category": "",
+      "location": "",
+      "source": "",
+      "dateListed": "2026-03-31",
+      "dateSold": null,
+      "salePrice": 0.0,
+      "postage": 0.0,
+      "itemCost": 0.0,
+      "shipping": 0.0,
+      "packaging": 0.0,
+      "promoPercent": 0,
+      "notes": "",
+      "parts": [],
+      "returnData": null,
+      "returnHistory": [],
+      "isReturned": false
+    }
+  ],
+  "DEC": [
+    {
+      "id": "dec_1",
+      "gid": "G007-0062",
+      "item": "MONTH END",
+      "category": "",
+      "location": "",
+      "source": "",
+      "dateListed": "2026-03-31",
+      "dateSold": null,
+      "salePrice": 0.0,
+      "postage": 0.0,
+      "itemCost": 0.0,
+      "shipping": 0.0,
+      "packaging": 0.0,
+      "promoPercent": 0,
+      "notes": "",
+      "parts": [],
+      "returnData": null,
+      "returnHistory": [],
+      "isReturned": false
+    }
+  ]
+};
   
-  // If database is completely empty, offer to import from Excel
-  const totalItems=MONTHS.reduce((sum,m)=>(DB[m]||[]).length,0);
-  if(totalItems===0 && !sessionStorage.getItem('import_offered')){
-    sessionStorage.setItem('import_offered','1');
-    setTimeout(()=>{
-      if(confirm('Welcome! Would you like to import your existing data from an Excel file?')){
-        document.getElementById('import-excel').click();
-      }
-    },1000);
-  }
-}
-function saveDB(){
-  localStorage.setItem(STORAGE_KEY,JSON.stringify(DB));
-}
-
-// BUYER PROTECTION FEE (Tiered eBay UK formula)
-function calcBuyerProtectionFee(listedPrice){
-  if(!listedPrice||listedPrice<=0)return 0;
-  let fee=0.10;
-  if(listedPrice<=20){
-    fee+=listedPrice*0.07;
-  }else if(listedPrice<=300){
-    fee+=(20*0.07)+((listedPrice-20)*0.04);
-  }else if(listedPrice<=4000){
-    fee+=(20*0.07)+(280*0.04)+((listedPrice-300)*0.02);
+  // Check if localStorage is empty, if so load preloaded data
+  const existing = localStorage.getItem('g007v23');
+  if(!existing || existing === '{}' || existing === 'null'){
+    console.log('📦 Loading preloaded data (62 items from Excel)');
+    DB = preloadedData;
+    saveDB();
   }else{
-    fee+=(20*0.07)+(280*0.04)+(3700*0.02);
+    const parsed = JSON.parse(existing);
+    DB = parsed;
   }
-  return fee;
-}
 
-// NAVIGATION
-function goToTab(name){
-  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('on'));
-  document.querySelectorAll('.page').forEach(p=>p.classList.remove('on'));
-  event.target.classList.add('on');
-  document.getElementById('p-'+name).classList.add('on');
-  if(name==='summary')renderSummary();
-  else if(name==='monthly')renderMonth();
-  else if(name==='stock')renderStock();
-  else if(name==='expenses')renderExpenses();
-  else if(name==='data')renderData();
-}
-
-// SEARCH
-function handleSearch(q){
-  const clear=document.querySelector('.search-clear');
-  if(q.trim()){clear.classList.add('show');}else{clear.classList.remove('show');}
-}
-function clearSearch(){
-  document.getElementById('global-search').value='';
-  document.querySelector('.search-clear').classList.remove('show');
-}
-
-// PANEL
-function openPanel(title,content){
-  document.getElementById('panel-title').textContent=title;
-  document.getElementById('panel-content').innerHTML=content;
-  document.getElementById('panel-overlay').classList.add('on');
-  document.getElementById('slide-panel').classList.add('on');
-}
-function closePanel(){
-  document.getElementById('panel-overlay').classList.remove('on');
-  document.getElementById('slide-panel').classList.remove('on');
-}
 
 function openQuickAdd(){
   const html=`
@@ -1519,47 +2782,73 @@ function toggleNavMore(){
 // Handle responsive navigation
 function handleNavResize(){
   const tabs=document.querySelector('.tabs');
-  const tabButtons=tabs.querySelectorAll('.tab');
-  const moreBtn=tabs.querySelector('.nav-more-btn');
-  const moreMenu=tabs.querySelector('.nav-more-menu');
+  const tabButtons=Array.from(tabs.querySelectorAll('.tab'));
+  const navMore=tabs.querySelector('.nav-more');
+  const moreBtn=navMore?.querySelector('.nav-more-btn');
+  const moreMenu=navMore?.querySelector('.nav-more-menu');
   
   if(!tabs||!moreBtn||!moreMenu)return;
   
   // Reset visibility
   tabButtons.forEach(t=>t.style.display='');
-  moreBtn.classList.remove('has-items');
+  navMore.style.display='none';
   moreMenu.innerHTML='';
   
-  // Check if tabs overflow
+  // Calculate available space
+  const navInner=document.querySelector('.nav-inner');
+  const brand=document.querySelector('.brand');
   const navRight=document.querySelector('.nav-right');
-  const brandWidth=document.querySelector('.brand')?.offsetWidth||0;
-  const navRightWidth=navRight?.offsetWidth||0;
-  const availableWidth=tabs.parentElement.offsetWidth - brandWidth - navRightWidth - 100;
   
-  let totalWidth=0;
+  const navWidth=navInner.offsetWidth;
+  const brandWidth=brand.offsetWidth;
+  const navRightWidth=navRight.offsetWidth;
+  const moreWidth=80; // Estimated width for More button
+  const padding=60; // Breathing room
+  
+  const availableWidth=navWidth - brandWidth - navRightWidth - moreWidth - padding;
+  
+  // Check which tabs fit
+  let usedWidth=0;
+  const visibleTabs=[];
   const hiddenTabs=[];
   
   tabButtons.forEach((tab,idx)=>{
-    totalWidth+=tab.offsetWidth+4;
-    if(totalWidth>availableWidth && idx>=2){
+    const tabWidth=tab.offsetWidth+4; // +4 for gap
+    if(usedWidth+tabWidth<=availableWidth){
+      usedWidth+=tabWidth;
+      visibleTabs.push(tab);
+    }else{
       hiddenTabs.push(tab);
     }
   });
   
+  // If tabs overflow, show More menu
   if(hiddenTabs.length>0){
-    moreBtn.classList.add('has-items');
+    navMore.style.display='block';
     hiddenTabs.forEach(tab=>{
       tab.style.display='none';
       const btn=document.createElement('button');
       btn.textContent=tab.textContent;
       btn.className=tab.classList.contains('on')?'on':'';
-      btn.onclick=tab.onclick;
+      btn.onclick=()=>{
+        // Close menu first
+        navMore.classList.remove('open');
+        // Then execute tab's onclick
+        if(tab.onclick)tab.onclick();
+      };
       moreMenu.appendChild(btn);
     });
   }
 }
 
-window.addEventListener('resize',handleNavResize);
+// Debounce helper
+let _resizeTimeout;
+function debouncedNavResize(){
+  clearTimeout(_resizeTimeout);
+  _resizeTimeout=setTimeout(handleNavResize,100);
+}
+
+window.addEventListener('resize',debouncedNavResize);
 window.addEventListener('load',handleNavResize);
 
 function fmt(n){
