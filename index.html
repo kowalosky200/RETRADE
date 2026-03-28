@@ -251,7 +251,9 @@ nav{position:sticky;top:0;z-index:200;background:var(--surface);backdrop-filter:
   .nav-right{width:100%;justify-content:center;}
   .search-wrap{max-width:300px;}
   .kgrid{grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px;}
-  .insights{grid-template-columns:1fr;}
+  .insights{grid-template-columns:1fr 1fr;}
+  .insight-label{font-size:9px;}
+  .insight-val{font-size:18px;}
   .chart-wrap{padding:20px 16px;}
   .chart-title{flex-direction:column;align-items:flex-start;}
   .chart-legend{margin-left:0;}
@@ -414,6 +416,7 @@ nav{position:sticky;top:0;z-index:200;background:var(--surface);backdrop-filter:
       <button class="tab" data-tab="monthly" onclick="goToTab('monthly',this)">Monthly</button>
       <button class="tab" data-tab="stock" onclick="goToTab('stock',this)">Stock</button>
       <button class="tab" data-tab="expenses" onclick="goToTab('expenses',this)">Expenses</button>
+      <button class="tab" data-tab="tax" onclick="goToTab('tax',this)">Tax / SA103</button>
       <button class="tab" data-tab="data" onclick="goToTab('data',this)">Data</button>
       <div class="nav-more">
         <button class="nav-more-btn" onclick="event.stopPropagation();toggleNavMore()">
@@ -455,6 +458,7 @@ nav{position:sticky;top:0;z-index:200;background:var(--surface);backdrop-filter:
 <div class="page" id="p-monthly"></div>
 <div class="page" id="p-stock"></div>
 <div class="page" id="p-expenses"></div>
+<div class="page" id="p-tax"></div>
 <div class="page" id="p-data"></div>
 <div class="page" id="p-search"></div>
 <div class="page" id="p-item"></div>
@@ -612,6 +616,7 @@ function goToTab(name,sourceEl){
   else if(name==='monthly')renderMonth();
   else if(name==='stock')renderStock();
   else if(name==='expenses')renderExpenses();
+  else if(name==='tax')renderTax();
   else if(name==='data')renderData();
   else if(name==='search')renderSearchResults();
 }
@@ -630,7 +635,7 @@ function exitItemPage(){
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('on'));
   const origin=_itemPageOrigin||'p-summary';
   document.getElementById(origin).classList.add('on');
-  const tabMap={'p-summary':'summary','p-monthly':'monthly','p-stock':'stock','p-expenses':'expenses','p-data':'data'};
+  const tabMap={'p-summary':'summary','p-monthly':'monthly','p-stock':'stock','p-expenses':'expenses','p-tax':'tax','p-data':'data'};
   const tabName=tabMap[origin];
   if(tabName){const tab=document.querySelector('.tab[onclick*="'+tabName+'"]');if(tab)tab.classList.add('on');}
   if(origin==='p-monthly')renderMonth();
@@ -1233,17 +1238,18 @@ function toggleSellThroughBar(card,byCat){
   if(bd.style.display==='none'){
     bd.style.display='block';
     if(!byCat||!byCat.length){bd.innerHTML='<div style="font-size:12px;color:var(--muted)">No category data yet</div>';return;}
-    bd.innerHTML=byCat.map(c=>`
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;font-size:12px;cursor:pointer;border-radius:6px;padding:4px;transition:background 0.15s" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background=''" onclick="showCategoryItems(${JSON.stringify(c.cat).replace(/"/g,'&quot;')})">
+    bd.innerHTML=byCat.map(c=>{
+      const barColor=c.pct>=70?'var(--green)':c.pct>=40?'var(--warn)':'var(--red)';
+      return`<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;font-size:12px;cursor:pointer;border-radius:6px;padding:4px;transition:background 0.15s" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background=''" onclick="showCategoryItems(${JSON.stringify(c.cat).replace(/"/g,'&quot;')})">
         <div style="width:130px;color:var(--text-secondary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${esc(c.cat)}">${esc(c.cat)}</div>
-        <div style="flex:1;background:var(--surface2);border-radius:4px;height:8px;overflow:hidden">
-          <div style="width:${c.pct}%;background:var(--accent);height:100%;border-radius:4px"></div>
+        <div style="flex:1;background:var(--surface2);border-radius:4px;height:8px;overflow:hidden;position:relative;">
+          <div style="width:${c.pct}%;background:${barColor};height:100%;border-radius:4px;transition:width 0.4s ease;"></div>
         </div>
-        <div style="width:36px;text-align:right;font-weight:600">${c.pct}%</div>
+        <div style="width:36px;text-align:right;font-weight:600;color:${barColor}">${c.pct}%</div>
         <div style="width:36px;text-align:right;color:var(--muted)">${c.sold}/${c.total}</div>
         <div style="color:var(--muted);font-size:10px">›</div>
-      </div>
-    `).join('');
+      </div>`;
+    }).join('');
   }else{bd.style.display='none';}
 }
 
@@ -1311,6 +1317,77 @@ function showROIItems(){
       </div>
     `).join('')}`;
   openPanel('Avg ROI — All Items',html);
+}
+
+function showReturnedItems(){
+  let items=[];
+  MONTHS.forEach(m=>{(DB[m]||[]).forEach(i=>{
+    if((i.item||'').trim().toUpperCase()==='MONTH END')return;
+    if(i.isReturned)items.push({...i,month:m});
+  });});
+  const totalLoss=items.reduce((s,i)=>s+calcGrossProfit(i),0);
+  const html=`
+    <div style="margin-bottom:16px;background:var(--surface2);border-radius:10px;padding:14px">
+      <div style="display:flex;align-items:center;gap:12px">
+        <div style="font-size:28px;font-weight:700;color:var(--red)">${items.length}</div>
+        <div>
+          <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px">Total Returns</div>
+          <div style="font-size:13px;color:var(--text-secondary)">Net impact: <span style="color:${totalLoss>=0?'var(--green)':'var(--red)'};font-weight:600">${fmt(totalLoss)}</span></div>
+        </div>
+      </div>
+    </div>
+    ${items.length===0?'<div style="text-align:center;padding:40px;color:var(--muted)">No returns logged</div>':
+    items.map(i=>{
+      const profit=calcGrossProfit(i);
+      return`<div style="padding:12px;background:var(--surface2);border-radius:8px;margin-bottom:8px;cursor:pointer;border-left:3px solid var(--red)" onclick="closePanel();openItemPage('${i.month}','${i.id}')">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+          <div style="flex:1;font-weight:600;font-size:14px">${esc(i.item)}</div>
+          <div class="item-badge returned">returned</div>
+          <div style="font-size:11px;color:var(--muted)">${i.month}</div>
+        </div>
+        <div style="display:flex;gap:12px;font-size:12px;color:var(--text-secondary)">
+          <span>Listed: ${fmt(i.salePrice)}</span>
+          <span style="color:${profit>=0?'var(--green)':'var(--red)'};font-weight:600">Net: ${fmt(profit)}</span>
+        </div>
+      </div>`;
+    }).join('')}`;
+  openPanel('Returns',html);
+}
+
+function showAvgCostItems(){
+  let items=[];
+  MONTHS.forEach(m=>{(DB[m]||[]).forEach(i=>{
+    if((i.item||'').trim().toUpperCase()==='MONTH END')return;
+    if(!i.isReturned)items.push({...i,month:m});
+  });});
+  items.sort((a,b)=>(b.costPrice||0)-(a.costPrice||0));
+  const avg=items.length?items.reduce((s,i)=>s+(i.costPrice||0),0)/items.length:0;
+  const html=`
+    <div style="margin-bottom:16px;background:var(--surface2);border-radius:10px;padding:14px">
+      <div style="display:flex;align-items:center;gap:12px">
+        <div style="font-size:28px;font-weight:700;color:var(--blue)">${fmt(avg)}</div>
+        <div>
+          <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px">Avg Cost Price</div>
+          <div style="font-size:13px;color:var(--text-secondary)">${items.length} items sourced total</div>
+        </div>
+      </div>
+    </div>
+    ${items.map(i=>{
+      const status=i.dateSold?'sold':'listed';
+      const roi=i.dateSold?calcROI(i):null;
+      return`<div style="padding:10px;background:var(--surface2);border-radius:8px;margin-bottom:8px;cursor:pointer" onclick="closePanel();openItemPage('${i.month}','${i.id}')">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+          <div style="flex:1;font-weight:600;font-size:14px">${esc(i.item)}</div>
+          <div class="item-badge ${status}">${i.month}</div>
+        </div>
+        <div style="display:flex;gap:12px;font-size:12px;color:var(--text-secondary)">
+          <span>Cost: <strong style="color:var(--blue)">${fmt(i.costPrice||0)}</strong></span>
+          <span>Listed: ${fmt(i.salePrice)}</span>
+          ${roi!==null?`<span style="color:var(--green)">ROI ${roi.toFixed(1)}%</span>`:''}
+        </div>
+      </div>`;
+    }).join('')}`;
+  openPanel('Avg Cost Price — All Items',html);
 }
 
 function showAllItemsPanel(defaultFilter){_renderAllItemsPanel(defaultFilter||'sold');}
@@ -1388,7 +1465,9 @@ function showFilteredItems(filter){
 
 function renderSummary(){
   const stats=calcYearlyStats();
-  const stPct=Math.min(stats.sellThrough,100);
+  const stPct=Math.min(stats.sellThrough14,100);
+  const stColor=stPct>=70?'var(--green)':stPct>=40?'var(--warn)':'var(--red)';
+  const stZone=stPct>=80?'Underpricing? Push prices up':stPct>=70?'Target zone — healthy':stPct>=55?'Solid — room to optimise':stPct>=40?'Below average — review pricing':'Needs attention — pricing or listing quality';
 
   const html=`
     <div class="kgrid" style="grid-template-columns:1fr 1fr;">
@@ -1412,6 +1491,16 @@ function renderSummary(){
         <div class="kval">${stats.avgROI.toFixed(1)}%</div>
         <div class="ksub">Per sold item ›</div>
       </div>
+      <div class="kcard r clickable" onclick="showReturnedItems()">
+        <div class="klabel">Return Rate</div>
+        <div class="kval">${stats.returnRate.toFixed(1)}%</div>
+        <div class="ksub">${stats.returnCount} of ${stats.soldCount+stats.returnCount} dispatched ›</div>
+      </div>
+      <div class="kcard b clickable" onclick="showAvgCostItems()">
+        <div class="klabel">Avg Cost Price</div>
+        <div class="kval">${fmt(stats.avgCostPrice)}</div>
+        <div class="ksub">Per item sourced ›</div>
+      </div>
     </div>
 
     ${stats.stale.length>0?`
@@ -1425,20 +1514,33 @@ function renderSummary(){
     `:''}
 
     <div class="chart-wrap" style="margin-bottom:20px;cursor:pointer;" onclick="toggleSellThroughBar(this,${JSON.stringify(stats.byCat).replace(/"/g,'&quot;')})">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
         <div>
-          <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:2px;">Sell-through Rate</div>
-          <div style="font-size:12px;color:var(--text-secondary);">${stats.soldCount} sold of ${stats.totalItems} total · tap for category breakdown</div>
+          <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:2px;">Sell-through Rate <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--muted);font-size:10px">(14-day window)</span></div>
+          <div style="font-size:12px;color:var(--text-secondary);">${stats.sold14Count} of ${stats.eligible14Count} eligible sold within 14 days · tap for breakdown</div>
         </div>
-        <div style="font-size:28px;font-weight:700;letter-spacing:-0.02em;color:var(--text);">${stPct.toFixed(1)}%</div>
+        <div style="text-align:right">
+          <div style="font-size:28px;font-weight:700;letter-spacing:-0.02em;color:${stColor};">${stPct.toFixed(1)}%</div>
+          <div style="font-size:10px;color:${stColor};font-weight:600;text-align:right;margin-top:1px;">${stZone}</div>
+        </div>
       </div>
-      <div style="background:var(--surface2);border-radius:6px;height:8px;overflow:hidden;">
-        <div style="width:${stPct}%;background:var(--accent);height:100%;border-radius:6px;transition:width 0.6s ease;"></div>
+      <div style="position:relative;margin-top:10px;">
+        <div style="background:var(--surface2);border-radius:6px;height:10px;overflow:visible;position:relative;">
+          <div style="width:${stPct}%;background:${stColor};height:100%;border-radius:6px;transition:width 0.8s ease;"></div>
+          <!-- 70% target tick -->
+          <div style="position:absolute;left:70%;top:-4px;bottom:-4px;width:2px;background:var(--text-secondary);border-radius:2px;opacity:0.5;" title="70% target"></div>
+        </div>
+        <div style="position:absolute;left:70%;transform:translateX(-50%);top:14px;font-size:9px;color:var(--muted);font-weight:600;white-space:nowrap;">TARGET 70%</div>
+      </div>
+      <div style="display:flex;gap:16px;margin-top:22px;font-size:11px;">
+        <span style="display:flex;align-items:center;gap:4px;color:var(--red)"><span style="width:8px;height:8px;border-radius:2px;background:var(--red);display:inline-block"></span>0–40%</span>
+        <span style="display:flex;align-items:center;gap:4px;color:var(--warn)"><span style="width:8px;height:8px;border-radius:2px;background:var(--warn);display:inline-block"></span>40–70%</span>
+        <span style="display:flex;align-items:center;gap:4px;color:var(--green)"><span style="width:8px;height:8px;border-radius:2px;background:var(--green);display:inline-block"></span>70%+</span>
       </div>
       <div class="st-breakdown" style="display:none;margin-top:16px;border-top:1px solid var(--border);padding-top:14px;"></div>
     </div>
 
-    <div class="insights" style="grid-template-columns:repeat(3,1fr);margin-bottom:24px">
+    <div class="insights" style="margin-bottom:24px">
       <div class="insight-card">
         <div class="insight-icon">⏱️</div>
         <div>
@@ -1452,7 +1554,7 @@ function renderSummary(){
         <div>
           <div class="insight-label">Avg Sale Price</div>
           <div class="insight-val">${fmt(stats.avgSale)}</div>
-          <div class="insight-sub">Per sold item</div>
+          <div class="insight-sub">Per item</div>
         </div>
       </div>
       <div class="insight-card">
@@ -1460,7 +1562,7 @@ function renderSummary(){
         <div>
           <div class="insight-label">Avg Profit</div>
           <div class="insight-val">${fmt(stats.avgProfit)}</div>
-          <div class="insight-sub">Per sold item</div>
+          <div class="insight-sub">Per item</div>
         </div>
       </div>
     </div>
@@ -2085,11 +2187,11 @@ function renderExpenses(){
       </div>
     </div>
 
-    <div class="kgrid">
+    <div class="kgrid" style="grid-template-columns:repeat(3,1fr)">
       <div class="kcard">
         <div class="klabel">Trip Expenses</div>
         <div class="kval">${fmt(totalTrips)}</div>
-        <div class="ksub">${trips.length} trips logged</div>
+        <div class="ksub">${trips.length} trips &middot; ${trips.reduce((s,t)=>s+(t.mileage||0),0).toFixed(1)} miles</div>
       </div>
       <div class="kcard">
         <div class="klabel">Other Expenses</div>
@@ -2106,36 +2208,45 @@ function renderExpenses(){
     <div class="sl">Sourcing Trips</div>
     ${trips.length===0?`
       <div class="empty-state">
-        <div class="empty-state-icon">🚗</div>
+        <div class="empty-state-icon">&#x1F697;</div>
         <div class="empty-state-text">No trips logged</div>
+        <div class="empty-state-sub">Log sourcing runs to claim mileage at HMRC approved rate</div>
       </div>
     `:`
-      ${trips.map((t,i)=>`
+      ${trips.map((t,idx)=>`
         <div class="expense-item">
           <div class="expense-main">
             <div class="expense-label">${esc(t.description||'Sourcing trip')}</div>
-            <div class="expense-meta">${t.date} • ${t.mileage} miles @ ${fmt(t.ratePerMile||0.45)}/mi</div>
+            <div class="expense-meta">${t.date} &middot; ${t.mileage} miles @ ${fmt(t.ratePerMile||0.45)}/mi</div>
           </div>
-          <div class="expense-amount">${fmt((t.mileage||0)*(t.ratePerMile||0.45))}</div>
+          <div style="display:flex;align-items:center;gap:10px">
+            <div class="expense-amount">${fmt((t.mileage||0)*(t.ratePerMile||0.45))}</div>
+            <button class="btn btn-s" style="padding:5px 10px;font-size:12px" onclick="editTrip(${idx})">&#x270F;&#xFE0F;</button>
+            <button class="btn btn-s" style="padding:5px 10px;font-size:12px;color:var(--red);border-color:rgba(239,68,68,0.4)" onclick="deleteTrip(${idx})">&#x1F5D1;&#xFE0F;</button>
+          </div>
         </div>
       `).join('')}
     `}
 
     <div class="sl" style="margin-top:40px">Other Expenses</div>
-    <button class="btn btn-p" onclick="addExpense()" style="margin-bottom:16px">+ Add Expense</button>
     ${expenses.length===0?`
       <div class="empty-state">
-        <div class="empty-state-icon">💼</div>
+        <div class="empty-state-icon">&#x1F4BC;</div>
         <div class="empty-state-text">No expenses logged</div>
+        <div class="empty-state-sub">Add packaging, fees, equipment and other business costs</div>
       </div>
     `:`
-      ${expenses.map((e,i)=>`
+      ${expenses.map((e,idx)=>`
         <div class="expense-item">
           <div class="expense-main">
             <div class="expense-label">${esc(e.description||'Expense')}</div>
-            <div class="expense-meta">${e.date} ${e.category?`• ${esc(e.category)}`:''}</div>
+            <div class="expense-meta">${e.date}${e.category?` &middot; ${esc(e.category)}`:''}</div>
           </div>
-          <div class="expense-amount">${fmt(e.amount||0)}</div>
+          <div style="display:flex;align-items:center;gap:10px">
+            <div class="expense-amount">${fmt(e.amount||0)}</div>
+            <button class="btn btn-s" style="padding:5px 10px;font-size:12px" onclick="editExpense(${idx})">&#x270F;&#xFE0F;</button>
+            <button class="btn btn-s" style="padding:5px 10px;font-size:12px;color:var(--red);border-color:rgba(239,68,68,0.4)" onclick="deleteExpense(${idx})">&#x1F5D1;&#xFE0F;</button>
+          </div>
         </div>
       `).join('')}
     `}
@@ -2807,7 +2918,28 @@ function calcYearlyStats(){
   const avgSale=soldItems.length?soldItems.reduce((s,i)=>s+(i.salePrice||0),0)/soldItems.length:0;
   const avgProfit=soldItems.length?realisedProfit/soldItems.length:0;
   const sellThrough=totalItems?soldCount/totalItems*100:0;
+  // 14-day sell-through: items that sold within 14 days of listing
+  const eligible14=[];
+  MONTHS.forEach(m=>{(DB[m]||[]).forEach(i=>{
+    if((i.item||'').trim().toUpperCase()==='MONTH END')return;
+    if(i.isReturned)return;
+    // Only include items listed long enough to have had a fair 14-day window
+    const today=new Date().toISOString().split('T')[0];
+    const daysOnSale=daysBetween(i.dateListed,today);
+    if(i.dateSold){
+      eligible14.push({sold14:daysBetween(i.dateListed,i.dateSold)<=14});
+    }else if(daysOnSale>=14){
+      eligible14.push({sold14:false});
+    }
+    // Items listed <14 days ago and unsold are excluded — they haven't had their window yet
+  });});
+  const sold14Count=eligible14.filter(x=>x.sold14).length;
+  const sellThrough14=eligible14.length?sold14Count/eligible14.length*100:0;
   const avgDays=soldItems.length?Math.round(soldItems.reduce((s,i)=>s+daysBetween(i.dateListed,i.dateSold),0)/soldItems.length):0;
+  // Avg cost price across all items ever sourced (sold + listed, not returned)
+  const allSourcingItems=[];
+  MONTHS.forEach(m=>{(DB[m]||[]).forEach(i=>{if((i.item||'').trim().toUpperCase()!=='MONTH END'&&!i.isReturned)allSourcingItems.push(i);});});
+  const avgCostPrice=allSourcingItems.length?allSourcingItems.reduce((s,i)=>s+(i.costPrice||0),0)/allSourcingItems.length:0;
   // Build category sell-through data
   const catMap={};
   MONTHS.forEach(m=>{
@@ -2821,7 +2953,7 @@ function calcYearlyStats(){
   });
   const byCat=Object.entries(catMap).map(([cat,v])=>({cat,sold:v.sold,total:v.total,pct:v.total?Math.round(v.sold/v.total*100):0})).sort((a,b)=>b.pct-a.pct);
   const returnRate=(soldCount+returnCount)>0?returnCount/(soldCount+returnCount)*100:0;
-  return{totalRev,realisedProfit,unrealisedProfit,stockValue,soldCount,listedCount,totalItems,returnCount,returnRate,avgROI,avgSale,avgProfit,sellThrough,avgDays,stale,byCat};
+  return{totalRev,realisedProfit,unrealisedProfit,stockValue,soldCount,listedCount,totalItems,returnCount,returnRate,avgROI,avgSale,avgProfit,avgCostPrice,sellThrough,sellThrough14,sold14Count,eligible14Count:eligible14.length,avgDays,stale,byCat};
 }
 
 function calcMonthStats(m){
