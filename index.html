@@ -338,6 +338,24 @@ nav{position:sticky;top:0;z-index:200;background:var(--surface);backdrop-filter:
 /* SORT SELECT in header */
 .sort-select{padding:8px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;cursor:pointer;font-family:inherit;font-weight:500;}
 .sort-select:focus{outline:none;border-color:var(--accent);}
+
+/* PARTS / EXPENSES ON ITEM */
+.parts-list{margin-top:8px;}
+.part-row{display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--border);font-size:13px;}
+.part-row:last-child{border-bottom:none;}
+.part-desc{flex:1;font-weight:500;}
+.part-cost{font-weight:700;font-family:'JetBrains Mono',monospace;color:var(--red);flex-shrink:0;}
+.part-date{font-size:11px;color:var(--muted);flex-shrink:0;}
+.part-del{background:none;border:none;color:var(--muted);cursor:pointer;font-size:14px;padding:2px 4px;border-radius:4px;line-height:1;flex-shrink:0;}
+.part-del:hover{color:var(--red);background:rgba(239,68,68,0.1);}
+.add-part-row{display:grid;grid-template-columns:1fr auto auto;gap:8px;margin-top:10px;align-items:end;}
+.parts-total{display:flex;justify-content:space-between;padding:8px 0 0;font-size:13px;font-weight:700;border-top:1px solid var(--border);margin-top:4px;}
+
+/* INLINE EDIT */
+.inline-val{cursor:pointer;border-radius:6px;transition:background 0.15s;padding:2px 4px;margin:-2px -4px;display:inline-block;}
+.inline-val:hover{background:var(--surface2);}
+.inline-val:hover::after{content:' ✎';font-size:14px;color:var(--muted);font-weight:400;}
+.inline-input{font-size:20px;font-weight:700;letter-spacing:-0.02em;width:120px;border:none;border-bottom:2px solid var(--accent);background:transparent;color:var(--text);font-family:inherit;outline:none;padding:0;}
 </style>
 </head>
 <body>
@@ -541,6 +559,8 @@ function goToTab(name,sourceEl){
   const activeTab=sourceEl||document.querySelector('[data-tab="'+name+'"]');
   if(activeTab)activeTab.classList.add('on');
   document.getElementById('p-'+name).classList.add('on');
+  // Always close the More dropdown when navigating
+  document.querySelector('.nav-more')?.classList.remove('open');
   if(name==='summary')renderSummary();
   else if(name==='monthly')renderMonth();
   else if(name==='stock')renderStock();
@@ -646,6 +666,18 @@ function renderItemPage(m,id){
   if((i.packagingCost||0)>0)pnl+='<div class="pnl-row"><span>Packaging</span><span style="color:var(--red)">−'+fmt(i.packagingCost)+'</span></div>';
   if(i.promoPercent)pnl+='<div class="pnl-row"><span>Promo fee ('+((i.promoPercent*100).toFixed(0))+'% +VAT)</span><span style="color:var(--red)">−'+fmt(promoCost)+'</span></div>';
   pnl+='<div class="pnl-row"><span>Item cost</span><span style="color:var(--red)">−'+fmt(i.costPrice||0)+'</span></div>';
+  const partsCost=calcPartsCost(i);
+  if(partsCost>0){
+    const parts=i.parts||[];
+    if(parts.length===1){
+      pnl+='<div class="pnl-row"><span>'+esc(parts[0].description)+'</span><span style="color:var(--red)">−'+fmt(partsCost)+'</span></div>';
+    }else if(parts.length>1){
+      pnl+='<div class="pnl-row"><span>Parts & expenses ('+parts.length+')</span><span style="color:var(--red)">−'+fmt(partsCost)+'</span></div>';
+      parts.forEach(function(p){
+        pnl+='<div class="pnl-row" style="padding-left:12px"><span style="color:var(--text-secondary);font-size:12px">'+esc(p.description)+'</span><span style="color:var(--red);font-size:12px">−'+fmt(p.cost)+'</span></div>';
+      });
+    }
+  }
   if(hasReturn){
     pnl+='<div class="pnl-row" style="border-top:2px dashed var(--border);margin-top:4px;padding-top:8px"><span style="color:var(--accent);font-weight:600">Return impact</span><span></span></div>';
     (i.returnHistory||[]).forEach(function(r){
@@ -710,8 +742,14 @@ function renderItemPage(m,id){
 
   // KPI cards
   html+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">';
-  html+='<div class="kcard"><div class="klabel">Sale Price</div><div class="kval" style="font-size:20px">'+fmt(i.salePrice||0)+'</div><div class="ksub">Buyer pays</div></div>';
-  html+='<div class="kcard"><div class="klabel">Item Cost</div><div class="kval" style="font-size:20px">'+fmt(i.costPrice||0)+'</div><div class="ksub">What you paid</div></div>';
+  html+='<div class="kcard"><div class="klabel">Sale Price <span style="font-size:10px;color:var(--muted);font-weight:400;text-transform:none;letter-spacing:0">(click to edit)</span></div>'
+    +'<div class="kval" id="ip-sale-'+i.id+'" style="font-size:20px" onclick="startInlineEdit(\''+m+'\',\''+i.id+'\',\'salePrice\','+i.salePrice+')" title="Click to edit">'
+    +'<span class="inline-val">'+fmt(i.salePrice||0)+'</span>'
+    +'</div><div class="ksub">Buyer pays</div></div>';
+  html+='<div class="kcard"><div class="klabel">Item Cost <span style="font-size:10px;color:var(--muted);font-weight:400;text-transform:none;letter-spacing:0">(click to edit)</span></div>'
+    +'<div class="kval" id="ip-cost-'+i.id+'" style="font-size:20px" onclick="startInlineEdit(\''+m+'\',\''+i.id+'\',\'costPrice\','+i.costPrice+')" title="Click to edit">'
+    +'<span class="inline-val">'+fmt(i.costPrice||0)+'</span>'
+    +'</div><div class="ksub">What you paid</div></div>';
   html+='<div class="kcard '+(profit>=0?'g':'r')+'"><div class="klabel">Net Profit</div><div class="kval" style="font-size:20px">'+fmt(profit)+'</div><div class="ksub">'+(hasReturn?'After return impact':'After all fees')+'</div></div>';
   if(roi!==null)html+='<div class="kcard"><div class="klabel">ROI</div><div class="kval" style="font-size:20px">'+roi.toFixed(1)+'%</div><div class="ksub">Return on investment</div></div>';
   html+='</div>';
@@ -741,6 +779,12 @@ function renderItemPage(m,id){
   html+='<div><span style="color:var(--muted)">Postage charged:</span> '+fmt(i.postage||0)+'</div>';
   html+='</div>';
   if(i.notes)html+='<div style="margin-top:10px;font-size:13px;color:var(--muted)">Notes: '+esc(i.notes)+'</div>';
+  html+='</div>';
+
+  // Parts & Expenses
+  html+='<div class="item-full-section">';
+  html+='<div class="item-full-section-title">Parts &amp; Expenses</div>';
+  html+=partsHTML(m,id,'page');
   html+='</div>';
 
   // Actions
@@ -848,7 +892,7 @@ function selectSearchResult(idx){
   closeSearchDropdown();
   document.getElementById('global-search').value='';
   document.querySelector('.search-clear').classList.remove('show');
-  openItemDetail(item.month,item.id);
+  openItemPage(item.month,item.id);
 }
 
 function handleSearchKey(e){
@@ -1691,13 +1735,17 @@ function openItemDetail(m,id){
         <div style="font-weight:600;margin-bottom:6px;color:var(--muted)">RETURN HISTORY</div>
         ${i.returnHistory.map(r=>`<div style="padding:6px 0;border-bottom:1px solid var(--border)">${r.loggedAt||'—'} · ${r.type} · Refund: ${fmt(r.refundAmount||0)}</div>`).join('')}
       </div>`:''}
+    <div style="background:var(--surface2);border-radius:10px;padding:14px;margin-bottom:16px;font-size:13px">
+      <div style="font-weight:600;margin-bottom:8px;color:var(--muted)">PARTS & EXPENSES</div>
+      <div id="panel-parts-${i.id}">${partsHTML(m,id,'panel')}</div>
+    </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
       <button class="btn btn-p" onclick="closePanel();openItemPage('${m}','${id}')">📄 Full Page</button>
-      <button class="btn btn-s" onclick="closePanel();editItem('${m}','${id}')">✏️ Edit</button>
-      ${!i.dateSold?`<button class="btn btn-s" onclick="closePanel();markSold('${m}','${id}')">✅ Mark Sold</button>`:''}
-      ${i.dateSold&&!i.isReturned?`<button class="btn btn-s" onclick="closePanel();openReturn('${m}','${id}')">↩️ Log Return</button>`:''}
-      <button class="btn btn-s" onclick="closePanel();duplicateItem('${m}','${id}')">📋 Duplicate</button>
-      <button class="btn btn-s danger" onclick="closePanel();deleteItem('${m}','${id}')">🗑️ Delete</button>
+      <button class="btn btn-s" onclick="editItem('${m}','${id}')">✏️ Edit</button>
+      ${!i.dateSold?`<button class="btn btn-s" onclick="markSold('${m}','${id}')">✅ Mark Sold</button>`:''}
+      ${i.dateSold&&!i.isReturned?`<button class="btn btn-s" onclick="openReturn('${m}','${id}')">↩️ Log Return</button>`:''}
+      <button class="btn btn-s" onclick="duplicateItem('${m}','${id}')">📋 Duplicate</button>
+      <button class="btn btn-s danger" onclick="deleteItem('${m}','${id}')">🗑️ Delete</button>
     </div>
   `;
   openPanel(esc(i.item),html);
@@ -2276,11 +2324,12 @@ function saveEdit(m,id){
   item.promoPercent=(parseFloat(document.getElementById('edit-promo').value)||0)/100;
   if(item.dateSold){item.grossProfit=calcGrossProfit(item);}
   saveDB();
-  closePanel();
   toast('Item updated');
   const cur=document.querySelector('.page.on').id;
   if(cur==='p-monthly')renderMonth();
   else if(cur==='p-stock')renderStock();
+  // Re-open detail panel so user stays in context
+  openItemDetail(m,id);
 }
 
 function markSold(m,id){
@@ -2294,6 +2343,10 @@ function markSold(m,id){
     const cur=document.querySelector('.page.on').id;
     if(cur==='p-monthly')renderMonth();
     else if(cur==='p-stock')renderStock();
+    // If slide panel was open, refresh it
+    if(document.getElementById('slide-panel').classList.contains('on')){
+      openItemDetail(m,id);
+    }
   };
   document.getElementById('modal-date').value=new Date().toISOString().split('T')[0];
   document.getElementById('sold-modal').style.display='flex';
@@ -2417,9 +2470,13 @@ function saveReturn(m,id){
     i.dateSold=null; // remove from sold — back to stock
   }
   saveDB();
-  closePanel();
   toast('Return logged');
-  openItemPage(m,id);
+  // If we came from the panel, stay there; otherwise go to full page
+  if(document.getElementById('slide-panel').classList.contains('on')){
+    openItemDetail(m,id);
+  } else {
+    openItemPage(m,id);
+  }
 }
 
 
@@ -2595,6 +2652,9 @@ function calcEbayBPF(salePrice){
   return+feeOnNet(net).toFixed(2);
 }
 
+function calcPartsCost(i){
+  return (i.parts||[]).reduce(function(s,p){return s+(p.cost||0);},0);
+}
 function calcGrossProfit(i){
   if(!i.salePrice)return null;
   const bpf=calcEbayBPF(i.salePrice);
@@ -2608,7 +2668,8 @@ function calcGrossProfit(i){
     const netRefund=sellerHandled?Math.max(0,(r.refundAmount||0)-bpf):(r.refundAmount||0);
     return s+netRefund+(r.returnPostage||0);
   },0);
-  const cost=(i.costPrice||0)+(i.shippingCost||0)+(i.packagingCost||0)+promoCost+returnCost;
+  const partsCost=calcPartsCost(i);
+  const cost=(i.costPrice||0)+(i.shippingCost||0)+(i.packagingCost||0)+promoCost+returnCost+partsCost;
   return+(rev-cost).toFixed(2);
 }
 
@@ -2713,6 +2774,110 @@ function toast(msg,type=''){
   el.className=type==='err'?'on err':'on';
   clearTimeout(el._t);
   el._t=setTimeout(()=>el.classList.remove('on','err'),3000);
+}
+
+
+
+// ── Inline editing on item full page ─────────────────────────────────────────
+function startInlineEdit(m,id,field,currentVal){
+  const el=document.getElementById('ip-'+{'salePrice':'sale','costPrice':'cost'}[field]+'-'+id);
+  if(!el||el.querySelector('input'))return; // already editing
+  const input=document.createElement('input');
+  input.type='number';
+  input.step='0.01';
+  input.value=currentVal||0;
+  input.className='inline-input';
+  el.innerHTML='';
+  el.appendChild(input);
+  input.focus();
+  input.select();
+  function commit(){
+    const newVal=parseFloat(input.value)||0;
+    const i=(DB[m]||[]).find(x=>x.id===id);
+    if(i){
+      i[field]=newVal;
+      if(i.dateSold)i.grossProfit=calcGrossProfit(i);
+      saveDB();
+      toast(field==='salePrice'?'Price updated':'Cost updated');
+    }
+    renderItemPage(m,id);
+  }
+  input.addEventListener('keydown',function(e){
+    if(e.key==='Enter'){e.preventDefault();commit();}
+    if(e.key==='Escape'){renderItemPage(m,id);}
+  });
+  input.addEventListener('blur',commit);
+}
+
+// ── Parts / item expenses ─────────────────────────────────────────────────────
+function partsHTML(m,id,context){
+  // context: 'panel' or 'page' — affects button onclick targets
+  const i=(DB[m]||[]).find(x=>x.id===id);
+  if(!i)return'';
+  const parts=i.parts||[];
+  const total=calcPartsCost(i);
+  const today=new Date().toISOString().split('T')[0];
+
+  const rows=parts.map(function(p,idx){
+    const delFn=context==='page'
+      ?'deletePart(\''+m+'\',\''+id+'\','+idx+')'
+      :'deletePart(\''+m+'\',\''+id+'\','+idx+',\'panel\')';
+    return'<div class="part-row">'
+      +'<span class="part-desc">'+esc(p.description)+'</span>'
+      +(p.date?'<span class="part-date">'+p.date+'</span>':'')
+      +'<span class="part-cost">−'+fmt(p.cost)+'</span>'
+      +'<button class="part-del" onclick="event.stopPropagation();'+delFn+'" title="Remove">×</button>'
+      +'</div>';
+  }).join('');
+
+  const totalRow=parts.length>0
+    ?'<div class="parts-total"><span>Parts total</span><span style="color:var(--red)">−'+fmt(total)+'</span></div>'
+    :'';
+
+  const addFn=context==='page'
+    ?'addPart(\''+m+'\',\''+id+'\',\'page\')'
+    :'addPart(\''+m+'\',\''+id+'\',\'panel\')';
+
+  const addForm='<div class="add-part-row">'
+    +'<div class="fg" style="margin-bottom:0"><input type="text" id="part-desc-'+context+'" placeholder="e.g. Charging cable, battery…"></div>'
+    +'<div class="fg" style="margin-bottom:0"><input type="number" id="part-cost-'+context+'" step="0.01" placeholder="£0.00" style="width:90px"></div>'
+    +'<button class="btn btn-s" style="padding:9px 12px;font-size:13px" onclick="'+addFn+'">+ Add</button>'
+    +'</div>';
+
+  return'<div class="parts-list">'+rows+totalRow+'</div>'+addForm;
+}
+
+function addPart(m,id,context){
+  const i=(DB[m]||[]).find(x=>x.id===id);
+  if(!i)return;
+  const desc=document.getElementById('part-desc-'+context);
+  const cost=document.getElementById('part-cost-'+context);
+  if(!desc||!cost||!desc.value.trim())return;
+  if(!i.parts)i.parts=[];
+  i.parts.push({
+    description:desc.value.trim(),
+    cost:parseFloat(cost.value)||0,
+    date:new Date().toISOString().split('T')[0]
+  });
+  saveDB();
+  toast('Part added');
+  if(context==='page'){renderItemPage(m,id);}
+  else{refreshPanelParts(m,id);}
+}
+
+function deletePart(m,id,idx,context){
+  const i=(DB[m]||[]).find(x=>x.id===id);
+  if(!i||!i.parts)return;
+  i.parts.splice(idx,1);
+  saveDB();
+  toast('Part removed');
+  if(context==='panel'){refreshPanelParts(m,id);}
+  else{renderItemPage(m,id);}
+}
+
+function refreshPanelParts(m,id){
+  const el=document.getElementById('panel-parts-'+id);
+  if(el)el.innerHTML=partsHTML(m,id,'panel');
 }
 
 initTheme();
