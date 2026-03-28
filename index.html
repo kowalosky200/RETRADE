@@ -124,7 +124,7 @@ nav{position:sticky;top:0;z-index:200;background:var(--surface);backdrop-filter:
 .ksub{font-size:12px;color:var(--text-secondary);margin-top:6px;}
 
 /* INSIGHTS */
-.insights{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;margin-bottom:32px;}
+.insights{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px;margin-bottom:32px;}
 .insight-card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px;display:flex;align-items:center;gap:14px;box-shadow:0 1px 3px var(--shadow);}
 .insight-icon{font-size:24px;flex-shrink:0;}
 .insight-label{font-size:10px;color:var(--text-secondary);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px;font-weight:600;}
@@ -146,6 +146,7 @@ nav{position:sticky;top:0;z-index:200;background:var(--surface);backdrop-filter:
 .mgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px;margin-bottom:32px;}
 .mcard{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px;cursor:pointer;transition:all 0.2s;box-shadow:0 1px 3px var(--shadow);}
 .mcard:hover{border-color:var(--accent);transform:translateY(-2px);box-shadow:0 4px 12px var(--shadow-md);}
+.mcard-empty{opacity:0.45;pointer-events:none;}
 .mname{font-weight:600;font-size:14px;margin-bottom:8px;color:var(--text);}
 .mval{font-size:24px;font-weight:700;letter-spacing:-0.01em;}
 .mval.pos{color:var(--green);}.mval.nil{color:var(--muted);}
@@ -169,10 +170,13 @@ nav{position:sticky;top:0;z-index:200;background:var(--surface);backdrop-filter:
 
 /* ITEM TABLE */
 .item-table{background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;box-shadow:0 1px 3px var(--shadow);}
-.item-row{border-bottom:1px solid var(--border);padding:12px 16px;display:grid;grid-template-columns:1fr auto;gap:12px;transition:background 0.15s;cursor:pointer;}
+.item-row{border-bottom:1px solid var(--border);padding:11px 14px;display:grid;grid-template-columns:1fr auto;gap:8px;transition:background 0.15s;cursor:pointer;align-items:center;}
+.item-row:last-child{border-bottom:none;}
 .item-row:hover{background:var(--surface2);}
-.item-row.selected{background:rgba(245,158,11,0.1);border-left:4px solid var(--accent);}
-.item-main{display:grid;gap:8px;}
+.item-row.selected{background:rgba(245,158,11,0.08);border-left:3px solid var(--accent);padding-left:11px;}
+.item-row.stale{background:rgba(245,158,11,0.04);}
+.item-row.stale:hover{background:rgba(245,158,11,0.09);}
+.item-main{display:flex;flex-direction:column;gap:0;min-width:0;}
 .item-header{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
 .item-name{font-weight:600;font-size:15px;color:var(--text);}
 .item-badge{font-size:10px;padding:3px 8px;border-radius:6px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;}
@@ -181,7 +185,28 @@ nav{position:sticky;top:0;z-index:200;background:var(--surface);backdrop-filter:
 .item-badge.returned{background:rgba(239,68,68,0.15);color:var(--red);}
 .item-meta{display:flex;gap:16px;flex-wrap:wrap;font-size:13px;color:var(--text-secondary);}
 .item-meta-item{display:flex;align-items:center;gap:6px;}
-.item-actions{display:flex;align-items:center;gap:8px;}
+.item-actions{display:flex;align-items:center;gap:8px;flex-shrink:0;}
+
+/* ITEM ROW INTERNALS */
+.item-row-inner{display:flex;align-items:center;gap:10px;min-width:0;}
+.item-row-body{flex:1;min-width:0;}
+.item-row-name{font-weight:600;font-size:15px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.3;}
+.item-row-meta{font-size:12px;color:var(--muted);margin-top:3px;display:flex;align-items:center;gap:6px;flex-wrap:wrap;line-height:1.4;}
+.item-row-gid{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--muted);opacity:0.7;font-weight:400;}
+.item-row-meta-sep{color:var(--border2);}
+.item-row-right{display:flex;flex-direction:column;align-items:flex-end;gap:2px;flex-shrink:0;min-width:72px;}
+.item-row-price{font-size:14px;font-weight:700;font-family:'JetBrains Mono',monospace;color:var(--text);letter-spacing:-0.02em;}
+.item-row-profit{font-size:12px;font-weight:600;font-family:'JetBrains Mono',monospace;}
+.item-row-profit.pos{color:var(--green);}
+.item-row-profit.neg{color:var(--red);}
+.item-row-profit.est{color:var(--muted);}
+.item-row-roi{font-size:11px;color:var(--muted);font-weight:500;}
+
+/* STATUS DOT */
+.status-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+.status-dot.listed{background:var(--blue);opacity:0.7;}
+.status-dot.sold{background:var(--green);}
+.status-dot.returned{background:var(--red);opacity:0.7;}
 
 /* FORMS */
 .fg{margin-bottom:16px;}
@@ -292,6 +317,23 @@ nav{position:sticky;top:0;z-index:200;background:var(--surface);backdrop-filter:
 /* MONTH SELECTOR */
 .month-select{padding:10px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:14px;cursor:pointer;font-family:inherit;font-weight:500;transition:border-color 0.15s;}
 .month-select:focus{outline:none;border-color:var(--accent);}
+.month-title-select{background:transparent;border:none;color:var(--text);font-size:28px;font-weight:700;letter-spacing:-0.02em;cursor:pointer;font-family:inherit;padding:0 28px 0 0;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 12 12'%3E%3Cpath fill='%236b7280' d='M6 9L1 4h10z'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 4px center;}
+.month-title-select:focus{outline:none;}
+.month-title-select:hover{color:var(--accent);}
+/* Custom month picker */
+.month-picker-wrap{position:relative;display:inline-block;}
+.month-picker-title{font-size:28px;font-weight:700;letter-spacing:-0.02em;color:var(--text);cursor:pointer;display:flex;align-items:center;gap:10px;user-select:none;transition:color 0.15s;}
+.month-picker-title:hover{color:var(--accent);}
+.month-picker-chevron{font-size:14px;color:var(--muted);transition:transform 0.2s;}
+.month-picker-wrap.open .month-picker-chevron{transform:rotate(180deg);}
+.month-picker-wrap.open .month-picker-title{color:var(--accent);}
+.month-picker-dropdown{display:none;position:absolute;top:calc(100% + 8px);left:0;background:var(--surface);border:1px solid var(--border);border-radius:12px;box-shadow:0 8px 32px var(--shadow-md);z-index:300;overflow:hidden;min-width:200px;}
+.month-picker-wrap.open .month-picker-dropdown{display:block;}
+.month-picker-option{padding:11px 18px;font-size:14px;font-weight:500;color:var(--text-secondary);cursor:pointer;transition:all 0.12s;display:flex;align-items:center;justify-content:space-between;gap:16px;}
+.month-picker-option:hover{background:var(--surface2);color:var(--text);}
+.month-picker-option.active{color:var(--accent);font-weight:700;}
+.month-picker-option.active::after{content:'✓';font-size:13px;color:var(--accent);}
+.month-picker-option-sub{font-size:11px;color:var(--muted);font-weight:400;}
 
 /* CONFIRM MODAL */
 #confirm-modal{display:none;position:fixed;inset:0;background:var(--overlay);z-index:1000;align-items:center;justify-content:center;backdrop-filter:blur(4px);}
@@ -448,6 +490,7 @@ nav{position:sticky;top:0;z-index:200;background:var(--surface);backdrop-filter:
 
 <script>
 const MONTHS=['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
+const MONTH_NAMES={JAN:'January',FEB:'February',MAR:'March',APR:'April',MAY:'May',JUN:'June',JUL:'July',AUG:'August',SEP:'September',OCT:'October',NOV:'November',DEC:'December'};
 const STORAGE_KEY='ebay_db_v5';
 const THEME_KEY='ebay_theme';
 
@@ -472,9 +515,13 @@ let DB={};
 let SELECTED_MONTH='MAR';
 let SELECTED_ITEMS=new Set();
 let MODAL_CALLBACK=null;
-let MONTH_FILTER='all';
+let MONTH_FILTER='listed';
 let MONTH_SORT='date-listed';
 let SELECTION_MODE=false;
+let STOCK_SORT='profit';          // stock sort: days | profit | price
+let STOCK_FILTER='all';           // stock filter: all | stale
+let STOCK_SELECTION_MODE=false;   // stock page checkbox mode
+let STOCK_SELECTED=new Set();     // stock page selection
 
 // CUSTOM CONFIRM MODAL
 let _confirmResolve=null;
@@ -1342,72 +1389,56 @@ function showFilteredItems(filter){
 function renderSummary(){
   const stats=calcYearlyStats();
   const stPct=Math.min(stats.sellThrough,100);
+
   const html=`
-    <div class="kgrid">
+    <div class="kgrid" style="grid-template-columns:1fr 1fr;">
       <div class="kcard clickable" onclick="showFilteredItems('revenue')">
         <div class="klabel">Total Revenue</div>
         <div class="kval">${fmt(stats.totalRev)}</div>
-        <div class="ksub">${stats.soldCount} sold ›</div>
+        <div class="ksub">${stats.soldCount} items sold ›</div>
       </div>
       <div class="kcard g clickable" onclick="showFilteredItems('realised')">
         <div class="klabel">Realised Profit</div>
         <div class="kval">${fmt(stats.realisedProfit)}</div>
-        <div class="ksub">${stats.soldCount} sold ›</div>
+        <div class="ksub">${stats.soldCount>0?(stats.realisedProfit/stats.totalRev*100).toFixed(0)+'% margin ›':'—'}</div>
       </div>
       <div class="kcard p clickable" onclick="showFilteredItems('unrealised')">
         <div class="klabel">Unrealised Profit</div>
         <div class="kval">${fmt(stats.unrealisedProfit)}</div>
-        <div class="ksub">${stats.listedCount} listed ›</div>
-      </div>
-      <div class="kcard b clickable" onclick="showFilteredItems('stock')">
-        <div class="klabel">Stock Value</div>
-        <div class="kval">${fmt(stats.stockValue)}</div>
-        <div class="ksub">Listed value ›</div>
+        <div class="ksub">${stats.listedCount} still listed ›</div>
       </div>
       <div class="kcard clickable" onclick="showROIItems()">
         <div class="klabel">Avg ROI</div>
         <div class="kval">${stats.avgROI.toFixed(1)}%</div>
-        <div class="ksub">Sold items ›</div>
-      </div>
-      <div class="kcard clickable" onclick="showAllItemsPanel('sold')">
-        <div class="klabel">Total Items</div>
-        <div class="kval">${stats.totalItems}</div>
-        <div class="ksub">${stats.listedCount} active ›</div>
-      </div>
-      <div class="kcard ${stats.returnCount>0?'r':''} clickable" onclick="showReturnedItems()">
-        <div class="klabel">Return Rate</div>
-        <div class="kval">${stats.returnRate.toFixed(1)}%</div>
-        <div class="ksub">${stats.returnCount} returned ›</div>
+        <div class="ksub">Per sold item ›</div>
       </div>
     </div>
 
     ${stats.stale.length>0?`
-      <div class="stale-alert">
+      <div class="stale-alert" style="cursor:pointer;" onclick="STOCK_FILTER='stale';goToTab('stock',document.querySelector('[data-tab=\\'stock\\']'))" title="View stale items in Stock page">
         <div class="stale-dot"></div>
-        <div>
-          <div class="stale-text">⚠️ ${stats.stale.length} items listed 60+ days</div>
-          <div class="stale-items">Consider repricing or relisting</div>
+        <div style="flex:1">
+          <div class="stale-text">⚠️ ${stats.stale.length} item${stats.stale.length!==1?'s':''} listed 30+ days</div>
+          <div class="stale-items">Consider repricing or relisting → <span style="text-decoration:underline">View in Stock ›</span></div>
         </div>
       </div>
     `:''}
 
-    <div class="chart-wrap" style="cursor:pointer;margin-bottom:16px" onclick="toggleSellThroughBar(this,${JSON.stringify(stats.byCat).replace(/"/g,'&quot;')})">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
-        <div style="font-size:11px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:1px">📊 Sell-through Rate <span style="font-size:11px;color:var(--muted);font-weight:400;text-transform:none">(tap for categories)</span></div>
-        <div style="font-size:24px;font-weight:700;letter-spacing:-0.01em">${stPct.toFixed(1)}%</div>
+    <div class="chart-wrap" style="margin-bottom:20px;cursor:pointer;" onclick="toggleSellThroughBar(this,${JSON.stringify(stats.byCat).replace(/"/g,'&quot;')})">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+        <div>
+          <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:2px;">Sell-through Rate</div>
+          <div style="font-size:12px;color:var(--text-secondary);">${stats.soldCount} sold of ${stats.totalItems} total · tap for category breakdown</div>
+        </div>
+        <div style="font-size:28px;font-weight:700;letter-spacing:-0.02em;color:var(--text);">${stPct.toFixed(1)}%</div>
       </div>
-      <div style="background:var(--surface2);border-radius:8px;height:14px;overflow:hidden;margin-bottom:8px">
-        <div style="width:${stPct}%;background:var(--accent);height:100%;border-radius:8px;transition:width 0.5s ease"></div>
+      <div style="background:var(--surface2);border-radius:6px;height:8px;overflow:hidden;">
+        <div style="width:${stPct}%;background:var(--accent);height:100%;border-radius:6px;transition:width 0.6s ease;"></div>
       </div>
-      <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--muted)">
-        <span>${stats.soldCount} sold</span>
-        <span>${stats.listedCount} active</span>
-        <span>${stats.totalItems} total</span>
-      </div>
-      <div class="st-breakdown" style="display:none;margin-top:14px;border-top:1px solid var(--border);padding-top:14px"></div>
+      <div class="st-breakdown" style="display:none;margin-top:16px;border-top:1px solid var(--border);padding-top:14px;"></div>
     </div>
 
-    <div class="insights" style="grid-template-columns:repeat(3,1fr);margin-bottom:32px">
+    <div class="insights" style="grid-template-columns:repeat(3,1fr);margin-bottom:24px">
       <div class="insight-card">
         <div class="insight-icon">⏱️</div>
         <div>
@@ -1421,7 +1452,7 @@ function renderSummary(){
         <div>
           <div class="insight-label">Avg Sale Price</div>
           <div class="insight-val">${fmt(stats.avgSale)}</div>
-          <div class="insight-sub">Per item</div>
+          <div class="insight-sub">Per sold item</div>
         </div>
       </div>
       <div class="insight-card">
@@ -1434,7 +1465,7 @@ function renderSummary(){
       </div>
     </div>
 
-    <div class="chart-wrap">
+    <div class="chart-wrap" style="margin-bottom:24px">
       <div class="chart-title">
         Monthly Performance
         <div class="chart-legend">
@@ -1443,21 +1474,22 @@ function renderSummary(){
         </div>
       </div>
       <div class="bars-wrap">
-        ${MONTHS.map(m=>{
-          const ms=calcMonthStats(m);
-          const maxVal=Math.max(...MONTHS.map(x=>calcMonthStats(x).totalRev),1);
-          const revH=(ms.totalRev/maxVal)*100;
-          const profH=(ms.realisedProfit/maxVal)*100;
-          return`
-            <div class="bar-group ${ms.totalRev===0?'bar-zero':''}">
+        ${(()=>{
+          const maxVal=Math.max(...MONTHS.map(m=>calcMonthStats(m).totalRev),1);
+          return MONTHS.map(m=>{
+            const ms=calcMonthStats(m);
+            const isEmpty=ms.totalRev===0&&ms.listedCount===0;
+            const revH=(ms.totalRev/maxVal)*100;
+            const profH=(Math.max(0,ms.realisedProfit)/maxVal)*100;
+            return`<div class="bar-group${isEmpty?' bar-zero':''}">
               <div class="bar-pair">
-                <div class="bar-rev" style="height:${revH}%"></div>
-                <div class="bar-prof" style="height:${profH}%"></div>
+                <div class="bar-rev" style="height:${isEmpty?'0':revH}%"></div>
+                <div class="bar-prof" style="height:${isEmpty?'0':profH}%"></div>
               </div>
-              <div class="bar-label">${m}</div>
-            </div>
-          `;
-        }).join('')}
+              <div class="bar-label">${MONTH_NAMES[m].slice(0,3)}</div>
+            </div>`;
+          }).join('');
+        })()}
       </div>
     </div>
 
@@ -1465,27 +1497,78 @@ function renderSummary(){
     <div class="mgrid">
       ${MONTHS.map(m=>{
         const ms=calcMonthStats(m);
-        return`
-          <div class="mcard" onclick="goToMonth('${m}')">
-            <div class="mname">${m}</div>
-            <div class="mval ${ms.realisedProfit>0?'pos':'nil'}">${fmt(ms.realisedProfit)}</div>
-            <div class="msub">${ms.soldCount} sold / ${ms.listedCount} active</div>
-          </div>
-        `;
+        const isEmpty=ms.soldCount===0&&ms.listedCount===0;
+        return`<div class="mcard${isEmpty?' mcard-empty':''}" onclick="goToMonth('${m}')">
+          <div class="mname">${MONTH_NAMES[m]}</div>
+          ${isEmpty
+            ?'<div class="mval nil" style="font-size:16px">—</div><div class="msub" style="opacity:0.5">No items yet</div>'
+            :`<div class="mval ${ms.realisedProfit>0?'pos':'nil'}">${fmt(ms.realisedProfit)}</div>
+              <div class="msub">${ms.soldCount} sold · ${ms.listedCount} active · ${fmt(ms.totalRev)}</div>`
+          }
+        </div>`;
       }).join('')}
     </div>
+
+    ${(()=>{
+      const sold=[];
+      MONTHS.forEach(m=>(DB[m]||[]).forEach(i=>{
+        if(i.dateSold&&!i.isReturned){
+          const profit=calcGrossProfit(i);
+          const roi=calcROI(i);
+          if(profit!==null)sold.push({...i,month:m,profit,roi});
+        }
+      }));
+      sold.sort((a,b)=>b.profit-a.profit);
+      const top=sold.slice(0,10);
+      if(!top.length)return'';
+      const rows=top.map((i,idx)=>{
+        const roiStr=i.roi!==null?'<div style="font-size:11px;color:var(--muted);margin-top:1px">'+i.roi.toFixed(0)+'% ROI</div>':'';
+        const profitCol=i.profit>=0?'var(--green)':'var(--red)';
+        return`<div style="display:flex;align-items:center;gap:12px;padding:11px 0;border-bottom:1px solid var(--border);cursor:pointer" onclick="openItemPage('${i.month}','${i.id}')">
+          <div style="font-size:12px;font-weight:700;color:var(--muted);width:18px;text-align:right;flex-shrink:0">${idx+1}</div>
+          <div style="flex:1;min-width:0">
+            <div style="font-size:13px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(i.item)}</div>
+            <div style="font-size:11px;color:var(--muted);margin-top:2px">${MONTH_NAMES[i.month]} · ${i.dateSold}${i.gid?' · '+i.gid:''}</div>
+          </div>
+          <div style="text-align:right;flex-shrink:0">
+            <div style="font-size:13px;font-weight:700;font-family:'JetBrains Mono',monospace;color:${profitCol}">${fmt(i.profit)}</div>
+            ${roiStr}
+          </div>
+        </div>`;
+      }).join('');
+      return`<div class="sl">Top 10 Flips</div>
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:4px 16px;box-shadow:0 1px 3px var(--shadow)">
+          ${rows}
+        </div>`;
+    })()}
   `;
   document.getElementById('p-summary').innerHTML=html;
 }
 function goToMonth(m){
   SELECTED_MONTH=m;
-  MONTH_FILTER='all';
+  MONTH_FILTER='listed';
   MONTH_SORT='date-listed';
   SELECTED_ITEMS.clear();
   goToTab('monthly',document.querySelector('[data-tab="monthly"]'));
 }
 
 // MONTHLY PAGE
+function toggleMonthPicker(){
+  const el=document.getElementById('month-picker');
+  if(el)el.classList.toggle('open');
+}
+function pickMonth(m){
+  const el=document.getElementById('month-picker');
+  if(el)el.classList.remove('open');
+  SELECTED_MONTH=m;MONTH_FILTER='listed';SELECTION_MODE=false;SELECTED_ITEMS.clear();
+  renderMonth();
+}
+// Close picker on outside click
+document.addEventListener('click',function(e){
+  const el=document.getElementById('month-picker');
+  if(el&&!el.contains(e.target))el.classList.remove('open');
+});
+
 function setMonthFilter(f){MONTH_FILTER=f;renderMonth();}
 function setMonthSort(s){MONTH_SORT=s;renderMonth();}
 
@@ -1525,21 +1608,34 @@ function renderMonth(){
 
   const html=`
     <div class="page-header">
-      <div>
-        <div class="page-title">${m} 2026</div>
-      </div>
-      <div class="page-actions">
-        <select class="month-select" onchange="SELECTED_MONTH=this.value;MONTH_FILTER='all';SELECTION_MODE=false;SELECTED_ITEMS.clear();renderMonth()">
-          ${MONTHS.map(mo=>`<option value="${mo}" ${mo===m?'selected':''}>2026 — ${mo}</option>`).join('')}
-        </select>
+      <div class="month-picker-wrap" id="month-picker">
+        <div class="month-picker-title" onclick="toggleMonthPicker()">
+          ${MONTH_NAMES[m]} 2026
+          <span class="month-picker-chevron">▾</span>
+        </div>
+        <div class="month-picker-dropdown">
+          ${MONTHS.map(mo=>{
+            const ms=calcMonthStats(mo);
+            const hasSales=ms.soldCount>0||ms.listedCount>0;
+            return`<div class="month-picker-option${mo===m?' active':''}" onclick="pickMonth('${mo}')">
+              ${MONTH_NAMES[mo]} 2026
+              ${hasSales?`<span class="month-picker-option-sub">${ms.soldCount} sold · ${ms.listedCount} listed</span>`:`<span class="month-picker-option-sub" style="opacity:0.4">empty</span>`}
+            </div>`;
+          }).join('')}
+        </div>
       </div>
     </div>
 
-    <div class="kgrid">
+    <div class="kgrid" style="grid-template-columns:1fr 1fr;">
       <div class="kcard">
         <div class="klabel">Revenue</div>
         <div class="kval">${fmt(stats.totalRev)}</div>
         <div class="ksub">${stats.soldCount} item${stats.soldCount!==1?'s':''} sold</div>
+      </div>
+      <div class="kcard b">
+        <div class="klabel">Potential Revenue</div>
+        <div class="kval">${fmt(stats.stockValue)}</div>
+        <div class="ksub">${stats.listedCount} still listed</div>
       </div>
       <div class="kcard g">
         <div class="klabel">Realised Profit</div>
@@ -1547,14 +1643,9 @@ function renderMonth(){
         <div class="ksub">${stats.soldCount>0?(stats.realisedProfit/stats.totalRev*100).toFixed(0)+'% margin':'—'}</div>
       </div>
       <div class="kcard p">
-        <div class="klabel">Potential</div>
+        <div class="klabel">Potential Profit</div>
         <div class="kval">${fmt(stats.unrealisedProfit)}</div>
         <div class="ksub">${stats.listedCount} still listed</div>
-      </div>
-      <div class="kcard b">
-        <div class="klabel">Stock Value</div>
-        <div class="kval">${fmt(stats.stockValue)}</div>
-        <div class="ksub">At asking price</div>
       </div>
     </div>
 
@@ -1617,25 +1708,31 @@ function renderItemRow(m,i){
   const daysListed=i.dateSold?daysBetween(i.dateListed,i.dateSold):daysBetween(i.dateListed,today);
   const profit=calcGrossProfit(i);
   const roi=calcROI(i);
-  const isStale=!i.dateSold&&!i.isReturned&&daysListed>=60;
+  const isStale=!i.dateSold&&!i.isReturned&&daysListed>=30;
 
-  // Smart meta line
+  // Status-aware meta — minimum useful info per status
   const metaParts=[];
-  if(i.dateListed)metaParts.push(i.dateListed);
-  if(i.dateSold)metaParts.push('sold '+i.dateSold);
-  else if(!i.isReturned)metaParts.push(daysListed+'d listed'+(isStale?' ⚠️':''));
-  if(i.source)metaParts.push(i.source);
-  if(i.category)metaParts.push(i.category);
+  if(status==='listed'){
+    if(i.dateListed)metaParts.push(i.dateListed);
+    metaParts.push(daysListed+'d'+(isStale?' ⚠️':''));
+  }else if(status==='sold'){
+    if(i.dateSold)metaParts.push('sold '+i.dateSold);
+    if(daysListed)metaParts.push(daysListed+'d to sell');
+  }else if(status==='returned'){
+    if(i.dateSold)metaParts.push('sold '+i.dateSold);
+  }
+  if(i.gid)metaParts.push(i.gid);
+
   const metaStr=metaParts.join(' · ');
 
-  // Right column
+  // Right column — price + profit/ROI
   let profitEl='';
   if(i.dateSold&&!i.isReturned){
     const cls=profit>=0?'pos':'neg';
     profitEl='<div class="item-row-profit '+cls+'">'+fmt(profit)+'</div>';
     if(roi!==null)profitEl+='<div class="item-row-roi">'+roi.toFixed(1)+'% ROI</div>';
   }else if(!i.dateSold&&!i.isReturned&&profit!==null){
-    profitEl='<div class="item-row-profit est">est. '+fmt(profit)+'</div>';
+    profitEl='<div class="item-row-profit est">est. profit '+fmt(profit)+'</div>';
   }else if(i.isReturned){
     const cls=profit>=0?'pos':'neg';
     profitEl='<div class="item-row-profit '+cls+'">net '+fmt(profit)+'</div>';
@@ -1646,12 +1743,11 @@ function renderItemRow(m,i){
     ?'<label class="item-checkbox-left" onclick="event.stopPropagation()"><input type="checkbox" '+(selected?'checked':'')+' onchange="toggleSelect(\''+i.id+'\')" style="width:16px;height:16px;accent-color:var(--accent);cursor:pointer;margin-right:4px"></label>'
     :'<div class="status-dot '+status+'"></div>';
 
-  // Row click: in selection mode toggle checkbox, otherwise go to item page
+  // Row click
   const rowClick=SELECTION_MODE
     ?'onclick="toggleSelect(\''+i.id+'\')"'
-    :'onclick="openItemPage(\''+m+'\',\''+i.id+'\')"'
+    :'onclick="openItemPage(\''+m+'\',\''+i.id+'\')"';
 
-  // Actions: in selection mode just show ⋮ menu, hide checkbox (it's on left now)
   const actionsHTML='<div class="ddwrap" id="dd-'+i.id+'">'+
     '<button class="ddbtn" onclick="event.stopPropagation();toggleDD(\'dd-'+i.id+'\')" title="Actions">⋮</button>'+
     '<div class="ddmenu">'+
@@ -1663,15 +1759,16 @@ function renderItemRow(m,i){
       '<button class="danger" onclick="event.stopPropagation();deleteItem(\''+m+'\',\''+i.id+'\')">🗑️ Delete</button>'+
     '</div></div>';
 
-  const gidSpan=i.gid?'<span style="font-size:11px;color:var(--muted);font-family:JetBrains Mono,monospace;font-weight:400"> '+i.gid+'</span>':'';
-
   return'<div class="item-row'+(selected?' selected':'')+' '+(isStale?' stale':'')+'" '+rowClick+'>'+
-    '<div class="item-main" style="gap:0">'+
+    '<div class="item-main">'+
       '<div class="item-row-inner">'+
         leftSlot+
         '<div class="item-row-body">'+
-          '<div class="item-row-name">'+esc(i.item)+gidSpan+'</div>'+
-          '<div class="item-row-meta"><span class="item-badge '+status+'">'+status+'</span> · '+metaStr+'</div>'+
+          '<div class="item-row-name">'+esc(i.item)+'</div>'+
+          '<div class="item-row-meta">'+
+            '<span class="item-badge '+status+'">'+status+'</span>'+
+            (metaStr?'<span class="item-row-meta-sep">·</span><span>'+metaStr+'</span>':'')+
+          '</div>'+
         '</div>'+
         '<div class="item-row-right">'+
           '<div class="item-row-price">'+fmt(i.salePrice)+'</div>'+
@@ -1803,58 +1900,166 @@ async function bulkAction(action){
 }
 
 // STOCK PAGE
-function renderStock(){
+function setStockSort(s){STOCK_SORT=s;renderStock();}
+function setStockFilter(f){STOCK_FILTER=f;renderStock();}
+
+function toggleStockSelection(){
+  STOCK_SELECTION_MODE=!STOCK_SELECTION_MODE;
+  if(!STOCK_SELECTION_MODE)STOCK_SELECTED.clear();
+  renderStock();
+}
+
+function toggleStockSelect(id){
+  if(STOCK_SELECTED.has(id)){STOCK_SELECTED.delete(id);}else{STOCK_SELECTED.add(id);}
+  renderStock();
+}
+
+function selectAllStockVisible(){
+  const today=new Date().toISOString().split('T')[0];
   let allListed=[];
   MONTHS.forEach(m=>(DB[m]||[]).forEach(i=>{
-    if(!i.dateSold && !i.isReturned)allListed.push({...i,month:m});
+    if(!i.dateSold&&!i.isReturned)allListed.push({...i,month:m});
   }));
-  
+  let items=allListed;
+  if(STOCK_FILTER==='stale')items=allListed.filter(i=>daysBetween(i.dateListed,today)>=30);
+  selectAllStock(items);
+}
+
+function selectAllStock(items){
+  const allSel=items.length>0&&items.every(i=>STOCK_SELECTED.has(i.id));
+  if(allSel){items.forEach(i=>STOCK_SELECTED.delete(i.id));}
+  else{items.forEach(i=>STOCK_SELECTED.add(i.id));}
+  renderStock();
+}
+
+async function stockBulkAction(action,items){
+  if(action==='sold'){
+    const today=new Date().toISOString().split('T')[0];
+    STOCK_SELECTED.forEach(id=>{
+      let found=null;
+      MONTHS.forEach(m=>{const x=(DB[m]||[]).find(i=>i.id===id);if(x)found=x;});
+      if(found&&!found.dateSold){found.dateSold=today;found.grossProfit=calcGrossProfit(found);}
+    });
+    saveDB();STOCK_SELECTED.clear();toast('Marked as sold');renderStock();
+  }else if(action==='delete'){
+    const ok=await showConfirm('Delete '+STOCK_SELECTED.size+' items?','This cannot be undone.',{icon:'🗑️',okLabel:'Delete all'});
+    if(!ok)return;
+    STOCK_SELECTED.forEach(id=>{
+      MONTHS.forEach(m=>{
+        const idx=(DB[m]||[]).findIndex(i=>i.id===id);
+        if(idx>-1)DB[m].splice(idx,1);
+      });
+    });
+    saveDB();STOCK_SELECTED.clear();toast('Items deleted');renderStock();
+  }
+}
+
+function renderStockRow(m,i){
+  // Temporarily swap globals so renderItemRow uses stock selection state
+  const _sm=SELECTION_MODE,_si=SELECTED_ITEMS;
+  SELECTION_MODE=STOCK_SELECTION_MODE;SELECTED_ITEMS=STOCK_SELECTED;
+  // Override toggleSelect click to use stock version
+  const html=renderItemRow(m,i)
+    .replace(/onchange="toggleSelect\(/g,'onchange="toggleStockSelect(')
+    .replace(/onclick="toggleSelect\(/g,'onclick="toggleStockSelect(');
+  SELECTION_MODE=_sm;SELECTED_ITEMS=_si;
+  return html;
+}
+
+function renderStock(){
+  const today=new Date().toISOString().split('T')[0];
+  let allListed=[];
+  MONTHS.forEach(m=>(DB[m]||[]).forEach(i=>{
+    if(!i.dateSold&&!i.isReturned)allListed.push({...i,month:m});
+  }));
+
+  // Counts
+  const cAll=allListed.length;
+  const cStale=allListed.filter(i=>daysBetween(i.dateListed,today)>=30).length;
+
+  // Apply filter
+  let items=allListed;
+  if(STOCK_FILTER==='stale')items=allListed.filter(i=>daysBetween(i.dateListed,today)>=30);
+
+  // Apply sort
+  items=[...items].sort((a,b)=>{
+    if(STOCK_SORT==='profit')return(calcGrossProfit(b)||0)-(calcGrossProfit(a)||0);
+    if(STOCK_SORT==='price')return(b.salePrice||0)-(a.salePrice||0);
+    // default: days listed desc (oldest first — most urgent)
+    return daysBetween(a.dateListed,today)<daysBetween(b.dateListed,today)?1:-1;
+  });
+
   const totalValue=allListed.reduce((s,i)=>s+(i.salePrice||0),0);
   const potentialProfit=allListed.reduce((s,i)=>s+(calcGrossProfit(i)||0),0);
-  
+  const avgAsking=allListed.length?totalValue/allListed.length:0;
+
   const html=`
     <div class="page-header">
       <div>
         <div class="page-title">Active Stock</div>
-        <div class="page-subtitle">${allListed.length} item${allListed.length!==1?'s':''} listed</div>
       </div>
       <div class="page-actions">
         <button class="btn btn-p" onclick="openQuickAdd()">+ Add Item</button>
       </div>
     </div>
 
-    <div class="kgrid">
+    <div class="kgrid" style="grid-template-columns:repeat(3,1fr);">
       <div class="kcard b">
         <div class="klabel">Stock Value</div>
         <div class="kval">${fmt(totalValue)}</div>
-        <div class="ksub">Total investment</div>
+        <div class="ksub">At asking price</div>
       </div>
       <div class="kcard p">
-        <div class="klabel">Potential Profit</div>
+        <div class="klabel">Est. Profit</div>
         <div class="kval">${fmt(potentialProfit)}</div>
         <div class="ksub">If all sell</div>
       </div>
       <div class="kcard">
         <div class="klabel">Avg Asking</div>
-        <div class="kval">${fmt(allListed.length?allListed.reduce((s,i)=>s+i.salePrice,0)/allListed.length:0)}</div>
+        <div class="kval">${fmt(avgAsking)}</div>
         <div class="ksub">Per item</div>
-      </div>
-      <div class="kcard">
-        <div class="klabel">Active Items</div>
-        <div class="kval">${allListed.length}</div>
-        <div class="ksub">Currently listed</div>
       </div>
     </div>
 
-    <div class="sl">All Active Listings</div>
-    ${allListed.length===0?`
+    ${cAll===0?`
       <div class="empty-state">
         <div class="empty-state-icon">📦</div>
-        <div class="empty-state-text">No active listings</div><div class="empty-state-sub">Add items via + or import from Excel</div>
+        <div class="empty-state-text">No active listings</div>
+        <div class="empty-state-sub">Add items via + or import from Excel</div>
       </div>
     `:`
+      ${STOCK_SELECTION_MODE&&STOCK_SELECTED.size>0?`
+        <div class="bulk-bar">
+          <div class="bulk-bar-label">${STOCK_SELECTED.size} item${STOCK_SELECTED.size!==1?'s':''} selected</div>
+          <div class="bulk-bar-actions">
+            <button class="btn btn-s" style="padding:5px 10px;font-size:12px" onclick="selectAllStockVisible()">Select all ${items.length}</button>
+            <button class="btn btn-s" onclick="stockBulkAction('sold')">✅ Mark Sold</button>
+            <button class="btn btn-s danger" onclick="stockBulkAction('delete')">🗑️ Delete</button>
+          </div>
+        </div>
+      `:''}
+
+      <div class="filter-row">
+        <div class="filter-chips">
+          <span class="chip ${STOCK_FILTER==='all'?'active':''}" onclick="setStockFilter('all')">All <span class="chip-count">${cAll}</span></span>
+          ${cStale>0?`<span class="chip ${STOCK_FILTER==='stale'?'active':''}" onclick="setStockFilter('stale')">Stale 30d+ <span class="chip-count">${cStale}</span></span>`:''}
+        </div>
+        <select class="sort-select" onchange="setStockSort(this.value)">
+          <option value="days" ${STOCK_SORT==='days'?'selected':''}>Oldest first</option>
+          <option value="profit" ${STOCK_SORT==='profit'?'selected':''}>Est. profit</option>
+          <option value="price" ${STOCK_SORT==='price'?'selected':''}>Price</option>
+        </select>
+      </div>
+
+      <div class="list-toolbar">
+        <button class="select-toggle ${STOCK_SELECTION_MODE?'active':''}" onclick="toggleStockSelection()">
+          ${STOCK_SELECTION_MODE?'✕ Done':'Select'}
+        </button>
+        <span class="list-count">${items.length} item${items.length!==1?'s':''}</span>
+      </div>
+
       <div class="item-table">
-        ${allListed.map(i=>renderItemRow(i.month,i)).join('')}
+        ${items.map(i=>renderStockRow(i.month,i)).join('')}
       </div>
     `}
   `;
@@ -2594,7 +2799,7 @@ function calcYearlyStats(){
         stockValue+=i.salePrice||0;
         unrealisedProfit+=calcGrossProfit(i)||0;
         const days=daysBetween(i.dateListed,new Date().toISOString().split('T')[0]);
-        if(days>=60)stale.push(i);
+        if(days>=30)stale.push(i);
       }
     });
   });
