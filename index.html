@@ -375,11 +375,18 @@ nav{position:sticky;top:0;z-index:200;background:var(--surface);backdrop-filter:
 .chip.active .chip-count{color:var(--text-secondary);}
 
 /* LIST TOOLBAR */
-.list-toolbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;padding:0 2px;}
+.list-toolbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;padding:0 2px;gap:8px;}
 .list-count{font-size:13px;color:var(--text-secondary);font-weight:500;}
 .select-toggle{background:none;border:none;color:var(--text-secondary);font-size:13px;font-weight:600;cursor:pointer;padding:4px 8px;border-radius:6px;transition:all 0.15s;}
 .select-toggle:hover{color:var(--text);background:var(--surface2);}
 .select-toggle.active{color:var(--accent);}
+.sel-check{display:flex;align-items:center;gap:8px;cursor:pointer;padding:4px 8px;border-radius:6px;border:none;background:none;font-size:13px;font-weight:600;color:var(--text);transition:background 0.15s;flex-shrink:0;}
+.sel-check:hover{background:var(--surface2);}
+.sel-check-box{width:16px;height:16px;border-radius:4px;border:2px solid var(--border2);display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all 0.15s;font-size:10px;}
+.sel-check-box.all{background:var(--accent);border-color:var(--accent);color:#000;}
+.sel-check-box.some{background:var(--surface2);border-color:var(--accent);}
+.sel-exit{background:none;border:none;cursor:pointer;color:var(--text-secondary);font-size:13px;font-weight:600;padding:4px 10px;border-radius:6px;transition:all 0.15s;flex-shrink:0;display:flex;align-items:center;gap:6px;}
+.sel-exit:hover{color:var(--text);background:var(--surface2);}
 
 /* SORT SELECT in header */
 .sort-select{padding:8px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;cursor:pointer;font-family:inherit;font-weight:500;}
@@ -583,32 +590,21 @@ function initDB(){
   }else{
     DB = JSON.parse(stored);
     let changed=false;
-
-    // ── Raw-field sync: update input fields from preloadedData where they differ ──
-    // Calculated fields (BPF, grossProfit, ROI etc) are never stored — always derived.
-    // Only raw inputs are synced: salePrice, costPrice, postage, shippingCost,
-    // packagingCost, promoPercent, dateSold, location, category.
-    // App-only fields (notes, source, parts, returnHistory, isReturned) are preserved.
     const RAW_FIELDS=['salePrice','costPrice','postage','shippingCost','packagingCost','promoPercent','dateSold','location'];
     MONTHS.forEach(function(m){
       (preloadedData[m]||[]).forEach(function(pre){
-        const live=( DB[m]||[]).find(function(i){return i.id===pre.id;});
-        if(!live)return; // new item not yet in localStorage — initDB won't add it, import will
-        RAW_FIELDS.forEach(function(field){
-          if(live[field]!==pre[field]){live[field]=pre[field];changed=true;}
-        });
+        const live=(DB[m]||[]).find(function(i){return i.id===pre.id;});
+        if(!live)return;
+        RAW_FIELDS.forEach(function(field){if(live[field]!==pre[field]){live[field]=pre[field];changed=true;}});
       });
     });
-
     MONTHS.forEach(m=>(DB[m]||[]).forEach(i=>{
       const fresh=autoCategory(i.item);
       if(i.category!==fresh){i.category=fresh;changed=true;}
-      // Migration: strip return postage that old saveReturn baked into shippingCost
       if((i.returnHistory||[]).length>0&&!i._shippingMigrated){
         const bakedIn=(i.returnHistory||[]).reduce(function(s,r){return s+(r.returnPostage||0);},0);
         if(bakedIn>0){i.shippingCost=Math.max(0,(i.shippingCost||0)-bakedIn);}
-        i._shippingMigrated=true;
-        changed=true;
+        i._shippingMigrated=true;changed=true;
       }
     }));
     if(changed)saveDB();
@@ -640,11 +636,11 @@ function calcBuyerProtectionFee(p){return calcEbayBPF(p);}
 function goToTab(name,sourceEl){
   document.querySelectorAll('.tab').forEach(t=>t.classList.remove('on'));
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('on'));
-  document.querySelectorAll('#nav-more-menu button').forEach(b=>b.classList.remove('on'));
-  document.querySelector('.nav-more-btn')?.classList.remove('on');
   const activeTab=sourceEl||document.querySelector('[data-tab="'+name+'"]');
   if(activeTab)activeTab.classList.add('on');
   document.getElementById('p-'+name).classList.add('on');
+  SELECTION_MODE=false;SELECTED_ITEMS.clear();
+  STOCK_SELECTION_MODE=false;STOCK_SELECTED.clear();
   // Always close the More dropdown when navigating
   document.querySelector('.nav-more')?.classList.remove('open');
   if(name==='summary')renderSummary();
@@ -805,7 +801,7 @@ function renderItemPage(m,id){
   // ── Action buttons ────────────────────────────────────────────────────
   let actions='';
   actions+='<button class="btn btn-p" onclick="editItem(\''+m+'\',\''+id+'\')">✏️ Edit</button>';
-  if(!i.dateSold&&!i.isReturned)actions+=' <button class="btn btn-s" onclick="markSold(\''+m+'\',\''+id+'\')">✅ Mark Sold</button>';
+  if(!i.dateSold&&!i.isReturned)actions+=' <button class="btn btn-s" onclick="markSold(\''+m+'\',\''+id+'\')"><svg width="14" height="14" viewBox="0 0 15 15" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M8.5 1.5h4a1 1 0 011 1v4a.5.5 0 01-.15.35l-6 6a1 1 0 01-1.41 0l-4-4a1 1 0 010-1.41l6-6A.5.5 0 018.5 1.5z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/><circle cx="11" cy="4" r="0.8" fill="currentColor"/></svg> Mark Sold</button>';
   if(i.dateSold&&!i.isReturned)actions+=' <button class="btn btn-s" onclick="openReturn(\''+m+'\',\''+id+'\')">↩️ Log Return</button>';
   actions+=' <button class="btn btn-s" onclick="duplicateItem(\''+m+'\',\''+id+'\')">📋 Duplicate</button>';
   actions+=' <button class="btn btn-s danger" onclick="deleteItem(\''+m+'\',\''+id+'\')">🗑️ Delete</button>';
@@ -1045,7 +1041,7 @@ function renderSearchResults(q){
         </div>
         <div class="item-meta">
           <div class="item-meta-item">📅 ${i.dateListed||'—'}</div>
-          ${i.dateSold?`<div class="item-meta-item">✅ ${i.dateSold}</div>`:''}
+          ${i.dateSold?`<div class="item-meta-item" style="color:var(--green)"><svg width="14" height="14" viewBox="0 0 15 15" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M8.5 1.5h4a1 1 0 011 1v4a.5.5 0 01-.15.35l-6 6a1 1 0 01-1.41 0l-4-4a1 1 0 010-1.41l6-6A.5.5 0 018.5 1.5z" stroke="var(--green)" stroke-width="1.3" stroke-linejoin="round"/><circle cx="11" cy="4" r="0.8" fill="var(--green)"/></svg> ${i.dateSold}</div>`:''}
           <div class="item-meta-item">📆 ${i.month}</div>
           ${i.category?`<div class="item-meta-item">📁 ${esc(i.category)}</div>`:''}
         </div>
@@ -1137,18 +1133,19 @@ function submitQuickAdd(){
     postage:parseFloat(document.getElementById('qa-postage').value)||0,
     shippingCost:parseFloat(document.getElementById('qa-shipping').value)||0,
     packagingCost:parseFloat(document.getElementById('qa-packaging').value)||0,
-    promoPercent:parseFloat(document.getElementById('qa-promo').value)||0,
+    promoPercent:(parseFloat(document.getElementById('qa-promo').value)||0)/100,
     dateSold:null,
     grossProfit:null,
     isReturned:false
   };
-  DB[m].push(item);
-  saveDB();
-  closePanel();
-  toast('Item added to '+m);
-  const cur=document.querySelector('.page.on').id;
-  if(cur==='p-monthly')renderMonth();
-  else if(cur==='p-stock')renderStock();
+  item.category=item.category||autoCategory(item.item);
+  if(!item.notes)item.notes='';if(!item.parts)item.parts=[];
+  if(!item.returnHistory)item.returnHistory=[];
+  if(item.isReturned===undefined)item.isReturned=false;
+  DB[m].push(item);saveDB();closePanel();
+  SELECTED_MONTH=m;MONTH_SORT='date-listed';MONTH_FILTER='all';
+  SELECTION_MODE=false;SELECTED_ITEMS.clear();
+  openItemPage(m,item.id,'p-monthly');
 }
 
 function getNextGID(){
@@ -1205,11 +1202,11 @@ function formHTML(){
       </div>
     </div>
     <div id="bpf-preview" class="bpf-info" style="display:none">
-      <div style="font-weight:600;margin-bottom:4px">Buyer sees:</div>
+      <div style="font-weight:600;margin-bottom:4px">Fee breakdown:</div>
       <div class="bpf-breakdown">
-        <span>Listed: <strong id="bpf-listed">£0.00</strong></span>
-        <span>+ BPF: <strong id="bpf-fee">£0.00</strong></span>
-        <span>= Total: <strong id="bpf-total">£0.00</strong></span>
+        <span>Buyer pays: <strong id="bpf-listed">£0.00</strong></span>
+        <span style="color:var(--red)">− BPF: <strong id="bpf-fee">£0.00</strong></span>
+        <span style="color:var(--green)">= You receive: <strong id="bpf-total">£0.00</strong></span>
       </div>
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
@@ -1240,7 +1237,7 @@ function updateBPFPreview(){
   const preview=document.getElementById('bpf-preview');
   if(price>0){
     const bpf=calcBuyerProtectionFee(price);
-    const total=price+bpf;
+    const total=price-bpf;
     document.getElementById('bpf-listed').textContent=fmt(price);
     document.getElementById('bpf-fee').textContent=fmt(bpf);
     document.getElementById('bpf-total').textContent=fmt(total);
@@ -1661,7 +1658,7 @@ function renderSummary(){
       const rows=top.map((i,idx)=>{
         const roiStr=i.roi!==null?'<div style="font-size:11px;color:var(--muted);margin-top:1px">'+i.roi.toFixed(0)+'% ROI</div>':'';
         const profitCol=i.profit>=0?'var(--green)':'var(--red)';
-        return`<div style="display:flex;align-items:center;gap:12px;padding:11px 0;border-bottom:1px solid var(--border);cursor:pointer" onclick="openItemDetail('${i.month}','${i.id}')">
+        return`<div style="display:flex;align-items:center;gap:12px;padding:11px 0;${idx<top.length-1?'border-bottom:1px solid var(--border);':''}cursor:pointer" onclick="openItemDetail('${i.month}','${i.id}')">
           <div style="font-size:12px;font-weight:700;color:var(--muted);width:18px;text-align:right;flex-shrink:0">${idx+1}</div>
           <div style="flex:1;min-width:0">
             <div style="font-size:13px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(i.item)}</div>
@@ -1706,7 +1703,13 @@ document.addEventListener('click',function(e){
   if(el&&!el.contains(e.target))el.classList.remove('open');
 });
 
-function setMonthFilter(f){MONTH_FILTER=f;renderMonth();}
+function setMonthFilter(f){
+  MONTH_FILTER=f;
+  if(f==='sold')MONTH_SORT='date-sold';
+  else if(f==='listed')MONTH_SORT='date-listed';
+  else if(f==='all')MONTH_SORT='date-listed';
+  renderMonth();
+}
 function setMonthSort(s){MONTH_SORT=s;renderMonth();}
 
 function renderMonth(){
@@ -1786,30 +1789,38 @@ function renderMonth(){
       </div>
     </div>
 
-    ${SELECTION_MODE&&SELECTED_ITEMS.size>0?`
-      <div class="bulk-bar">
-        <div class="bulk-bar-label">${SELECTED_ITEMS.size} item${SELECTED_ITEMS.size!==1?'s':''} selected</div>
-        <div class="bulk-bar-actions">
-          <button class="btn btn-s" style="padding:5px 10px;font-size:12px" onclick="selectAllMonth()">Select all ${items.length}</button>
-          <button class="btn btn-s" onclick="bulkAction('sold')">&#x2705; Mark Sold</button>
-          <button class="btn btn-s danger" onclick="bulkAction('delete')">&#x1f5d1; Delete</button>
-        </div>
-      </div>
-    `:''}
+
 
     <div class="filter-row">
-      <div class="filter-chips">
-        <span class="chip ${MONTH_FILTER==='all'?'active':''}" onclick="setMonthFilter('all')">All <span class="chip-count">${cAll}</span></span>
-        <span class="chip ${MONTH_FILTER==='listed'?'active':''}" onclick="setMonthFilter('listed')">Listed <span class="chip-count">${cListed}</span></span>
-        <span class="chip ${MONTH_FILTER==='sold'?'active':''}" onclick="setMonthFilter('sold')">Sold <span class="chip-count">${cSold}</span></span>
-        ${cReturned>0?`<span class="chip ${MONTH_FILTER==='returned'?'active':''}" onclick="setMonthFilter('returned')">Returned <span class="chip-count">${cReturned}</span></span>`:''}
-      </div>
-      <select class="sort-select" onchange="setMonthSort(this.value)">
-        <option value="date-listed" ${MONTH_SORT==='date-listed'?'selected':''}>Date listed</option>
-        <option value="date-sold" ${MONTH_SORT==='date-sold'?'selected':''}>Date sold</option>
-        <option value="profit" ${MONTH_SORT==='profit'?'selected':''}>Profit</option>
-        <option value="price" ${MONTH_SORT==='price'?'selected':''}>Price</option>
-      </select>
+      ${SELECTION_MODE?`
+        <button class="sel-check" onclick="${SELECTED_ITEMS.size===items.length?'SELECTED_ITEMS.clear();renderMonth()':'selectAllMonth()'}">
+          <span class="sel-check-box ${SELECTED_ITEMS.size===items.length?'all':SELECTED_ITEMS.size>0?'some':''}">
+            ${SELECTED_ITEMS.size===items.length?'\u2713':SELECTED_ITEMS.size>0?'\u2212':''}
+          </span>
+          <span style="color:${SELECTED_ITEMS.size>0?'var(--text)':'var(--text-secondary)'}">${SELECTED_ITEMS.size>0?SELECTED_ITEMS.size+' selected':'Select all'}</span>
+        </button>
+        ${SELECTED_ITEMS.size>0?`
+          <button class="btn btn-s" style="padding:5px 10px;font-size:12px;display:inline-flex;align-items:center;gap:5px;color:var(--green)" onclick="bulkAction('sold')"><svg width="13" height="13" viewBox="0 0 15 15" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M8.5 1.5h4a1 1 0 011 1v4a.5.5 0 01-.15.35l-6 6a1 1 0 01-1.41 0l-4-4a1 1 0 010-1.41l6-6A.5.5 0 018.5 1.5z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/><circle cx="11" cy="4" r="0.8" fill="currentColor"/></svg> Mark Sold</button>
+          <button class="btn btn-s danger" style="padding:5px 10px;font-size:12px;display:inline-flex;align-items:center;gap:5px" onclick="bulkAction('delete')"><svg width="13" height="13" viewBox="0 0 15 15" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M5.5 1h4M1 3.5h13M2.5 3.5l1 9a1 1 0 001 .9h6a1 1 0 001-.9l1-9" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M6 6.5v4M9 6.5v4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg> Delete</button>
+        `:''}
+        <button class="sel-exit" onclick="toggleSelectionMode()" style="margin-left:auto">\u2715 Done</button>
+      `:`
+        <div class="filter-chips">
+          <span class="chip ${MONTH_FILTER==='all'?'active':''}" onclick="setMonthFilter('all')">All <span class="chip-count">${cAll}</span></span>
+          <span class="chip ${MONTH_FILTER==='listed'?'active':''}" onclick="setMonthFilter('listed')">Listed <span class="chip-count">${cListed}</span></span>
+          <span class="chip ${MONTH_FILTER==='sold'?'active':''}" onclick="setMonthFilter('sold')">Sold <span class="chip-count">${cSold}</span></span>
+          ${cReturned>0?`<span class="chip ${MONTH_FILTER==='returned'?'active':''}" onclick="setMonthFilter('returned')">Returned <span class="chip-count">${cReturned}</span></span>`:''}
+        </div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <select class="sort-select" onchange="setMonthSort(this.value)">
+            <option value="date-listed" ${MONTH_SORT==='date-listed'?'selected':''}>Date listed</option>
+            <option value="date-sold" ${MONTH_SORT==='date-sold'?'selected':''}>Date sold</option>
+            <option value="profit" ${MONTH_SORT==='profit'?'selected':''}>Profit</option>
+            <option value="price" ${MONTH_SORT==='price'?'selected':''}>Price</option>
+          </select>
+          <button class="select-toggle" onclick="toggleSelectionMode()">Select</button>
+        </div>
+      `}
     </div>
 
     ${allItems.length===0?`
@@ -1825,11 +1836,6 @@ function renderMonth(){
         <div class="empty-state-sub"><span style="color:var(--accent);cursor:pointer;font-weight:600" onclick="setMonthFilter('all')">Show all ${cAll}</span></div>
       </div>
     `:`
-      <div class="list-toolbar">
-        <button class="select-toggle ${SELECTION_MODE?'active':''}" onclick="toggleSelectionMode()">
-          ${SELECTION_MODE?'✕ Done':'Select'}
-        </button>
-      </div>
       <div class="item-table">
         ${items.map(i=>renderItemRow(m,i)).join('')}
       </div>
@@ -1890,7 +1896,7 @@ function renderItemRow(m,i){
     '<div class="ddmenu">'+
       '<button onclick="event.stopPropagation();openItemPage(\''+m+'\',\''+i.id+'\')">📄 Full page</button>'+
       '<button onclick="event.stopPropagation();editItem(\''+m+'\',\''+i.id+'\')">✏️ Edit</button>'+
-      (!i.dateSold?'<button onclick="event.stopPropagation();markSold(\''+m+'\',\''+i.id+'\')">✅ Mark Sold</button>':'')+
+      (!i.dateSold?'<button onclick="event.stopPropagation();markSold(\''+m+'\',\''+i.id+'\')"><svg width="14" height="14" viewBox="0 0 15 15" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M8.5 1.5h4a1 1 0 011 1v4a.5.5 0 01-.15.35l-6 6a1 1 0 01-1.41 0l-4-4a1 1 0 010-1.41l6-6A.5.5 0 018.5 1.5z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/><circle cx="11" cy="4" r="0.8" fill="currentColor"/></svg> Mark Sold</button>':'')+
       (i.dateSold&&!i.isReturned?'<button onclick="event.stopPropagation();openReturn(\''+m+'\',\''+i.id+'\')">↩️ Log Return</button>':'')+
       '<button onclick="event.stopPropagation();duplicateItem(\''+m+'\',\''+i.id+'\')">📋 Duplicate</button>'+
       '<button class="danger" onclick="event.stopPropagation();deleteItem(\''+m+'\',\''+i.id+'\')">🗑️ Delete</button>'+
@@ -1986,7 +1992,7 @@ function openItemDetail(m,id){
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
       <button class="btn btn-p" onclick="closePanel();openItemPage('${m}','${id}')">📄 Full Page</button>
       <button class="btn btn-s" onclick="editItem('${m}','${id}')">✏️ Edit</button>
-      ${!i.dateSold?`<button class="btn btn-s" onclick="markSold('${m}','${id}')">✅ Mark Sold</button>`:''}
+      ${!i.dateSold?`<button class="btn btn-s" onclick="markSold('${m}','${id}')"><svg width="14" height="14" viewBox="0 0 15 15" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M8.5 1.5h4a1 1 0 011 1v4a.5.5 0 01-.15.35l-6 6a1 1 0 01-1.41 0l-4-4a1 1 0 010-1.41l6-6A.5.5 0 018.5 1.5z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/><circle cx="11" cy="4" r="0.8" fill="currentColor"/></svg> Mark Sold</button>`:''}
       ${i.dateSold&&!i.isReturned?`<button class="btn btn-s" onclick="openReturn('${m}','${id}')">↩️ Log Return</button>`:''}
       <button class="btn btn-s" onclick="duplicateItem('${m}','${id}')">📋 Duplicate</button>
       <button class="btn btn-s danger" onclick="deleteItem('${m}','${id}')">🗑️ Delete</button>
@@ -2175,34 +2181,35 @@ function renderStock(){
         <div class="empty-state-sub">Add items via + or import from Excel</div>
       </div>
     `:`
-      ${STOCK_SELECTION_MODE&&STOCK_SELECTED.size>0?`
-        <div class="bulk-bar">
-          <div class="bulk-bar-label">${STOCK_SELECTED.size} item${STOCK_SELECTED.size!==1?'s':''} selected</div>
-          <div class="bulk-bar-actions">
-            <button class="btn btn-s" style="padding:5px 10px;font-size:12px" onclick="selectAllStockVisible()">Select all ${items.length}</button>
-            <button class="btn btn-s" onclick="stockBulkAction('sold')">✅ Mark Sold</button>
-            <button class="btn btn-s danger" onclick="stockBulkAction('delete')">🗑️ Delete</button>
-          </div>
-        </div>
-      `:''}
+
 
       <div class="filter-row">
-        <div class="filter-chips">
-          <span class="chip ${STOCK_FILTER==='all'?'active':''}" onclick="setStockFilter('all')">All <span class="chip-count">${cAll}</span></span>
-          ${cStale>0?`<span class="chip ${STOCK_FILTER==='stale'?'active':''}" onclick="setStockFilter('stale')">Stale 30d+ <span class="chip-count">${cStale}</span></span>`:''}
-        </div>
-        <select class="sort-select" onchange="setStockSort(this.value)">
-          <option value="days" ${STOCK_SORT==='days'?'selected':''}>Oldest first</option>
-          <option value="profit" ${STOCK_SORT==='profit'?'selected':''}>Est. profit</option>
-          <option value="price" ${STOCK_SORT==='price'?'selected':''}>Price</option>
-        </select>
-      </div>
-
-      <div class="list-toolbar">
-        <button class="select-toggle ${STOCK_SELECTION_MODE?'active':''}" onclick="toggleStockSelection()">
-          ${STOCK_SELECTION_MODE?'✕ Done':'Select'}
-        </button>
-        <span class="list-count">${items.length} item${items.length!==1?'s':''}</span>
+        ${STOCK_SELECTION_MODE?`
+          <button class="sel-check" onclick="${STOCK_SELECTED.size===items.length?'STOCK_SELECTED.clear();renderStock()':'selectAllStockVisible()'}">
+            <span class="sel-check-box ${STOCK_SELECTED.size===items.length?'all':STOCK_SELECTED.size>0?'some':''}">
+              ${STOCK_SELECTED.size===items.length?'\u2713':STOCK_SELECTED.size>0?'\u2212':''}
+            </span>
+            <span style="color:${STOCK_SELECTED.size>0?'var(--text)':'var(--text-secondary)'}">${STOCK_SELECTED.size>0?STOCK_SELECTED.size+' selected':'Select all'}</span>
+          </button>
+          ${STOCK_SELECTED.size>0?`
+            <button class="btn btn-s" style="padding:5px 10px;font-size:12px;display:inline-flex;align-items:center;gap:5px;color:var(--green)" onclick="stockBulkAction('sold')"><svg width="13" height="13" viewBox="0 0 15 15" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M8.5 1.5h4a1 1 0 011 1v4a.5.5 0 01-.15.35l-6 6a1 1 0 01-1.41 0l-4-4a1 1 0 010-1.41l6-6A.5.5 0 018.5 1.5z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/><circle cx="11" cy="4" r="0.8" fill="currentColor"/></svg> Mark Sold</button>
+            <button class="btn btn-s danger" style="padding:5px 10px;font-size:12px;display:inline-flex;align-items:center;gap:5px" onclick="stockBulkAction('delete')"><svg width="13" height="13" viewBox="0 0 15 15" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M5.5 1h4M1 3.5h13M2.5 3.5l1 9a1 1 0 001 .9h6a1 1 0 001-.9l1-9" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M6 6.5v4M9 6.5v4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg> Delete</button>
+          `:''}
+          <button class="sel-exit" onclick="toggleStockSelection()" style="margin-left:auto">\u2715 Done</button>
+        `:`
+          <div class="filter-chips">
+            <span class="chip ${STOCK_FILTER==='all'?'active':''}" onclick="setStockFilter('all')">All <span class="chip-count">${cAll}</span></span>
+            ${cStale>0?`<span class="chip ${STOCK_FILTER==='stale'?'active':''}" onclick="setStockFilter('stale')">Stale 30d+ <span class="chip-count">${cStale}</span></span>`:''}
+          </div>
+          <div style="display:flex;align-items:center;gap:8px">
+            <select class="sort-select" onchange="setStockSort(this.value)">
+              <option value="days" ${STOCK_SORT==='days'?'selected':''}>Oldest first</option>
+              <option value="profit" ${STOCK_SORT==='profit'?'selected':''}>Est. profit</option>
+              <option value="price" ${STOCK_SORT==='price'?'selected':''}>Price</option>
+            </select>
+            <button class="select-toggle" onclick="toggleStockSelection()">Select</button>
+          </div>
+        `}
       </div>
 
       <div class="item-table">
@@ -2419,6 +2426,7 @@ async function deleteExpense(idx){
 
 // DATA PAGE
 function renderData(){
+
   const html=`
     <div style="margin-bottom:24px">
       <h1 style="font-size:28px;font-weight:700;margin-bottom:6px">Import / Export</h1>
@@ -2786,17 +2794,13 @@ function duplicateItem(m,id){
   const copy=JSON.parse(JSON.stringify(item));
   copy.id='dup_'+Date.now();
   copy.gid='G007-'+String(getNextGID()).padStart(4,'0');
-  copy.dateSold=null;
-  copy.grossProfit=null;
-  copy.isReturned=false;
-  delete copy.returnData;
+  copy.dateListed=new Date().toISOString().split('T')[0];
+  copy.dateSold=null;copy.grossProfit=null;copy.isReturned=false;
+  copy.returnHistory=[];delete copy.returnData;
   copy.item=item.item+' (copy)';
-  DB[m].push(copy);
-  saveDB();
-  toast('Item duplicated');
-  const cur=document.querySelector('.page.on').id;
-  if(cur==='p-monthly')renderMonth();
-  else if(cur==='p-stock')renderStock();
+  DB[m].push(copy);saveDB();
+  SELECTED_MONTH=m;MONTH_SORT='date-listed';MONTH_FILTER='all';
+  openItemPage(m,copy.id,'p-monthly');
 }
 
 function openReturn(m,id){
@@ -3324,17 +3328,18 @@ function handleNavResize(){
   
   if(hiddenTabs.length>0){
     moreBtn.classList.add('has-items');
-    const activePageName=(document.querySelector('.page.on')||{id:''}).id.replace('p-','');
     hiddenTabs.forEach(tab=>{
       tab.style.display='none';
       const btn=document.createElement('button');
       btn.textContent=tab.textContent;
-      btn.className=tab.dataset.tab===activePageName?'on':'';
+      const _apn=(document.querySelector('.page.on')||{id:''}).id.replace('p-','');
+      btn.className=tab.dataset.tab===_apn?'on':'';
       btn.setAttribute('data-tab',tab.dataset.tab);
       btn.onclick=()=>goToTab(tab.dataset.tab,btn);
       moreMenu.appendChild(btn);
     });
-    if(hiddenTabs.some(t=>t.dataset.tab===activePageName))moreBtn.classList.add('on');
+    const _mapn=(document.querySelector('.page.on')||{id:''}).id.replace('p-','');
+    if(hiddenTabs.some(t=>t.dataset.tab===_mapn))moreBtn.classList.add('on');
     else moreBtn.classList.remove('on');
   }
 }
