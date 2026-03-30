@@ -1828,16 +1828,7 @@ function renderMonth(){
       </div>
     </div>
 
-    ${SELECTION_MODE&&SELECTED_ITEMS.size>0?`
-      <div class="bulk-bar">
-        <div class="bulk-bar-label">${SELECTED_ITEMS.size} item${SELECTED_ITEMS.size!==1?'s':''} selected</div>
-        <div class="bulk-bar-actions">
-          <button class="btn btn-s" style="padding:5px 10px;font-size:12px" onclick="selectAllMonth()">Select all ${items.length}</button>
-          <button class="btn btn-s" onclick="bulkAction('sold')"><svg width="14" height="14" viewBox="0 0 15 15" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M8.5 1.5h4a1 1 0 011 1v4a.5.5 0 01-.15.35l-6 6a1 1 0 01-1.41 0l-4-4a1 1 0 010-1.41l6-6A.5.5 0 018.5 1.5z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/><circle cx="11" cy="4" r="0.8" fill="currentColor"/></svg> Mark Sold</button>
-          <button class="btn btn-s danger" onclick="bulkAction('delete')">&#x1f5d1; Delete</button>
-        </div>
-      </div>
-    `:''}
+
 
     <div class="filter-row">
       <div class="filter-chips">
@@ -2083,7 +2074,7 @@ async function bulkAction(action){
       }
     });
     saveDB();
-    SELECTED_ITEMS.clear();
+    SELECTED_ITEMS.clear();SELECTION_MODE=false;
     toast(`Marked items as sold`);
     renderMonth();
   }else if(action==='delete'){
@@ -2094,7 +2085,7 @@ async function bulkAction(action){
       if(idx>-1)DB[SELECTED_MONTH].splice(idx,1);
     });
     saveDB();
-    SELECTED_ITEMS.clear();
+    SELECTED_ITEMS.clear();SELECTION_MODE=false;
     toast('Items deleted');
     renderMonth();
   }
@@ -2141,7 +2132,7 @@ async function stockBulkAction(action,items){
       MONTHS.forEach(m=>{const x=(DB[m]||[]).find(i=>i.id===id);if(x)found=x;});
       if(found&&!found.dateSold){found.dateSold=today;found.grossProfit=calcGrossProfit(found);}
     });
-    saveDB();STOCK_SELECTED.clear();toast('Marked as sold');
+    saveDB();STOCK_SELECTED.clear();STOCK_SELECTION_MODE=false;toast('Marked as sold');renderStock();
   }else if(action==='delete'){
     const ok=await showConfirm('Delete '+STOCK_SELECTED.size+' items?','This cannot be undone.',{icon:'🗑️',okLabel:'Delete all'});
     if(!ok)return;
@@ -2151,7 +2142,7 @@ async function stockBulkAction(action,items){
         if(idx>-1)DB[m].splice(idx,1);
       });
     });
-    saveDB();STOCK_SELECTED.clear();toast('Items deleted');
+    saveDB();STOCK_SELECTED.clear();STOCK_SELECTION_MODE=false;toast('Items deleted');renderStock();
   }
 }
 
@@ -2229,16 +2220,7 @@ function renderStock(){
         <div class="empty-state-sub">Add items via + or import from Excel</div>
       </div>
     `:`
-      ${STOCK_SELECTION_MODE&&STOCK_SELECTED.size>0?`
-        <div class="bulk-bar">
-          <div class="bulk-bar-label">${STOCK_SELECTED.size} item${STOCK_SELECTED.size!==1?'s':''} selected</div>
-          <div class="bulk-bar-actions">
-            <button class="btn btn-s" style="padding:5px 10px;font-size:12px" onclick="selectAllStockVisible()">Select all ${items.length}</button>
-            <button class="btn btn-s" onclick="stockBulkAction('sold')"><svg width="14" height="14" viewBox="0 0 15 15" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M8.5 1.5h4a1 1 0 011 1v4a.5.5 0 01-.15.35l-6 6a1 1 0 01-1.41 0l-4-4a1 1 0 010-1.41l6-6A.5.5 0 018.5 1.5z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/><circle cx="11" cy="4" r="0.8" fill="currentColor"/></svg> Mark Sold</button>
-            <button class="btn btn-s danger" onclick="stockBulkAction('delete')">🗑️ Delete</button>
-          </div>
-        </div>
-      `:''}
+
 
       <div class="filter-row">
         <div class="filter-chips">
@@ -2852,31 +2834,16 @@ function duplicateItem(m,id){
   const copy=JSON.parse(JSON.stringify(item));
   copy.id='dup_'+Date.now();
   copy.gid='G007-'+String(getNextGID()).padStart(4,'0');
-  copy.dateSold=null;
-  copy.grossProfit=null;
-  copy.isReturned=false;
-  delete copy.returnData;
-  // Smart numbering: strip existing suffix, find next number
-  const baseName=(function(){
-    const m2=item.item.match(/^(.+?) - (\d+)$/);
-    return m2?m2[1]:item.item;
-  })();
-  const usedNums=(DB[m]||[]).reduce(function(acc,x){
-    const match=x.item.match(/^(.+?) - (\d+)$/);
-    if(match&&match[1]===baseName)acc.push(parseInt(match[2]));
-    return acc;
-  },[]);
-  // Also count the original (unnumbered) as "1"
-  const hasOriginal=(DB[m]||[]).some(function(x){return x.item===baseName;});
-  if(hasOriginal&&usedNums.length===0)usedNums.push(1);
-  const nextNum=usedNums.length>0?Math.max.apply(null,usedNums)+1:2;
-  copy.item=baseName+' - '+nextNum;
-  DB[m].push(copy);
-  saveDB();
-  toast('Item duplicated');
-  const cur=document.querySelector('.page.on').id;
-  if(cur==='p-monthly')renderMonth();
-  else if(cur==='p-stock')renderStock();
+  copy.dateListed=new Date().toISOString().split('T')[0];
+  copy.dateSold=null;copy.grossProfit=null;copy.isReturned=false;
+  copy.returnHistory=[];delete copy.returnData;
+  const baseName=(function(){const m2=item.item.match(/^(.+?) - (\d+)$/);return m2?m2[1]:item.item;})();
+  const usedNums=(DB[m]||[]).reduce(function(acc,x){const match=x.item.match(/^(.+?) - (\d+)$/);if(match&&match[1]===baseName)acc.push(parseInt(match[2]));return acc;},[]);
+  if((DB[m]||[]).some(function(x){return x.item===baseName;}))usedNums.push(1);
+  copy.item=baseName+' - '+(usedNums.length>0?Math.max.apply(null,usedNums)+1:2);
+  DB[m].push(copy);saveDB();
+  SELECTED_MONTH=m;MONTH_SORT='date-listed';MONTH_FILTER='all';
+  openItemPage(m,copy.id,'p-monthly');
 }
 
 function openReturn(m,id){
@@ -3451,11 +3418,6 @@ function ipSave(m,id,field,val){
   i[field]=val;
   if(field==='dateSold'&&val)i.grossProfit=calcGrossProfit(i);
   saveDB();
-  // Refresh header if item name changed
-  if(field==='item'){
-    const el=document.querySelector('.item-full-page > div > div[style*="font-size:20px"]');
-    if(el)el.textContent=val;
-  }
 }
 function ipSaveNum(m,id,field,val){
   const i=(DB[m]||[]).find(x=>x.id===id);
