@@ -767,6 +767,7 @@ function goToTab(name,sourceEl){
   STOCK_SELECTION_MODE=false;STOCK_SELECTED.clear();
   // Always close the More dropdown when navigating
   document.querySelector('.nav-more')?.classList.remove('open');
+  handleNavResize();
   if(name==='summary')renderSummary();
   else if(name==='monthly'){MONTHLY_VIEW='grid';renderMonthlyPage();}
   else if(name==='stock')renderStock();
@@ -777,6 +778,7 @@ function goToTab(name,sourceEl){
 }
 
 let _itemPageOrigin='p-summary';
+let _monthOrigin='grid'; // 'grid' | 'summary' | other page id
 
 function openItemPage(m,id,origin){
   _itemPageOrigin=origin||(document.querySelector('.page.on')?document.querySelector('.page.on').id:'p-summary');
@@ -788,11 +790,13 @@ function openItemPage(m,id,origin){
 
 function exitItemPage(){
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('on'));
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('on'));
   const origin=_itemPageOrigin||'p-summary';
   if(origin==='returns'){
     document.getElementById('p-summary').classList.add('on');
-    const tab=document.querySelector('.tab[onclick*="summary"]');
+    const tab=document.querySelector('[data-tab="summary"]');
     if(tab)tab.classList.add('on');
+    handleNavResize();
     renderSummary();
     showReturnedItems();
     return;
@@ -800,7 +804,8 @@ function exitItemPage(){
   document.getElementById(origin).classList.add('on');
   const tabMap={'p-summary':'summary','p-monthly':'monthly','p-stock':'stock','p-expenses':'expenses','p-tax':'tax','p-data':'data'};
   const tabName=tabMap[origin];
-  if(tabName){const tab=document.querySelector('.tab[onclick*="'+tabName+'"]');if(tab)tab.classList.add('on');}
+  if(tabName){const tab=document.querySelector('[data-tab="'+tabName+'"]');if(tab)tab.classList.add('on');}
+  handleNavResize();
   if(origin==='p-monthly')renderMonth();
   else if(origin==='p-stock')renderStock();
   else if(origin==='p-summary')renderSummary();
@@ -1356,7 +1361,7 @@ function closePanel(){
   updatePanelNav();
 }
 function panelBack(){
-  if(!PANEL_STACK.length)return;
+  if(!PANEL_STACK.length){closePanel();return;}
   const prev=PANEL_STACK.pop();
   document.getElementById('panel-title').textContent=prev.title;
   document.getElementById('panel-content').innerHTML=prev.content;
@@ -1585,14 +1590,16 @@ function autoCategory(name){
 
 function toggleSellThroughBar(card,byCat){
   const bd=card.querySelector('.st-breakdown');
+  const chevron=card.querySelector('.st-chevron');
   if(bd.style.display==='none'){
     bd.style.display='block';
-    const legend=`<div style="display:flex;gap:14px;margin-bottom:14px;font-size:11px;">
+    if(chevron)chevron.style.transform='rotate(180deg)';
+    const legend=`<div style="display:flex;gap:14px;margin-top:14px;padding-top:12px;border-top:1px solid var(--border);font-size:11px;">
       <span style="display:flex;align-items:center;gap:4px;color:var(--green)"><span style="width:7px;height:7px;border-radius:50%;background:var(--green);display:inline-block"></span>Fast ≤14d</span>
       <span style="display:flex;align-items:center;gap:4px;color:var(--warn)"><span style="width:7px;height:7px;border-radius:50%;background:var(--warn);display:inline-block"></span>Average 15–30d</span>
       <span style="display:flex;align-items:center;gap:4px;color:var(--red)"><span style="width:7px;height:7px;border-radius:50%;background:var(--red);display:inline-block"></span>Slow 30d+</span>
     </div>`;
-    if(!byCat||!byCat.length){bd.innerHTML=legend+'<div style="font-size:12px;color:var(--muted)">No category data yet</div>';return;}
+    if(!byCat||!byCat.length){bd.innerHTML='<div style="font-size:12px;color:var(--muted)">No category data yet</div>'+legend;return;}
     const catRows=byCat.map(c=>{
       let speedLabel='',speedColor='var(--muted)';
       if(c.avgDays===null){speedLabel='no sales yet';speedColor='var(--muted)';}
@@ -1613,8 +1620,11 @@ function toggleSellThroughBar(card,byCat){
         <div style="color:var(--muted);font-size:11px;white-space:nowrap">${c.sold}/${c.total} sold ›</div>
       </div>`;
     }).join('');
-    bd.innerHTML=legend+catRows;
-  }else{bd.style.display='none';}
+    bd.innerHTML=catRows+legend;
+  }else{
+    bd.style.display='none';
+    if(chevron)chevron.style.transform='rotate(0deg)';
+  }
 }
 
 function showCategoryItems(cat){
@@ -1638,14 +1648,18 @@ function showCategoryItems(cat){
       </div>
     </div>
     ${items.map(i=>{
+      const _today=new Date().toISOString().split('T')[0];
       const status=i.isReturned?'returned':i.resaleSalePrice?'resold':i.dateSold?'sold':'listed';
       const prof=i.dateSold&&!i.isReturned?calcGrossProfit(i):null;
       const daysToSell=i.dateSold&&!i.isReturned?daysBetween(i.dateListed,i.dateSold):null;
       const daysColor=daysToSell===null?'var(--muted)':daysToSell<=14?'var(--green)':daysToSell<=30?'var(--warn)':'var(--red)';
-      return`<div style="padding:10px;background:var(--surface2);border-radius:8px;margin-bottom:8px;cursor:pointer" onclick="openItemDetail('${i.month}','${i.id}')">
+      const isStale=!i.dateSold&&!i.isReturned&&i.dateListed&&daysBetween(i.dateListed,_today)>=30;
+      const daysListed=isStale?daysBetween(i.dateListed,_today):null;
+      return`<div style="padding:10px;background:var(--surface2);border-radius:8px;margin-bottom:8px;cursor:pointer${isStale?';border-left:2px solid var(--warn)':''}" onclick="openItemDetail('${i.month}','${i.id}')">
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
           <div style="flex:1;font-weight:600;font-size:14px">${esc(i.item)}</div>
           ${daysToSell!==null?`<span style="font-size:11px;font-weight:600;color:${daysColor}">${daysToSell}d</span>`:''}
+          ${isStale?`<span style="font-size:10px;font-weight:700;background:rgba(245,158,11,0.15);color:var(--warn);border-radius:4px;padding:2px 6px;">stale</span>`:''}
           <div class="item-badge ${status}">${status}</div>
           <div style="font-size:11px;color:var(--muted)">${i.month}</div>
         </div>
@@ -1653,6 +1667,7 @@ function showCategoryItems(cat){
           <span>${fmt(i.salePrice)}</span>
           ${prof!==null?`<span style="color:var(--green);font-weight:600">${fmt(prof)}</span>`:''}
           ${i.dateSold&&!i.isReturned&&calcROI(i)!==null?`<span style="color:var(--muted)">ROI ${calcROI(i).toFixed(1)}%</span>`:''}
+          ${isStale&&daysListed!==null?`<span style="color:var(--warn)">${daysListed}d listed</span>`:''}
         </div>
       </div>`;
     }).join('')}`;
@@ -1810,6 +1825,9 @@ function showFilteredItems(filter){
     else if(filter==='unrealised'&&!sold&&!i.isReturned)items.push({...i,month:m});
     else if(filter==='stock'&&!sold&&!i.isReturned)items.push({...i,month:m});
   });});
+  // Sort
+  if(filter==='revenue')items.sort((a,b)=>(b.dateSold||'').localeCompare(a.dateSold||''));
+  else if(filter==='realised')items.sort((a,b)=>calcGrossProfit(b)-calcGrossProfit(a));
   const titles={revenue:'Total Revenue',realised:'Realised Profit',unrealised:'Unrealised Profit',stock:'Stock Value'};
   let summaryVal='',summaryLabel='',summaryColor='var(--accent)';
   if(filter==='revenue'){summaryVal=fmt(items.reduce((s,i)=>s+(i.salePrice||0),0));summaryLabel=`${items.length} sold items`;summaryColor='var(--accent)';}
@@ -1843,7 +1861,8 @@ function renderSummary(){
   const stats=calcYearlyStats();
 
   const html=`
-    <div class="kgrid" style="grid-template-columns:1fr 1fr;margin-bottom:24px;">
+    <div class="sl" style="margin-top:0;">Overview</div>
+    <div class="kgrid" style="grid-template-columns:1fr 1fr;margin-bottom:16px;">
       <div class="kcard b clickable" onclick="showFilteredItems('revenue')">
         <div class="klabel">Total Revenue</div>
         <div class="kval">${fmt(stats.totalRev)}</div>
@@ -1866,31 +1885,7 @@ function renderSummary(){
       </div>
     </div>
 
-    ${stats.stale.length>0?`
-      <div class="stale-alert" style="cursor:pointer;margin-bottom:24px;" onclick="STOCK_FILTER='stale';goToTab('stock',document.querySelector('[data-tab=\\'stock\\']'))" title="View stale items in Stock page">
-        <div class="stale-dot"></div>
-        <div style="flex:1">
-          <div class="stale-text">⚠️ ${stats.stale.length} item${stats.stale.length!==1?'s':''} listed 30+ days</div>
-          <div class="stale-items">Consider repricing or relisting → <span style="text-decoration:underline">View in Stock ›</span></div>
-        </div>
-      </div>
-    `:''}
-
-    <div class="chart-wrap" style="margin-bottom:24px;cursor:pointer;" onclick="toggleSellThroughBar(this,${JSON.stringify(stats.byCat).replace(/"/g,'&quot;')})">
-      <div style="display:flex;align-items:center;justify-content:space-between;">
-        <div>
-          <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:4px;">Inventory Velocity</div>
-          <div style="font-size:12px;color:var(--text-secondary);">${stats.soldCount} sold · ${stats.listedCount} active${stats.totalStaleCount>0?` · <span style="color:var(--warn);font-weight:600">${stats.totalStaleCount} stale</span>`:''} · <span style="color:var(--muted)">tap for breakdown</span></div>
-        </div>
-        <div style="text-align:right">
-          <div style="font-size:28px;font-weight:700;letter-spacing:-0.02em;color:${stats.avgDays<=14?'var(--green)':stats.avgDays<=30?'var(--warn)':'var(--red)'};">${stats.avgDays}<span style="font-size:14px;font-weight:500;color:var(--text-secondary);margin-left:2px">d</span></div>
-          <div style="font-size:10px;color:var(--text-secondary);font-weight:500;text-align:right;margin-top:1px;">avg days to sell</div>
-        </div>
-      </div>
-      <div class="st-breakdown" style="display:none;margin-top:14px;border-top:1px solid var(--border);padding-top:14px;"></div>
-    </div>
-
-    <div class="insights" style="margin-bottom:24px;">
+    <div class="insights" style="margin-bottom:32px;">
       <div class="insight-card">
         <div class="insight-icon">💰</div>
         <div>
@@ -1913,6 +1908,37 @@ function renderSummary(){
         </div>
       </div>
     </div>
+
+    <div class="sl">Inventory Health</div>
+
+    ${stats.stale.length>0?`
+      <div class="stale-alert" style="cursor:pointer;margin-bottom:24px;" onclick="STOCK_FILTER='stale';goToTab('stock',document.querySelector('[data-tab=\\'stock\\']'))" title="View stale items in Stock page">
+        <div class="stale-dot"></div>
+        <div style="flex:1">
+          <div class="stale-text">⚠️ ${stats.stale.length} item${stats.stale.length!==1?'s':''} listed 30+ days</div>
+          <div class="stale-items">Consider repricing or relisting → <span style="text-decoration:underline">View in Stock ›</span></div>
+        </div>
+      </div>
+    `:''}
+
+    <div class="chart-wrap" style="margin-bottom:32px;cursor:pointer;" onclick="toggleSellThroughBar(this,${JSON.stringify(stats.byCat).replace(/"/g,'&quot;')})">
+      <div style="display:flex;align-items:center;justify-content:space-between;">
+        <div>
+          <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:4px;">Inventory Velocity</div>
+          <div style="font-size:12px;color:var(--text-secondary);">${stats.soldCount} sold · ${stats.listedCount} active${stats.totalStaleCount>0?` · <span style="color:var(--warn);font-weight:600">${stats.totalStaleCount} stale</span>`:''}</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:14px;">
+          <div style="text-align:right">
+            <div style="font-size:28px;font-weight:700;letter-spacing:-0.02em;color:${stats.avgDays<=14?'var(--green)':stats.avgDays<=30?'var(--warn)':'var(--red)'};">${stats.avgDays}<span style="font-size:14px;font-weight:500;color:var(--text-secondary);margin-left:2px">d</span></div>
+            <div style="font-size:10px;color:var(--text-secondary);font-weight:500;text-align:right;margin-top:1px;">avg days to sell</div>
+          </div>
+          <span class="st-chevron" style="font-size:18px;color:var(--muted);transition:transform 0.2s;display:inline-block;">▾</span>
+        </div>
+      </div>
+      <div class="st-breakdown" style="display:none;margin-top:14px;border-top:1px solid var(--border);padding-top:14px;"></div>
+    </div>
+
+    <div class="sl">Activity</div>
 
     <div class="chart-wrap" style="margin-bottom:24px;">
       <div class="chart-title">
@@ -1983,8 +2009,13 @@ function goToMonth(m){
   MONTH_SORT='date-listed';
   SELECTED_ITEMS.clear();
   MONTHLY_VIEW='detail';
-  // If already on monthly tab just re-render, otherwise switch tab
   const cur=document.querySelector('.page.on');
+  // Record where we came from so back button knows where to go
+  if(cur&&cur.id==='p-monthly'){
+    _monthOrigin='grid';
+  } else {
+    _monthOrigin=(cur&&cur.id)||'p-summary';
+  }
   if(cur&&cur.id==='p-monthly'){
     renderMonthlyPage();
   } else {
@@ -1996,6 +2027,15 @@ function goToMonth(m){
 function renderMonthlyPage(){
   if(MONTHLY_VIEW==='grid')renderMonthlyGrid();
   else renderMonth();
+}
+
+function backToMonthlyGrid(){
+  MONTHLY_VIEW='grid';
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('on'));
+  const mt=document.querySelector('[data-tab="monthly"]');
+  if(mt)mt.classList.add('on');
+  handleNavResize();
+  renderMonthlyGrid();
 }
 
 function renderMonthlyGrid(){
@@ -2092,10 +2132,17 @@ function renderMonth(){
     return db<da?-1:db>da?1:0;
   });
 
+  const backLabel=_monthOrigin==='grid'?'← All months':_monthOrigin==='p-summary'?'← Summary':'← Back';
+  const backAction=_monthOrigin==='grid'
+    ?`backToMonthlyGrid()`
+    :_monthOrigin==='p-summary'
+      ?`goToTab('summary',document.querySelector('[data-tab="summary"]'))`
+      :`goToTab('${(_monthOrigin||'p-summary').replace('p-','')}',document.querySelector('[data-tab="${(_monthOrigin||'p-summary').replace('p-','')}"]'))`;
+
   const html=`
     <div class="page-header">
       <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
-        <button class="btn btn-s" style="padding:7px 14px;font-size:13px;" onclick="MONTHLY_VIEW='grid';renderMonthlyGrid()">← All months</button>
+        <button class="btn btn-s" style="padding:7px 14px;font-size:13px;" onclick="${backAction}">${backLabel}</button>
         <div class="month-picker-wrap" id="month-picker">
           <div class="month-picker-title" onclick="toggleMonthPicker()">
             ${MONTH_NAMES[m]} 2026
@@ -3429,44 +3476,36 @@ function showReturnedItems(){
   const totalRefundedAll=items.reduce(function(s,i){
     return s+(i.returnHistory||[]).reduce(function(s2,r){return s2+(r.refundAmount||0);},0);
   },0);
-  const fullyReturned=items.filter(function(i){return i.isReturned;}).length;
-  const partialOnly=items.filter(function(i){return !i.isReturned&&i.returnHistory&&i.returnHistory.length>0;}).length;
+  const fullyReturned=items.filter(function(i){
+    return (i.returnHistory||[]).some(r=>r.type==='full_seller'||r.type==='full_ebay');
+  }).length;
+  const partialOnly=items.filter(function(i){
+    const hasFull=(i.returnHistory||[]).some(r=>r.type==='full_seller'||r.type==='full_ebay');
+    return !hasFull&&(i.returnHistory||[]).some(r=>r.type==='partial_seller'||r.type==='partial_ebay');
+  }).length;
+
+  // Sort by most recent return event
+  items.sort(function(a,b){
+    const aDate=(a.returnHistory&&a.returnHistory.length?a.returnHistory[a.returnHistory.length-1].loggedAt:'') || '';
+    const bDate=(b.returnHistory&&b.returnHistory.length?b.returnHistory[b.returnHistory.length-1].loggedAt:'') || '';
+    return bDate.localeCompare(aDate);
+  });
 
   const rows=items.map(function(i){
-    const status=i.isReturned?'returned':'partial return';
-    const badgeCls=i.isReturned?'returned':'sold';
+    const hasFull=(i.returnHistory||[]).some(r=>r.type==='full_seller'||r.type==='full_ebay');
+    const isResold=!!i.resaleSalePrice;
     const lastReturn=i.returnHistory&&i.returnHistory.length>0?i.returnHistory[i.returnHistory.length-1]:null;
     const refundTotal=(i.returnHistory||[]).reduce(function(s,r){return s+(r.refundAmount||0);},0);
     const profit=calcGrossProfit(i);
-    return '<div style="padding:10px;background:var(--surface2);border-radius:8px;margin-bottom:8px;cursor:pointer" onclick="openItemDetail(\''+i.month+'\',\''+i.id+'\')">'
-      +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">'
-      +'<div class="item-badge '+badgeCls+'">'+status+'</div>'
-      +(i.gid?'<span style="font-size:11px;color:var(--muted);font-family:monospace">'+esc(i.gid)+'</span>':'')
-      +'<span style="font-size:11px;color:var(--muted)">'+i.month+'</span>'
-      +'</div>'
-      +'<div style="font-weight:600;font-size:14px;margin-bottom:4px">'+esc(i.item)+'</div>'
-      +'<div style="display:flex;gap:12px;font-size:12px;flex-wrap:wrap">'
-      +'<span>Sale: <strong>'+fmt(i.salePrice)+'</strong></span>'
-      +'<span>Refunded: <strong style="color:var(--red)">'+fmt(refundTotal)+'</strong></span>'
-      +'<span>Net P&L: <strong style="color:'+(profit>=0?'var(--green)':'var(--red)')+'">'+fmt(profit)+'</strong></span>'
-      +(lastReturn?'<span style="color:var(--muted)">'+lastReturn.loggedAt+'</span>':'')
-      +'</div>'
-      +'</div>';
+    const borderCol=hasFull?'var(--red)':'var(--warn)';
+    const refundCol=hasFull?'var(--red)':'var(--warn)';
+    const resoldBadge=isResold?'<span style="font-size:10px;padding:2px 6px;border-radius:4px;font-weight:600;background:rgba(139,92,246,0.15);color:var(--purple);margin-left:6px">resold</span>':'';
+    return '<div style="padding:12px;background:var(--surface2);border-radius:8px;margin-bottom:8px;cursor:pointer;border-left:3px solid '+borderCol+'" onclick="openItemDetail(\''+i.month+'\',\''+i.id+'\')">'      +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">'      +'<div style="flex:1;font-weight:600;font-size:14px">'+esc(i.item)+resoldBadge+'</div>'      +'<div style="font-size:16px;font-weight:700;color:'+refundCol+'">'+fmt(refundTotal)+'</div>'      +'</div>'      +'<div style="display:flex;gap:16px;font-size:12px;color:var(--text-secondary)">'      +'<span>Sale: <strong>'+fmt(i.salePrice)+'</strong></span>'      +'<span>Net P\u0026L: <strong style="color:'+(profit>=0?'var(--green)':'var(--red)')+'">'+fmt(profit)+'</strong></span>'      +(i.gid?'<span style="color:var(--muted);font-family:monospace">'+esc(i.gid)+'</span>':'')      +'<span style="color:var(--muted)">'+i.month+(lastReturn?' · '+lastReturn.loggedAt:'')+'</span>'      +'</div>'      +'</div>';
   }).join('');
 
-  const summary='<div style="display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap">'
-    +'<div style="background:var(--surface2);border-radius:8px;padding:10px 14px;flex:1;min-width:100px">'
-    +'<div style="font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:0.06em">Total items</div>'
-    +'<div style="font-size:22px;font-weight:700">'+items.length+'</div>'
-    +'</div>'
-    +'<div style="background:var(--surface2);border-radius:8px;padding:10px 14px;flex:1;min-width:100px">'
-    +'<div style="font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:0.06em">Fully returned</div>'
-    +'<div style="font-size:22px;font-weight:700;color:var(--red)">'+fullyReturned+'</div>'
-    +'</div>'
-    +'<div style="background:var(--surface2);border-radius:8px;padding:10px 14px;flex:1;min-width:100px">'
-    +'<div style="font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:0.06em">Total refunded</div>'
-    +'<div style="font-size:22px;font-weight:700;color:var(--red)">'+fmt(totalRefundedAll)+'</div>'
-    +'</div>'
+  const summary='<div style="margin-bottom:16px;display:flex;align-items:center;gap:12px;background:var(--surface2);border-radius:10px;padding:14px">'
+    +'<div style="font-size:28px;font-weight:700;color:var(--red)">'+fmt(totalRefundedAll)+'</div>'
+    +'<div><div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px">Total Refunded</div><div style="font-size:13px;color:var(--text-secondary);margin-top:2px">'+items.length+' item'+(items.length!==1?'s':'')+' · '+fullyReturned+' full · '+partialOnly+' partial</div></div>'
     +'</div>';
 
   const content=items.length>0
