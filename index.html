@@ -128,9 +128,9 @@ nav{position:sticky;top:0;z-index:200;background:var(--surface);backdrop-filter:
 .ksub{font-size:12px;color:var(--text-secondary);margin-top:6px;}
 
 /* INSIGHTS */
-.insights{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px;margin-bottom:32px;}
+.insights{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:24px;}
 .insight-card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px;display:flex;align-items:center;gap:14px;box-shadow:0 1px 3px var(--shadow);}
-.insight-icon{font-size:24px;flex-shrink:0;}
+.insight-icon{font-size:22px;flex-shrink:0;}
 .insight-label{font-size:10px;color:var(--text-secondary);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px;font-weight:600;}
 .insight-val{font-size:20px;font-weight:700;letter-spacing:-0.01em;}
 .insight-sub{font-size:12px;color:var(--text-secondary);margin-top:2px;}
@@ -263,7 +263,7 @@ nav{position:sticky;top:0;z-index:200;background:var(--surface);backdrop-filter:
   /* Content */
   .kgrid{grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px;}
   .kgrid-3{grid-template-columns:1fr 1fr!important;}
-  .insights{grid-template-columns:1fr 1fr;}
+  .insights{grid-template-columns:repeat(3,1fr);gap:8px;}
   .insight-label{font-size:9px;}
   .insight-val{font-size:18px;}
   .chart-wrap{padding:20px 16px;}
@@ -613,15 +613,9 @@ nav{position:sticky;top:0;z-index:200;background:var(--surface);backdrop-filter:
       <label>Sale Price (£)</label>
       <input type="number" id="resale-price" step="0.01" placeholder="0.00">
     </div>
-    <div class="form-grid-2" style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-      <div class="fg" style="margin-bottom:16px">
-        <label>Your Shipping Cost (£)</label>
-        <input type="number" id="resale-shipping" step="0.01" placeholder="0.00">
-      </div>
-      <div class="fg" style="margin-bottom:16px">
-        <label>Promo %</label>
-        <input type="number" id="resale-promo" step="0.1" placeholder="0">
-      </div>
+    <div class="fg" style="margin-bottom:16px">
+      <label>Your Shipping Cost (£)</label>
+      <input type="number" id="resale-shipping" step="0.01" placeholder="0.00">
     </div>
     <div style="display:flex;gap:10px">
       <button class="btn btn-success" onclick="confirmResale()" style="flex:1">Confirm</button>
@@ -664,6 +658,7 @@ let STOCK_SORT='profit';          // stock sort: days | profit | price
 let STOCK_FILTER='all';           // stock filter: all | stale
 let STOCK_SELECTION_MODE=false;   // stock page checkbox mode
 let STOCK_SELECTED=new Set();     // stock page selection
+let MONTHLY_VIEW='grid';          // 'grid' | 'detail'
 
 // CUSTOM CONFIRM MODAL
 let _confirmResolve=null;
@@ -773,7 +768,7 @@ function goToTab(name,sourceEl){
   // Always close the More dropdown when navigating
   document.querySelector('.nav-more')?.classList.remove('open');
   if(name==='summary')renderSummary();
-  else if(name==='monthly')renderMonth();
+  else if(name==='monthly'){MONTHLY_VIEW='grid';renderMonthlyPage();}
   else if(name==='stock')renderStock();
   else if(name==='expenses')renderExpenses();
   else if(name==='tax')renderTax();
@@ -949,16 +944,13 @@ function renderItemPage(m,id){
   let resaleHTML='';
   if(i.resaleSalePrice){
     const rBPF=calcEbayBPF(i.resaleSalePrice);
-    const rGrossInc=i.resaleSalePrice-rBPF;
-    const rPromo=rGrossInc*(i.resalePromoPercent||0)*1.20;
-    const rRev=i.resaleSalePrice-rBPF-(i.resaleShippingCost||0)-rPromo;
+    const rRev=i.resaleSalePrice-rBPF-(i.resaleShippingCost||0);
     const lifetimeProfit=profit; // calcGrossProfit already includes both sales
     resaleHTML='<div class="ip-section ip-section-pnl" style="border-left:3px solid var(--purple);margin-top:0">';
     resaleHTML+='<div class="item-full-section-title" style="color:var(--purple)">Sale 2 — Re-sold '+esc(i.resaleDateSold||'')+'</div>';
     resaleHTML+='<div class="pnl-row"><span>Sale price</span><span style="color:var(--green)">'+fmt(i.resaleSalePrice)+'</span></div>';
     resaleHTML+='<div class="pnl-row"><span>eBay BPF</span><span style="color:var(--red)">−'+fmt(rBPF)+'</span></div>';
     if((i.resaleShippingCost||0)>0)resaleHTML+='<div class="pnl-row"><span>Postage (outbound)</span><span style="color:var(--red)">−'+fmt(i.resaleShippingCost)+'</span></div>';
-    if(i.resalePromoPercent)resaleHTML+='<div class="pnl-row"><span>Promo fee ('+((i.resalePromoPercent*100).toFixed(0))+'% +VAT)</span><span style="color:var(--red)">−'+fmt(rPromo)+'</span></div>';
     resaleHTML+='<div class="pnl-row"><span style="color:var(--muted)">Item cost (already sunk)</span><span style="color:var(--muted)">—</span></div>';
     resaleHTML+='<div class="pnl-row total"><span>Sale 2 net</span><span style="color:'+(rRev>=0?'var(--green)':'var(--red)')+'">'+fmt(rRev)+'</span></div>';
     resaleHTML+='<div class="pnl-row" style="margin-top:8px;padding:10px 0 2px 0;border-top:2px solid var(--border)">';
@@ -1595,9 +1587,13 @@ function toggleSellThroughBar(card,byCat){
   const bd=card.querySelector('.st-breakdown');
   if(bd.style.display==='none'){
     bd.style.display='block';
-    if(!byCat||!byCat.length){bd.innerHTML='<div style="font-size:12px;color:var(--muted)">No category data yet</div>';return;}
-    bd.innerHTML=byCat.map(c=>{
-      // Speed label based on avg days
+    const legend=`<div style="display:flex;gap:14px;margin-bottom:14px;font-size:11px;">
+      <span style="display:flex;align-items:center;gap:4px;color:var(--green)"><span style="width:7px;height:7px;border-radius:50%;background:var(--green);display:inline-block"></span>Fast ≤14d</span>
+      <span style="display:flex;align-items:center;gap:4px;color:var(--warn)"><span style="width:7px;height:7px;border-radius:50%;background:var(--warn);display:inline-block"></span>Average 15–30d</span>
+      <span style="display:flex;align-items:center;gap:4px;color:var(--red)"><span style="width:7px;height:7px;border-radius:50%;background:var(--red);display:inline-block"></span>Slow 30d+</span>
+    </div>`;
+    if(!byCat||!byCat.length){bd.innerHTML=legend+'<div style="font-size:12px;color:var(--muted)">No category data yet</div>';return;}
+    const catRows=byCat.map(c=>{
       let speedLabel='',speedColor='var(--muted)';
       if(c.avgDays===null){speedLabel='no sales yet';speedColor='var(--muted)';}
       else if(c.avgDays<=14){speedLabel='fast';speedColor='var(--green)';}
@@ -1605,23 +1601,21 @@ function toggleSellThroughBar(card,byCat){
       else{speedLabel='slow';speedColor='var(--red)';}
       const avgDaysStr=c.avgDays!==null?c.avgDays+'d avg':'—';
       const staleStr=c.stale>0?`<span style="font-size:10px;background:rgba(245,158,11,0.15);color:var(--warn);border-radius:4px;padding:1px 5px;margin-left:4px">${c.stale} stale</span>`:'';
-      const speedPip=`<span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${speedColor};flex-shrink:0"></span>`;
-      return`<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;font-size:12px;cursor:pointer;border-radius:6px;padding:5px 4px;transition:background 0.15s" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background=''" onclick="showCategoryItems(${JSON.stringify(c.cat).replace(/"/g,'&quot;')})">
+      const pip=`<span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${speedColor};flex-shrink:0"></span>`;
+      return`<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;font-size:12px;cursor:pointer;border-radius:6px;padding:5px 4px;transition:background 0.15s" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background=''" onclick="event.stopPropagation();showCategoryItems(${JSON.stringify(c.cat).replace(/"/g,'&quot;')})">
         <div style="width:130px;color:var(--text-secondary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:500" title="${esc(c.cat)}">${esc(c.cat)}</div>
         <div style="flex:1;display:flex;align-items:center;gap:6px">
-          ${speedPip}
+          ${pip}
           <span style="color:${speedColor};font-weight:600">${avgDaysStr}</span>
           <span style="color:var(--muted)">${speedLabel}</span>
           ${staleStr}
         </div>
-        <div style="color:var(--muted);font-size:11px;white-space:nowrap">${c.sold}/${c.total} sold</div>
+        <div style="color:var(--muted);font-size:11px;white-space:nowrap">${c.sold}/${c.total} sold ›</div>
       </div>`;
     }).join('');
-  }else{
-    bd.style.display='none';
-  }
+    bd.innerHTML=legend+catRows;
+  }else{bd.style.display='none';}
 }
-
 
 function showCategoryItems(cat){
   let items=[];
@@ -1632,6 +1626,7 @@ function showCategoryItems(cat){
   const sold=items.filter(i=>i.dateSold&&!i.isReturned);
   const active=items.filter(i=>!i.dateSold&&!i.isReturned);
   const totalProfit=sold.reduce((s,i)=>s+calcGrossProfit(i),0);
+  const avgDays=sold.length?Math.round(sold.reduce((s,i)=>s+daysBetween(i.dateListed,i.dateSold),0)/sold.length):null;
   const html=`
     <div style="margin-bottom:16px;background:var(--surface2);border-radius:10px;padding:14px">
       <div style="font-size:16px;font-weight:700;margin-bottom:6px">${esc(cat)}</div>
@@ -1639,14 +1634,18 @@ function showCategoryItems(cat){
         <span>${items.length} total</span>
         <span style="color:var(--green)">${sold.length} sold · ${fmt(totalProfit)} profit</span>
         <span style="color:var(--muted)">${active.length} active</span>
+        ${avgDays!==null?`<span style="color:var(--text-secondary)">avg ${avgDays}d to sell</span>`:''}
       </div>
     </div>
     ${items.map(i=>{
       const status=i.isReturned?'returned':i.resaleSalePrice?'resold':i.dateSold?'sold':'listed';
       const prof=i.dateSold&&!i.isReturned?calcGrossProfit(i):null;
+      const daysToSell=i.dateSold&&!i.isReturned?daysBetween(i.dateListed,i.dateSold):null;
+      const daysColor=daysToSell===null?'var(--muted)':daysToSell<=14?'var(--green)':daysToSell<=30?'var(--warn)':'var(--red)';
       return`<div style="padding:10px;background:var(--surface2);border-radius:8px;margin-bottom:8px;cursor:pointer" onclick="openItemDetail('${i.month}','${i.id}')">
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
           <div style="flex:1;font-weight:600;font-size:14px">${esc(i.item)}</div>
+          ${daysToSell!==null?`<span style="font-size:11px;font-weight:600;color:${daysColor}">${daysToSell}d</span>`:''}
           <div class="item-badge ${status}">${status}</div>
           <div style="font-size:11px;color:var(--muted)">${i.month}</div>
         </div>
@@ -1657,7 +1656,7 @@ function showCategoryItems(cat){
         </div>
       </div>`;
     }).join('')}`;
-  openPanel(esc(cat),html);
+  openPanel(cat,html);
 }
 
 function showROIItems(){
@@ -1689,12 +1688,53 @@ function showROIItems(){
   openPanel('Avg ROI — All Items',html);
 }
 
+function showReturnedItems(){
+  let items=[];
+  MONTHS.forEach(m=>{(DB[m]||[]).forEach(i=>{
+    if((i.item||'').trim().toUpperCase()==='MONTH END')return;
+    const hasFullReturn=(i.returnHistory||[]).some(r=>r.type==='full_seller'||r.type==='full_ebay');
+    if(i.isReturned||hasFullReturn)items.push({...i,month:m});
+  });});
+  const totalLoss=items.reduce((s,i)=>s+(calcGrossProfit(i)||0),0);
+  const html=`
+    <div style="margin-bottom:16px;background:var(--surface2);border-radius:10px;padding:14px">
+      <div style="display:flex;align-items:center;gap:12px">
+        <div style="font-size:28px;font-weight:700;color:var(--red)">${items.length}</div>
+        <div>
+          <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px">Total Returns</div>
+          <div style="font-size:13px;color:var(--text-secondary)">Net impact: <span style="color:${totalLoss>=0?'var(--green)':'var(--red)'};font-weight:600">${fmt(totalLoss)}</span></div>
+        </div>
+      </div>
+    </div>
+    ${items.length===0?'<div style="text-align:center;padding:40px;color:var(--muted)">No returns logged</div>':
+    items.map(i=>{
+      const profit=calcGrossProfit(i);
+      const isResold=!!i.resaleSalePrice;
+      const hasFullReturn=(i.returnHistory||[]).some(r=>r.type==='full_seller'||r.type==='full_ebay');
+      const badge=isResold?'resold':hasFullReturn?'returned':'partial return';
+      const badgeCls=isResold?'resold':hasFullReturn?'returned':'return-partial';
+      const borderCol=isResold?'var(--purple)':hasFullReturn?'var(--red)':'var(--accent)';
+      return`<div style="padding:12px;background:var(--surface2);border-radius:8px;margin-bottom:8px;cursor:pointer;border-left:3px solid ${borderCol}" onclick="closePanel();openItemPage('${i.month}','${i.id}','returns')">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+          <div style="flex:1;font-weight:600;font-size:14px">${esc(i.item)}</div>
+          <div class="item-badge ${badgeCls}">${badge}</div>
+          <div style="font-size:11px;color:var(--muted)">${i.month}</div>
+        </div>
+        <div style="display:flex;gap:12px;font-size:12px;color:var(--text-secondary)">
+          <span>Sale 1: ${fmt(i.salePrice)}</span>
+          ${isResold?`<span>Sale 2: ${fmt(i.resaleSalePrice)}</span>`:''}
+          <span style="color:${profit>=0?'var(--green)':'var(--red)'};font-weight:600">Net: ${fmt(profit)}</span>
+        </div>
+      </div>`;
+    }).join('')}`;
+  openPanel('Returns',html);
+}
 
 function showAvgCostItems(){
   let items=[];
   MONTHS.forEach(m=>{(DB[m]||[]).forEach(i=>{
     if((i.item||'').trim().toUpperCase()==='MONTH END')return;
-    items.push({...i,month:m});
+    if(!i.isReturned)items.push({...i,month:m});
   });});
   items.sort((a,b)=>(b.costPrice||0)-(a.costPrice||0));
   const avg=items.length?items.reduce((s,i)=>s+(i.costPrice||0),0)/items.length:0;
@@ -1803,8 +1843,8 @@ function renderSummary(){
   const stats=calcYearlyStats();
 
   const html=`
-    <div class="kgrid" style="grid-template-columns:1fr 1fr;">
-      <div class="kcard clickable" onclick="showFilteredItems('revenue')">
+    <div class="kgrid" style="grid-template-columns:1fr 1fr;margin-bottom:24px;">
+      <div class="kcard b clickable" onclick="showFilteredItems('revenue')">
         <div class="klabel">Total Revenue</div>
         <div class="kval">${fmt(stats.totalRev)}</div>
         <div class="ksub">${stats.soldCount} items sold ›</div>
@@ -1813,11 +1853,6 @@ function renderSummary(){
         <div class="klabel">Realised Profit</div>
         <div class="kval">${fmt(stats.realisedProfit)}</div>
         <div class="ksub">${stats.soldCount>0?(stats.realisedProfit/stats.totalRev*100).toFixed(0)+'% margin ›':'—'}</div>
-      </div>
-      <div class="kcard p clickable" onclick="showFilteredItems('unrealised')">
-        <div class="klabel">Unrealised Profit</div>
-        <div class="kval">${fmt(stats.unrealisedProfit)}</div>
-        <div class="ksub">${stats.listedCount} still listed ›</div>
       </div>
       <div class="kcard clickable" onclick="showROIItems()">
         <div class="klabel">Avg ROI</div>
@@ -1829,15 +1864,10 @@ function renderSummary(){
         <div class="kval">${stats.returnRate.toFixed(1)}%</div>
         <div class="ksub">${stats.returnCount} full · <span style="color:var(--warn)">${stats.partialRefundCount} partial (${stats.partialRefundRate.toFixed(1)}%)</span> ›</div>
       </div>
-      <div class="kcard b clickable" onclick="showAvgCostItems()">
-        <div class="klabel">Avg Cost Price</div>
-        <div class="kval">${fmt(stats.avgCostPrice)}</div>
-        <div class="ksub">Per item sourced ›</div>
-      </div>
     </div>
 
     ${stats.stale.length>0?`
-      <div class="stale-alert" style="cursor:pointer;" onclick="STOCK_FILTER='stale';goToTab('stock',document.querySelector('[data-tab=\\'stock\\']'))" title="View stale items in Stock page">
+      <div class="stale-alert" style="cursor:pointer;margin-bottom:24px;" onclick="STOCK_FILTER='stale';goToTab('stock',document.querySelector('[data-tab=\\'stock\\']'))" title="View stale items in Stock page">
         <div class="stale-dot"></div>
         <div style="flex:1">
           <div class="stale-text">⚠️ ${stats.stale.length} item${stats.stale.length!==1?'s':''} listed 30+ days</div>
@@ -1846,53 +1876,45 @@ function renderSummary(){
       </div>
     `:''}
 
-    <div class="chart-wrap" style="margin-bottom:20px;cursor:pointer;" onclick="toggleSellThroughBar(this,${JSON.stringify(stats.byCat).replace(/"/g,'&quot;')})">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+    <div class="chart-wrap" style="margin-bottom:24px;cursor:pointer;" onclick="toggleSellThroughBar(this,${JSON.stringify(stats.byCat).replace(/"/g,'&quot;')})">
+      <div style="display:flex;align-items:center;justify-content:space-between;">
         <div>
-          <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:2px;">Inventory Velocity</div>
-          <div style="font-size:12px;color:var(--text-secondary);">${stats.soldCount} sold · ${stats.listedCount} active · ${stats.totalStaleCount>0?`<span style="color:var(--warn);font-weight:600">${stats.totalStaleCount} stale 30d+</span>`:'no stale stock'} · tap for breakdown</div>
+          <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:4px;">Inventory Velocity</div>
+          <div style="font-size:12px;color:var(--text-secondary);">${stats.soldCount} sold · ${stats.listedCount} active${stats.totalStaleCount>0?` · <span style="color:var(--warn);font-weight:600">${stats.totalStaleCount} stale</span>`:''} · <span style="color:var(--muted)">tap for breakdown</span></div>
         </div>
         <div style="text-align:right">
           <div style="font-size:28px;font-weight:700;letter-spacing:-0.02em;color:${stats.avgDays<=14?'var(--green)':stats.avgDays<=30?'var(--warn)':'var(--red)'};">${stats.avgDays}<span style="font-size:14px;font-weight:500;color:var(--text-secondary);margin-left:2px">d</span></div>
-          <div style="font-size:10px;color:var(--text-secondary);font-weight:600;text-align:right;margin-top:1px;">avg days to sell</div>
+          <div style="font-size:10px;color:var(--text-secondary);font-weight:500;text-align:right;margin-top:1px;">avg days to sell</div>
         </div>
       </div>
-      <div style="display:flex;gap:16px;margin-top:8px;font-size:11px;">
-        <span style="display:flex;align-items:center;gap:4px;color:var(--green)"><span style="width:8px;height:8px;border-radius:50%;background:var(--green);display:inline-block"></span>Fast ≤14d</span>
-        <span style="display:flex;align-items:center;gap:4px;color:var(--warn)"><span style="width:8px;height:8px;border-radius:50%;background:var(--warn);display:inline-block"></span>Average 15–30d</span>
-        <span style="display:flex;align-items:center;gap:4px;color:var(--red)"><span style="width:8px;height:8px;border-radius:50%;background:var(--red);display:inline-block"></span>Slow 30d+</span>
-      </div>
-      <div class="st-breakdown" style="display:none;margin-top:16px;border-top:1px solid var(--border);padding-top:14px;"></div>
+      <div class="st-breakdown" style="display:none;margin-top:14px;border-top:1px solid var(--border);padding-top:14px;"></div>
     </div>
 
-    <div class="insights" style="margin-bottom:24px">
-      <div class="insight-card">
-        <div class="insight-icon">⏱️</div>
-        <div>
-          <div class="insight-label">Avg Days to Sell</div>
-          <div class="insight-val">${stats.avgDays}</div>
-          <div class="insight-sub">Listed → Sold</div>
-        </div>
-      </div>
+    <div class="insights" style="margin-bottom:24px;">
       <div class="insight-card">
         <div class="insight-icon">💰</div>
         <div>
-          <div class="insight-label">Avg Sale Price</div>
+          <div class="insight-label">Avg Sale</div>
           <div class="insight-val">${fmt(stats.avgSale)}</div>
-          <div class="insight-sub">Per item</div>
         </div>
       </div>
       <div class="insight-card">
         <div class="insight-icon">📦</div>
         <div>
           <div class="insight-label">Avg Profit</div>
-          <div class="insight-val">${fmt(stats.avgProfit)}</div>
-          <div class="insight-sub">Per item</div>
+          <div class="insight-val" style="color:var(--green)">${fmt(stats.avgProfit)}</div>
+        </div>
+      </div>
+      <div class="insight-card">
+        <div class="insight-icon">🏷️</div>
+        <div>
+          <div class="insight-label">Avg Cost</div>
+          <div class="insight-val">${fmt(stats.avgCostPrice)}</div>
         </div>
       </div>
     </div>
 
-    <div class="chart-wrap" style="margin-bottom:24px">
+    <div class="chart-wrap" style="margin-bottom:24px;">
       <div class="chart-title">
         Monthly Performance
         <div class="chart-legend">
@@ -1908,8 +1930,8 @@ function renderSummary(){
             const isEmpty=ms.totalRev===0&&ms.listedCount===0;
             const revH=(ms.totalRev/maxVal)*100;
             const profH=(Math.max(0,ms.realisedProfit)/maxVal)*100;
-            return`<div class="bar-group${isEmpty?' bar-zero':''}">
-              <div class="bar-pair">
+            return`<div class="bar-group${isEmpty?' bar-zero':''}" style="cursor:${isEmpty?'default':'pointer'}" onclick="${isEmpty?'':'goToMonth(\''+m+'\')'}">
+              <div class="bar-pair" title="${isEmpty?'':'Click to view '+MONTH_NAMES[m]}">
                 <div class="bar-rev" style="height:${isEmpty?'0':revH}%"></div>
                 <div class="bar-prof" style="height:${isEmpty?'0':profH}%"></div>
               </div>
@@ -1918,22 +1940,6 @@ function renderSummary(){
           }).join('');
         })()}
       </div>
-    </div>
-
-    <div class="sl">Monthly Breakdown</div>
-    <div class="mgrid">
-      ${MONTHS.map(m=>{
-        const ms=calcMonthStats(m);
-        const isEmpty=ms.soldCount===0&&ms.listedCount===0;
-        return`<div class="mcard${isEmpty?' mcard-empty':''}" onclick="goToMonth('${m}')">
-          <div class="mname">${MONTH_NAMES[m]}</div>
-          ${isEmpty
-            ?'<div class="mval nil" style="font-size:16px">—</div><div class="msub" style="opacity:0.5">No items yet</div>'
-            :`<div class="mval ${ms.realisedProfit>0?'pos':'nil'}">${fmt(ms.realisedProfit)}</div>
-              <div class="msub">${ms.soldCount} sold · ${ms.listedCount} active · ${fmt(ms.totalRev)}</div>`
-          }
-        </div>`;
-      }).join('')}
     </div>
 
     ${(()=>{
@@ -1963,8 +1969,8 @@ function renderSummary(){
           </div>
         </div>`;
       }).join('');
-      return`<div class="sl">Top 10 Flips</div>
-        <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:4px 16px;box-shadow:0 1px 3px var(--shadow)">
+      return`<div class="sl">Top Flips</div>
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:4px 16px;box-shadow:0 1px 3px var(--shadow);">
           ${rows}
         </div>`;
     })()}
@@ -1976,10 +1982,58 @@ function goToMonth(m){
   MONTH_FILTER='listed';
   MONTH_SORT='date-listed';
   SELECTED_ITEMS.clear();
-  goToTab('monthly',document.querySelector('[data-tab="monthly"]'));
+  MONTHLY_VIEW='detail';
+  // If already on monthly tab just re-render, otherwise switch tab
+  const cur=document.querySelector('.page.on');
+  if(cur&&cur.id==='p-monthly'){
+    renderMonthlyPage();
+  } else {
+    goToTab('monthly',document.querySelector('[data-tab="monthly"]'));
+  }
 }
 
 // MONTHLY PAGE
+function renderMonthlyPage(){
+  if(MONTHLY_VIEW==='grid')renderMonthlyGrid();
+  else renderMonth();
+}
+
+function renderMonthlyGrid(){
+  const now=new Date();
+  const curMonth=MONTHS[now.getMonth()];
+  // YTD stats
+  const ytdStats=calcYearlyStats();
+  const html=`
+    <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:24px;flex-wrap:wrap;gap:12px;">
+      <h1 style="font-size:26px;font-weight:700;letter-spacing:-0.02em;">Monthly</h1>
+      <div style="display:flex;gap:24px;font-size:13px;color:var(--text-secondary);">
+        <span>YTD profit <strong style="color:var(--text);font-size:15px;">${fmt(ytdStats.realisedProfit)}</strong></span>
+        <span>${ytdStats.soldCount} sold</span>
+        <span>${ytdStats.avgROI.toFixed(1)}% avg ROI</span>
+      </div>
+    </div>
+    <div class="mgrid">
+      ${MONTHS.map(m=>{
+        const ms=calcMonthStats(m);
+        const isEmpty=ms.soldCount===0&&ms.listedCount===0;
+        const isCurrent=m===curMonth;
+        return`<div class="mcard${isEmpty?' mcard-empty':''}" style="${isCurrent?'border-color:var(--accent);':''}" onclick="goToMonth('${m}')">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+            <div class="mname" style="margin-bottom:0">${MONTH_NAMES[m]}</div>
+            ${isCurrent?'<span style="font-size:10px;font-weight:700;color:var(--accent);letter-spacing:0.5px;text-transform:uppercase;">Now</span>':''}
+          </div>
+          ${isEmpty
+            ?'<div class="mval nil" style="font-size:16px">—</div><div class="msub" style="opacity:0.5">No items yet</div>'
+            :`<div class="mval ${ms.realisedProfit>0?'pos':'nil'}">${fmt(ms.realisedProfit)}</div>
+              <div class="msub">${ms.soldCount} sold · ${ms.listedCount} active${ms.avgDays!==null?' · '+ms.avgDays+'d avg':''}</div>`
+          }
+        </div>`;
+      }).join('')}
+    </div>
+  `;
+  document.getElementById('p-monthly').innerHTML=html;
+}
+
 function toggleMonthPicker(){
   const el=document.getElementById('month-picker');
   if(el)el.classList.toggle('open');
@@ -2040,20 +2094,23 @@ function renderMonth(){
 
   const html=`
     <div class="page-header">
-      <div class="month-picker-wrap" id="month-picker">
-        <div class="month-picker-title" onclick="toggleMonthPicker()">
-          ${MONTH_NAMES[m]} 2026
-          <span class="month-picker-chevron">▾</span>
-        </div>
-        <div class="month-picker-dropdown">
-          ${MONTHS.map(mo=>{
-            const ms=calcMonthStats(mo);
-            const hasSales=ms.soldCount>0||ms.listedCount>0;
-            return`<div class="month-picker-option${mo===m?' active':''}" onclick="pickMonth('${mo}')">
-              ${MONTH_NAMES[mo]} 2026
-              ${hasSales?`<span class="month-picker-option-sub">${ms.soldCount} sold · ${ms.listedCount} listed</span>`:`<span class="month-picker-option-sub" style="opacity:0.4">empty</span>`}
-            </div>`;
-          }).join('')}
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+        <button class="btn btn-s" style="padding:7px 14px;font-size:13px;" onclick="MONTHLY_VIEW='grid';renderMonthlyGrid()">← All months</button>
+        <div class="month-picker-wrap" id="month-picker">
+          <div class="month-picker-title" onclick="toggleMonthPicker()">
+            ${MONTH_NAMES[m]} 2026
+            <span class="month-picker-chevron">▾</span>
+          </div>
+          <div class="month-picker-dropdown">
+            ${MONTHS.map(mo=>{
+              const ms=calcMonthStats(mo);
+              const hasSales=ms.soldCount>0||ms.listedCount>0;
+              return`<div class="month-picker-option${mo===m?' active':''}" onclick="pickMonth('${mo}')">
+                ${MONTH_NAMES[mo]} 2026
+                ${hasSales?`<span class="month-picker-option-sub">${ms.soldCount} sold · ${ms.listedCount} listed</span>`:`<span class="month-picker-option-sub" style="opacity:0.4">empty</span>`}
+              </div>`;
+            }).join('')}
+          </div>
         </div>
       </div>
     </div>
@@ -2322,7 +2379,7 @@ function openItemDetail(m,id,noHistory){
     </div>
   `;
   const pushHistory=document.getElementById('slide-panel').classList.contains('on')&&!noHistory;
-  openPanel(esc(i.item),html,pushHistory);
+  openPanel(i.item,html,pushHistory);
 }
 
 function toggleSelect(id){
@@ -3093,11 +3150,10 @@ function markSold(m,id){
 
   if(hasFullReturn){
     // Resale flow — different modal with price + shipping
-    MODAL_CALLBACK=function(date,price,shipping,promo){
+    MODAL_CALLBACK=function(date,price,shipping){
       item.resaleDateSold=date;
       item.resaleSalePrice=price;
       item.resaleShippingCost=shipping;
-      item.resalePromoPercent=promo||0;
       item.isReturned=false;
       item.grossProfit=calcGrossProfit(item);
       saveDB();
@@ -3146,8 +3202,7 @@ function confirmResale(){
   const date=document.getElementById('resale-date').value;
   const price=parseFloat(document.getElementById('resale-price').value)||0;
   const shipping=parseFloat(document.getElementById('resale-shipping').value)||0;
-  const promo=(parseFloat(document.getElementById('resale-promo').value)||0)/100;
-  if(date&&MODAL_CALLBACK){MODAL_CALLBACK(date,price,shipping,promo);}
+  if(date&&MODAL_CALLBACK){MODAL_CALLBACK(date,price,shipping);}
   closeResaleModal();
 }
 
@@ -3375,30 +3430,24 @@ function showReturnedItems(){
     return s+(i.returnHistory||[]).reduce(function(s2,r){return s2+(r.refundAmount||0);},0);
   },0);
   const fullyReturned=items.filter(function(i){return i.isReturned;}).length;
-  const partialOnly=items.filter(function(i){return !i.isReturned&&i.returnHistory&&i.returnHistory.some(r=>r.type==='partial_seller'||r.type==='partial_ebay');}).length;
+  const partialOnly=items.filter(function(i){return !i.isReturned&&i.returnHistory&&i.returnHistory.length>0;}).length;
 
   const rows=items.map(function(i){
-    const isPartialOnly=!i.isReturned&&i.returnHistory&&i.returnHistory.some(r=>r.type==='partial_seller'||r.type==='partial_ebay');
-    const isResold=!!i.resaleSalePrice;
-    const status=i.isReturned?'returned':isResold?'resold':isPartialOnly?'partial refund':'return';
-    const badgeStyle=i.isReturned
-      ?'background:rgba(239,68,68,0.15);color:var(--red)'
-      :isResold
-        ?'background:rgba(139,92,246,0.15);color:var(--purple)'
-        :'background:rgba(245,158,11,0.15);color:var(--warn)';
+    const status=i.isReturned?'returned':'partial return';
+    const badgeCls=i.isReturned?'returned':'sold';
     const lastReturn=i.returnHistory&&i.returnHistory.length>0?i.returnHistory[i.returnHistory.length-1]:null;
     const refundTotal=(i.returnHistory||[]).reduce(function(s,r){return s+(r.refundAmount||0);},0);
     const profit=calcGrossProfit(i);
     return '<div style="padding:10px;background:var(--surface2);border-radius:8px;margin-bottom:8px;cursor:pointer" onclick="openItemDetail(\''+i.month+'\',\''+i.id+'\')">'
       +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">'
-      +'<div style="font-size:10px;padding:3px 8px;border-radius:6px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;'+badgeStyle+'">'+status+'</div>'
+      +'<div class="item-badge '+badgeCls+'">'+status+'</div>'
       +(i.gid?'<span style="font-size:11px;color:var(--muted);font-family:monospace">'+esc(i.gid)+'</span>':'')
       +'<span style="font-size:11px;color:var(--muted)">'+i.month+'</span>'
       +'</div>'
       +'<div style="font-weight:600;font-size:14px;margin-bottom:4px">'+esc(i.item)+'</div>'
       +'<div style="display:flex;gap:12px;font-size:12px;flex-wrap:wrap">'
       +'<span>Sale: <strong>'+fmt(i.salePrice)+'</strong></span>'
-      +'<span>Refunded: <strong style="color:'+(i.isReturned?'var(--red)':'var(--warn)')+'">'+fmt(refundTotal)+'</strong></span>'
+      +'<span>Refunded: <strong style="color:var(--red)">'+fmt(refundTotal)+'</strong></span>'
       +'<span>Net P&L: <strong style="color:'+(profit>=0?'var(--green)':'var(--red)')+'">'+fmt(profit)+'</strong></span>'
       +(lastReturn?'<span style="color:var(--muted)">'+lastReturn.loggedAt+'</span>':'')
       +'</div>'
@@ -3407,12 +3456,12 @@ function showReturnedItems(){
 
   const summary='<div style="display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap">'
     +'<div style="background:var(--surface2);border-radius:8px;padding:10px 14px;flex:1;min-width:100px">'
-    +'<div style="font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:0.06em">Full returns</div>'
-    +'<div style="font-size:22px;font-weight:700;color:var(--red)">'+fullyReturned+'</div>'
+    +'<div style="font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:0.06em">Total items</div>'
+    +'<div style="font-size:22px;font-weight:700">'+items.length+'</div>'
     +'</div>'
     +'<div style="background:var(--surface2);border-radius:8px;padding:10px 14px;flex:1;min-width:100px">'
-    +'<div style="font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:0.06em">Partial refunds</div>'
-    +'<div style="font-size:22px;font-weight:700;color:var(--warn)">'+partialOnly+'</div>'
+    +'<div style="font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:0.06em">Fully returned</div>'
+    +'<div style="font-size:22px;font-weight:700;color:var(--red)">'+fullyReturned+'</div>'
     +'</div>'
     +'<div style="background:var(--surface2);border-radius:8px;padding:10px 14px;flex:1;min-width:100px">'
     +'<div style="font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:0.06em">Total refunded</div>'
@@ -3633,43 +3682,40 @@ function calcYearlyStats(){
   const allSourcingItems=[];
   MONTHS.forEach(m=>{(DB[m]||[]).forEach(i=>{if((i.item||'').trim().toUpperCase()!=='MONTH END')allSourcingItems.push(i);});});
   const avgCostPrice=allSourcingItems.length?allSourcingItems.reduce((s,i)=>s+(i.costPrice||0),0)/allSourcingItems.length:0;
-  // Build category sell-through data — avg days to sell + stale count
+  // Build category sell-through data — avg days and stale per category
   const catMap={};
-  const today2=new Date().toISOString().split('T')[0];
+  const today3=new Date().toISOString().split('T')[0];
   MONTHS.forEach(m=>{
     (DB[m]||[]).forEach(i=>{
       if((i.item||"").trim().toUpperCase()==="MONTH END")return;
       const cat=i.category||'Uncategorised';
-      if(!catMap[cat])catMap[cat]={sold:0,total:0,daysSum:0,stale:0,fast:0,avg:0,slow:0};
+      if(!catMap[cat])catMap[cat]={sold:0,total:0,daysSum:0,stale:0,fast:0,avgS:0,slow:0};
       catMap[cat].total++;
       if(i.dateSold&&!i.isReturned){
         catMap[cat].sold++;
         const d=daysBetween(i.dateListed,i.dateSold);
         catMap[cat].daysSum+=d;
         if(d<=14)catMap[cat].fast++;
-        else if(d<=30)catMap[cat].avg++;
+        else if(d<=30)catMap[cat].avgS++;
         else catMap[cat].slow++;
       } else if(!i.dateSold&&!i.isReturned){
-        const d=daysBetween(i.dateListed,today2);
+        const d=daysBetween(i.dateListed,today3);
         if(d>=30)catMap[cat].stale++;
       }
     });
   });
   const byCat=Object.entries(catMap).map(([cat,v])=>({
-    cat,
-    sold:v.sold,
-    total:v.total,
+    cat,sold:v.sold,total:v.total,
     pct:v.total?Math.round(v.sold/v.total*100):0,
     avgDays:v.sold?Math.round(v.daysSum/v.sold):null,
-    fast:v.fast,
-    avgS:v.avg,
-    slow:v.slow,
-    stale:v.stale
+    fast:v.fast,avgS:v.avgS,slow:v.slow,stale:v.stale
   })).sort((a,b)=>(a.avgDays===null?999:a.avgDays)-(b.avgDays===null?999:b.avgDays));
   const returnRate=(soldCount+returnCount)>0?returnCount/(soldCount+returnCount)*100:0;
-  const partialCount=[];
-  MONTHS.forEach(m=>{(DB[m]||[]).forEach(i=>{if(i.returnHistory&&i.returnHistory.some(r=>r.type==='partial_seller'||r.type==='partial_ebay')&&!i.isReturned)partialCount.push(i);});});
-  const partialRefundCount=partialCount.length;
+  // Partial refund stats
+  let partialRefundCount=0;
+  MONTHS.forEach(m=>{(DB[m]||[]).forEach(i=>{
+    if(i.returnHistory&&i.returnHistory.some(r=>r.type==='partial_seller'||r.type==='partial_ebay')&&!i.isReturned)partialRefundCount++;
+  });});
   const partialRefundRate=(soldCount+returnCount)>0?partialRefundCount/(soldCount+returnCount)*100:0;
   const totalStaleCount=byCat.reduce((s,c)=>s+(c.stale||0),0);
   return{totalRev,realisedProfit,unrealisedProfit,stockValue,soldCount,listedCount,totalItems,returnCount,returnRate,partialRefundCount,partialRefundRate,avgROI,avgSale,avgProfit,avgCostPrice,sellThrough,sellThrough14,sold14Count,eligible14Count:eligible14.length,avgDays,stale,byCat,totalStaleCount};
@@ -3677,20 +3723,22 @@ function calcYearlyStats(){
 
 function calcMonthStats(m){
   let totalRev=0,realisedProfit=0,unrealisedProfit=0,stockValue=0;
-  let soldCount=0,listedCount=0;
+  let soldCount=0,listedCount=0,daysSum=0;
   (DB[m]||[]).forEach(i=>{
     if((i.item||"").trim().toUpperCase()==="MONTH END")return;
     if(i.dateSold && !i.isReturned){
       soldCount++;
       totalRev+=(i.totalRev||i.salePrice||0);
       realisedProfit+=calcGrossProfit(i);
+      daysSum+=daysBetween(i.dateListed,i.dateSold);
     }else if(!i.isReturned){
       listedCount++;
       stockValue+=i.salePrice||0;
       unrealisedProfit+=calcGrossProfit(i)||0;
     }
   });
-  return{totalRev,realisedProfit,unrealisedProfit,stockValue,soldCount,listedCount};
+  const avgDays=soldCount?Math.round(daysSum/soldCount):null;
+  return{totalRev,realisedProfit,unrealisedProfit,stockValue,soldCount,listedCount,avgDays};
 }
 
 // eBay UK BPF: iterative solve matches spreadsheet values exactly
@@ -3730,9 +3778,7 @@ function calcGrossProfit(i){
   // Second sale (resold after return)
   if(i.resaleSalePrice){
     const rBPF=calcEbayBPF(i.resaleSalePrice);
-    const rGrossInc=i.resaleSalePrice-rBPF;
-    const rPromo=rGrossInc*(i.resalePromoPercent||0)*1.20;
-    const rRev=i.resaleSalePrice-rBPF-(i.resaleShippingCost||0)-rPromo;
+    const rRev=i.resaleSalePrice-rBPF-(i.resaleShippingCost||0);
     profit+=rRev;
   }
   return+profit.toFixed(2);
