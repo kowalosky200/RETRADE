@@ -613,9 +613,15 @@ nav{position:sticky;top:0;z-index:200;background:var(--surface);backdrop-filter:
       <label>Sale Price (£)</label>
       <input type="number" id="resale-price" step="0.01" placeholder="0.00">
     </div>
-    <div class="fg" style="margin-bottom:16px">
-      <label>Your Shipping Cost (£)</label>
-      <input type="number" id="resale-shipping" step="0.01" placeholder="0.00">
+    <div class="form-grid-2" style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+      <div class="fg" style="margin-bottom:16px">
+        <label>Your Shipping Cost (£)</label>
+        <input type="number" id="resale-shipping" step="0.01" placeholder="0.00">
+      </div>
+      <div class="fg" style="margin-bottom:16px">
+        <label>Promo %</label>
+        <input type="number" id="resale-promo" step="0.1" placeholder="0">
+      </div>
     </div>
     <div style="display:flex;gap:10px">
       <button class="btn btn-success" onclick="confirmResale()" style="flex:1">Confirm</button>
@@ -943,13 +949,16 @@ function renderItemPage(m,id){
   let resaleHTML='';
   if(i.resaleSalePrice){
     const rBPF=calcEbayBPF(i.resaleSalePrice);
-    const rRev=i.resaleSalePrice-rBPF-(i.resaleShippingCost||0);
+    const rGrossInc=i.resaleSalePrice-rBPF;
+    const rPromo=rGrossInc*(i.resalePromoPercent||0)*1.20;
+    const rRev=i.resaleSalePrice-rBPF-(i.resaleShippingCost||0)-rPromo;
     const lifetimeProfit=profit; // calcGrossProfit already includes both sales
     resaleHTML='<div class="ip-section ip-section-pnl" style="border-left:3px solid var(--purple);margin-top:0">';
     resaleHTML+='<div class="item-full-section-title" style="color:var(--purple)">Sale 2 — Re-sold '+esc(i.resaleDateSold||'')+'</div>';
     resaleHTML+='<div class="pnl-row"><span>Sale price</span><span style="color:var(--green)">'+fmt(i.resaleSalePrice)+'</span></div>';
     resaleHTML+='<div class="pnl-row"><span>eBay BPF</span><span style="color:var(--red)">−'+fmt(rBPF)+'</span></div>';
     if((i.resaleShippingCost||0)>0)resaleHTML+='<div class="pnl-row"><span>Postage (outbound)</span><span style="color:var(--red)">−'+fmt(i.resaleShippingCost)+'</span></div>';
+    if(i.resalePromoPercent)resaleHTML+='<div class="pnl-row"><span>Promo fee ('+((i.resalePromoPercent*100).toFixed(0))+'% +VAT)</span><span style="color:var(--red)">−'+fmt(rPromo)+'</span></div>';
     resaleHTML+='<div class="pnl-row"><span style="color:var(--muted)">Item cost (already sunk)</span><span style="color:var(--muted)">—</span></div>';
     resaleHTML+='<div class="pnl-row total"><span>Sale 2 net</span><span style="color:'+(rRev>=0?'var(--green)':'var(--red)')+'">'+fmt(rRev)+'</span></div>';
     resaleHTML+='<div class="pnl-row" style="margin-top:8px;padding:10px 0 2px 0;border-top:2px solid var(--border)">';
@@ -1588,19 +1597,31 @@ function toggleSellThroughBar(card,byCat){
     bd.style.display='block';
     if(!byCat||!byCat.length){bd.innerHTML='<div style="font-size:12px;color:var(--muted)">No category data yet</div>';return;}
     bd.innerHTML=byCat.map(c=>{
-      const barColor=c.pct>=70?'var(--green)':c.pct>=40?'var(--warn)':'var(--red)';
-      return`<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;font-size:12px;cursor:pointer;border-radius:6px;padding:4px;transition:background 0.15s" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background=''" onclick="showCategoryItems(${JSON.stringify(c.cat).replace(/"/g,'&quot;')})">
-        <div style="width:130px;color:var(--text-secondary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${esc(c.cat)}">${esc(c.cat)}</div>
-        <div style="flex:1;background:var(--surface2);border-radius:4px;height:8px;overflow:hidden;position:relative;">
-          <div style="width:${c.pct}%;background:${barColor};height:100%;border-radius:4px;transition:width 0.4s ease;"></div>
+      // Speed label based on avg days
+      let speedLabel='',speedColor='var(--muted)';
+      if(c.avgDays===null){speedLabel='no sales yet';speedColor='var(--muted)';}
+      else if(c.avgDays<=14){speedLabel='fast';speedColor='var(--green)';}
+      else if(c.avgDays<=30){speedLabel='average';speedColor='var(--warn)';}
+      else{speedLabel='slow';speedColor='var(--red)';}
+      const avgDaysStr=c.avgDays!==null?c.avgDays+'d avg':'—';
+      const staleStr=c.stale>0?`<span style="font-size:10px;background:rgba(245,158,11,0.15);color:var(--warn);border-radius:4px;padding:1px 5px;margin-left:4px">${c.stale} stale</span>`:'';
+      const speedPip=`<span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${speedColor};flex-shrink:0"></span>`;
+      return`<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;font-size:12px;cursor:pointer;border-radius:6px;padding:5px 4px;transition:background 0.15s" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background=''" onclick="showCategoryItems(${JSON.stringify(c.cat).replace(/"/g,'&quot;')})">
+        <div style="width:130px;color:var(--text-secondary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:500" title="${esc(c.cat)}">${esc(c.cat)}</div>
+        <div style="flex:1;display:flex;align-items:center;gap:6px">
+          ${speedPip}
+          <span style="color:${speedColor};font-weight:600">${avgDaysStr}</span>
+          <span style="color:var(--muted)">${speedLabel}</span>
+          ${staleStr}
         </div>
-        <div style="width:36px;text-align:right;font-weight:600;color:${barColor}">${c.pct}%</div>
-        <div style="width:36px;text-align:right;color:var(--muted)">${c.sold}/${c.total}</div>
-        <div style="color:var(--muted);font-size:10px">›</div>
+        <div style="color:var(--muted);font-size:11px;white-space:nowrap">${c.sold}/${c.total} sold</div>
       </div>`;
     }).join('');
-  }else{bd.style.display='none';}
+  }else{
+    bd.style.display='none';
+  }
 }
+
 
 function showCategoryItems(cat){
   let items=[];
@@ -1668,53 +1689,12 @@ function showROIItems(){
   openPanel('Avg ROI — All Items',html);
 }
 
-function showReturnedItems(){
-  let items=[];
-  MONTHS.forEach(m=>{(DB[m]||[]).forEach(i=>{
-    if((i.item||'').trim().toUpperCase()==='MONTH END')return;
-    const hasFullReturn=(i.returnHistory||[]).some(r=>r.type==='full_seller'||r.type==='full_ebay');
-    if(i.isReturned||hasFullReturn)items.push({...i,month:m});
-  });});
-  const totalLoss=items.reduce((s,i)=>s+(calcGrossProfit(i)||0),0);
-  const html=`
-    <div style="margin-bottom:16px;background:var(--surface2);border-radius:10px;padding:14px">
-      <div style="display:flex;align-items:center;gap:12px">
-        <div style="font-size:28px;font-weight:700;color:var(--red)">${items.length}</div>
-        <div>
-          <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px">Total Returns</div>
-          <div style="font-size:13px;color:var(--text-secondary)">Net impact: <span style="color:${totalLoss>=0?'var(--green)':'var(--red)'};font-weight:600">${fmt(totalLoss)}</span></div>
-        </div>
-      </div>
-    </div>
-    ${items.length===0?'<div style="text-align:center;padding:40px;color:var(--muted)">No returns logged</div>':
-    items.map(i=>{
-      const profit=calcGrossProfit(i);
-      const isResold=!!i.resaleSalePrice;
-      const hasFullReturn=(i.returnHistory||[]).some(r=>r.type==='full_seller'||r.type==='full_ebay');
-      const badge=isResold?'resold':hasFullReturn?'returned':'partial return';
-      const badgeCls=isResold?'resold':hasFullReturn?'returned':'return-partial';
-      const borderCol=isResold?'var(--purple)':hasFullReturn?'var(--red)':'var(--accent)';
-      return`<div style="padding:12px;background:var(--surface2);border-radius:8px;margin-bottom:8px;cursor:pointer;border-left:3px solid ${borderCol}" onclick="closePanel();openItemPage('${i.month}','${i.id}','returns')">
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
-          <div style="flex:1;font-weight:600;font-size:14px">${esc(i.item)}</div>
-          <div class="item-badge ${badgeCls}">${badge}</div>
-          <div style="font-size:11px;color:var(--muted)">${i.month}</div>
-        </div>
-        <div style="display:flex;gap:12px;font-size:12px;color:var(--text-secondary)">
-          <span>Sale 1: ${fmt(i.salePrice)}</span>
-          ${isResold?`<span>Sale 2: ${fmt(i.resaleSalePrice)}</span>`:''}
-          <span style="color:${profit>=0?'var(--green)':'var(--red)'};font-weight:600">Net: ${fmt(profit)}</span>
-        </div>
-      </div>`;
-    }).join('')}`;
-  openPanel('Returns',html);
-}
 
 function showAvgCostItems(){
   let items=[];
   MONTHS.forEach(m=>{(DB[m]||[]).forEach(i=>{
     if((i.item||'').trim().toUpperCase()==='MONTH END')return;
-    if(!i.isReturned)items.push({...i,month:m});
+    items.push({...i,month:m});
   });});
   items.sort((a,b)=>(b.costPrice||0)-(a.costPrice||0));
   const avg=items.length?items.reduce((s,i)=>s+(i.costPrice||0),0)/items.length:0;
@@ -1821,9 +1801,6 @@ function showFilteredItems(filter){
 
 function renderSummary(){
   const stats=calcYearlyStats();
-  const stPct=Math.min(stats.sellThrough14,100);
-  const stColor=stPct>=70?'var(--green)':stPct>=40?'var(--warn)':'var(--red)';
-  const stZone=stPct>=80?'Underpricing? Push prices up':stPct>=70?'Target zone — healthy':stPct>=55?'Solid — room to optimise':stPct>=40?'Below average — review pricing':'Needs attention — pricing or listing quality';
 
   const html=`
     <div class="kgrid" style="grid-template-columns:1fr 1fr;">
@@ -1848,9 +1825,9 @@ function renderSummary(){
         <div class="ksub">Per sold item ›</div>
       </div>
       <div class="kcard r clickable" onclick="showReturnedItems()">
-        <div class="klabel">Return Rate</div>
+        <div class="klabel">Refund Rate</div>
         <div class="kval">${stats.returnRate.toFixed(1)}%</div>
-        <div class="ksub">${stats.returnCount} of ${stats.soldCount+stats.returnCount} dispatched ›</div>
+        <div class="ksub">${stats.returnCount} full · <span style="color:var(--warn)">${stats.partialRefundCount} partial (${stats.partialRefundRate.toFixed(1)}%)</span> ›</div>
       </div>
       <div class="kcard b clickable" onclick="showAvgCostItems()">
         <div class="klabel">Avg Cost Price</div>
@@ -1872,26 +1849,18 @@ function renderSummary(){
     <div class="chart-wrap" style="margin-bottom:20px;cursor:pointer;" onclick="toggleSellThroughBar(this,${JSON.stringify(stats.byCat).replace(/"/g,'&quot;')})">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
         <div>
-          <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:2px;">Sell-through Rate <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--muted);font-size:10px">(14-day window)</span></div>
-          <div style="font-size:12px;color:var(--text-secondary);">${stats.sold14Count} of ${stats.eligible14Count} eligible sold within 14 days · tap for breakdown</div>
+          <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:2px;">Inventory Velocity</div>
+          <div style="font-size:12px;color:var(--text-secondary);">${stats.soldCount} sold · ${stats.listedCount} active · ${stats.totalStaleCount>0?`<span style="color:var(--warn);font-weight:600">${stats.totalStaleCount} stale 30d+</span>`:'no stale stock'} · tap for breakdown</div>
         </div>
         <div style="text-align:right">
-          <div style="font-size:28px;font-weight:700;letter-spacing:-0.02em;color:${stColor};">${stPct.toFixed(1)}%</div>
-          <div style="font-size:10px;color:${stColor};font-weight:600;text-align:right;margin-top:1px;">${stZone}</div>
+          <div style="font-size:28px;font-weight:700;letter-spacing:-0.02em;color:${stats.avgDays<=14?'var(--green)':stats.avgDays<=30?'var(--warn)':'var(--red)'};">${stats.avgDays}<span style="font-size:14px;font-weight:500;color:var(--text-secondary);margin-left:2px">d</span></div>
+          <div style="font-size:10px;color:var(--text-secondary);font-weight:600;text-align:right;margin-top:1px;">avg days to sell</div>
         </div>
       </div>
-      <div style="position:relative;margin-top:10px;">
-        <div style="background:var(--surface2);border-radius:6px;height:10px;overflow:visible;position:relative;">
-          <div style="width:${stPct}%;background:${stColor};height:100%;border-radius:6px;transition:width 0.8s ease;"></div>
-          <!-- 70% target tick -->
-          <div style="position:absolute;left:70%;top:-4px;bottom:-4px;width:2px;background:var(--text-secondary);border-radius:2px;opacity:0.5;" title="70% target"></div>
-        </div>
-        <div style="position:absolute;left:70%;transform:translateX(-50%);top:14px;font-size:9px;color:var(--muted);font-weight:600;white-space:nowrap;">TARGET 70%</div>
-      </div>
-      <div style="display:flex;gap:16px;margin-top:22px;font-size:11px;">
-        <span style="display:flex;align-items:center;gap:4px;color:var(--red)"><span style="width:8px;height:8px;border-radius:2px;background:var(--red);display:inline-block"></span>0–40%</span>
-        <span style="display:flex;align-items:center;gap:4px;color:var(--warn)"><span style="width:8px;height:8px;border-radius:2px;background:var(--warn);display:inline-block"></span>40–70%</span>
-        <span style="display:flex;align-items:center;gap:4px;color:var(--green)"><span style="width:8px;height:8px;border-radius:2px;background:var(--green);display:inline-block"></span>70%+</span>
+      <div style="display:flex;gap:16px;margin-top:8px;font-size:11px;">
+        <span style="display:flex;align-items:center;gap:4px;color:var(--green)"><span style="width:8px;height:8px;border-radius:50%;background:var(--green);display:inline-block"></span>Fast ≤14d</span>
+        <span style="display:flex;align-items:center;gap:4px;color:var(--warn)"><span style="width:8px;height:8px;border-radius:50%;background:var(--warn);display:inline-block"></span>Average 15–30d</span>
+        <span style="display:flex;align-items:center;gap:4px;color:var(--red)"><span style="width:8px;height:8px;border-radius:50%;background:var(--red);display:inline-block"></span>Slow 30d+</span>
       </div>
       <div class="st-breakdown" style="display:none;margin-top:16px;border-top:1px solid var(--border);padding-top:14px;"></div>
     </div>
@@ -3124,10 +3093,11 @@ function markSold(m,id){
 
   if(hasFullReturn){
     // Resale flow — different modal with price + shipping
-    MODAL_CALLBACK=function(date,price,shipping){
+    MODAL_CALLBACK=function(date,price,shipping,promo){
       item.resaleDateSold=date;
       item.resaleSalePrice=price;
       item.resaleShippingCost=shipping;
+      item.resalePromoPercent=promo||0;
       item.isReturned=false;
       item.grossProfit=calcGrossProfit(item);
       saveDB();
@@ -3176,7 +3146,8 @@ function confirmResale(){
   const date=document.getElementById('resale-date').value;
   const price=parseFloat(document.getElementById('resale-price').value)||0;
   const shipping=parseFloat(document.getElementById('resale-shipping').value)||0;
-  if(date&&MODAL_CALLBACK){MODAL_CALLBACK(date,price,shipping);}
+  const promo=(parseFloat(document.getElementById('resale-promo').value)||0)/100;
+  if(date&&MODAL_CALLBACK){MODAL_CALLBACK(date,price,shipping,promo);}
   closeResaleModal();
 }
 
@@ -3404,24 +3375,30 @@ function showReturnedItems(){
     return s+(i.returnHistory||[]).reduce(function(s2,r){return s2+(r.refundAmount||0);},0);
   },0);
   const fullyReturned=items.filter(function(i){return i.isReturned;}).length;
-  const partialOnly=items.filter(function(i){return !i.isReturned&&i.returnHistory&&i.returnHistory.length>0;}).length;
+  const partialOnly=items.filter(function(i){return !i.isReturned&&i.returnHistory&&i.returnHistory.some(r=>r.type==='partial_seller'||r.type==='partial_ebay');}).length;
 
   const rows=items.map(function(i){
-    const status=i.isReturned?'returned':'partial return';
-    const badgeCls=i.isReturned?'returned':'sold';
+    const isPartialOnly=!i.isReturned&&i.returnHistory&&i.returnHistory.some(r=>r.type==='partial_seller'||r.type==='partial_ebay');
+    const isResold=!!i.resaleSalePrice;
+    const status=i.isReturned?'returned':isResold?'resold':isPartialOnly?'partial refund':'return';
+    const badgeStyle=i.isReturned
+      ?'background:rgba(239,68,68,0.15);color:var(--red)'
+      :isResold
+        ?'background:rgba(139,92,246,0.15);color:var(--purple)'
+        :'background:rgba(245,158,11,0.15);color:var(--warn)';
     const lastReturn=i.returnHistory&&i.returnHistory.length>0?i.returnHistory[i.returnHistory.length-1]:null;
     const refundTotal=(i.returnHistory||[]).reduce(function(s,r){return s+(r.refundAmount||0);},0);
     const profit=calcGrossProfit(i);
     return '<div style="padding:10px;background:var(--surface2);border-radius:8px;margin-bottom:8px;cursor:pointer" onclick="openItemDetail(\''+i.month+'\',\''+i.id+'\')">'
       +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">'
-      +'<div class="item-badge '+badgeCls+'">'+status+'</div>'
+      +'<div style="font-size:10px;padding:3px 8px;border-radius:6px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;'+badgeStyle+'">'+status+'</div>'
       +(i.gid?'<span style="font-size:11px;color:var(--muted);font-family:monospace">'+esc(i.gid)+'</span>':'')
       +'<span style="font-size:11px;color:var(--muted)">'+i.month+'</span>'
       +'</div>'
       +'<div style="font-weight:600;font-size:14px;margin-bottom:4px">'+esc(i.item)+'</div>'
       +'<div style="display:flex;gap:12px;font-size:12px;flex-wrap:wrap">'
       +'<span>Sale: <strong>'+fmt(i.salePrice)+'</strong></span>'
-      +'<span>Refunded: <strong style="color:var(--red)">'+fmt(refundTotal)+'</strong></span>'
+      +'<span>Refunded: <strong style="color:'+(i.isReturned?'var(--red)':'var(--warn)')+'">'+fmt(refundTotal)+'</strong></span>'
       +'<span>Net P&L: <strong style="color:'+(profit>=0?'var(--green)':'var(--red)')+'">'+fmt(profit)+'</strong></span>'
       +(lastReturn?'<span style="color:var(--muted)">'+lastReturn.loggedAt+'</span>':'')
       +'</div>'
@@ -3430,12 +3407,12 @@ function showReturnedItems(){
 
   const summary='<div style="display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap">'
     +'<div style="background:var(--surface2);border-radius:8px;padding:10px 14px;flex:1;min-width:100px">'
-    +'<div style="font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:0.06em">Total items</div>'
-    +'<div style="font-size:22px;font-weight:700">'+items.length+'</div>'
+    +'<div style="font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:0.06em">Full returns</div>'
+    +'<div style="font-size:22px;font-weight:700;color:var(--red)">'+fullyReturned+'</div>'
     +'</div>'
     +'<div style="background:var(--surface2);border-radius:8px;padding:10px 14px;flex:1;min-width:100px">'
-    +'<div style="font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:0.06em">Fully returned</div>'
-    +'<div style="font-size:22px;font-weight:700;color:var(--red)">'+fullyReturned+'</div>'
+    +'<div style="font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:0.06em">Partial refunds</div>'
+    +'<div style="font-size:22px;font-weight:700;color:var(--warn)">'+partialOnly+'</div>'
     +'</div>'
     +'<div style="background:var(--surface2);border-radius:8px;padding:10px 14px;flex:1;min-width:100px">'
     +'<div style="font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:0.06em">Total refunded</div>'
@@ -3656,20 +3633,46 @@ function calcYearlyStats(){
   const allSourcingItems=[];
   MONTHS.forEach(m=>{(DB[m]||[]).forEach(i=>{if((i.item||'').trim().toUpperCase()!=='MONTH END')allSourcingItems.push(i);});});
   const avgCostPrice=allSourcingItems.length?allSourcingItems.reduce((s,i)=>s+(i.costPrice||0),0)/allSourcingItems.length:0;
-  // Build category sell-through data
+  // Build category sell-through data — avg days to sell + stale count
   const catMap={};
+  const today2=new Date().toISOString().split('T')[0];
   MONTHS.forEach(m=>{
     (DB[m]||[]).forEach(i=>{
       if((i.item||"").trim().toUpperCase()==="MONTH END")return;
       const cat=i.category||'Uncategorised';
-      if(!catMap[cat])catMap[cat]={sold:0,total:0};
+      if(!catMap[cat])catMap[cat]={sold:0,total:0,daysSum:0,stale:0,fast:0,avg:0,slow:0};
       catMap[cat].total++;
-      if(i.dateSold&&!i.isReturned)catMap[cat].sold++;
+      if(i.dateSold&&!i.isReturned){
+        catMap[cat].sold++;
+        const d=daysBetween(i.dateListed,i.dateSold);
+        catMap[cat].daysSum+=d;
+        if(d<=14)catMap[cat].fast++;
+        else if(d<=30)catMap[cat].avg++;
+        else catMap[cat].slow++;
+      } else if(!i.dateSold&&!i.isReturned){
+        const d=daysBetween(i.dateListed,today2);
+        if(d>=30)catMap[cat].stale++;
+      }
     });
   });
-  const byCat=Object.entries(catMap).map(([cat,v])=>({cat,sold:v.sold,total:v.total,pct:v.total?Math.round(v.sold/v.total*100):0})).sort((a,b)=>b.pct-a.pct);
+  const byCat=Object.entries(catMap).map(([cat,v])=>({
+    cat,
+    sold:v.sold,
+    total:v.total,
+    pct:v.total?Math.round(v.sold/v.total*100):0,
+    avgDays:v.sold?Math.round(v.daysSum/v.sold):null,
+    fast:v.fast,
+    avgS:v.avg,
+    slow:v.slow,
+    stale:v.stale
+  })).sort((a,b)=>(a.avgDays===null?999:a.avgDays)-(b.avgDays===null?999:b.avgDays));
   const returnRate=(soldCount+returnCount)>0?returnCount/(soldCount+returnCount)*100:0;
-  return{totalRev,realisedProfit,unrealisedProfit,stockValue,soldCount,listedCount,totalItems,returnCount,returnRate,avgROI,avgSale,avgProfit,avgCostPrice,sellThrough,sellThrough14,sold14Count,eligible14Count:eligible14.length,avgDays,stale,byCat};
+  const partialCount=[];
+  MONTHS.forEach(m=>{(DB[m]||[]).forEach(i=>{if(i.returnHistory&&i.returnHistory.some(r=>r.type==='partial_seller'||r.type==='partial_ebay')&&!i.isReturned)partialCount.push(i);});});
+  const partialRefundCount=partialCount.length;
+  const partialRefundRate=(soldCount+returnCount)>0?partialRefundCount/(soldCount+returnCount)*100:0;
+  const totalStaleCount=byCat.reduce((s,c)=>s+(c.stale||0),0);
+  return{totalRev,realisedProfit,unrealisedProfit,stockValue,soldCount,listedCount,totalItems,returnCount,returnRate,partialRefundCount,partialRefundRate,avgROI,avgSale,avgProfit,avgCostPrice,sellThrough,sellThrough14,sold14Count,eligible14Count:eligible14.length,avgDays,stale,byCat,totalStaleCount};
 }
 
 function calcMonthStats(m){
@@ -3727,7 +3730,9 @@ function calcGrossProfit(i){
   // Second sale (resold after return)
   if(i.resaleSalePrice){
     const rBPF=calcEbayBPF(i.resaleSalePrice);
-    const rRev=i.resaleSalePrice-rBPF-(i.resaleShippingCost||0);
+    const rGrossInc=i.resaleSalePrice-rBPF;
+    const rPromo=rGrossInc*(i.resalePromoPercent||0)*1.20;
+    const rRev=i.resaleSalePrice-rBPF-(i.resaleShippingCost||0)-rPromo;
     profit+=rRev;
   }
   return+profit.toFixed(2);
