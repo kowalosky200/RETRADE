@@ -3811,11 +3811,13 @@ function calcYearlyStats(){
       catMap[cat].total++;
       if((i.dateSold||i.resaleSalePrice)&&!i.isReturned){
         catMap[cat].sold++;
-        const d=daysBetween(i.dateListed,i.dateSold);
-        catMap[cat].daysSum+=d;
-        if(d<=14)catMap[cat].fast++;
-        else if(d<=30)catMap[cat].avgS++;
-        else catMap[cat].slow++;
+        if(i.dateSold&&i.dateListed){
+          const d=daysBetween(i.dateListed,i.dateSold);
+          catMap[cat].daysSum+=d;
+          if(d<=14)catMap[cat].fast++;
+          else if(d<=30)catMap[cat].avgS++;
+          else catMap[cat].slow++;
+        }
       } else if(!i.dateSold&&!i.isReturned&&!i.resaleSalePrice){
         const d=daysBetween(i.dateListed,today3);
         if(d>=30)catMap[cat].stale++;
@@ -3844,7 +3846,7 @@ function calcMonthStats(m){
   let soldCount=0,listedCount=0,daysSum=0;
   (DB[m]||[]).forEach(i=>{
     if((i.item||"").trim().toUpperCase()==="MONTH END")return;
-    if(i.dateSold && !i.isReturned){
+    if(i.dateSold && i.dateListed && !i.isReturned){
       soldCount++;
       totalRev+=(i.totalRev||i.salePrice||0);
       realisedProfit+=calcGrossProfit(i);
