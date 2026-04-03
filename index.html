@@ -38,7 +38,7 @@ nav{position:sticky;top:0;z-index:200;background:var(--surface);backdrop-filter:
 .tab:hover{color:var(--text);background:var(--surface2);}
 .tab.on{background:var(--accent);color:#000;}
 .nav-more{position:relative;}
-.nav-more-btn{padding:8px 16px;border-radius:8px;border:none;cursor:pointer;font-weight:600;font-size:13px;background:transparent;color:var(--text-secondary);transition:all 0.15s;display:none;align-items:center;gap:4px;flex-shrink:0;min-height:40px;}
+.nav-more-btn{padding:8px 12px;border-radius:8px;border:none;cursor:pointer;font-weight:600;font-size:13px;background:transparent;color:var(--text-secondary);transition:all 0.15s;display:none;align-items:center;justify-content:center;flex-shrink:0;min-height:40px;}
 .nav-more-btn:hover{color:var(--text);background:var(--surface2);}
 .nav-more-btn.on{background:var(--accent);color:#000;}
 .nav-more-btn.has-items{display:flex;}
@@ -266,8 +266,9 @@ nav{position:sticky;top:0;z-index:200;background:var(--surface);backdrop-filter:
   /* Content */
   .kgrid{grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px;}
   .kgrid-3{grid-template-columns:1fr 1fr!important;}
-  .insights{grid-template-columns:repeat(3,1fr);gap:8px;}
-  .insight-label{font-size:9px;}
+  .insights{grid-template-columns:1fr;gap:8px;}
+  .insight-card{padding:12px 16px;}
+  .insight-label{font-size:11px;}
   .insight-val{font-size:18px;}
   .chart-wrap{padding:20px 16px;}
   .chart-title{flex-direction:column;align-items:flex-start;}
@@ -279,6 +280,16 @@ nav{position:sticky;top:0;z-index:200;background:var(--surface);backdrop-filter:
   .slide-panel{width:100%;right:-100%;}
   /* Item full page */
   .item-full-page{padding:14px 16px;}
+  /* Tax page */
+  .tax-method-grid{grid-template-columns:1fr!important;}
+  .tax-year-select{width:100%!important;min-width:0!important;font-size:13px!important;}
+  .tax-box-row{flex-wrap:wrap;gap:8px!important;padding:12px 14px!important;}
+  .tax-box-desc{flex-basis:100%;order:2;}
+  .tax-box-val{order:3;margin-left:auto;}
+  .tax-box-tag{order:1;}
+  .tax-exp-row{padding:9px 14px!important;font-size:13px!important;}
+  .tax-method-card{padding:16px!important;}
+  .tax-method-card .tax-row{font-size:13px!important;}
 }
 
 @media (max-width:600px){
@@ -546,9 +557,12 @@ nav{position:sticky;top:0;z-index:200;background:var(--surface);backdrop-filter:
         <button class="tab" data-tab="data" onclick="goToTab('data',this)">Data</button>
       </div>
       <div class="nav-more">
-        <button class="nav-more-btn" onclick="event.stopPropagation();toggleNavMore()">
-          <span>More</span>
-          <span style="font-size:10px">▾</span>
+        <button class="nav-more-btn" onclick="event.stopPropagation();toggleNavMore()" title="More">
+          <svg width="16" height="12" viewBox="0 0 16 12" fill="none" xmlns="http://www.w3.org/2000/svg" style="display:block">
+            <rect y="0" width="16" height="2" rx="1" fill="currentColor"/>
+            <rect y="5" width="16" height="2" rx="1" fill="currentColor"/>
+            <rect y="10" width="16" height="2" rx="1" fill="currentColor"/>
+          </svg>
         </button>
         <div class="nav-more-menu" id="nav-more-menu"></div>
       </div>
@@ -1336,11 +1350,11 @@ function updatePanelNav(){
   if(!backBtn)return;
   if(PANEL_STACK.length>0){
     backBtn.disabled=false;
-    backBtn.style.opacity='1';
+    backBtn.style.visibility='visible';
     backBtn.style.cursor='pointer';
   }else{
     backBtn.disabled=true;
-    backBtn.style.opacity='0.45';
+    backBtn.style.visibility='hidden';
     backBtn.style.cursor='default';
   }
 }
@@ -1802,7 +1816,7 @@ function _renderAllItemsPanel(filter){
     </div>
     <div style="margin-bottom:12px;font-size:13px;color:var(--muted)">${items.length} items</div>
     ${items.map(i=>{
-      const prof=i.dateSold?calcGrossProfit(i):null;
+      const prof=(i.dateSold||i.resaleSalePrice)&&!i.isReturned?calcGrossProfit(i):null;
       const roi=calcROI(i);
       return`<div style="padding:10px;background:var(--surface2);border-radius:8px;margin-bottom:8px;cursor:pointer" onclick="openItemDetail('${i.month}','${i.id}')">
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
@@ -1964,17 +1978,17 @@ function renderSummary(){
         </div>
       </div>
       <div class="insight-card">
-        <div class="insight-icon">📦</div>
-        <div>
-          <div class="insight-label">Avg Profit</div>
-          <div class="insight-val" style="color:var(--green)">${fmt(stats.avgProfit)}</div>
-        </div>
-      </div>
-      <div class="insight-card">
         <div class="insight-icon">🏷️</div>
         <div>
           <div class="insight-label">Avg Cost</div>
           <div class="insight-val">${fmt(stats.avgCostPrice)}</div>
+        </div>
+      </div>
+      <div class="insight-card">
+        <div class="insight-icon">📦</div>
+        <div>
+          <div class="insight-label">Avg Profit</div>
+          <div class="insight-val" style="color:var(--green)">${fmt(stats.avgProfit)}</div>
         </div>
       </div>
     </div>
@@ -2400,100 +2414,80 @@ function openItemDetail(m,id,noHistory){
   const profit=calcGrossProfit(i);
   const roi=calcROI(i);
   const status=i.isReturned?'returned':i.resaleSalePrice?'resold':i.dateSold?'sold':'listed';
-  const html=`
+  const isSold=(i.dateSold||i.resaleSalePrice)&&!i.isReturned;
+  const isUnsold=!i.dateSold&&!i.resaleSalePrice&&!i.isReturned;
+
+  // Primary action button — the thing you most likely opened this to do
+  const primaryBtn=isUnsold
+    ?`<button class="btn btn-p" style="flex:1;justify-content:center;gap:8px;padding:12px" onclick="markSold('${m}','${id}')"><svg width="14" height="14" viewBox="0 0 15 15" fill="none"><path d="M8.5 1.5h4a1 1 0 011 1v4a.5.5 0 01-.15.35l-6 6a1 1 0 01-1.41 0l-4-4a1 1 0 010-1.41l6-6A.5.5 0 018.5 1.5z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/><circle cx="11" cy="4" r="0.8" fill="currentColor"/></svg> Mark Sold</button>`
+    :isSold
+    ?`<button class="btn btn-s" style="flex:1;justify-content:center;padding:12px" onclick="openReturn('${m}','${id}')">↩ Log Return</button>`
+    :'';
+
+  // Compact stat strip
+  const statStrip=`
+    <div style="display:grid;grid-template-columns:1fr 1fr${profit!==null?' 1fr':''};gap:1px;background:var(--border);border-radius:10px;overflow:hidden;margin-bottom:16px">
+      <div style="background:var(--surface2);padding:12px;text-align:center">
+        <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;font-weight:600;margin-bottom:4px">Sale</div>
+        <div style="font-size:18px;font-weight:700">${fmt(i.salePrice||0)}</div>
+      </div>
+      <div style="background:var(--surface2);padding:12px;text-align:center">
+        <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;font-weight:600;margin-bottom:4px">Cost</div>
+        <div style="font-size:18px;font-weight:700">${fmt(i.costPrice||0)}</div>
+      </div>
+      ${profit!==null?`<div style="background:var(--surface2);padding:12px;text-align:center">
+        <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;font-weight:600;margin-bottom:4px">Profit</div>
+        <div style="font-size:18px;font-weight:700;color:${profit>=0?'var(--green)':'var(--red)'}">${fmt(profit)}</div>
+      </div>`:''}
+    </div>`;
+
+  // Quick edits — only the fields you realistically change on the fly
+  const quickEdit=`
     <div style="margin-bottom:16px">
-      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px">
-        <div class="item-badge ${status}">${status}</div>
-        ${i.gid?`<div style="font-size:12px;color:var(--muted);font-family:monospace">${i.gid}</div>`:''}
-      </div>
-    </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px">
-      <div class="kcard">
-        <div class="klabel">Buyer Pays</div>
-        <div class="kval" style="font-size:20px">${fmt(i.salePrice)}</div>
-        <div class="ksub">You receive: ${fmt(grossInc)}</div>
-      </div>
-      <div class="kcard">
-        <div class="klabel">Item Cost</div>
-        <div class="kval" style="font-size:20px">${fmt(i.costPrice||0)}</div>
-        <div class="ksub">Purchase price</div>
-      </div>
-      ${i.dateSold?`<div class="kcard g"><div class="klabel">Profit</div><div class="kval" style="font-size:20px">${fmt(profit)}</div><div class="ksub">After all fees</div></div>`:''}
-      ${roi!==null?`<div class="kcard"><div class="klabel">ROI</div><div class="kval" style="font-size:20px">${roi.toFixed(1)}%</div><div class="ksub">Return on investment</div></div>`:''}
-    </div>
-    <div style="background:var(--surface2);border-radius:10px;padding:14px;margin-bottom:16px;font-size:13px">
-      <div style="font-weight:600;margin-bottom:8px;color:var(--muted)">QUICK EDIT</div>
-      <div class="form-grid-2" style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-        <div class="fg" style="margin-bottom:0">
-          <label style="margin-bottom:4px">Date listed</label>
-          <input type="date" id="pd-date-listed" value="${i.dateListed||''}" onchange="savePanelQuickEdit('${m}','${id}',true)" onblur="savePanelQuickEdit('${m}','${id}',true)">
-        </div>
+      <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:8px">Quick Edit</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
         <div class="fg" style="margin-bottom:0">
           <label style="margin-bottom:4px">Location</label>
-          <input type="text" id="pd-location" value="${esc(i.location||'')}" placeholder="e.g. Bed, Shelf A2" onchange="savePanelQuickEdit('${m}','${id}',true)" onblur="savePanelQuickEdit('${m}','${id}',true)">
+          <input type="text" id="pd-location" value="${esc(i.location||'')}" placeholder="e.g. Bed, A101" onchange="savePanelQuickEdit('${m}','${id}',true)" onblur="savePanelQuickEdit('${m}','${id}',true)">
         </div>
-        <div class="fg" style="margin-bottom:0">
-          <label style="margin-bottom:4px">Source</label>
-          <select id="pd-source" onchange="savePanelQuickEdit('${m}','${id}',true)">
-            <option value="">Select source...</option>
-            ${ITEM_SOURCES.map(s=>`<option value="${s}" ${s===i.source?'selected':''}>${s}</option>`).join('')}
-          </select>
-        </div>
-        <div class="fg" style="margin-bottom:0">
-          <label style="margin-bottom:4px">Category</label>
-          <select id="pd-category" onchange="savePanelQuickEdit('${m}','${id}',true)">
-            <option value="">Select category...</option>
-            ${ITEM_CATEGORIES.map(c=>`<option value="${c}" ${c===i.category?'selected':''}>${c}</option>`).join('')}
-          </select>
-        </div>
-        <div class="fg" style="margin-bottom:0">
-          <label style="margin-bottom:4px">Cost price (£)</label>
-          <input type="number" id="pd-cost" step="0.01" value="${i.costPrice||0}" onchange="savePanelQuickEdit('${m}','${id}',true)">
-        </div>
-        <div class="fg" style="margin-bottom:0">
-          <label style="margin-bottom:4px">Sale price (£)</label>
-          <input type="number" id="pd-price" step="0.01" value="${i.salePrice||0}" onchange="savePanelQuickEdit('${m}','${id}',true)">
-        </div>
+        ${isUnsold?`<div class="fg" style="margin-bottom:0">
+          <label style="margin-bottom:4px">Date listed</label>
+          <input type="date" id="pd-date-listed" value="${i.dateListed||''}" onchange="savePanelQuickEdit('${m}','${id}',true)" onblur="savePanelQuickEdit('${m}','${id}',true)">
+        </div>`:`<div class="fg" style="margin-bottom:0">
+          <label style="margin-bottom:4px">Date sold</label>
+          <div style="padding:8px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;font-size:13px;color:var(--text-secondary)">${i.dateSold||i.resaleDateSold||'—'}</div>
+        </div>`}
       </div>
-      <div style="display:flex;gap:8px;margin-top:10px;align-items:center;justify-content:space-between;">
-        <div style="font-size:12px;color:var(--muted)">Sold: ${i.dateSold||'Not sold'}</div>
-        <div style="font-size:12px;color:var(--muted)">Auto-saves on change</div>
-      </div>
+      <div style="font-size:11px;color:var(--muted);margin-top:6px;text-align:right">Auto-saves on change</div>
+    </div>`;
+
+  // Return history — compact, only if present
+  const returnSection=i.returnHistory&&i.returnHistory.length>0?`
+    <div style="background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.25);border-radius:10px;padding:12px;margin-bottom:16px;font-size:12px">
+      <div style="font-size:10px;font-weight:700;color:var(--warn);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:6px">Return History</div>
+      ${i.returnHistory.map((r,rIdx)=>{
+        const typeLbl={full_seller:'Full — you handled',full_ebay:'Full — eBay involved',partial_seller:'Partial — you handled',partial_ebay:'Partial — eBay decided'}[r.type]||r.type;
+        return`<div style="display:flex;align-items:center;justify-content:space-between;padding:4px 0;border-bottom:1px solid rgba(245,158,11,0.15)">
+          <span style="color:var(--text-secondary)">${typeLbl} · ${fmt(r.refundAmount||0)}</span>
+          <button onclick="event.stopPropagation();panelDeleteReturn('${m}','${id}',${rIdx})" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:14px;padding:2px 6px">✕</button>
+        </div>`;
+      }).join('')}
+    </div>`:'';
+
+  const html=`
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;flex-wrap:wrap">
+      <div class="item-badge ${status}">${status}</div>
+      ${i.gid?`<div style="font-size:11px;color:var(--muted);font-family:monospace">${i.gid}</div>`:''}
+      ${i.category?`<div style="font-size:11px;color:var(--muted)">· ${esc(i.category)}</div>`:''}
     </div>
-    <div style="background:var(--surface2);border-radius:10px;padding:14px;margin-bottom:16px;font-size:13px">
-      <div style="font-weight:600;margin-bottom:8px;color:var(--muted)">COST BREAKDOWN</div>
-      <div style="display:flex;justify-content:space-between;padding:4px 0"><span>eBay BPF</span><span>−${fmt(bpf)}</span></div>
-      <div style="display:flex;justify-content:space-between;padding:4px 0"><span>Postage (you paid)</span><span>−${fmt(i.shippingCost||0)}</span></div>
-      ${(i.packagingCost||0)>0?`<div style="display:flex;justify-content:space-between;padding:4px 0"><span>Packaging</span><span>−${fmt(i.packagingCost)}</span></div>`:''}
-      ${i.promoPercent?`<div style="display:flex;justify-content:space-between;padding:4px 0"><span>Promo fee (${((i.promoPercent||0)*100).toFixed(0)}% +VAT)</span><span>−${fmt(promoCost)}</span></div>`:''}
-      <div style="display:flex;justify-content:space-between;padding:4px 0;border-top:1px solid var(--border);margin-top:4px;font-weight:600"><span>Total invested</span><span>${fmt((i.costPrice||0)+(i.shippingCost||0)+(i.packagingCost||0)+bpf+promoCost)}</span></div>
-    </div>
-    ${i.returnHistory&&i.returnHistory.length>0?`
-      <div style="background:var(--surface2);border-radius:10px;padding:14px;margin-bottom:16px;font-size:13px">
-        <div style="font-weight:600;margin-bottom:6px;color:var(--muted)">RETURN HISTORY</div>
-        ${i.returnHistory.map((r,rIdx)=>{
-          const typeLbl={full_seller:'Full refund — you handled',full_ebay:'Full refund — eBay involved',partial_seller:'Partial refund — you handled',partial_ebay:'Partial refund — eBay involved'}[r.type]||r.type;
-          return`<div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--border)">
-            <div style="flex:1;min-width:0">
-              <div style="font-weight:600;color:var(--accent);font-size:12px">${typeLbl}</div>
-              <div style="color:var(--text-secondary);margin-top:2px">${r.loggedAt||'—'} · Refund: ${fmt(r.refundAmount||0)}${r.returnPostage?` · Post: ${fmt(r.returnPostage)}`:''}</div>
-              ${r.notes?`<div style="color:var(--muted);font-size:11px;margin-top:2px">${esc(r.notes)}</div>`:''}
-            </div>
-            <button onclick="event.stopPropagation();panelDeleteReturn('${m}','${id}',${rIdx})" style="background:none;border:1px solid rgba(239,68,68,0.3);border-radius:6px;padding:4px 8px;font-size:11px;color:var(--red);cursor:pointer;flex-shrink:0">✕</button>
-          </div>`;
-        }).join('')}
-      </div>`:''}
-    <div style="background:var(--surface2);border-radius:10px;padding:14px;margin-bottom:16px;font-size:13px">
-      <div style="font-weight:600;margin-bottom:8px;color:var(--muted)">PARTS & EXPENSES</div>
-      <div id="panel-parts-${i.id}">${partsHTML(m,id,'panel')}</div>
-    </div>
-    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
-      <button class="btn btn-p" onclick="closePanel();openItemPage('${m}','${id}')">📄 Full Page</button>
-      <button class="btn btn-s" onclick="editItem('${m}','${id}')">✏️ Edit</button>
-      ${(!i.dateSold&&!i.resaleSalePrice)?`<button class="btn btn-s" onclick="markSold('${m}','${id}')"><svg width="14" height="14" viewBox="0 0 15 15" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M8.5 1.5h4a1 1 0 011 1v4a.5.5 0 01-.15.35l-6 6a1 1 0 01-1.41 0l-4-4a1 1 0 010-1.41l6-6A.5.5 0 018.5 1.5z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/><circle cx="11" cy="4" r="0.8" fill="currentColor"/></svg> Mark Sold</button>`:''}
-      ${(i.dateSold||i.resaleSalePrice)&&!i.isReturned?`<button class="btn btn-s" onclick="openReturn('${m}','${id}')">↩️ Log Return</button>`:''}
-      <button class="btn btn-s" onclick="duplicateItem('${m}','${id}','panel')">📋 Duplicate</button>
-      <button class="btn btn-s danger" onclick="deleteItem('${m}','${id}')">🗑️ Delete</button>
+    ${statStrip}
+    ${primaryBtn?`<div style="display:flex;gap:8px;margin-bottom:16px">${primaryBtn}</div>`:''}
+    ${quickEdit}
+    ${returnSection}
+    <div style="display:grid;grid-template-columns:1fr auto auto;gap:8px;align-items:center;padding-top:12px;border-top:1px solid var(--border)">
+      <button class="btn btn-p" style="justify-content:center" onclick="closePanel();openItemPage('${m}','${id}')">Full details →</button>
+      <button class="btn btn-s" onclick="editItem('${m}','${id}')" title="Edit">✏️</button>
+      <button class="btn btn-s danger" onclick="deleteItem('${m}','${id}')" title="Delete">🗑️</button>
     </div>
   `;
   const pushHistory=document.getElementById('slide-panel').classList.contains('on')&&!noHistory;
@@ -3251,8 +3245,8 @@ function savePanelQuickEdit(m,id,silent){
   const fCat=document.getElementById('pd-category');
   const fCost=document.getElementById('pd-cost');
   const fPrice=document.getElementById('pd-price');
-  // Guard: if key fields aren't present, the panel has been replaced - abort
-  if(!fListed&&!fCost&&!fPrice)return;
+  // Guard: if location field isn't present, the panel has been replaced - abort
+  if(!fLocation)return;
   if(fListed)item.dateListed=fListed.value||new Date().toISOString().split('T')[0];
   if(fLocation)item.location=fLocation.value.trim();
   if(fSource&&fSource.value)item.source=fSource.value;
@@ -3618,13 +3612,13 @@ function renderTax(){
   const soldItems=[];
   MONTHS.forEach(function(m){(DB[m]||[]).forEach(function(i){
     if((i.item||'').trim().toUpperCase()==='MONTH END')return;
-    if((i.dateSold||i.resaleSalePrice)&&!i.isReturned&&inTaxYear(i.dateSold))soldItems.push(i);
+    if((i.dateSold||i.resaleSalePrice)&&!i.isReturned&&inTaxYear(i.dateSold||i.resaleDateSold))soldItems.push(i);
   });});
-  const totalIncome=soldItems.reduce(function(s,i){return s+(i.salePrice||0);},0);
+  const totalIncome=soldItems.reduce(function(s,i){return s+(i.salePrice||0)+(i.resaleSalePrice||0);},0);
   const saleCount=soldItems.length;
-  const totalBPF=soldItems.reduce(function(s,i){return s+calcEbayBPF(i.salePrice||0);},0);
+  const totalBPF=soldItems.reduce(function(s,i){return s+calcEbayBPF(i.salePrice||0)+(i.resaleSalePrice?calcEbayBPF(i.resaleSalePrice):0);},0);
   const totalPromo=soldItems.reduce(function(s,i){var bpf=calcEbayBPF(i.salePrice||0);return s+((i.salePrice||0)-bpf)*(i.promoPercent||0)*1.20;},0);
-  const totalPostage=soldItems.reduce(function(s,i){return s+(i.shippingCost||0);},0);
+  const totalPostage=soldItems.reduce(function(s,i){return s+(i.shippingCost||0)+(i.resaleShippingCost||0);},0);
   const totalPackaging=soldItems.reduce(function(s,i){return s+(i.packagingCost||0);},0);
   const totalStockCost=soldItems.reduce(function(s,i){return s+(i.costPrice||0);},0);
   const totalParts=soldItems.reduce(function(s,i){return s+calcPartsCost(i);},0);
@@ -3639,9 +3633,16 @@ function renderTax(){
   const taxableActual=Math.max(0,+(totalIncome-totalActualExpenses).toFixed(2));
   const taWins=taxableTA<=taxableActual;
   const belowThreshold=totalIncome<TRADING_ALLOWANCE;
+
+  // Method selection — user can override, defaults to whichever gives lower tax
+  const autoMethod=taWins?'ta':'actual';
+  if(!DB._taxMethod)DB._taxMethod=autoMethod;
+  const chosenMethod=DB._taxMethod;
+  const usingTA=chosenMethod==='ta';
+
   const box15=+totalIncome.toFixed(2);
-  const box16=taWins?+Math.min(TRADING_ALLOWANCE,totalIncome).toFixed(2):totalActualExpenses;
-  const box23=taWins?taxableTA:taxableActual;
+  const box16=usingTA?+Math.min(TRADING_ALLOWANCE,totalIncome).toFixed(2):totalActualExpenses;
+  const box23=usingTA?taxableTA:taxableActual;
 
   var expRows=[
     ['eBay fees (BPF)',totalBPF],
@@ -3652,101 +3653,107 @@ function renderTax(){
     ['Parts & item expenses',totalParts]
   ].map(function(row){
     var label=row[0],val=row[1];
-    return '<div style="display:flex;justify-content:space-between;padding:11px 20px;border-bottom:1px solid var(--border);font-size:14px">'
+    return '<div class="tax-exp-row" style="display:flex;justify-content:space-between;align-items:center;padding:10px 16px;border-bottom:1px solid var(--border);font-size:14px">'
       +'<span style="color:var(--text-secondary)">'+label+'</span>'
       +'<span style="font-family:\'JetBrains Mono\',monospace;font-weight:600;color:'+(val>0?'var(--red)':'var(--muted)')+'">'+( val>0?'\u2212'+fmt(val):'--')+'</span>'
       +'</div>';
   }).join('');
 
-  var html='<div style="margin-bottom:24px">'
-    +'<h1 style="font-size:28px;font-weight:700;margin-bottom:6px">Tax / SA103</h1>'
-    +'<div style="color:var(--text-secondary);font-size:14px">Self Assessment \u2014 Self-employment income summary</div>'
-    +'</div>'
-    +'<div style="display:flex;align-items:center;gap:14px;margin-bottom:28px;flex-wrap:wrap">'
-    +'<label style="font-weight:600;font-size:13px;color:var(--text-secondary);text-transform:uppercase;letter-spacing:1px">Tax Year</label>'
-    +'<select style="padding:10px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:14px;cursor:pointer;font-family:inherit;font-weight:500;min-width:280px" onchange="DB._taxYear=parseInt(this.value);saveDB()">'+yearOptions.join('')+'</select>'
-    +'</div>';
-
-  if(belowThreshold){
-    html+='<div style="background:rgba(16,185,129,0.1);border:1px solid rgba(16,185,129,0.3);border-radius:12px;padding:18px 20px;margin-bottom:24px;display:flex;align-items:flex-start;gap:14px">'
-      +'<div style="font-size:24px;flex-shrink:0">\u2705</div>'
-      +'<div><div style="font-weight:700;font-size:15px;color:var(--green);margin-bottom:4px">Below Trading Allowance \u2014 Nothing to report</div>'
-      +'<div style="font-size:13px;color:var(--text-secondary);line-height:1.6">Your gross income of <strong style="color:var(--text)">'+fmt(totalIncome)+'</strong> is below the \u00a31,000 trading allowance. You do not need to report this to HMRC for this tax year.</div>'
-      +'</div></div>';
-  } else {
-    html+='<div style="background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.2);border-radius:12px;padding:14px 18px;margin-bottom:24px;font-size:13px;color:var(--blue);line-height:1.6">'
-      +'Your income of <strong>'+fmt(totalIncome)+'</strong> exceeds the \u00a31,000 trading allowance. Compare both methods below \u2014 use whichever gives the lower taxable profit.'
+  // Method card helper — now clickable, selected state drives border + checkmark
+  function methodCard(method,title,income,deductLabel,deductVal,taxable,note){
+    const selected=chosenMethod===method;
+    const isAuto=autoMethod===method;
+    return '<div class="tax-method-card" onclick="DB._taxMethod=\''+method+'\';saveDB();renderTax()" style="background:var(--surface);border:2px solid '+(selected?'var(--green)':'var(--border)')+';border-radius:12px;padding:18px;position:relative;box-shadow:0 1px 3px var(--shadow);cursor:pointer;transition:border-color 0.15s,box-shadow 0.15s" onmouseenter="this.style.boxShadow=\'0 4px 16px var(--shadow-md)\'" onmouseleave="this.style.boxShadow=\'0 1px 3px var(--shadow)\'">'
+      +(selected?'<div style="position:absolute;top:-1px;left:50%;transform:translateX(-50%);background:var(--green);color:#fff;font-size:10px;font-weight:700;padding:3px 12px;border-radius:0 0 8px 8px;letter-spacing:0.5px;white-space:nowrap">\u2713 SELECTED</div>'
+        :isAuto?'<div style="position:absolute;top:-1px;left:50%;transform:translateX(-50%);background:var(--surface2);border:1px solid var(--border);color:var(--muted);font-size:10px;font-weight:700;padding:3px 12px;border-radius:0 0 8px 8px;letter-spacing:0.5px;white-space:nowrap">Recommended</div>':'')
+      +'<div style="font-weight:700;font-size:14px;margin-bottom:14px;padding-top:'+((selected||isAuto)?'10px':'0')+'">' +title+'</div>'
+      +'<div class="tax-row" style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--border);font-size:13px"><span style="color:var(--text-secondary)">Gross income</span><span style="font-weight:600">'+fmt(income)+'</span></div>'
+      +'<div class="tax-row" style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--border);font-size:13px"><span style="color:var(--text-secondary)">'+deductLabel+'</span><span style="color:var(--red)">\u2212'+fmt(deductVal)+'</span></div>'
+      +'<div class="tax-row" style="display:flex;justify-content:space-between;padding:9px 0;font-size:15px;font-weight:700"><span>Taxable profit</span><span style="color:'+(selected?'var(--green)':taxable===0?'var(--green)':'var(--text)')+'">'+fmt(taxable)+'</span></div>'
+      +'<div style="margin-top:10px;font-size:11px;color:var(--muted);line-height:1.5">'+note+'</div>'
       +'</div>';
   }
 
-  var taRecommended=taWins&&!belowThreshold;
-  var actRecommended=!taWins&&!belowThreshold;
+  var html=''
+    // Header
+    +'<div style="margin-bottom:20px">'
+    +'<h1 style="font-size:22px;font-weight:700;margin-bottom:4px">Tax / SA103</h1>'
+    +'<div style="color:var(--text-secondary);font-size:13px">Self Assessment \u2014 Self-employment income</div>'
+    +'</div>'
 
+    // Tax year selector — full width on mobile
+    +'<div style="margin-bottom:20px">'
+    +'<label style="display:block;font-weight:600;font-size:11px;color:var(--text-secondary);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">Tax Year</label>'
+    +'<select class="tax-year-select" style="padding:10px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:14px;cursor:pointer;font-family:inherit;font-weight:500;width:100%;max-width:360px" onchange="DB._taxYear=parseInt(this.value);DB._taxMethod=null;saveDB();renderTax()">'+yearOptions.join('')+'</select>'
+    +'</div>';
+
+  // Below threshold banner
+  if(belowThreshold){
+    html+='<div style="background:rgba(16,185,129,0.1);border:1px solid rgba(16,185,129,0.3);border-radius:10px;padding:14px 16px;margin-bottom:20px;display:flex;align-items:flex-start;gap:12px">'
+      +'<div style="font-size:20px;flex-shrink:0">\u2705</div>'
+      +'<div><div style="font-weight:700;font-size:14px;color:var(--green);margin-bottom:3px">Below Trading Allowance \u2014 Nothing to report</div>'
+      +'<div style="font-size:12px;color:var(--text-secondary);line-height:1.5">Gross income of <strong style="color:var(--text)">'+fmt(totalIncome)+'</strong> is below the \u00a31,000 allowance.</div>'
+      +'</div></div>';
+  } else {
+    html+='<div style="background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.2);border-radius:10px;padding:12px 14px;margin-bottom:20px;font-size:12px;color:var(--blue);line-height:1.6">'
+      +'Income of <strong>'+fmt(totalIncome)+'</strong> exceeds the \u00a31,000 trading allowance. Tap a method to select it \u2014 the SA103 boxes update automatically.'
+      +'</div>';
+  }
+
+  // Method comparison — clickable cards, stacks to 1 col on mobile
   html+='<div class="sl">Method Comparison</div>'
-    +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:32px">'
-
-    // Trading Allowance card
-    +'<div style="background:var(--surface);border:2px solid '+(taRecommended?'var(--green)':'var(--border)')+';border-radius:14px;padding:22px;position:relative;box-shadow:0 1px 3px var(--shadow)">'
-    +(taRecommended?'<div style="position:absolute;top:-1px;left:50%;transform:translateX(-50%);background:var(--green);color:#fff;font-size:11px;font-weight:700;padding:4px 14px;border-radius:0 0 8px 8px;letter-spacing:0.5px">\u2713 RECOMMENDED</div>':'')
-    +'<div style="font-weight:700;font-size:15px;margin-bottom:18px">Trading Allowance</div>'
-    +'<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);font-size:14px"><span style="color:var(--text-secondary)">Gross income</span><span style="font-weight:600">'+fmt(totalIncome)+'</span></div>'
-    +'<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);font-size:14px"><span style="color:var(--text-secondary)">Trading allowance</span><span style="color:var(--red)">\u2212'+fmt(Math.min(TRADING_ALLOWANCE,totalIncome))+'</span></div>'
-    +'<div style="display:flex;justify-content:space-between;padding:10px 0;font-size:16px;font-weight:700;margin-top:4px"><span>Taxable profit</span><span style="color:'+(taxableTA===0||taRecommended?'var(--green)':'var(--text)')+'">'+fmt(taxableTA)+'</span></div>'
-    +'<div style="margin-top:12px;font-size:12px;color:var(--muted);line-height:1.5">Flat \u00a31,000 deduction. No receipts needed. Simplest option.</div>'
+    +'<div class="tax-method-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:28px">'
+    +methodCard('ta','Trading Allowance',totalIncome,'Trading allowance',Math.min(TRADING_ALLOWANCE,totalIncome),taxableTA,'Flat \u00a31,000 deduction. No receipts needed.')
+    +methodCard('actual','Actual Expenses',totalIncome,'Total expenses',totalActualExpenses,taxableActual,'Deduct real costs. Better if expenses exceed \u00a31,000.')
     +'</div>'
 
-    // Actual Expenses card
-    +'<div style="background:var(--surface);border:2px solid '+(actRecommended?'var(--green)':'var(--border)')+';border-radius:14px;padding:22px;position:relative;box-shadow:0 1px 3px var(--shadow)">'
-    +(actRecommended?'<div style="position:absolute;top:-1px;left:50%;transform:translateX(-50%);background:var(--green);color:#fff;font-size:11px;font-weight:700;padding:4px 14px;border-radius:0 0 8px 8px;letter-spacing:0.5px">\u2713 RECOMMENDED</div>':'')
-    +'<div style="font-weight:700;font-size:15px;margin-bottom:18px">Actual Expenses</div>'
-    +'<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);font-size:14px"><span style="color:var(--text-secondary)">Gross income</span><span style="font-weight:600">'+fmt(totalIncome)+'</span></div>'
-    +'<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);font-size:14px"><span style="color:var(--text-secondary)">Total expenses</span><span style="color:var(--red)">\u2212'+fmt(totalActualExpenses)+'</span></div>'
-    +'<div style="display:flex;justify-content:space-between;padding:10px 0;font-size:16px;font-weight:700;margin-top:4px"><span>Taxable profit</span><span style="color:'+(taxableActual===0||actRecommended?'var(--green)':'var(--text)')+'">'+fmt(taxableActual)+'</span></div>'
-    +'<div style="margin-top:12px;font-size:12px;color:var(--muted);line-height:1.5">Deduct real costs. Better if expenses exceed \u00a31,000.</div>'
-    +'</div>'
-    +'</div>'
-
+    // Income summary
     +'<div class="sl">Income</div>'
-    +'<div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:24px;box-shadow:0 1px 3px var(--shadow)">'
-    +'<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);font-size:14px"><span style="color:var(--text-secondary)">Total gross receipts (eBay sales)</span><span style="font-weight:700;color:var(--green)">'+fmt(totalIncome)+'</span></div>'
-    +'<div style="display:flex;justify-content:space-between;padding:8px 0;font-size:14px"><span style="color:var(--text-secondary)">Number of sales in tax year</span><span style="font-weight:600">'+saleCount+' item'+(saleCount!==1?'s':'')+'</span></div>'
+    +'<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:20px">'
+    +'<div class="tax-exp-row" style="display:flex;justify-content:space-between;align-items:center;padding:10px 16px;border-bottom:1px solid var(--border);font-size:13px"><span style="color:var(--text-secondary)">Gross receipts (eBay sales)</span><span style="font-weight:700;color:var(--green)">'+fmt(totalIncome)+'</span></div>'
+    +'<div class="tax-exp-row" style="display:flex;justify-content:space-between;align-items:center;padding:10px 16px;font-size:13px"><span style="color:var(--text-secondary)">Sales in tax year</span><span style="font-weight:600">'+saleCount+' item'+(saleCount!==1?'s':'')+'</span></div>'
     +'</div>'
 
-    +'<div class="sl">Expenses Breakdown \u2014 Actual Method</div>'
-    +'<div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;margin-bottom:24px;box-shadow:0 1px 3px var(--shadow)">'
-    +expRows
-    +'<div style="display:flex;justify-content:space-between;padding:11px 20px;border-bottom:1px solid var(--border);font-size:14px">'
-    +'<span style="color:var(--text-secondary)">Mileage ('+totalMiles.toFixed(1)+' mi @ 45p)</span>'
-    +'<span style="font-family:\'JetBrains Mono\',monospace;font-weight:600;color:'+(totalMileage>0?'var(--red)':'var(--muted)')+'">'+( totalMileage>0?'\u2212'+fmt(totalMileage):'--')+'</span>'
-    +'</div>'
-    +'<div style="display:flex;justify-content:space-between;padding:11px 20px;border-bottom:1px solid var(--border);font-size:14px">'
-    +'<span style="color:var(--text-secondary)">Other business expenses</span>'
-    +'<span style="font-family:\'JetBrains Mono\',monospace;font-weight:600;color:'+(totalOtherExpenses>0?'var(--red)':'var(--muted)')+'">'+( totalOtherExpenses>0?'\u2212'+fmt(totalOtherExpenses):'--')+'</span>'
-    +'</div>'
-    +'<div style="display:flex;justify-content:space-between;padding:13px 20px;font-size:15px;font-weight:700;background:var(--surface2)">'
-    +'<span>Total allowable expenses</span><span style="color:var(--red)">\u2212'+fmt(totalActualExpenses)+'</span>'
+    // Expenses breakdown — label changes to reflect chosen method
+    +'<div class="sl">Expenses \u2014 '+(usingTA?'Trading Allowance Method':'Actual Method')+'</div>'
+    +'<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:20px">'
+    +(usingTA
+      // Trading allowance — single flat deduction row
+      ?'<div class="tax-exp-row" style="display:flex;justify-content:space-between;align-items:center;padding:10px 16px;border-bottom:1px solid var(--border);font-size:13px"><span style="color:var(--text-secondary)">Trading allowance (flat deduction)</span><span style="font-family:\'JetBrains Mono\',monospace;font-weight:600;color:var(--red)">\u2212'+fmt(Math.min(TRADING_ALLOWANCE,totalIncome))+'</span></div>'
+      // Actual — full breakdown
+      :expRows
+        +'<div class="tax-exp-row" style="display:flex;justify-content:space-between;align-items:center;padding:10px 16px;border-bottom:1px solid var(--border);font-size:13px"><span style="color:var(--text-secondary)">Mileage ('+totalMiles.toFixed(1)+' mi @ 45p)</span><span style="font-family:\'JetBrains Mono\',monospace;font-weight:600;color:'+(totalMileage>0?'var(--red)':'var(--muted)')+'">'+( totalMileage>0?'\u2212'+fmt(totalMileage):'--')+'</span></div>'
+        +'<div class="tax-exp-row" style="display:flex;justify-content:space-between;align-items:center;padding:10px 16px;border-bottom:1px solid var(--border);font-size:13px"><span style="color:var(--text-secondary)">Other business expenses</span><span style="font-family:\'JetBrains Mono\',monospace;font-weight:600;color:'+(totalOtherExpenses>0?'var(--red)':'var(--muted)')+'">'+( totalOtherExpenses>0?'\u2212'+fmt(totalOtherExpenses):'--')+'</span></div>'
+    )
+    +'<div style="display:flex;justify-content:space-between;align-items:center;padding:12px 16px;font-size:14px;font-weight:700;background:var(--surface2)">'
+    +'<span>Total deduction</span><span style="color:var(--red)">\u2212'+fmt(box16)+'</span>'
     +'</div></div>'
 
+    // SA103 boxes — values driven by chosen method
     +'<div class="sl">SA103 Box References</div>'
-    +'<div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;margin-bottom:24px;box-shadow:0 1px 3px var(--shadow)">'
-    +'<div style="display:flex;align-items:center;gap:16px;padding:14px 20px;border-bottom:1px solid var(--border)">'
-    +'<div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:6px 12px;font-family:\'JetBrains Mono\',monospace;font-size:12px;font-weight:700;color:var(--accent);flex-shrink:0;min-width:60px;text-align:center">Box 15</div>'
-    +'<div style="flex:1;font-size:13px;color:var(--text-secondary)">Total turnover / gross receipts</div>'
-    +'<div style="font-weight:700;font-size:15px;font-family:\'JetBrains Mono\',monospace">'+fmt(box15)+'</div>'
+    +'<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:20px">'
+
+    +'<div class="tax-box-row" style="display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid var(--border);flex-wrap:wrap">'
+    +'<div class="tax-box-tag" style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:5px 10px;font-family:\'JetBrains Mono\',monospace;font-size:11px;font-weight:700;color:var(--accent);flex-shrink:0;min-width:56px;text-align:center">Box 15</div>'
+    +'<div class="tax-box-desc" style="flex:1;font-size:12px;color:var(--text-secondary);min-width:120px">Total turnover / gross receipts</div>'
+    +'<div class="tax-box-val" style="font-weight:700;font-size:15px;font-family:\'JetBrains Mono\',monospace;flex-shrink:0">'+fmt(box15)+'</div>'
     +'</div>'
-    +'<div style="display:flex;align-items:center;gap:16px;padding:14px 20px;border-bottom:1px solid var(--border)">'
-    +'<div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:6px 12px;font-family:\'JetBrains Mono\',monospace;font-size:12px;font-weight:700;color:var(--accent);flex-shrink:0;min-width:60px;text-align:center">Box 16</div>'
-    +'<div style="flex:1;font-size:13px;color:var(--text-secondary)">Allowable expenses '+(taWins?'(trading allowance)':'(actual expenses)')+'</div>'
-    +'<div style="font-weight:700;font-size:15px;font-family:\'JetBrains Mono\',monospace;color:var(--red)">\u2212'+fmt(box16)+'</div>'
+
+    +'<div class="tax-box-row" style="display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid var(--border);flex-wrap:wrap">'
+    +'<div class="tax-box-tag" style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:5px 10px;font-family:\'JetBrains Mono\',monospace;font-size:11px;font-weight:700;color:var(--accent);flex-shrink:0;min-width:56px;text-align:center">Box 16</div>'
+    +'<div class="tax-box-desc" style="flex:1;font-size:12px;color:var(--text-secondary);min-width:120px">Allowable expenses ('+(usingTA?'trading allowance':'actual expenses')+')</div>'
+    +'<div class="tax-box-val" style="font-weight:700;font-size:15px;font-family:\'JetBrains Mono\',monospace;color:var(--red);flex-shrink:0">\u2212'+fmt(box16)+'</div>'
     +'</div>'
-    +'<div style="display:flex;align-items:center;gap:16px;padding:14px 20px;background:var(--surface2)">'
-    +'<div style="background:var(--accent);border-radius:8px;padding:6px 12px;font-family:\'JetBrains Mono\',monospace;font-size:12px;font-weight:700;color:#000;flex-shrink:0;min-width:60px;text-align:center">Box 23</div>'
-    +'<div style="flex:1;font-size:13px;color:var(--text-secondary)">Net profit (taxable)</div>'
-    +'<div style="font-weight:700;font-size:16px;font-family:\'JetBrains Mono\',monospace;color:'+(box23<500?'var(--green)':'var(--text)')+'">'+fmt(box23)+'</div>'
+
+    +'<div class="tax-box-row" style="display:flex;align-items:center;gap:12px;padding:12px 16px;background:var(--surface2);flex-wrap:wrap">'
+    +'<div class="tax-box-tag" style="background:var(--accent);border-radius:6px;padding:5px 10px;font-family:\'JetBrains Mono\',monospace;font-size:11px;font-weight:700;color:#000;flex-shrink:0;min-width:56px;text-align:center">Box 23</div>'
+    +'<div class="tax-box-desc" style="flex:1;font-size:12px;color:var(--text-secondary);min-width:120px">Net profit (taxable)</div>'
+    +'<div class="tax-box-val" style="font-weight:700;font-size:15px;font-family:\'JetBrains Mono\',monospace;color:'+(box23<500?'var(--green)':'var(--text)')+';flex-shrink:0">'+fmt(box23)+'</div>'
     +'</div></div>'
 
-    +'<div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:14px 18px;font-size:12px;color:var(--text-secondary);line-height:1.7;margin-bottom:40px">'
-    +'\u26a0\ufe0f <strong style="color:var(--text)">For reference only.</strong> This summary is generated from your tracker data. Verify with a qualified accountant before filing your Self Assessment return.'
+    // Disclaimer
+    +'<div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;font-size:11px;color:var(--text-secondary);line-height:1.6;margin-bottom:40px">'
+    +'\u26a0\ufe0f <strong style="color:var(--text)">For reference only.</strong> Verify with a qualified accountant before filing.'
     +'</div>';
 
   document.getElementById('p-tax').innerHTML=html;
@@ -3763,7 +3770,7 @@ function calcYearlyStats(){
     (DB[m]||[]).forEach(i=>{
       if((i.item||"").trim().toUpperCase()==="MONTH END")return;
       totalItems++;
-      if(i.dateSold)saleTransactions.push(i.salePrice||0);
+      if((i.dateSold||i.resaleSalePrice)&&!i.isReturned)saleTransactions.push(i.salePrice||0);
       if(i.resaleSalePrice)saleTransactions.push(i.resaleSalePrice||0);
       if(i.isReturned){
         returnCount++;
@@ -3857,12 +3864,13 @@ function calcMonthStats(m){
   let soldCount=0,listedCount=0,daysSum=0;
   (DB[m]||[]).forEach(i=>{
     if((i.item||"").trim().toUpperCase()==="MONTH END")return;
-    if(i.dateSold && i.dateListed && !i.isReturned){
+    if((i.dateSold||i.resaleSalePrice)&&!i.isReturned){
       soldCount++;
-      totalRev+=(i.totalRev||i.salePrice||0);
+      totalRev+=(i.salePrice||0);
+      if(i.resaleSalePrice)totalRev+=i.resaleSalePrice;
       realisedProfit+=calcGrossProfit(i);
-      daysSum+=daysBetween(i.dateListed,i.dateSold);
-    }else if(!i.isReturned){
+      if(i.dateSold&&i.dateListed)daysSum+=daysBetween(i.dateListed,i.dateSold);
+    }else if(!i.isReturned&&!i.resaleSalePrice){
       listedCount++;
       stockValue+=i.salePrice||0;
       unrealisedProfit+=calcGrossProfit(i)||0;
