@@ -790,6 +790,10 @@ nav{position:sticky;top:0;z-index:200;background:var(--surface);backdrop-filter:
       style="width:100%;padding:12px;background:var(--accent);color:#000;border:none;border-radius:8px;font-weight:700;font-size:15px;cursor:pointer;transition:background 0.15s;">
       Sign In
     </button>
+    <button onclick="doResetPassword()" id="auth-reset-btn"
+      style="width:100%;padding:10px;background:none;border:none;color:var(--text-secondary);font-size:13px;cursor:pointer;margin-top:8px;text-decoration:underline;text-underline-offset:3px;">
+      Forgot password?
+    </button>
     <div id="auth-loading" style="display:none;text-align:center;margin-top:12px;font-size:13px;color:var(--text-secondary);">Signing in…</div>
   </div>
 </div>
@@ -894,13 +898,58 @@ async function doSignIn(){
   ldEl.style.display = 'block';
   const {error} = await _sb.auth.signInWithPassword({email, password: pass});
   if(error){
-    errEl.textContent = error.message;
+    // Translate Supabase error codes into plain English
+    let msg = 'Sign in failed. Please try again.';
+    const raw = (error.message||'').toLowerCase();
+    if(raw.includes('invalid login') || raw.includes('invalid credentials') || raw.includes('email not confirmed')){
+      msg = 'Incorrect email or password. Please check your details and try again.';
+    } else if(raw.includes('email') && raw.includes('not found')){
+      msg = 'No account found with that email address.';
+    } else if(raw.includes('too many')){
+      msg = 'Too many attempts. Please wait a moment and try again.';
+    } else if(raw.includes('network') || raw.includes('fetch')){
+      msg = 'Network error. Check your connection and try again.';
+    }
+    errEl.textContent = msg;
     errEl.style.display = 'block';
     btn.style.display = 'block';
     ldEl.style.display = 'none';
     return;
   }
   // onAuthStateChange will handle the rest
+}
+
+async function doResetPassword(){
+  const email = document.getElementById('auth-email').value.trim();
+  const errEl = document.getElementById('auth-error');
+  const ldEl  = document.getElementById('auth-loading');
+  const btn   = document.getElementById('auth-btn');
+  const resetBtn = document.getElementById('auth-reset-btn');
+  if(!email){
+    errEl.textContent = 'Please enter your email address above first.';
+    errEl.style.display = 'block';
+    return;
+  }
+  errEl.style.display = 'none';
+  btn.style.display = 'none';
+  if(resetBtn) resetBtn.style.display = 'none';
+  ldEl.style.display = 'block';
+  const {error} = await _sb.auth.resetPasswordForEmail(email, {
+    redirectTo: window.location.origin + window.location.pathname
+  });
+  ldEl.style.display = 'none';
+  btn.style.display = 'block';
+  if(resetBtn) resetBtn.style.display = 'block';
+  if(error){
+    errEl.textContent = 'Could not send reset email. Check the address and try again.';
+    errEl.style.display = 'block';
+  } else {
+    errEl.style.background = 'rgba(16,185,129,0.1)';
+    errEl.style.borderColor = 'var(--green)';
+    errEl.style.color = 'var(--green)';
+    errEl.textContent = 'Reset email sent — check your inbox.';
+    errEl.style.display = 'block';
+  }
 }
 
 async function doSignOut(){
@@ -910,19 +959,16 @@ async function doSignOut(){
 
 // ── SESSION / TOKEN REFRESH GUARD ───────────────────────────────────────────
 // Call before any Supabase operation. Checks the current session and attempts
-// a silent token refresh if it has expired. Forces sign-out if unrecoverable.
+// a silent token refresh if it has expired.
 async function _ensureSession(){
   try{
     const {data, error} = await _sb.auth.getSession();
     if(error || !data.session){
-      // No session — try a refresh
+      // No active session — try a silent token refresh
       const {data:refreshData, error:refreshErr} = await _sb.auth.refreshSession();
       if(refreshErr || !refreshData.session){
-        // Unrecoverable — clear and show login
-        toast('Session expired — please sign in again','err');
-        DB = {};
-        _dbSnapshot = null;
-        await _sb.auth.signOut();
+        // Still nothing — return false but do NOT call signOut().
+        // This path also runs before login exists, so we must never interfere.
         return false;
       }
     }
@@ -939,10 +985,11 @@ async function _sbCall(fn){
   if(!ok) return {error: new Error('Not authenticated')};
   try{
     const result = await fn();
-    // Supabase returns {error} on auth failures — catch and retry once
+    // Supabase returns {error} on auth failures — catch and retry once with a refresh
     if(result && result.error && (result.error.status===401 || result.error.message?.includes('JWT'))){
       const {data:refreshData, error:refreshErr} = await _sb.auth.refreshSession();
       if(refreshErr || !refreshData.session){
+        // Token genuinely expired mid-session — now safe to sign out
         toast('Session expired — please sign in again','err');
         DB = {};
         _dbSnapshot = null;
@@ -1346,6 +1393,7 @@ function openItemPageFromPanel(m,id){
   renderItemPage(m,id);
 }
 
+function exitItemPage(){
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('on'));
   document.querySelectorAll('.tab').forEach(t=>t.classList.remove('on'));
   const origin=_itemPageOrigin||'p-summary';
