@@ -1008,14 +1008,14 @@ async function doResetPassword(){
 }
 
 async function doSignOut(){
-  // Cancel any pending debounced save immediately — prevents re-push after clear
+  // Cancel pending saves first — must happen before signOut
   clearTimeout(_saveTimer);
   _saveTimer = null;
   _currentUserId = null;
   DB = {};
   _dbSnapshot = {};
+  // No location.reload() — onAuthStateChange SIGNED_OUT handles the UI transition
   await _sb.auth.signOut();
-  location.reload();
 }
 
 // ── SESSION / TOKEN REFRESH GUARD ───────────────────────────────────────────
