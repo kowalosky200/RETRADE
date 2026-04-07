@@ -143,6 +143,7 @@ nav{position:sticky;top:0;z-index:200;background:var(--surface);backdrop-filter:
 .stale-alert{background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.3);border-radius:12px;padding:16px;margin-bottom:24px;display:flex;align-items:center;gap:12px;}
 .stale-dot{width:10px;height:10px;border-radius:50%;background:var(--warn);flex-shrink:0;animation:pulse 2s infinite;}
 @keyframes pulse{0%,100%{opacity:1;}50%{opacity:0.5;}}
+@keyframes spin{from{transform:rotate(0deg);}to{transform:rotate(360deg);}}
 .stale-text{font-size:14px;color:var(--warn);font-weight:600;}
 .stale-items{font-size:13px;color:var(--text-secondary);margin-top:4px;}
 
@@ -658,6 +659,10 @@ nav{position:sticky;top:0;z-index:200;background:var(--surface);backdrop-filter:
           <div class="search-dropdown" id="search-dropdown"></div>
           <button class="search-clear" onclick="clearSearch()">×</button>
         </div>
+        <div id="sync-indicator" style="display:none;align-items:center;gap:6px;font-size:12px;font-weight:600;color:var(--text-secondary);white-space:nowrap;flex-shrink:0;">
+          <svg width="14" height="14" viewBox="0 0 14 14" style="animation:spin 1s linear infinite;flex-shrink:0"><circle cx="7" cy="7" r="5.5" fill="none" stroke="var(--border2)" stroke-width="2"/><path d="M7 1.5A5.5 5.5 0 0 1 12.5 7" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round"/></svg>
+          <span id="sync-label">Saving…</span>
+        </div>
         <button class="theme-toggle" onclick="toggleTheme()" title="Toggle theme">
           <span id="theme-icon">🌙</span>
         </button>
@@ -1008,7 +1013,15 @@ async function doResetPassword(){
 }
 
 async function doSignOut(){
-  // Cancel pending saves first — must happen before signOut
+  // If a sync is actively running, wait for it to finish before signing out.
+  // Updates the indicator label so the user knows why there's a brief pause.
+  if(_syncing){
+    const lbl = document.getElementById('sync-label');
+    if(lbl) lbl.textContent = 'Saving — please wait…';
+    await _waitForSync();
+    if(lbl) lbl.textContent = 'Saving…';
+  }
+  // Cancel any pending (not yet started) save timer
   clearTimeout(_saveTimer);
   _saveTimer = null;
   _currentUserId = null;
@@ -1156,8 +1169,8 @@ async function loadFromSupabase(){
   _currentUserId = session.user.id;
   const uid = _currentUserId;
   // Fetch all tables in parallel — explicit .eq('user_id') on every query as
-  // belt-and-braces on top of RLS. Prevents NULL-user_id orphan rows (from
-  // pre-RLS data) or misconfigured policies from bleeding into the loaded DB.
+  // belt-and-braces on top of RLS. Prevents NULL-user_id orphan rows or
+  // misconfigured policies from bleeding into the loaded DB.
   const [itemsRes, partsRes, returnsRes, tripsRes, expensesRes] = await Promise.all([
     _sb.from('items').select('*').eq('user_id', uid).order('date_listed', {ascending: true}),
     _sb.from('item_parts').select('*').eq('user_id', uid),
@@ -1290,6 +1303,26 @@ async function deleteExpenseFromSupabase(id){
 let _dbSnapshot = null;   // last-known-saved state (JSON string per item id)
 let _saveTimer = null;
 let _currentUserId = null; // set on SIGNED_IN, cleared on SIGNED_OUT
+let _syncing = false;      // true while _persistChanges is actively running
+let _syncResolvers = [];   // resolve callbacks waiting for sync to finish
+
+function _setSyncing(val){
+  _syncing = val;
+  const el  = document.getElementById('sync-indicator');
+  if(el) el.style.display = val ? 'flex' : 'none';
+  if(!val){
+    // Wake up anyone waiting (e.g. sign-out guard)
+    const cbs = _syncResolvers.splice(0);
+    cbs.forEach(fn => fn());
+  }
+}
+
+// Returns a promise that resolves immediately if not syncing,
+// or waits until the current sync finishes before resolving.
+function _waitForSync(){
+  if(!_syncing) return Promise.resolve();
+  return new Promise(res => _syncResolvers.push(res));
+}
 
 function saveDB(){
   DB._userOwned = true;
@@ -1313,56 +1346,61 @@ function _dbFingerprint(){
 async function _persistChanges(){
   // Never persist if no user is logged in — prevents ghost saves after sign-out
   if(!_currentUserId){ console.warn('_persistChanges: no user, skipping'); return; }
-  const current = _dbFingerprint();
-  const prev    = _dbSnapshot || {};
-  const errors  = [];
+  _setSyncing(true);
+  try{
+    const current = _dbFingerprint();
+    const prev    = _dbSnapshot || {};
+    const errors  = [];
 
-  // Detect changed / new items
-  for(const key of Object.keys(current)){
-    if(current[key] === prev[key]) continue;  // unchanged
-    try{
-      if(key.startsWith('item:')){
-        const id = key.slice(5);
-        const parts = current[key].split('|');
-        const month = parts[parts.length - 1];
-        const item = (DB[month]||[]).find(i => i.id === id);
-        if(item) await saveItemToSupabase(month, item);
-      } else if(key.startsWith('trip:')){
-        const id = key.slice(5);
-        const trip = (DB.trips||[]).find(t => t.id === id);
-        if(trip) await saveTripToSupabase(trip);
-      } else if(key.startsWith('exp:')){
-        const id = key.slice(4);
-        const exp = (DB.expenses||[]).find(e => e.id === id);
-        if(exp) await saveExpenseToSupabase(exp);
-      }
-    }catch(e){ errors.push(e.message); }
+    // Detect changed / new items
+    for(const key of Object.keys(current)){
+      if(current[key] === prev[key]) continue;  // unchanged
+      try{
+        if(key.startsWith('item:')){
+          const id = key.slice(5);
+          const parts = current[key].split('|');
+          const month = parts[parts.length - 1];
+          const item = (DB[month]||[]).find(i => i.id === id);
+          if(item) await saveItemToSupabase(month, item);
+        } else if(key.startsWith('trip:')){
+          const id = key.slice(5);
+          const trip = (DB.trips||[]).find(t => t.id === id);
+          if(trip) await saveTripToSupabase(trip);
+        } else if(key.startsWith('exp:')){
+          const id = key.slice(4);
+          const exp = (DB.expenses||[]).find(e => e.id === id);
+          if(exp) await saveExpenseToSupabase(exp);
+        }
+      }catch(e){ errors.push(e.message); }
+    }
+
+    // Detect deletions
+    for(const key of Object.keys(prev)){
+      if(current[key] !== undefined) continue;  // still exists
+      try{
+        if(key.startsWith('item:')){
+          const id = key.slice(5);
+          await deleteItemFromSupabase(id);
+        } else if(key.startsWith('trip:')){
+          const id = key.slice(5);
+          await deleteTripFromSupabase(id);
+        } else if(key.startsWith('exp:')){
+          const id = key.slice(4);
+          await deleteExpenseFromSupabase(id);
+        }
+      }catch(e){ errors.push(e.message); }
+    }
+
+    if(errors.length > 0){
+      console.error('Supabase sync errors:', errors);
+      toast('⚠️ Cloud sync issue — check connection');
+    }
+
+    // Update snapshot to reflect what we just saved
+    _dbSnapshot = _dbFingerprint();
+  } finally {
+    _setSyncing(false);
   }
-
-  // Detect deletions
-  for(const key of Object.keys(prev)){
-    if(current[key] !== undefined) continue;  // still exists
-    try{
-      if(key.startsWith('item:')){
-        const id = key.slice(5);
-        await deleteItemFromSupabase(id);
-      } else if(key.startsWith('trip:')){
-        const id = key.slice(5);
-        await deleteTripFromSupabase(id);
-      } else if(key.startsWith('exp:')){
-        const id = key.slice(4);
-        await deleteExpenseFromSupabase(id);
-      }
-    }catch(e){ errors.push(e.message); }
-  }
-
-  if(errors.length > 0){
-    console.error('Supabase sync errors:', errors);
-    toast('⚠️ Cloud sync issue — check connection');
-  }
-
-  // Update snapshot to reflect what we just saved
-  _dbSnapshot = _dbFingerprint();
 }
 
 let _dbLoading = false;
@@ -3910,7 +3948,7 @@ function renderData(){
 
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px;margin-bottom:24px">
       <h3 style="font-weight:600;margin-bottom:12px">Import Data</h3>
-      <p style="color:var(--text-secondary);margin-bottom:16px;font-size:14px">Restore from a previous JSON export (replaces current data)</p>
+      <p style="color:var(--text-secondary);margin-bottom:16px;font-size:14px">Merge from a previous JSON export — new items added, duplicates flagged for review, nothing deleted</p>
       <input type="file" id="import-file" accept=".json" style="display:none" onchange="importDB(event)">
       <button class="btn btn-s" onclick="document.getElementById('import-file').click()">📤 Import JSON</button>
     </div>
@@ -3961,39 +3999,83 @@ function exportDB(){
 function importDB(e){
   const file=e.target.files[0];
   if(!file)return;
+  // Reset file input so the same file can be re-selected if needed
+  e.target.value='';
   const reader=new FileReader();
   reader.onload=function(ev){
     try{
       const imported=JSON.parse(ev.target.result);
-      imported._userOwned=true; // stamp immediately so reload after confirm is safe
+      imported._userOwned=true;
 
-      // Diff: what would change
-      let willAdd=0,willUpdate=0,willRemove=0;
-      const addedItems=[],updatedItems=[],removedItems=[];
       const TRACKED=['salePrice','costPrice','dateSold','shippingCost','postage','packagingCost','promoPercent','location','item'];
+
+      // ── MERGE DIFF ─────────────────────────────────────────────────────────
+      // New   = in file, not in DB            → always added, no prompt
+      // Dupe  = in both (matched by id or name+date) → shown with Replace/Skip
+      // Untouched = in DB only                → never deleted (merge mode)
+      const newItems=[], dupeItems=[];
+
       MONTHS.forEach(m=>{
         const inc=(imported[m]||[]).filter(i=>(i.item||'').trim().toUpperCase()!=='MONTH END');
         const cur=(DB[m]||[]).filter(i=>(i.item||'').trim().toUpperCase()!=='MONTH END');
         inc.forEach(a=>{
           const b=cur.find(c=>c.id===a.id||(c.item===a.item&&c.dateListed===a.dateListed));
-          if(!b){willAdd++;addedItems.push({m,item:a.item,dateListed:a.dateListed});}
-          else if(TRACKED.some(f=>String(b[f]??'')!==String(a[f]??''))){willUpdate++;updatedItems.push({m,item:a.item,dateListed:a.dateListed});}
-        });
-        cur.forEach(b=>{
-          if(!inc.find(a=>a.id===b.id||(a.item===b.item&&a.dateListed===b.dateListed))){willRemove++;removedItems.push({m,item:b.item,dateListed:b.dateListed});}
+          if(!b){
+            newItems.push({m, item:a.item, dateListed:a.dateListed, data:a});
+          } else if(TRACKED.some(f=>String(b[f]??'')!==String(a[f]??''))){
+            dupeItems.push({m, item:a.item, dateListed:a.dateListed, incoming:a, existing:b, replace:false});
+          }
+          // identical match → no action needed
         });
       });
 
-      function diffRows(items,icon){
-        if(!items.length)return'';
-        const rows=items.slice(0,20).map(r=>`<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border);font-size:12px"><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">${icon} ${esc(r.item)}</span><span style="color:var(--muted);flex-shrink:0;margin-left:8px">${r.m} · ${r.dateListed||'—'}</span></div>`).join('');
-        return rows+(items.length>20?`<div style="font-size:11px;color:var(--muted);padding:5px 0">…and ${items.length-20} more</div>`:'');
+      // Store on window for confirm to access
+      window._pendingImport = { imported, newItems, dupeItems };
+
+      // ── BUILD REVIEW PANEL HTML ─────────────────────────────────────────────
+      const isMob = window.innerWidth < 600;
+
+      function newRows(){
+        if(!newItems.length) return '';
+        const rows = newItems.slice(0,20).map(r=>
+          `<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border);font-size:12px">
+            <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">＋ ${esc(r.item)}</span>
+            <span style="color:var(--muted);flex-shrink:0;margin-left:8px">${r.m} · ${r.dateListed||'—'}</span>
+          </div>`).join('');
+        const more = newItems.length>20 ? `<div style="font-size:11px;color:var(--muted);padding:5px 0">…and ${newItems.length-20} more</div>` : '';
+        return rows+more;
       }
 
-      // Store imported JSON on window for confirm button to access
-      window._pendingImport=imported;
+      function dupeRows(){
+        if(!dupeItems.length) return '';
+        // Bulk toggle row
+        const bulk = `
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0 10px;border-bottom:2px solid var(--border);margin-bottom:4px">
+            <span style="font-size:12px;font-weight:600;color:var(--text-secondary)">All duplicates:</span>
+            <div style="display:flex;gap:6px">
+              <button onclick="_importBulkDupe('replace')" style="padding:4px 10px;font-size:11px;font-weight:700;border-radius:6px;border:1px solid var(--border);background:var(--surface2);color:var(--text);cursor:pointer">Replace all</button>
+              <button onclick="_importBulkDupe('skip')" style="padding:4px 10px;font-size:11px;font-weight:700;border-radius:6px;border:1px solid var(--border);background:var(--surface2);color:var(--text);cursor:pointer">Skip all</button>
+            </div>
+          </div>`;
+        const rows = dupeItems.map((r,i)=>
+          `<div id="dupe-row-${i}" style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border);font-size:12px;gap:8px">
+            <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">⚠️ ${esc(r.item)}<span style="color:var(--muted);margin-left:6px">${r.m} · ${r.dateListed||'—'}</span></span>
+            <div style="display:flex;gap:4px;flex-shrink:0">
+              <button id="dupe-replace-${i}" onclick="_importToggleDupe(${i},'replace')"
+                style="padding:3px 8px;font-size:11px;font-weight:700;border-radius:5px;border:1px solid var(--border);background:var(--surface2);color:var(--muted);cursor:pointer;transition:all 0.1s">
+                Replace
+              </button>
+              <button id="dupe-skip-${i}" onclick="_importToggleDupe(${i},'skip')"
+                style="padding:3px 8px;font-size:11px;font-weight:700;border-radius:5px;border:1px solid var(--accent);background:rgba(245,158,11,0.12);color:var(--accent);cursor:pointer;transition:all 0.1s">
+                Skip ✓
+              </button>
+            </div>
+          </div>`).join('');
+        return bulk+rows;
+      }
 
-      const isMob = window.innerWidth < 600;
+      const nothingToShow = !newItems.length && !dupeItems.length;
+
       const html=`
         ${isMob ? `<div style="text-align:center;margin-bottom:12px;color:var(--text-secondary);font-size:12px;">
           <span style="display:inline-flex;align-items:center;gap:5px;background:var(--surface2);border:1px solid var(--border);border-radius:20px;padding:4px 12px;">
@@ -4001,33 +4083,43 @@ function importDB(e){
             Scroll down to confirm
           </span>
         </div>` : ''}
-        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:16px">
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px">
           <div style="background:rgba(16,185,129,0.1);border:1px solid rgba(16,185,129,0.3);border-radius:8px;padding:12px;text-align:center">
-            <div style="font-size:24px;font-weight:700;color:var(--green)">${willAdd}</div>
+            <div style="font-size:24px;font-weight:700;color:var(--green)">${newItems.length}</div>
             <div style="font-size:11px;color:var(--muted);margin-top:2px">New items</div>
           </div>
-          <div style="background:rgba(59,130,246,0.1);border:1px solid rgba(59,130,246,0.3);border-radius:8px;padding:12px;text-align:center">
-            <div style="font-size:24px;font-weight:700;color:var(--blue)">${willUpdate}</div>
-            <div style="font-size:11px;color:var(--muted);margin-top:2px">Updated</div>
-          </div>
-          <div style="background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);border-radius:8px;padding:12px;text-align:center">
-            <div style="font-size:24px;font-weight:700;color:var(--red)">${willRemove}</div>
-            <div style="font-size:11px;color:var(--muted);margin-top:2px">Removed</div>
+          <div style="background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.3);border-radius:8px;padding:12px;text-align:center">
+            <div style="font-size:24px;font-weight:700;color:var(--accent)">${dupeItems.length}</div>
+            <div style="font-size:11px;color:var(--muted);margin-top:2px">Duplicates</div>
           </div>
         </div>
+
         <div style="font-size:12px;color:var(--text-secondary);margin-bottom:16px;padding:10px 12px;background:var(--surface2);border-radius:8px;line-height:1.6">
-          This will <strong style="color:var(--text)">fully replace</strong> your current database. All returns, notes, and resale data from the imported file are preserved.
-          ${willRemove>0?`<br><span style="color:var(--red)">⚠️ ${willRemove} item${willRemove!==1?'s':''} currently in your DB will be removed.</span>`:''}
+          This will <strong style="color:var(--text)">merge into</strong> your current database. New items are added automatically. Items only in your DB are never deleted.
+          ${dupeItems.length>0 ? `<br><span style="color:var(--accent)">⚠️ ${dupeItems.length} duplicate${dupeItems.length!==1?'s':''} found — choose Replace or Skip for each below. Defaults to Skip.</span>` : ''}
         </div>
-        ${addedItems.length?`<div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:6px">New items (${addedItems.length})</div><div style="margin-bottom:80px">${diffRows(addedItems,'＋')}</div>`:''}
-        ${updatedItems.length?`<div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:6px">Updated (${updatedItems.length})</div><div style="margin-bottom:80px">${diffRows(updatedItems,'↻')}</div>`:''}
-        ${removedItems.length?`<div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:6px">Will be removed (${removedItems.length})</div><div style="margin-bottom:80px">${diffRows(removedItems,'−')}</div>`:''}
-        ${!addedItems.length&&!updatedItems.length&&!removedItems.length?'<div style="margin-bottom:80px"></div>':''}
+
+        ${nothingToShow ? `<div style="padding:20px 0;text-align:center;color:var(--muted);font-size:13px">Everything in this file is already up to date in your database.</div>` : ''}
+
+        ${newItems.length ? `
+          <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:6px">
+            New items (${newItems.length})
+          </div>
+          <div style="margin-bottom:16px">${newRows()}</div>` : ''}
+
+        ${dupeItems.length ? `
+          <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:6px">
+            Duplicates — choose action (${dupeItems.length})
+          </div>
+          <div style="margin-bottom:80px">${dupeRows()}</div>` : '<div style="margin-bottom:80px"></div>'}
+
         <div style="position:sticky;bottom:0;background:var(--surface);padding:12px 0 4px;border-top:1px solid var(--border);display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px;">
           <button class="btn btn-s" onclick="closePanel()">Cancel</button>
           <button class="btn btn-p" onclick="_confirmJSONImport()">Confirm import</button>
         </div>`;
-      openPanel('Review Import',html);
+
+      openPanel('Review Import', html);
     }catch(err){
       toast('Import failed: Invalid JSON file','err');
     }
@@ -4035,29 +4127,69 @@ function importDB(e){
   reader.readAsText(file);
 }
 
+// Toggle a single duplicate row between Replace and Skip
+function _importToggleDupe(idx, action){
+  if(!window._pendingImport) return;
+  window._pendingImport.dupeItems[idx].replace = (action === 'replace');
+  const replBtn = document.getElementById(`dupe-replace-${idx}`);
+  const skipBtn = document.getElementById(`dupe-skip-${idx}`);
+  if(!replBtn || !skipBtn) return;
+  if(action === 'replace'){
+    replBtn.style.cssText = 'padding:3px 8px;font-size:11px;font-weight:700;border-radius:5px;border:1px solid var(--blue);background:rgba(59,130,246,0.12);color:var(--blue);cursor:pointer;transition:all 0.1s';
+    skipBtn.style.cssText  = 'padding:3px 8px;font-size:11px;font-weight:700;border-radius:5px;border:1px solid var(--border);background:var(--surface2);color:var(--muted);cursor:pointer;transition:all 0.1s';
+  } else {
+    skipBtn.style.cssText  = 'padding:3px 8px;font-size:11px;font-weight:700;border-radius:5px;border:1px solid var(--accent);background:rgba(245,158,11,0.12);color:var(--accent);cursor:pointer;transition:all 0.1s';
+    replBtn.style.cssText  = 'padding:3px 8px;font-size:11px;font-weight:700;border-radius:5px;border:1px solid var(--border);background:var(--surface2);color:var(--muted);cursor:pointer;transition:all 0.1s';
+  }
+}
+
+// Bulk set all duplicates to replace or skip
+function _importBulkDupe(action){
+  if(!window._pendingImport) return;
+  window._pendingImport.dupeItems.forEach((_,i) => _importToggleDupe(i, action));
+}
+
 async function _confirmJSONImport(){
-  const imported=window._pendingImport;
-  if(!imported){toast('No pending import','err');return;}
-  // Strip any stale user_id fields from the JSON — ownership is always
-  // determined by whoever is currently logged in, not baked into the file
-  MONTHS.forEach(m=>{
-    (imported[m]||[]).forEach(i=>{
-      delete i.user_id;
-      (i.parts||[]).forEach(p=>delete p.user_id);
-      (i.returnHistory||[]).forEach(r=>delete r.user_id);
-    });
+  const pending = window._pendingImport;
+  if(!pending){ toast('No pending import','err'); return; }
+
+  const { imported, newItems, dupeItems } = pending;
+
+  // ── APPLY NEW ITEMS ─────────────────────────────────────────────────────────
+  // Add each new item into DB — strip user_id, auto-categorise
+  newItems.forEach(({m, data}) => {
+    delete data.user_id;
+    (data.parts||[]).forEach(p=>delete p.user_id);
+    (data.returnHistory||[]).forEach(r=>delete r.user_id);
+    data.category = autoCategory(data.item);
+    if(!DB[m]) DB[m] = [];
+    // Guard: don't add if somehow already present
+    if(!DB[m].find(x=>x.id===data.id)) DB[m].push(data);
   });
-  DB=imported;
-  DB._userOwned=true;
-  MONTHS.forEach(m=>(DB[m]||[]).forEach(i=>{i.category=autoCategory(i.item);}));
-  // Reset snapshot to empty so diff sees ALL items as new → full upsert to Supabase
-  _dbSnapshot={};
-  window._pendingImport=null;
+
+  // ── APPLY CHOSEN REPLACEMENTS ───────────────────────────────────────────────
+  dupeItems.filter(d=>d.replace).forEach(({m, incoming, existing}) => {
+    delete incoming.user_id;
+    (incoming.parts||[]).forEach(p=>delete p.user_id);
+    (incoming.returnHistory||[]).forEach(r=>delete r.user_id);
+    incoming.category = autoCategory(incoming.item);
+    const idx = (DB[m]||[]).findIndex(x=>x.id===existing.id);
+    if(idx > -1) DB[m][idx] = incoming;
+  });
+
+  DB._userOwned = true;
+  window._pendingImport = null;
   closePanel();
-  toast('Importing data…');
-  goToTab('summary',document.querySelector('[data-tab="summary"]'));
+
+  const replacedCount = dupeItems.filter(d=>d.replace).length;
+  const skippedCount  = dupeItems.filter(d=>!d.replace).length;
+  let msg = `Added ${newItems.length} item${newItems.length!==1?'s':''}`;
+  if(replacedCount) msg += `, replaced ${replacedCount}`;
+  if(skippedCount)  msg += `, skipped ${skippedCount} duplicate${skippedCount!==1?'s':''}`;
+  toast(msg);
+
+  goToTab('summary', document.querySelector('[data-tab="summary"]'));
   renderSummary();
-  // saveDB is async-aware — runs the full diff and persists to Supabase
   saveDB();
 }
 
@@ -5586,6 +5718,14 @@ initTheme();
     const fab = document.getElementById('fab');
     if(fab) fab.style.display = 'none';
     overlay.style.display = 'flex';
+    // Always reset sign-in button — it may be hidden from a previous successful
+    // sign-in (doSignIn hides it but never restores on success path)
+    const authBtn = document.getElementById('auth-btn');
+    const authLd  = document.getElementById('auth-loading');
+    const authErr = document.getElementById('auth-error');
+    if(authBtn) authBtn.style.display = 'block';
+    if(authLd)  authLd.style.display  = 'none';
+    if(authErr) authErr.style.display = 'none';
   }
 
   // Check session directly — avoids onAuthStateChange deadlock
