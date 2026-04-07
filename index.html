@@ -765,7 +765,9 @@ nav{position:sticky;top:0;z-index:200;background:var(--surface);backdrop-filter:
 
 <!-- ── AUTH OVERLAY ─────────────────────────────────────────────────────── -->
 <div id="auth-overlay" style="display:none;position:fixed;inset:0;z-index:9999;background:var(--bg);display:flex;align-items:center;justify-content:center;padding:24px;">
-  <div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:36px 32px;width:100%;max-width:380px;box-shadow:0 8px 40px var(--shadow-md);">
+
+  <!-- SIGN IN SCREEN -->
+  <div id="auth-screen-login" style="background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:36px 32px;width:100%;max-width:380px;box-shadow:0 8px 40px var(--shadow-md);">
     <div style="text-align:center;margin-bottom:28px;">
       <div style="font-size:36px;margin-bottom:8px;">🔐</div>
       <div style="font-size:22px;font-weight:700;letter-spacing:-0.02em;">GENERAL<span style="color:var(--accent)">-007</span></div>
@@ -790,12 +792,39 @@ nav{position:sticky;top:0;z-index:200;background:var(--surface);backdrop-filter:
       style="width:100%;padding:12px;background:var(--accent);color:#000;border:none;border-radius:8px;font-weight:700;font-size:15px;cursor:pointer;transition:background 0.15s;">
       Sign In
     </button>
-    <button onclick="doResetPassword()" id="auth-reset-btn"
+    <button onclick="showForgotPassword()"
       style="width:100%;padding:10px;background:none;border:none;color:var(--text-secondary);font-size:13px;cursor:pointer;margin-top:8px;text-decoration:underline;text-underline-offset:3px;">
       Forgot password?
     </button>
     <div id="auth-loading" style="display:none;text-align:center;margin-top:12px;font-size:13px;color:var(--text-secondary);">Signing in…</div>
   </div>
+
+  <!-- FORGOT PASSWORD SCREEN -->
+  <div id="auth-screen-reset" style="display:none;background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:36px 32px;width:100%;max-width:380px;box-shadow:0 8px 40px var(--shadow-md);">
+    <button onclick="showLoginScreen()" style="background:none;border:none;color:var(--text-secondary);font-size:13px;cursor:pointer;padding:0;margin-bottom:20px;display:flex;align-items:center;gap:6px;">
+      <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M10 3L5 8l5 5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      Back to sign in
+    </button>
+    <div style="text-align:center;margin-bottom:28px;">
+      <div style="font-size:36px;margin-bottom:8px;">📧</div>
+      <div style="font-size:20px;font-weight:700;letter-spacing:-0.02em;">Reset Password</div>
+      <div style="font-size:13px;color:var(--text-secondary);margin-top:4px;">Enter your email and we'll send a reset link</div>
+    </div>
+    <div id="reset-error" style="display:none;border-radius:8px;padding:10px 14px;font-size:13px;margin-bottom:16px;"></div>
+    <div style="margin-bottom:22px;">
+      <label style="display:block;font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:6px;letter-spacing:0.04em;text-transform:uppercase;">Email</label>
+      <input id="reset-email" type="email" autocomplete="email" placeholder="you@example.com"
+        style="width:100%;padding:10px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:14px;outline:none;transition:border-color 0.15s;"
+        onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border)'"
+        onkeydown="if(event.key==='Enter')doResetPassword()">
+    </div>
+    <button onclick="doResetPassword()" id="reset-btn"
+      style="width:100%;padding:12px;background:var(--accent);color:#000;border:none;border-radius:8px;font-weight:700;font-size:15px;cursor:pointer;transition:background 0.15s;">
+      Send Reset Link
+    </button>
+    <div id="reset-loading" style="display:none;text-align:center;margin-top:12px;font-size:13px;color:var(--text-secondary);">Sending…</div>
+  </div>
+
 </div>
 
 <script>
@@ -919,36 +948,55 @@ async function doSignIn(){
   // onAuthStateChange will handle the rest
 }
 
+function showForgotPassword(){
+  document.getElementById('auth-screen-login').style.display = 'none';
+  document.getElementById('auth-screen-reset').style.display = 'block';
+  // Pre-fill email if already typed on login screen
+  const loginEmail = document.getElementById('auth-email').value.trim();
+  if(loginEmail) document.getElementById('reset-email').value = loginEmail;
+  document.getElementById('reset-error').style.display = 'none';
+  setTimeout(()=>document.getElementById('reset-email').focus(), 50);
+}
+
+function showLoginScreen(){
+  document.getElementById('auth-screen-reset').style.display = 'none';
+  document.getElementById('auth-screen-login').style.display = 'block';
+}
+
 async function doResetPassword(){
-  const email = document.getElementById('auth-email').value.trim();
-  const errEl = document.getElementById('auth-error');
-  const ldEl  = document.getElementById('auth-loading');
-  const btn   = document.getElementById('auth-btn');
-  const resetBtn = document.getElementById('auth-reset-btn');
+  const email = document.getElementById('reset-email').value.trim();
+  const errEl = document.getElementById('reset-error');
+  const ldEl  = document.getElementById('reset-loading');
+  const btn   = document.getElementById('reset-btn');
   if(!email){
-    errEl.textContent = 'Please enter your email address above first.';
+    errEl.style.background = 'rgba(239,68,68,0.1)';
+    errEl.style.border = '1px solid var(--red)';
+    errEl.style.color = 'var(--red)';
+    errEl.textContent = 'Please enter your email address.';
     errEl.style.display = 'block';
     return;
   }
   errEl.style.display = 'none';
   btn.style.display = 'none';
-  if(resetBtn) resetBtn.style.display = 'none';
   ldEl.style.display = 'block';
   const {error} = await _sb.auth.resetPasswordForEmail(email, {
     redirectTo: window.location.origin + window.location.pathname
   });
   ldEl.style.display = 'none';
   btn.style.display = 'block';
-  if(resetBtn) resetBtn.style.display = 'block';
   if(error){
+    errEl.style.background = 'rgba(239,68,68,0.1)';
+    errEl.style.border = '1px solid var(--red)';
+    errEl.style.color = 'var(--red)';
     errEl.textContent = 'Could not send reset email. Check the address and try again.';
     errEl.style.display = 'block';
   } else {
     errEl.style.background = 'rgba(16,185,129,0.1)';
-    errEl.style.borderColor = 'var(--green)';
+    errEl.style.border = '1px solid var(--green)';
     errEl.style.color = 'var(--green)';
-    errEl.textContent = 'Reset email sent — check your inbox.';
+    errEl.textContent = '✓ Reset link sent — check your inbox.';
     errEl.style.display = 'block';
+    btn.textContent = 'Send Again';
   }
 }
 
@@ -1053,8 +1101,10 @@ function _rowToItem(row, parts, returns){
 // ── ITEM → ROW (app camelCase → Supabase snake_case) ────────────────────────
 
 function _itemToRow(i, month){
+  const uid = _sb.auth.getUser ? (_currentUserId || null) : null;
   return {
     id:               i.id,
+    user_id:          uid,
     gid:              i.gid || null,
     month:            month || i.month,
     item:             i.item || '',
@@ -1151,6 +1201,7 @@ async function saveItemToSupabase(m, i){
   if((i.parts||[]).length > 0){
     const partsRows = (i.parts||[]).map(p => ({
       item_id:     i.id,
+      user_id:     _currentUserId || null,
       description: p.desc || p.description || '',
       cost:        Number(p.cost) || 0,
     }));
@@ -1163,6 +1214,7 @@ async function saveItemToSupabase(m, i){
   if((i.returnHistory||[]).length > 0){
     const retRows = (i.returnHistory||[]).map(r => ({
       item_id:       i.id,
+      user_id:       _currentUserId || null,
       logged_at:     r.loggedAt || null,
       type:          r.type || null,
       refund_amount: Number(r.refundAmount) || 0,
@@ -1187,7 +1239,7 @@ async function deleteItemFromSupabase(id){
 // ── SAVE TRIP ────────────────────────────────────────────────────────────────
 
 async function saveTripToSupabase(t){
-  const row = {id:t.id, date:t.date, description:t.description||'', mileage:t.mileage||0, rate_per_mile:t.ratePerMile||0.45};
+  const row = {id:t.id, user_id:_currentUserId||null, date:t.date, description:t.description||'', mileage:t.mileage||0, rate_per_mile:t.ratePerMile||0.45};
   const {error} = await _sbCall(()=>_sb.from('trips').upsert(row, {onConflict:'id'}));
   if(error) throw new Error('Save trip failed: ' + error.message);
 }
@@ -1200,7 +1252,7 @@ async function deleteTripFromSupabase(id){
 // ── SAVE EXPENSE ─────────────────────────────────────────────────────────────
 
 async function saveExpenseToSupabase(e){
-  const row = {id:e.id, date:e.date, description:e.description||'', amount:e.amount||0, category:e.category||null};
+  const row = {id:e.id, user_id:_currentUserId||null, date:e.date, description:e.description||'', amount:e.amount||0, category:e.category||null};
   const {error} = await _sbCall(()=>_sb.from('expenses').upsert(row, {onConflict:'id'}));
   if(error) throw new Error('Save expense failed: ' + error.message);
 }
@@ -1216,6 +1268,7 @@ async function deleteExpenseFromSupabase(id){
 
 let _dbSnapshot = null;   // last-known-saved state (JSON string per item id)
 let _saveTimer = null;
+let _currentUserId = null; // set on SIGNED_IN, cleared on SIGNED_OUT
 
 function saveDB(){
   DB._userOwned = true;
@@ -5452,6 +5505,7 @@ initTheme();
   }
 
   if(session){
+    _currentUserId = session.user.id;
     showApp();
     await initDB();
     _dbSnapshot = _dbFingerprint();
@@ -5462,12 +5516,14 @@ initTheme();
   // Listen for sign-in/out after initial load
   _sb.auth.onAuthStateChange(async (event, sess) => {
     if(event === 'SIGNED_IN' && sess){
+      _currentUserId = sess.user.id;
       showApp();
       if(Object.keys(DB).filter(k => MONTHS.includes(k)).every(k => (DB[k]||[]).length === 0)){
         await initDB();
         _dbSnapshot = _dbFingerprint();
       }
     } else if(event === 'SIGNED_OUT'){
+      _currentUserId = null;
       DB = {};
       _dbSnapshot = null;
       showLogin();
