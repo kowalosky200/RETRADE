@@ -1008,6 +1008,12 @@ async function doResetPassword(){
 }
 
 async function doSignOut(){
+  // Cancel any pending debounced save immediately — prevents re-push after clear
+  clearTimeout(_saveTimer);
+  _saveTimer = null;
+  _currentUserId = null;
+  DB = {};
+  _dbSnapshot = {};
   await _sb.auth.signOut();
   location.reload();
 }
@@ -5604,24 +5610,53 @@ initTheme();
     showLogin();
   }
 
-  // Listen for sign-in/out after initial load
+  // Listen for auth state changes
   _sb.auth.onAuthStateChange(async (event, sess) => {
     if(event === 'SIGNED_IN' && sess){
       _currentUserId = sess.user.id;
       showApp();
       if(!_initialLoadDone){
-        // Fresh sign-in (not a page reload with existing session)
         _initialLoadDone = true;
         await initDB();
         _dbSnapshot = _dbFingerprint();
       }
       // else: page-load SIGNED_IN echo — already loaded, do nothing
-    } else if(event === 'SIGNED_OUT'){
+    } else if(event === 'TOKEN_REFRESHED' && sess){
+      // Silent token refresh — just update userId, no reload needed
+      _currentUserId = sess.user.id;
+    } else if(event === 'SIGNED_OUT' || (!sess && event !== 'INITIAL_SESSION')){
+      clearTimeout(_saveTimer);
+      _saveTimer = null;
       _initialLoadDone = false;
       _currentUserId = null;
       DB = {};
-      _dbSnapshot = {}; // empty not null — prevents re-save on next sign-in
+      _dbSnapshot = {};
       showLogin();
+    }
+  });
+
+  // Re-check session when tab becomes visible again (phone wake, tab switch)
+  // If token expired while backgrounded, boot to login immediately
+  document.addEventListener('visibilitychange', async () => {
+    if(document.visibilityState !== 'visible') return;
+    if(!_currentUserId) return; // already on login screen
+    try{
+      const {data, error} = await _sb.auth.getSession();
+      if(error || !data.session){
+        // Session gone — try one silent refresh before giving up
+        const {data:rd, error:re} = await _sb.auth.refreshSession();
+        if(re || !rd.session){
+          toast('Session expired — please sign in again', 'err');
+          _currentUserId = null;
+          DB = {};
+          _dbSnapshot = {};
+          _initialLoadDone = false;
+          await _sb.auth.signOut();
+          showLogin();
+        }
+      }
+    }catch(e){
+      console.warn('Visibility session check failed:', e.message);
     }
   });
 })();
