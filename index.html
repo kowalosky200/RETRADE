@@ -1136,7 +1136,11 @@ function _itemToRow(i, month){
 
 async function loadFromSupabase(){
   const ok = await _ensureSession();
-  if(!ok) throw new Error('Not authenticated');
+  if(!ok) throw new Error('Not authenticated — please sign in again.');
+  // Get current user id directly from session as belt-and-braces
+  const {data:{session}} = await _sb.auth.getSession();
+  if(!session) throw new Error('Session missing — please sign in again.');
+  _currentUserId = session.user.id;
   // Fetch all tables in parallel
   const [itemsRes, partsRes, returnsRes, tripsRes, expensesRes] = await Promise.all([
     _sb.from('items').select('*').order('date_listed', {ascending: true}),
@@ -1342,14 +1346,17 @@ async function _persistChanges(){
   _dbSnapshot = _dbFingerprint();
 }
 
+let _dbLoading = false;
+
 // DATABASE (entry point — called on app init after auth confirmed)
 async function initDB(){
+  if(_dbLoading){ console.warn('initDB already in progress, skipping'); return; }
+  _dbLoading = true;
   try{
     showLoadingScreen('Loading your data…');
-    // Timeout guard — if Supabase doesn't respond in 12s, bail gracefully
     await Promise.race([
       loadFromSupabase(),
-      new Promise((_,reject) => setTimeout(() => reject(new Error('Request timed out — check your connection and refresh.')), 12000))
+      new Promise((_,reject) => setTimeout(() => reject(new Error('Request timed out. Try refreshing.')), 15000))
     ]);
     hideLoadingScreen();
     renderSummary();
@@ -1357,9 +1364,10 @@ async function initDB(){
     console.error('initDB error:', e);
     hideLoadingScreen();
     _showLoadError(e.message);
+  } finally {
+    _dbLoading = false;
   }
 }
-
 function _showLoadError(msg){
   let el = document.getElementById('load-error-banner');
   if(!el){
@@ -3902,8 +3910,21 @@ function renderData(){
 }
 
 function exportDB(){
-  DB._userOwned=true;
-  const json=JSON.stringify(DB,null,2);
+  // Build a clean export — strip user_id and internal flags so the backup
+  // is portable and never contains account-specific identifiers
+  const exportData = {};
+  MONTHS.forEach(m => {
+    exportData[m] = (DB[m]||[]).map(i => {
+      const clean = Object.assign({}, i);
+      delete clean.user_id;
+      if(clean.parts) clean.parts = clean.parts.map(p => { const cp=Object.assign({},p); delete cp.user_id; return cp; });
+      if(clean.returnHistory) clean.returnHistory = clean.returnHistory.map(r => { const cr=Object.assign({},r); delete cr.user_id; return cr; });
+      return clean;
+    });
+  });
+  if(DB.trips) exportData.trips = DB.trips.map(t => { const ct=Object.assign({},t); delete ct.user_id; return ct; });
+  if(DB.expenses) exportData.expenses = DB.expenses.map(e => { const ce=Object.assign({},e); delete ce.user_id; return ce; });
+  const json=JSON.stringify(exportData,null,2);
   const blob=new Blob([json],{type:'application/json'});
   const url=URL.createObjectURL(blob);
   const a=document.createElement('a');
@@ -3983,20 +4004,30 @@ function importDB(e){
   reader.readAsText(file);
 }
 
-function _confirmJSONImport(){
+async function _confirmJSONImport(){
   const imported=window._pendingImport;
   if(!imported){toast('No pending import','err');return;}
+  // Strip any stale user_id fields from the JSON — ownership is always
+  // determined by whoever is currently logged in, not baked into the file
+  MONTHS.forEach(m=>{
+    (imported[m]||[]).forEach(i=>{
+      delete i.user_id;
+      (i.parts||[]).forEach(p=>delete p.user_id);
+      (i.returnHistory||[]).forEach(r=>delete r.user_id);
+    });
+  });
   DB=imported;
   DB._userOwned=true;
   MONTHS.forEach(m=>(DB[m]||[]).forEach(i=>{i.category=autoCategory(i.item);}));
   // Reset snapshot to empty so diff sees ALL items as new → full upsert to Supabase
   _dbSnapshot={};
-  saveDB();
   window._pendingImport=null;
   closePanel();
-  toast('Database imported successfully');
+  toast('Importing data…');
   goToTab('summary',document.querySelector('[data-tab="summary"]'));
   renderSummary();
+  // saveDB is async-aware — runs the full diff and persists to Supabase
+  saveDB();
 }
 
 function importExcel(e){
@@ -5526,11 +5557,14 @@ initTheme();
     console.warn('Session check failed:', e.message);
   }
 
+  let _initialLoadDone = false;
+
   if(session){
     _currentUserId = session.user.id;
     showApp();
     await initDB();
     _dbSnapshot = _dbFingerprint();
+    _initialLoadDone = true;
   } else {
     showLogin();
   }
@@ -5540,11 +5574,18 @@ initTheme();
     if(event === 'SIGNED_IN' && sess){
       _currentUserId = sess.user.id;
       showApp();
-      if(Object.keys(DB).filter(k => MONTHS.includes(k)).every(k => (DB[k]||[]).length === 0)){
+      // Skip if initial load already ran (avoids double-call on page load)
+      if(!_initialLoadDone){
+        _initialLoadDone = true;
+        await initDB();
+        _dbSnapshot = _dbFingerprint();
+      } else if(Object.keys(DB).filter(k => MONTHS.includes(k)).every(k => (DB[k]||[]).length === 0)){
+        // Signed in fresh (not page reload) — load data
         await initDB();
         _dbSnapshot = _dbFingerprint();
       }
     } else if(event === 'SIGNED_OUT'){
+      _initialLoadDone = false;
       _currentUserId = null;
       DB = {};
       _dbSnapshot = null;
