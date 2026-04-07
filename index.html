@@ -1302,6 +1302,8 @@ function _dbFingerprint(){
 }
 
 async function _persistChanges(){
+  // Never persist if no user is logged in — prevents ghost saves after sign-out
+  if(!_currentUserId){ console.warn('_persistChanges: no user, skipping'); return; }
   const current = _dbFingerprint();
   const prev    = _dbSnapshot || {};
   const errors  = [];
@@ -1366,6 +1368,10 @@ async function initDB(){
       loadFromSupabase(),
       new Promise((_,reject) => setTimeout(() => reject(new Error('Request timed out. Try refreshing.')), 15000))
     ]);
+    // Snapshot MUST be set immediately after load — before any renderX call
+    // triggers saveDB(). Without this the diff engine thinks everything is new
+    // and re-upserts the entire DB on every page load.
+    _dbSnapshot = _dbFingerprint();
     hideLoadingScreen();
     renderSummary();
   }catch(e){
@@ -5614,7 +5620,7 @@ initTheme();
       _initialLoadDone = false;
       _currentUserId = null;
       DB = {};
-      _dbSnapshot = null;
+      _dbSnapshot = {}; // empty not null — prevents re-save on next sign-in
       showLogin();
     }
   });
