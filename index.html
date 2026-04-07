@@ -3978,7 +3978,14 @@ function importDB(e){
       // Store imported JSON on window for confirm button to access
       window._pendingImport=imported;
 
+      const isMob = window.innerWidth < 600;
       const html=`
+        ${isMob ? `<div style="text-align:center;margin-bottom:12px;color:var(--text-secondary);font-size:12px;">
+          <span style="display:inline-flex;align-items:center;gap:5px;background:var(--surface2);border:1px solid var(--border);border-radius:20px;padding:4px 12px;">
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M8 3v10M8 13l-3-3M8 13l3-3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            Scroll down to confirm
+          </span>
+        </div>` : ''}
         <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:16px">
           <div style="background:rgba(16,185,129,0.1);border:1px solid rgba(16,185,129,0.3);border-radius:8px;padding:12px;text-align:center">
             <div style="font-size:24px;font-weight:700;color:var(--green)">${willAdd}</div>
@@ -3997,10 +4004,11 @@ function importDB(e){
           This will <strong style="color:var(--text)">fully replace</strong> your current database. All returns, notes, and resale data from the imported file are preserved.
           ${willRemove>0?`<br><span style="color:var(--red)">⚠️ ${willRemove} item${willRemove!==1?'s':''} currently in your DB will be removed.</span>`:''}
         </div>
-        ${addedItems.length?`<div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:6px">New items (${addedItems.length})</div><div style="margin-bottom:14px">${diffRows(addedItems,'＋')}</div>`:''}
-        ${updatedItems.length?`<div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:6px">Updated (${updatedItems.length})</div><div style="margin-bottom:14px">${diffRows(updatedItems,'↻')}</div>`:''}
-        ${removedItems.length?`<div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:6px">Will be removed (${removedItems.length})</div><div style="margin-bottom:14px">${diffRows(removedItems,'−')}</div>`:''}
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px;padding-top:12px;border-top:1px solid var(--border)">
+        ${addedItems.length?`<div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:6px">New items (${addedItems.length})</div><div style="margin-bottom:80px">${diffRows(addedItems,'＋')}</div>`:''}
+        ${updatedItems.length?`<div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:6px">Updated (${updatedItems.length})</div><div style="margin-bottom:80px">${diffRows(updatedItems,'↻')}</div>`:''}
+        ${removedItems.length?`<div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:6px">Will be removed (${removedItems.length})</div><div style="margin-bottom:80px">${diffRows(removedItems,'−')}</div>`:''}
+        ${!addedItems.length&&!updatedItems.length&&!removedItems.length?'<div style="margin-bottom:80px"></div>':''}
+        <div style="position:sticky;bottom:0;background:var(--surface);padding:12px 0 4px;border-top:1px solid var(--border);display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px;">
           <button class="btn btn-s" onclick="closePanel()">Cancel</button>
           <button class="btn btn-p" onclick="_confirmJSONImport()">Confirm import</button>
         </div>`;
