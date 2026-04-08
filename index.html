@@ -25,46 +25,63 @@
 html{overflow-x:hidden;}
 body{background:var(--bg);color:var(--text);font-family:'Inter',system-ui,-apple-system,sans-serif;font-size:14px;line-height:1.5;min-height:100vh;transition:background 0.2s,color 0.2s;overflow-x:hidden;}
 
-/* NAV — Desktop */
+/* NAV — Desktop: full width, single row */
 nav:not(#bottom-nav){position:sticky;top:0;z-index:200;background:var(--surface);border-bottom:1px solid var(--border);}
-.nav-inner{max-width:1400px;margin:0 auto;display:flex;align-items:center;height:56px;padding:0 24px;gap:0;}
-.brand{display:flex;align-items:center;cursor:pointer;user-select:none;flex-shrink:0;margin-right:32px;transition:opacity 0.15s;}
+.nav-inner{width:100%;display:flex;align-items:center;height:58px;padding:0 28px;gap:0;}
+/* Brand */
+.brand{display:flex;align-items:center;cursor:pointer;user-select:none;flex-shrink:0;margin-right:28px;transition:opacity 0.15s;}
 .brand:hover{opacity:0.75;}
-.brand-text{font-weight:800;font-size:15px;letter-spacing:0.06em;}
+.brand-text{font-weight:800;font-size:14px;letter-spacing:0.1em;}
 .brand-general{color:var(--text);}
 .brand-007{color:var(--accent);}
-.tabs-row{display:flex;align-items:center;gap:0;flex:1;min-width:0;}
-.tabs{display:flex;gap:0;flex:1;min-width:0;}
-.tab{padding:0 16px;border:none;cursor:pointer;font-weight:500;font-size:13px;background:transparent;color:var(--text-secondary);transition:color 0.15s;white-space:nowrap;height:56px;display:flex;align-items:center;position:relative;}
-.tab::after{content:'';position:absolute;bottom:0;left:10px;right:10px;height:2px;background:var(--accent);border-radius:2px 2px 0 0;opacity:0;transition:opacity 0.15s;}
+/* Primary tabs — left cluster */
+.tabs-row{display:flex;align-items:center;gap:0;flex-shrink:0;}
+.tabs{display:flex;gap:0;}
+.tab{padding:0 14px;border:none;cursor:pointer;font-weight:500;font-size:13px;background:transparent;color:var(--text-secondary);transition:color 0.15s;white-space:nowrap;height:58px;display:flex;align-items:center;position:relative;}
+.tab::after{content:'';position:absolute;bottom:0;left:8px;right:8px;height:2px;background:var(--accent);border-radius:2px 2px 0 0;opacity:0;transition:opacity 0.15s;}
 .tab:hover{color:var(--text);}
 .tab.on{color:var(--text);font-weight:600;}
 .tab.on::after{opacity:1;}
+/* Overflow more menu */
 .nav-more{position:relative;}
-.nav-more-btn{padding:0 12px;border:none;cursor:pointer;font-weight:500;font-size:13px;background:transparent;color:var(--text-secondary);transition:color 0.15s;display:none;align-items:center;justify-content:center;flex-shrink:0;height:56px;gap:5px;}
+.nav-more-btn{padding:0 10px;border:none;cursor:pointer;font-weight:500;font-size:13px;background:transparent;color:var(--text-secondary);transition:color 0.15s;display:none;align-items:center;justify-content:center;flex-shrink:0;height:58px;gap:5px;}
 .nav-more-btn:hover{color:var(--text);}
-.nav-more-btn.on{color:var(--text);}
+.nav-more-btn.on{color:var(--accent);}
 .nav-more-btn.has-items{display:flex;}
 .nav-more-menu{display:none;position:absolute;top:calc(100% + 4px);right:0;min-width:160px;background:var(--surface);border:1px solid var(--border);border-radius:12px;box-shadow:0 8px 32px var(--shadow-md);z-index:300;overflow:hidden;padding:4px;}
 .nav-more.open .nav-more-menu{display:block;}
 .nav-more-menu button{width:100%;padding:10px 14px;background:none;border:none;text-align:left;cursor:pointer;font-size:13px;font-weight:500;color:var(--text-secondary);transition:all 0.15s;border-radius:8px;}
 .nav-more-menu button:hover{background:var(--surface2);color:var(--text);}
 .nav-more-menu button.on{color:var(--accent);font-weight:600;}
-.nav-right{display:flex;align-items:center;gap:6px;flex-shrink:0;padding-left:20px;}
-.nav-row1{display:contents;}
-.search-wrap{position:relative;width:200px;}
-.search-wrap input{background:var(--surface2);border:1px solid var(--border);border-radius:20px;padding:7px 28px 7px 32px;color:var(--text);font-size:13px;width:100%;transition:all 0.2s;height:34px;}
+/* Search — centred in remaining space */
+.nav-spacer{flex:1;}
+.search-wrap{position:relative;width:260px;}
+.search-wrap input{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:7px 32px 7px 34px;color:var(--text);font-size:13px;width:100%;transition:all 0.2s;height:34px;}
 .search-wrap input:focus{outline:none;border-color:var(--accent);background:var(--surface);box-shadow:0 0 0 3px rgba(245,158,11,0.12);}
 .search-wrap input::placeholder{color:var(--muted);}
 .search-icon{position:absolute;left:11px;top:50%;transform:translateY(-50%);color:var(--muted);font-size:13px;pointer-events:none;}
 .search-clear{position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--muted);cursor:pointer;font-size:15px;display:none;padding:4px;line-height:1;}
 .search-clear.show{display:block;}
 .search-clear:hover{color:var(--text);}
-.theme-toggle{background:transparent;border:none;width:34px;height:34px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:16px;transition:opacity 0.15s;flex-shrink:0;border-radius:8px;color:var(--text-secondary);}
-.theme-toggle:hover{opacity:0.7;background:var(--surface2);}
-/* Mobile search icon btn */
-.nav-search-icon-btn{display:none;background:transparent;border:none;width:36px;height:36px;align-items:center;justify-content:center;cursor:pointer;font-size:18px;flex-shrink:0;color:var(--text-secondary);border-radius:8px;}
-.nav-search-icon-btn:hover{opacity:0.7;}
+/* User menu — right */
+.nav-right{display:flex;align-items:center;gap:8px;flex-shrink:0;padding-left:16px;}
+.nav-row1{display:contents;}
+/* User avatar button */
+.user-menu-btn{display:flex;align-items:center;gap:8px;padding:5px 10px 5px 5px;border:1px solid var(--border);border-radius:20px;background:transparent;cursor:pointer;transition:all 0.15s;color:var(--text-secondary);font-size:13px;font-weight:500;}
+.user-menu-btn:hover{border-color:var(--accent);color:var(--text);background:var(--surface2);}
+.user-avatar{width:26px;height:26px;border-radius:50%;background:var(--accent);color:#000;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.user-menu-dropdown{display:none;position:absolute;top:calc(100% + 8px);right:0;min-width:200px;background:var(--surface);border:1px solid var(--border);border-radius:12px;box-shadow:0 8px 32px var(--shadow-md);z-index:300;overflow:hidden;padding:4px;}
+.user-menu.open .user-menu-dropdown{display:block;}
+.user-menu{position:relative;}
+.user-menu-item{width:100%;padding:10px 14px;background:none;border:none;text-align:left;cursor:pointer;font-size:13px;font-weight:500;color:var(--text-secondary);transition:all 0.15s;border-radius:8px;display:flex;align-items:center;gap:10px;}
+.user-menu-item:hover{background:var(--surface2);color:var(--text);}
+.user-menu-item.danger{color:var(--red);}
+.user-menu-item.danger:hover{background:rgba(239,68,68,0.08);}
+.user-menu-divider{height:1px;background:var(--border);margin:4px 8px;}
+/* Sync indicator */
+#sync-indicator{display:none;align-items:center;gap:6px;font-size:12px;font-weight:500;color:var(--text-secondary);white-space:nowrap;flex-shrink:0;}
+/* Mobile search icon btn — hidden on desktop */
+.nav-search-icon-btn{display:none;}
 /* Mobile search expand bar */
 .nav-search-expand{display:none;position:absolute;top:52px;left:0;right:0;padding:10px 16px;background:var(--surface);border-bottom:1px solid var(--border);box-shadow:0 4px 16px var(--shadow-md);z-index:201;}
 .nav-search-expand.open{display:block;}
@@ -175,7 +192,7 @@ nav:not(#bottom-nav){position:sticky;top:0;z-index:200;background:var(--surface)
 .kcard::after{content:'';position:absolute;top:0;left:0;right:0;height:4px;background:var(--accent);}
 .kcard.g::after{background:var(--green);}.kcard.r::after{background:var(--red);}.kcard.b::after{background:var(--blue);}.kcard.p::after{background:var(--purple);}
 .klabel{font-size:11px;color:var(--text-secondary);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;font-weight:600;}
-.kval{font-size:32px;font-weight:700;line-height:1;letter-spacing:-0.02em;}
+.kval{font-size:26px;font-weight:700;line-height:1;letter-spacing:-0.02em;}
 .ksub{font-size:12px;color:var(--text-secondary);margin-top:6px;}
 
 /* INSIGHTS */
@@ -456,7 +473,7 @@ nav:not(#bottom-nav){position:sticky;top:0;z-index:200;background:var(--surface)
 .sel-exit:hover{color:var(--text);background:var(--surface2);}
 
 /* SORT SELECT in header */
-.sort-select{padding:7px 10px;background:var(--surface);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;cursor:pointer;font-family:inherit;font-weight:500;appearance:auto;flex:1;min-width:0;}
+.sort-select{padding:6px 10px;background:var(--surface);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;cursor:pointer;font-family:inherit;font-weight:500;appearance:auto;width:auto;}
 .sort-select:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 2px rgba(245,158,11,0.12);}
 
 /* PARTS / EXPENSES ON ITEM */
@@ -650,42 +667,15 @@ nav:not(#bottom-nav){position:sticky;top:0;z-index:200;background:var(--surface)
 
 <nav id="nav" style="display:none;">
   <div class="nav-inner">
-    <div class="nav-row1">
-      <div class="brand" onclick="goToTab('summary')">
-        <div class="brand-text">
-          <span class="brand-general">GENERAL</span><span class="brand-007">007</span>
-        </div>
-      </div>
-      <div class="nav-right">
-        <div class="search-wrap">
-          <span class="search-icon">🔍</span>
-          <input type="text" id="global-search" placeholder="Search items..." autocomplete="off"
-                 oninput="handleSearch(this.value)"
-                 onkeydown="handleSearchKey(event)"
-                 onfocus="if(this.value.trim())showSearchDropdown(this.value)">
-          <div class="search-dropdown" id="search-dropdown"></div>
-          <button class="search-clear" onclick="clearSearch()">×</button>
-        </div>
-        <button class="nav-search-icon-btn" onclick="toggleNavSearch()" title="Search" id="nav-search-icon-btn">🔍</button>
-        <div id="sync-indicator" style="display:none;align-items:center;gap:6px;font-size:12px;font-weight:600;color:var(--text-secondary);white-space:nowrap;flex-shrink:0;">
-          <svg width="14" height="14" viewBox="0 0 14 14" style="animation:spin 1s linear infinite;flex-shrink:0"><circle cx="7" cy="7" r="5.5" fill="none" stroke="var(--border2)" stroke-width="2"/><path d="M7 1.5A5.5 5.5 0 0 1 12.5 7" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round"/></svg>
-          <span id="sync-label">Saving…</span>
-        </div>
-        <button class="theme-toggle" onclick="toggleTheme()" title="Toggle theme">
-          <span id="theme-icon">🌙</span>
-        </button>
+
+    <!-- Brand -->
+    <div class="brand" onclick="goToTab('summary')">
+      <div class="brand-text">
+        <span class="brand-general">GENERAL</span><span class="brand-007">007</span>
       </div>
     </div>
-    <div class="nav-search-expand" id="nav-search-expand">
-      <div class="search-wrap" style="width:100%">
-        <span class="search-icon">🔍</span>
-        <input type="text" id="global-search-mobile" placeholder="Search items..." autocomplete="off"
-               oninput="handleSearch(this.value)"
-               onkeydown="if(event.key==='Escape'){toggleNavSearch();}"
-               style="font-size:16px!important">
-        <button class="search-clear" onclick="clearMobileSearch()">×</button>
-      </div>
-    </div>
+
+    <!-- Primary tabs -->
     <div class="tabs-row">
       <div class="tabs">
         <button class="tab on" data-tab="summary" onclick="goToTab('summary',this)">Summary</button>
@@ -697,7 +687,7 @@ nav:not(#bottom-nav){position:sticky;top:0;z-index:200;background:var(--surface)
       </div>
       <div class="nav-more">
         <button class="nav-more-btn" onclick="event.stopPropagation();toggleNavMore()" title="More">
-          <svg width="16" height="12" viewBox="0 0 16 12" fill="none" xmlns="http://www.w3.org/2000/svg" style="display:block">
+          <svg width="14" height="14" viewBox="0 0 16 12" fill="none" style="display:block">
             <rect y="0" width="16" height="2" rx="1" fill="currentColor"/>
             <rect y="5" width="16" height="2" rx="1" fill="currentColor"/>
             <rect y="10" width="16" height="2" rx="1" fill="currentColor"/>
@@ -706,6 +696,64 @@ nav:not(#bottom-nav){position:sticky;top:0;z-index:200;background:var(--surface)
         <div class="nav-more-menu" id="nav-more-menu"></div>
       </div>
     </div>
+
+    <!-- Spacer pushes search + user to right -->
+    <div class="nav-spacer"></div>
+
+    <!-- Search -->
+    <div class="search-wrap">
+      <span class="search-icon">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      </span>
+      <input type="text" id="global-search" placeholder="Search items…"
+             autocomplete="new-password" autocorrect="off" autocapitalize="off" spellcheck="false"
+             oninput="handleSearch(this.value)"
+             onkeydown="handleSearchKey(event)"
+             onfocus="if(this.value.trim())showSearchDropdown(this.value)">
+      <div class="search-dropdown" id="search-dropdown"></div>
+      <button class="search-clear" onclick="clearSearch()">×</button>
+    </div>
+
+    <!-- Right actions -->
+    <div class="nav-right">
+      <!-- Sync indicator -->
+      <div id="sync-indicator">
+        <svg width="14" height="14" viewBox="0 0 14 14" style="animation:spin 1s linear infinite;flex-shrink:0"><circle cx="7" cy="7" r="5.5" fill="none" stroke="var(--border2)" stroke-width="2"/><path d="M7 1.5A5.5 5.5 0 0 1 12.5 7" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round"/></svg>
+        <span id="sync-label">Saving…</span>
+      </div>
+      <!-- User menu -->
+      <div class="user-menu" id="user-menu">
+        <button class="user-menu-btn" onclick="event.stopPropagation();toggleUserMenu()" id="user-menu-btn">
+          <div class="user-avatar" id="user-avatar">G</div>
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 4l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+        <div class="user-menu-dropdown" id="user-menu-dropdown">
+          <button class="user-menu-item" onclick="toggleTheme();closeUserMenu()">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+            <span id="user-menu-theme-label">Dark mode</span>
+          </button>
+          <div class="user-menu-divider"></div>
+          <button class="user-menu-item danger" id="user-menu-signout" onclick="closeUserMenu();doSignOut()">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+            Sign out
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Mobile search expand (hidden on desktop) -->
+    <div class="nav-search-expand" id="nav-search-expand">
+      <div class="search-wrap" style="width:100%">
+        <span class="search-icon">🔍</span>
+        <input type="text" id="global-search-mobile" placeholder="Search items..."
+               autocomplete="new-password" autocorrect="off"
+               oninput="handleSearch(this.value)"
+               onkeydown="if(event.key==='Escape'){toggleNavSearch();}"
+               style="font-size:16px!important">
+        <button class="search-clear" onclick="clearMobileSearch()">×</button>
+      </div>
+    </div>
+
   </div>
 </nav>
 
@@ -983,10 +1031,14 @@ function toggleTheme(){
   updateThemeIcon(next);
 }
 function updateThemeIcon(theme){
-  document.getElementById('theme-icon').textContent=theme==='light'?'🌙':'☀️';
+  const icon=document.getElementById('theme-icon');
+  if(icon)icon.textContent=theme==='light'?'🌙':'☀️';
   // Keep more sheet label in sync
   const lbl=document.getElementById('more-sheet-theme-label');
-  if(lbl)lbl.textContent=theme==='light'?'Dark mode':'Light mode';
+  if(lbl)lbl.textContent=theme==='dark'?'Light mode':'Dark mode';
+  // Keep user menu label in sync
+  const ulbl=document.getElementById('user-menu-theme-label');
+  if(ulbl)ulbl.textContent=theme==='dark'?'Light mode':'Dark mode';
 }
 function toggleMoreSheet(){
   const sheet=document.getElementById('more-sheet');
@@ -1006,6 +1058,20 @@ function toggleMoreSheet(){
   overlay.style.display='block';
   document.getElementById('bnt-more').classList.add('on');
 }
+function toggleUserMenu(){
+  const menu=document.getElementById('user-menu');
+  if(!menu)return;
+  menu.classList.toggle('open');
+}
+function closeUserMenu(){
+  const menu=document.getElementById('user-menu');
+  if(menu)menu.classList.remove('open');
+}
+// Close user menu on outside click
+document.addEventListener('click',()=>{
+  closeUserMenu();
+});
+
 function closeMoreSheet(){
   document.getElementById('more-sheet').style.display='none';
   document.getElementById('more-sheet-overlay').style.display='none';
@@ -5717,6 +5783,15 @@ function handleNavResize(){
 }
 
 window.addEventListener('resize',handleNavResize);
+window.addEventListener('resize',function(){
+  const isMobile = window.innerWidth <= 600;
+  const nav = document.getElementById('nav');
+  const bnav = document.getElementById('bottom-nav');
+  const appVisible = document.getElementById('main-content')?.style.display !== 'none';
+  if(!appVisible) return; // not logged in, don't touch
+  if(nav) nav.style.display = isMobile ? 'none' : '';
+  if(bnav) bnav.style.display = isMobile ? 'flex' : 'none';
+});
 window.addEventListener('load',handleNavResize);
 
 function _recalcRelist(currentPL,salePrice,bpf,shipping,packaging,postage){
@@ -5935,21 +6010,20 @@ initTheme();
 
   function showApp(){
     overlay.style.display = 'none';
-    document.getElementById('nav').style.display = '';
-    document.getElementById('bottom-nav').style.display = 'flex';
+    // Top nav — desktop only; bottom nav — mobile only
+    if(window.innerWidth > 600){
+      document.getElementById('nav').style.display = '';
+      document.getElementById('bottom-nav').style.display = 'none';
+    } else {
+      document.getElementById('nav').style.display = 'none';
+      document.getElementById('bottom-nav').style.display = 'flex';
+    }
     document.getElementById('main-content').style.display = '';
     document.getElementById('fab').style.display = '';
-    if(!document.getElementById('signout-btn')){
-      const btn = document.createElement('button');
-      btn.id = 'signout-btn';
-      btn.title = 'Sign out';
-      btn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>';
-      btn.style.cssText = 'background:transparent;border:none;width:34px;height:34px;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;color:var(--text-secondary);border-radius:8px;transition:all 0.15s;flex-shrink:0;';
-      btn.onmouseenter = () => { btn.style.color='var(--text)'; btn.style.background='var(--surface2)'; };
-      btn.onmouseleave = () => { btn.style.color='var(--text-secondary)'; btn.style.background='transparent'; };
-      btn.onclick = doSignOut;
-      document.querySelector('.nav-right').appendChild(btn);
-    }
+    // Sync theme label on show
+    const _t = document.documentElement.getAttribute('data-theme')||'light';
+    const _ul = document.getElementById('user-menu-theme-label');
+    if(_ul) _ul.textContent = _t==='dark'?'Light mode':'Dark mode';
   }
 
   function showLogin(){
@@ -5988,6 +6062,9 @@ initTheme();
   if(session){
     _currentUserId = session.user.id;
     showApp();
+    // Set avatar initial
+    const _av=document.getElementById('user-avatar');
+    if(_av && session.user?.email) _av.textContent=session.user.email[0].toUpperCase();
     await initDB();
     _dbSnapshot = _dbFingerprint();
   } else {
@@ -5999,6 +6076,9 @@ initTheme();
     if(event === 'SIGNED_IN' && sess){
       _currentUserId = sess.user.id;
       showApp();
+      // Set avatar initial from email
+      const _av=document.getElementById('user-avatar');
+      if(_av && sess.user?.email) _av.textContent=sess.user.email[0].toUpperCase();
       if(!_initialLoadDone){
         _initialLoadDone = true;
         await initDB();
