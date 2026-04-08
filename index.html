@@ -5931,18 +5931,6 @@ initTheme();
 (async function boot(){
   const overlay = document.getElementById('auth-overlay');
 
-  // ⚠️ DEV MODE — auth bypass (no Supabase, loads localStorage only), remove before push
-  document.getElementById('auth-overlay').style.display = 'none';
-  document.getElementById('nav').style.display = '';
-  document.getElementById('bottom-nav').style.display = 'flex';
-  document.getElementById('main-content').style.display = '';
-  document.getElementById('fab').style.display = '';
-  try{
-    const raw = localStorage.getItem('ebay_db_v7');
-    if(raw){ const parsed = JSON.parse(raw); Object.assign(DB, parsed); }
-  }catch(e){ console.warn('Dev mode: localStorage parse failed', e); }
-  renderSummary();
-  return;
 
 
   function showApp(){
