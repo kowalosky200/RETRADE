@@ -3115,11 +3115,22 @@ function showCategoryItems(cat,_fromBack){
   openPanel(cat,html,false,{type:'category',cat});
 }
 
+function _inSummaryPeriod(dateStr){
+  const range=_periodDateRange(SUMMARY_PERIOD);
+  if(!range.from)return true;
+  if(!dateStr)return false;
+  return dateStr>=range.from&&dateStr<=range.to;
+}
+
 function showROIItems(){
   let items=[];
   allDBKeys().forEach(k=>{(DB[k]||[]).forEach(i=>{
     if((i.item||'').trim().toUpperCase()==='MONTH END')return;
-    if((i.dateSold||i.resaleSalePrice)&&!i.isReturned){const roi=calcROI(i);if(roi!==null)items.push({...i,month:k,_roi:roi});}
+    if((i.dateSold||i.resaleSalePrice)&&!i.isReturned){
+      const saleDate=i.resaleSalePrice?i.resaleDateSold:i.dateSold;
+      if(!_inSummaryPeriod(saleDate))return;
+      const roi=calcROI(i);if(roi!==null)items.push({...i,month:k,_roi:roi});
+    }
   });});
   items.sort((a,b)=>b._roi-a._roi);
   const avg=items.length?items.reduce((s,i)=>s+i._roi,0)/items.length:0;
@@ -3220,7 +3231,9 @@ function showFilteredItems(filter){
   allDBKeys().forEach(k=>{(DB[k]||[]).forEach(i=>{
     if((i.item||'').trim().toUpperCase()==='MONTH END')return;
     const sold=(i.dateSold||i.resaleSalePrice)&&!i.isReturned;
+    const saleDate=i.resaleSalePrice?i.resaleDateSold:i.dateSold;
     if((filter==='revenue'||filter==='realised')&&sold){
+      if(!_inSummaryPeriod(saleDate))return;
       if(i.resaleSalePrice){
         const bpf=calcEbayBPF(i.salePrice);
         const grossInc=i.salePrice-bpf;
@@ -3413,16 +3426,40 @@ function renderSummary(){
 
     <div class="sl">Inventory Health</div>
 
-    ${stats.stale.length>0?`
-      <div class="stale-alert" style="cursor:pointer;" onclick="STOCK_FILTER='stale';goToTab('stock',document.querySelector('[data-tab=\\'stock\\']'))" title="View stale items in Stock page">
-        <div class="stale-dot"></div>
-        <div style="flex:1">
-          <div class="stale-text">⚠️ ${stats.stale.length} item${stats.stale.length!==1?'s':''} listed 30+ days</div>
-          <div class="stale-items">Consider repricing or relisting → <span style="text-decoration:underline">View in Stock ›</span></div>
+    ${(()=>{
+      const isFY=SUMMARY_PERIOD==='current_fy'||SUMMARY_PERIOD==='prev_fy';
+      if(isFY){
+        return stats.stale.length>0?`
+          <div class="stale-alert" style="cursor:pointer;" onclick="STOCK_FILTER='stale';goToTab('stock',document.querySelector('[data-tab=\'stock\']'))" title="View stale items in Stock page">
+            <div class="stale-dot"></div>
+            <div style="flex:1">
+              <div class="stale-text">\u26a0\ufe0f ${stats.stale.length} item${stats.stale.length!==1?'s':''} listed 30+ days</div>
+              <div class="stale-items">Consider repricing or relisting \u2192 <span style="text-decoration:underline">View in Stock \u203a</span></div>
+            </div>
+          </div>`:'';
+      }
+      const range=_periodDateRange(SUMMARY_PERIOD);
+      let listedInPeriod=0,activeStockCount=0,activeStockVal=0;
+      allDBKeys().forEach(k=>(DB[k]||[]).forEach(i=>{
+        if((i.item||'').trim().toUpperCase()==='MONTH END')return;
+        if(!i.isReturned&&!i.dateSold&&!i.resaleSalePrice){
+          activeStockCount++;activeStockVal+=(i.salePrice||0);
+          if(i.dateListed&&i.dateListed>=range.from&&i.dateListed<=range.to)listedInPeriod++;
+        }
+      }));
+      return`<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px">
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px">
+          <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:6px">Active Stock</div>
+          <div style="font-size:22px;font-weight:700;color:var(--text)">${activeStockCount}</div>
+          <div style="font-size:12px;color:var(--text-secondary);margin-top:2px">${fmt(activeStockVal)} potential</div>
         </div>
-      </div>
-    `:''}
-
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px">
+          <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:6px">Listed This Period</div>
+          <div style="font-size:22px;font-weight:700;color:var(--accent)">${listedInPeriod}</div>
+          <div style="font-size:12px;color:var(--text-secondary);margin-top:2px">new items sourced</div>
+        </div>
+      </div>`;
+    })()}
     <div class="chart-wrap" style="cursor:pointer;" onclick="toggleSellThroughBar(this,${JSON.stringify(stats.byCat).replace(/"/g,'&quot;')})">
       <div style="display:flex;align-items:center;justify-content:space-between;">
         <div>
@@ -3444,7 +3481,7 @@ function renderSummary(){
 
     <div class="chart-wrap">
       <div class="chart-title">
-        Monthly Performance
+        ${SUMMARY_PERIOD==='7d'?'Daily (7 days)':SUMMARY_PERIOD==='30d'?'Weekly (30 days)':SUMMARY_PERIOD==='60d'?'Weekly (60 days)':SUMMARY_PERIOD==='90d'?'Weekly (90 days)':'Monthly Performance'}
         <div class="chart-legend">
           <div class="leg"><div class="leg-dot" style="background:var(--blue)"></div>Revenue</div>
           <div class="leg"><div class="leg-dot" style="background:var(--green)"></div>Profit</div>
@@ -3452,31 +3489,74 @@ function renderSummary(){
       </div>
       <div class="bars-wrap">
         ${(()=>{
-          // For FY periods show that FY's months; for rolling periods show last 12 months
-          let barKeys;
-          if(SUMMARY_PERIOD==='prev_fy'){
-            barKeys=_fyKeys(_currentFYStart()-1);
-          } else if(SUMMARY_PERIOD==='current_fy'||SUMMARY_PERIOD==='7d'||SUMMARY_PERIOD==='30d'||SUMMARY_PERIOD==='60d'||SUMMARY_PERIOD==='90d'){
-            barKeys=_fyKeys(_currentFYStart());
-          } else {
-            barKeys=_fyKeys(_currentFYStart());
+          const range=_periodDateRange(SUMMARY_PERIOD);
+          const isFY=SUMMARY_PERIOD==='current_fy'||SUMMARY_PERIOD==='prev_fy';
+          const isWeekly=SUMMARY_PERIOD==='30d'||SUMMARY_PERIOD==='60d'||SUMMARY_PERIOD==='90d';
+          const isDaily=SUMMARY_PERIOD==='7d';
+
+          if(isFY){
+            const barKeys=SUMMARY_PERIOD==='prev_fy'?_fyKeys(_currentFYStart()-1):_fyKeys(_currentFYStart());
+            const maxVal=Math.max(...barKeys.map(k=>calcMonthStats(k).totalRev),1);
+            return barKeys.map(k=>{
+              const ms=calcMonthStats(k);
+              const isEmpty=ms.totalRev===0&&ms.listedCount===0;
+              const revH=(ms.totalRev/maxVal)*100;
+              const profH=(Math.max(0,ms.realisedProfit)/maxVal)*100;
+              return'<div class="bar-group'+(isEmpty?' bar-zero':'')+'" style="cursor:'+(isEmpty?'default':'pointer')+'" onclick="'+(isEmpty?'':'goToMonth(\''+k+'\')') +'">'
+                +'<div class="bar-pair" title="'+(isEmpty?'':'Click to view '+keyName(k))+'">'
+                +'<div class="bar-rev" style="height:'+(isEmpty?'0':revH)+'%"></div>'
+                +'<div class="bar-prof" style="height:'+(isEmpty?'0':profH)+'%"></div>'
+                +'</div>'
+                +'<div class="bar-label">'+MONTH_NAMES[keyCode(k)].slice(0,3)+'</div>'
+                +'</div>';
+            }).join('');
           }
-          const maxVal=Math.max(...barKeys.map(k=>calcMonthStats(k).totalRev),1);
-          return barKeys.map(k=>{
-            const ms=calcMonthStats(k);
-            const isEmpty=ms.totalRev===0&&ms.listedCount===0;
-            const revH=(ms.totalRev/maxVal)*100;
-            const profH=(Math.max(0,ms.realisedProfit)/maxVal)*100;
-            return`<div class="bar-group${isEmpty?' bar-zero':''}" style="cursor:${isEmpty?'default':'pointer'}" onclick="${isEmpty?'':'goToMonth(\''+k+'\')'}">
-              <div class="bar-pair" title="${isEmpty?'':'Click to view '+keyName(k)}">
-                <div class="bar-rev" style="height:${isEmpty?'0':revH}%"></div>
-                <div class="bar-prof" style="height:${isEmpty?'0':profH}%"></div>
-              </div>
-              <div class="bar-label">${MONTH_NAMES[keyCode(k)].slice(0,3)}</div>
-            </div>`;
+
+          // Rolling period: build day or week buckets
+          function addDays(ds,n){const d=new Date(ds);d.setDate(d.getDate()+n);return d.toISOString().split('T')[0];}
+          function fmtShort(ds){const d=new Date(ds);return(d.getMonth()+1)+'/'+(d.getDate());}
+          const buckets=[];
+          if(isDaily){
+            let cur=range.from;
+            while(cur<=range.to){buckets.push({from:cur,to:cur,label:fmtShort(cur)});cur=addDays(cur,1);}
+          } else {
+            let cur=range.from;
+            while(cur<=range.to){
+              const end=addDays(cur,6)<=range.to?addDays(cur,6):range.to;
+              buckets.push({from:cur,to:end,label:fmtShort(cur)});
+              cur=addDays(cur,7);
+            }
+          }
+          const allSold=[];
+          allDBKeys().forEach(k=>(DB[k]||[]).forEach(i=>{
+            if((i.dateSold||i.resaleSalePrice)&&!i.isReturned){
+              const sd=i.resaleSalePrice?i.resaleDateSold:i.dateSold;
+              if(sd&&sd>=range.from&&sd<=range.to)allSold.push({rev:(i.salePrice||0)+(i.resaleSalePrice?i.resaleSalePrice:0),profit:calcGrossProfit(i)||0,date:sd});
+            }
+          }));
+          const bData=buckets.map(b=>{
+            const inB=allSold.filter(x=>x.date>=b.from&&x.date<=b.to);
+            return{label:b.label,rev:inB.reduce((s,x)=>s+x.rev,0),profit:inB.reduce((s,x)=>s+x.profit,0)};
+          });
+          const maxVal=Math.max(...bData.map(b=>b.rev),1);
+          const labelEvery=1;
+          return bData.map((b,idx)=>{
+            const isEmpty=b.rev===0;
+            const revH=(b.rev/maxVal)*100;
+            const profH=(Math.max(0,b.profit)/maxVal)*100;
+            const showLabel=idx%labelEvery===0||idx===bData.length-1;
+            return'<div class="bar-group'+(isEmpty?' bar-zero':'')+'" style="cursor:default">'
+              +'<div class="bar-pair" title="'+b.label+': '+fmt(b.rev)+' rev · '+fmt(b.profit)+' profit">'
+              +'<div class="bar-rev" style="height:'+(isEmpty?'0':revH)+'%"></div>'
+              +'<div class="bar-prof" style="height:'+(isEmpty?'0':profH)+'%"></div>'
+              +'</div>'
+              +'<div class="bar-label">'+(showLabel?b.label:'')+'</div>'
+              +'</div>';
           }).join('');
         })()}
       </div>
+    </div>
+
     </div>
 
     ${(()=>{
@@ -5555,6 +5635,10 @@ function showReturnedItems(){
   allDBKeys().forEach(function(k){
     (DB[k]||[]).forEach(function(i){
       if(i.isReturned||(i.returnHistory&&i.returnHistory.length>0)){
+        // Filter by most recent return date
+        const lastReturn=i.returnHistory&&i.returnHistory.length?i.returnHistory[i.returnHistory.length-1]:null;
+        const returnDate=lastReturn?lastReturn.loggedAt:i.dateSold||'';
+        if(!_inSummaryPeriod(returnDate))return;
         items.push(Object.assign({},i,{month:k}));
       }
     });
