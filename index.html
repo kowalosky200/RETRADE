@@ -2994,6 +2994,41 @@ function autoCategory(name){
   return'Other';
 }
 
+function showStaleItems(){
+  const staleItems=[];
+  const today=new Date().toISOString().split('T')[0];
+  allDBKeys().forEach(k=>{(DB[k]||[]).forEach(i=>{
+    if((i.item||'').trim().toUpperCase()==='MONTH END')return;
+    if(!i.isReturned&&!i.dateSold&&!i.resaleSalePrice){
+      const days=daysBetween(i.dateListed,today);
+      if(days>=30)staleItems.push({...i,month:k,_daysListed:days});
+    }
+  });});
+  staleItems.sort((a,b)=>b._daysListed-a._daysListed);
+  if(!staleItems.length){openPanel('Stale Items','<div style="padding:30px;text-align:center;color:var(--muted)">No stale items — everything is moving!</div>');return;}
+  const rows=staleItems.map(i=>{
+    const dColor=i._daysListed>=60?'var(--red)':i._daysListed>=45?'var(--warn)':'var(--text-secondary)';
+    const profit=calcGrossProfit(i);
+    return'<div style="padding:10px;background:var(--surface2);border-radius:8px;margin-bottom:8px;cursor:pointer;border-left:3px solid var(--warn)" onclick="openItemDetail(\''+i.month+'\',\''+i.id+'\')">'  
+      +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">'
+      +'<div style="flex:1;font-weight:600;font-size:14px">'+esc(i.item)+'</div>'
+      +'<div style="font-size:13px;font-weight:700;color:'+dColor+'">'+i._daysListed+'d</div>'
+      +'</div>'
+      +'<div style="display:flex;gap:12px;font-size:12px;color:var(--text-secondary)">'
+      +'<span>Listed: <strong>'+fmt(i.salePrice)+'</strong></span>'
+      +(profit!==null?'<span>Potential profit: <strong style="color:var(--accent)">'+fmt(profit)+'</strong></span>':'')
+      +(i.category?'<span>'+esc(i.category)+'</span>':'')
+      +'</div>'
+      +'</div>';
+  }).join('');
+  const summary='<div style="margin-bottom:16px;display:flex;align-items:center;gap:12px;background:var(--surface2);border-radius:10px;padding:14px">'
+    +'<div style="font-size:28px;font-weight:700;color:var(--warn)">'+staleItems.length+'</div>'
+    +'<div><div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px">Stale Items</div>'
+    +'<div style="font-size:13px;color:var(--text-secondary)">Listed 30+ days without selling</div></div>'
+    +'</div>';
+  openPanel('Stale Items — '+staleItems.length+' item'+(staleItems.length!==1?'s':''),summary+rows);
+}
+
 function toggleSellThroughBar(card,byCat){
   const bd=card.querySelector('.st-breakdown');
   const chevron=card.querySelector('.st-chevron');
@@ -3430,11 +3465,11 @@ function renderSummary(){
       const isFY=SUMMARY_PERIOD==='current_fy'||SUMMARY_PERIOD==='prev_fy';
       if(isFY){
         return stats.stale.length>0?`
-          <div class="stale-alert" style="cursor:pointer;" onclick="STOCK_FILTER='stale';goToTab('stock',document.querySelector('[data-tab=\'stock\']'))" title="View stale items in Stock page">
+          <div class="stale-alert" style="cursor:pointer;" onclick="showStaleItems()" title="View stale items">
             <div class="stale-dot"></div>
             <div style="flex:1">
-              <div class="stale-text">\u26a0\ufe0f ${stats.stale.length} item${stats.stale.length!==1?'s':''} listed 30+ days</div>
-              <div class="stale-items">Consider repricing or relisting \u2192 <span style="text-decoration:underline">View in Stock \u203a</span></div>
+              <div class="stale-text">&#x26A0;&#xFE0F; ${stats.stale.length} item${stats.stale.length!==1?'s':''} listed 30+ days</div>
+              <div class="stale-items">Tap to review &rsaquo;</div>
             </div>
           </div>`:'';
       }
@@ -3451,7 +3486,7 @@ function renderSummary(){
         <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px">
           <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:6px">Active Stock</div>
           <div style="font-size:22px;font-weight:700;color:var(--text)">${activeStockCount}</div>
-          <div style="font-size:12px;color:var(--text-secondary);margin-top:2px">${fmt(activeStockVal)} potential</div>
+          <div style="font-size:12px;color:var(--text-secondary);margin-top:2px">${fmt(activeStockVal)} potential revenue</div>
         </div>
         <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px">
           <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:6px">Listed This Period</div>
@@ -3460,22 +3495,49 @@ function renderSummary(){
         </div>
       </div>`;
     })()}
-    <div class="chart-wrap" style="cursor:pointer;" onclick="toggleSellThroughBar(this,${JSON.stringify(stats.byCat).replace(/"/g,'&quot;')})">
-      <div style="display:flex;align-items:center;justify-content:space-between;">
-        <div>
-          <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:4px;">Inventory Velocity</div>
-          <div style="font-size:12px;color:var(--text-secondary);">${stats.soldCount} sold · ${stats.listedCount} active${stats.totalStaleCount>0?` · <span style="color:var(--warn);font-weight:600">${stats.totalStaleCount} stale</span>`:''}</div>
-        </div>
-        <div style="display:flex;align-items:center;gap:14px;">
-          <div style="text-align:right">
-            <div style="font-size:28px;font-weight:700;letter-spacing:-0.02em;color:${stats.avgDays<=14?'var(--green)':stats.avgDays<=30?'var(--warn)':'var(--red)'};">${stats.avgDays}<span style="font-size:14px;font-weight:500;color:var(--text-secondary);margin-left:2px">d</span></div>
-            <div style="font-size:10px;color:var(--text-secondary);font-weight:500;text-align:right;margin-top:1px;">avg days to sell</div>
+    ${(()=>{
+      const isFY=SUMMARY_PERIOD==='current_fy'||SUMMARY_PERIOD==='prev_fy';
+      const range=_periodDateRange(SUMMARY_PERIOD);
+      let periodSold=0,periodEligible=0,periodDaysSum=0,periodDaysCount=0;
+      const today=new Date().toISOString().split('T')[0];
+      allDBKeys().forEach(k=>(DB[k]||[]).forEach(i=>{
+        if((i.item||'').trim().toUpperCase()==='MONTH END')return;
+        if(i.isReturned)return;
+        const saleDate=i.resaleSalePrice?i.resaleDateSold:i.dateSold;
+        const listedBefore=i.dateListed&&i.dateListed<=range.to;
+        if(!listedBefore)return;
+        if(saleDate&&saleDate>=range.from&&saleDate<=range.to){
+          periodSold++;periodEligible++;
+          const d=calcDaysToSell(i);
+          if(d!==null){periodDaysSum+=d;periodDaysCount++;}
+        } else if(!saleDate&&!i.resaleSalePrice){
+          periodEligible++;
+        }
+      }));
+      const periodSellPct=periodEligible>0?Math.round(periodSold/periodEligible*100):null;
+      const periodAvgDays=periodDaysCount>0?Math.round(periodDaysSum/periodDaysCount):null;
+      const mainNum=isFY?(stats.avgDays+''):(periodAvgDays!==null?(periodAvgDays+''):'&#8212;');
+      const mainColor=isFY?(stats.avgDays<=14?'var(--green)':stats.avgDays<=30?'var(--warn)':'var(--red)'):(periodAvgDays===null?'var(--muted)':periodAvgDays<=14?'var(--green)':periodAvgDays<=30?'var(--warn)':'var(--red)');
+      const subLine=isFY
+        ?(stats.soldCount+' sold &middot; '+stats.listedCount+' active'+(stats.totalStaleCount>0?' &middot; <span style="color:var(--warn);font-weight:600">'+stats.totalStaleCount+' stale</span>':''))
+        :(periodSellPct!==null?(periodSellPct+'% sell-through &middot; '+periodSold+' sold'):'No sales in period');
+      return`<div class="chart-wrap" style="cursor:pointer;" onclick="toggleSellThroughBar(this,${JSON.stringify(stats.byCat).replace(/"/g,'&quot;')})">
+        <div style="display:flex;align-items:center;justify-content:space-between;">
+          <div>
+            <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:4px;">Inventory Velocity</div>
+            <div style="font-size:12px;color:var(--text-secondary);">${subLine}</div>
           </div>
-          <span class="st-chevron" style="font-size:18px;color:var(--muted);transition:transform 0.2s;display:inline-block;">▾</span>
+          <div style="display:flex;align-items:center;gap:14px;">
+            <div style="text-align:right">
+              <div style="font-size:28px;font-weight:700;letter-spacing:-0.02em;color:${mainColor};">${mainNum}<span style="font-size:14px;font-weight:500;color:var(--text-secondary);margin-left:2px">d</span></div>
+              <div style="font-size:10px;color:var(--text-secondary);font-weight:500;text-align:right;margin-top:1px;">avg days to sell</div>
+            </div>
+            <span class="st-chevron" style="font-size:18px;color:var(--muted);transition:transform 0.2s;display:inline-block;">&#9662;</span>
+          </div>
         </div>
-      </div>
-      <div class="st-breakdown" style="display:none;margin-top:14px;border-top:1px solid var(--border);padding-top:14px;"></div>
-    </div>
+        <div class="st-breakdown" style="display:none;margin-top:14px;border-top:1px solid var(--border);padding-top:14px;"></div>
+      </div>`;
+    })()}
 
     <div class="sl">Activity</div>
 
