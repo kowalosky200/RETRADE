@@ -1095,6 +1095,7 @@ let STOCK_FILTER='all';           // stock filter: all | stale
 let STOCK_SELECTION_MODE=false;   // stock page checkbox mode
 let STOCK_SELECTED=new Set();     // stock page selection
 let MONTHLY_VIEW='grid';          // 'grid' | 'detail'
+let SUMMARY_PERIOD='current_fy';  // summary period filter
 
 // CUSTOM CONFIRM MODAL
 let _confirmResolve=null;
@@ -3340,11 +3341,29 @@ function showFilteredItems(filter){
   openPanel(titles[filter]||'Items',html);
 }
 
+function setSummaryPeriod(p){SUMMARY_PERIOD=p;renderSummary();}
+
 function renderSummary(){
   const stats=calcYearlyStats();
 
+  const periods=[
+    {key:'7d',label:'Last 7 days'},
+    {key:'30d',label:'Last 30 days'},
+    {key:'60d',label:'Last 60 days'},
+    {key:'90d',label:'Last 90 days'},
+    {key:'current_fy',label:'Current FY'},
+    {key:'prev_fy',label:'Previous FY'},
+  ];
+  const pickerHTML=`<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:20px;">
+    ${periods.map(p=>{
+      const active=SUMMARY_PERIOD===p.key;
+      return`<button onclick="setSummaryPeriod('${p.key}')" style="padding:5px 12px;border-radius:20px;border:1.5px solid ${active?'var(--accent)':'var(--border)'};background:${active?'var(--accent)':'var(--surface)'};color:${active?'#000':'var(--text-secondary)'};font-size:12px;font-weight:${active?'700':'500'};cursor:pointer;transition:all 0.15s;white-space:nowrap">${p.label}</button>`;
+    }).join('')}
+  </div>`;
+
   const html=`
     <div class="sl">Overview</div>
+    ${pickerHTML}
     <div class="kgrid kgrid-4">
       <div class="kcard b clickable" onclick="showFilteredItems('revenue')">
         <div class="klabel">Total Revenue</div>
@@ -3433,9 +3452,17 @@ function renderSummary(){
       </div>
       <div class="bars-wrap">
         ${(()=>{
-          const fyKeys=_fyKeys(_currentFYStart());
-          const maxVal=Math.max(...fyKeys.map(k=>calcMonthStats(k).totalRev),1);
-          return fyKeys.map(k=>{
+          // For FY periods show that FY's months; for rolling periods show last 12 months
+          let barKeys;
+          if(SUMMARY_PERIOD==='prev_fy'){
+            barKeys=_fyKeys(_currentFYStart()-1);
+          } else if(SUMMARY_PERIOD==='current_fy'||SUMMARY_PERIOD==='7d'||SUMMARY_PERIOD==='30d'||SUMMARY_PERIOD==='60d'||SUMMARY_PERIOD==='90d'){
+            barKeys=_fyKeys(_currentFYStart());
+          } else {
+            barKeys=_fyKeys(_currentFYStart());
+          }
+          const maxVal=Math.max(...barKeys.map(k=>calcMonthStats(k).totalRev),1);
+          return barKeys.map(k=>{
             const ms=calcMonthStats(k);
             const isEmpty=ms.totalRev===0&&ms.listedCount===0;
             const revH=(ms.totalRev/maxVal)*100;
@@ -3453,9 +3480,13 @@ function renderSummary(){
     </div>
 
     ${(()=>{
+      const range=_periodDateRange(SUMMARY_PERIOD);
+      function inRangeTF(dateStr){if(!range.from)return true;if(!dateStr)return false;return dateStr>=range.from&&dateStr<=range.to;}
       const sold=[];
       allDBKeys().forEach(k=>(DB[k]||[]).forEach(i=>{
         if((i.dateSold||i.resaleSalePrice)&&!i.isReturned){
+          const saleDate=i.resaleSalePrice?i.resaleDateSold:i.dateSold;
+          if(!inRangeTF(saleDate))return;
           const profit=calcGrossProfit(i);
           const roi=calcROI(i);
           if(profit!==null)sold.push({...i,month:k,profit,roi});
@@ -5786,7 +5817,32 @@ function renderTax(){
 
 
 // STATS
-function calcYearlyStats(){
+function _periodDateRange(period){
+  const today=new Date();
+  const todayStr=today.toISOString().split('T')[0];
+  function daysAgo(n){const d=new Date(today);d.setDate(d.getDate()-n);return d.toISOString().split('T')[0];}
+  if(period==='7d')  return{from:daysAgo(7),  to:todayStr};
+  if(period==='30d') return{from:daysAgo(30), to:todayStr};
+  if(period==='60d') return{from:daysAgo(60), to:todayStr};
+  if(period==='90d') return{from:daysAgo(90), to:todayStr};
+  if(period==='current_fy'||!period){
+    const fy=_currentFYStart();
+    return{from:fy+'-04-01',to:(fy+1)+'-03-31'};
+  }
+  if(period==='prev_fy'){
+    const fy=_currentFYStart()-1;
+    return{from:fy+'-04-01',to:(fy+1)+'-03-31'};
+  }
+  return{from:null,to:null}; // all time
+}
+
+function calcYearlyStats(period){
+  const range=_periodDateRange(period||SUMMARY_PERIOD);
+  function inRange(dateStr){
+    if(!range.from)return true;
+    if(!dateStr)return false;
+    return dateStr>=range.from&&dateStr<=range.to;
+  }
   let totalRev=0,realisedProfit=0,unrealisedProfit=0,stockValue=0;
   let soldCount=0,listedCount=0,totalItems=0,returnCount=0;
   let soldItems=[],stale=[];
@@ -5794,15 +5850,17 @@ function calcYearlyStats(){
   allDBKeys().forEach(k=>{
     (DB[k]||[]).forEach(i=>{
       if((i.item||"").trim().toUpperCase()==="MONTH END")return;
+      const saleDate=i.resaleSalePrice?i.resaleDateSold:i.dateSold;
+      const soldInRange=inRange(saleDate);
       totalItems++;
-      if((i.dateSold||i.resaleSalePrice)&&!i.isReturned&&i.condition!=='spares')saleTransactions.push(i.salePrice||0);
-      if(i.resaleSalePrice&&i.condition!=='spares')saleTransactions.push(i.resaleSalePrice||0);
+      if(soldInRange&&(i.dateSold||i.resaleSalePrice)&&!i.isReturned&&i.condition!=='spares')saleTransactions.push(i.salePrice||0);
+      if(soldInRange&&i.resaleSalePrice&&i.condition!=='spares')saleTransactions.push(i.resaleSalePrice||0);
       // Count as a return if item has any full return in history (even if since relisted)
       const hadFullReturn=(i.returnHistory||[]).some(r=>r.type==='full_seller'||r.type==='full_ebay');
-      if(i.isReturned||hadFullReturn){
+      if(soldInRange&&(i.isReturned||hadFullReturn)){
         returnCount++;
       }
-      if((i.dateSold||i.resaleSalePrice) && !i.isReturned){
+      if(soldInRange&&(i.dateSold||i.resaleSalePrice) && !i.isReturned){
         soldCount++;
         const prof=calcGrossProfit(i);
         totalRev+=(i.totalRev||i.salePrice||0);
@@ -5827,7 +5885,8 @@ function calcYearlyStats(){
   allDBKeys().forEach(k=>{(DB[k]||[]).forEach(i=>{
     if((i.item||'').trim().toUpperCase()==='MONTH END')return;
     if(i.isReturned)return;
-    // Only include items listed long enough to have had a fair 14-day window
+    const saleDate14=i.resaleSalePrice?i.resaleDateSold:i.dateSold;
+    if(!inRange(saleDate14||i.dateListed))return;
     const today=new Date().toISOString().split('T')[0];
     const daysOnSale=daysBetween(i.dateListed,today);
     if(i.dateSold||i.resaleDateSold){
@@ -5836,22 +5895,21 @@ function calcYearlyStats(){
     }else if(daysOnSale>=14){
       eligible14.push({sold14:false});
     }
-    // Items listed <14 days ago and unsold are excluded — they haven't had their window yet
   });});
   const sold14Count=eligible14.filter(x=>x.sold14).length;
   const sellThrough14=eligible14.length?sold14Count/eligible14.length*100:0;
   const soldWithDate=soldItems.filter(i=>calcDaysToSell(i)!==null);
   const avgDays=soldWithDate.length?Math.round(soldWithDate.reduce((s,i)=>s+calcDaysToSell(i),0)/soldWithDate.length):0;
-  // Avg buy price: all items ever sourced — buying discipline metric regardless of outcome
-  const allSourcingItems=[];
-  allDBKeys().forEach(k=>{(DB[k]||[]).forEach(i=>{if((i.item||'').trim().toUpperCase()!=='MONTH END')allSourcingItems.push(i);});});
-  const avgCostPrice=allSourcingItems.length?allSourcingItems.reduce((s,i)=>s+(i.costPrice||0),0)/allSourcingItems.length:0;
+  // Avg buy price: scoped to period for sold items, all time for unsold stock
+  const avgCostPrice=soldItems.length?soldItems.reduce((s,i)=>s+(i.costPrice||0),0)/soldItems.length:0;
   // Build category sell-through data — avg days and stale per category
   const catMap={};
   const today3=new Date().toISOString().split('T')[0];
   allDBKeys().forEach(k=>{
     (DB[k]||[]).forEach(i=>{
       if((i.item||"").trim().toUpperCase()==="MONTH END")return;
+      const sdCat=i.resaleSalePrice?i.resaleDateSold:i.dateSold;
+      if(!inRange(sdCat||i.dateListed))return;
       const cat=i.category||'Uncategorised';
       if(!catMap[cat])catMap[cat]={sold:0,total:0,daysSum:0,stale:0,fast:0,avgS:0,slow:0};
       catMap[cat].total++;
@@ -5880,6 +5938,8 @@ function calcYearlyStats(){
   // Partial refund stats
   let partialRefundCount=0;
   allDBKeys().forEach(k=>{(DB[k]||[]).forEach(i=>{
+    const sdPR=i.resaleSalePrice?i.resaleDateSold:i.dateSold;
+    if(!inRange(sdPR))return;
     if(i.returnHistory&&i.returnHistory.some(r=>r.type==='partial_seller'||r.type==='partial_ebay'))partialRefundCount++;
   });});
   const partialRefundRate=(soldCount+returnCount)>0?partialRefundCount/(soldCount+returnCount)*100:0;
