@@ -709,7 +709,7 @@ nav:not(#bottom-nav){position:sticky;top:0;z-index:200;background:var(--surface)
     <div class="tabs-row">
       <div class="tabs">
         <button class="tab on" data-tab="summary" onclick="goToTab('summary',this)">Summary</button>
-        <button class="tab" data-tab="monthly" onclick="goToTab('monthly',this)">Monthly</button>
+        <button class="tab" data-tab="monthly" onclick="goToTab('monthly',this)">Calendar</button>
         <button class="tab" data-tab="stock" onclick="goToTab('stock',this)">Stock</button>
       </div>
       <!-- More dropdown — Expenses, Tax, Data always here, no dynamic overflow -->
@@ -762,7 +762,7 @@ nav:not(#bottom-nav){position:sticky;top:0;z-index:200;background:var(--surface)
   </button>
   <button class="bnt" data-tab="monthly" onclick="goToTab('monthly',this)">
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-    Monthly
+    Calendar
   </button>
   <button class="bnt" data-tab="stock" onclick="goToTab('stock',this)">
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 7H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z"/><path d="M16 3H8l-2 4h12l-2-4z"/></svg>
@@ -3426,19 +3426,21 @@ function _getFYLabel(fyStart){
 
 function _getMonthFY(m){
   // m = e.g. 'APR' (MONTHS array uses 3-letter codes, no year suffix).
-  // We infer the calendar year from DB data: find the earliest/latest year items exist for this month,
-  // or fall back to the current year. FY starts in April.
-  // Since app tracks a single rolling year, map by month index only:
-  // Jan, Feb, Mar → belong to FY that started previous April (FY year = current year - 1 if month < Apr)
-  // Apr–Dec → belong to FY that started this April (FY year = current year)
+  // UK tax year runs Apr–Mar. MONTHS covers one calendar year Jan–Dec.
+  // We split them across two tax years:
+  //   Jan, Feb, Mar → tail end of the PREVIOUS tax year (FY started Apr year-1)
+  //   Apr–Dec       → start of the CURRENT tax year (FY started Apr this year)
+  // Example (today = Apr 2026):
+  //   APR–DEC → FY 2026 (tax year 2026-27)  ← future months not yet reached
+  //   JAN–MAR → FY 2025 (tax year 2025-26)  ← already passed
   const mo=['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'].indexOf(m);
   const now=new Date();
   const yr=now.getFullYear();
   const curMo=now.getMonth(); // 0=Jan
-  // If current month is Jan/Feb/Mar, the "current FY" started last April
+  // fyBase = the year the current tax year STARTED (i.e. the April)
   const fyBase=curMo<3?yr-1:yr;
-  // Assign month to FY: Apr(3)+ in fyBase year, Jan(0)-Mar(2) in fyBase+1 year
-  return mo>=3?fyBase:fyBase+1;
+  // Apr(3)–Dec(11) belong to fyBase; Jan(0)–Mar(2) belong to fyBase-1
+  return mo>=3?fyBase:fyBase-1;
 }
 
 function _getCurrentFY(){
@@ -3474,7 +3476,7 @@ function renderMonthlyGrid(){
   const fyMonthOrder=['APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC','JAN','FEB','MAR'];
 
   let html='<div style="padding-bottom:80px;">';
-  html+='<h1 style="font-size:26px;font-weight:700;letter-spacing:-0.02em;margin-bottom:20px;">Monthly</h1>';
+  html+='<h1 style="font-size:26px;font-weight:700;letter-spacing:-0.02em;margin-bottom:20px;">Calendar</h1>';
 
   fyYears.forEach(function(fy){
     const months=(fyMap[fy]||[]).slice().sort(function(a,b){
@@ -3601,7 +3603,7 @@ function renderMonth(){
     return db<da?-1:db>da?1:0;
   });
 
-  const backLabel=_monthOrigin==='grid'?'← All months':_monthOrigin==='p-summary'?'← Summary':'← Back';
+  const backLabel=_monthOrigin==='grid'?'← Calendar':_monthOrigin==='p-summary'?'← Summary':'← Back';
   const backAction=_monthOrigin==='grid'
     ?`backToMonthlyGrid()`
     :_monthOrigin==='p-summary'
