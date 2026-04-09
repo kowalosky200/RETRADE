@@ -5290,6 +5290,11 @@ function openRelist(m,id){
         </div>
       </div>
 
+      <div class="fg" style="margin-bottom:16px">
+        <label>Relist date</label>
+        <input type="date" id="relist-date" value="${new Date().toISOString().split('T')[0]}" style="padding:10px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:14px;font-family:inherit;width:100%;box-sizing:border-box">
+      </div>
+
       <div style="font-size:11px;color:var(--muted);margin-bottom:16px;padding:10px 12px;background:var(--surface2);border-radius:8px;line-height:1.6">
         ℹ️ <strong>Spares / Repairs</strong> items are excluded from your average sale price stats so they don't skew your numbers.
       </div>
@@ -5331,7 +5336,8 @@ function confirmRelist(m,id){
   i.grossProfit=null;
   // Log relist in returnHistory for audit trail
   if(i.returnHistory&&i.returnHistory.length){
-    i.returnHistory[i.returnHistory.length-1]._relistedAt=new Date().toISOString().split('T')[0];
+    const relistDate=document.getElementById('relist-date').value||new Date().toISOString().split('T')[0];
+    i.returnHistory[i.returnHistory.length-1]._relistedAt=relistDate;
     i.returnHistory[i.returnHistory.length-1]._relistCondition=condition;
   }
   saveDB();
