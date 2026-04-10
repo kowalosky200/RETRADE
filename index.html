@@ -8,26 +8,27 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 :root{
-  --bg:#f0f0ed;--surface:#fafaf8;--surface2:#e8e8e4;--border:#d4d4ce;--border2:#c0c0b8;
-  --accent:#e8a020;--accent-hover:#cc8c18;--accent-dim:rgba(232,160,32,0.12);
-  --green:#16a34a;--green-hover:#15803d;--green-dim:rgba(22,163,74,0.12);
-  --red:#dc2626;--red-hover:#b91c1c;--red-dim:rgba(220,38,38,0.12);
-  --blue:#2563eb;--purple:#7c3aed;--warn:#e8a020;
-  --text:#1a1a18;--text-secondary:#5a5a54;--muted:#9a9a90;
-  --shadow:rgba(0,0,0,0.08);--shadow-md:rgba(0,0,0,0.14);--overlay:rgba(0,0,0,0.4);
+  --bg:#f5f0e8;--surface:#fdf9f3;--surface2:#ece6da;--border:#ddd6c8;--border2:#c8bfb0;
+  --accent:#d4880a;--accent-hover:#b8740a;--accent-dim:rgba(212,136,10,0.12);
+  --green:#1a7a4a;--green-hover:#156038;--green-dim:rgba(26,122,74,0.12);
+  --red:#c0392b;--red-hover:#a93226;--red-dim:rgba(192,57,43,0.12);
+  --blue:#1d5fa8;--purple:#6b3fa0;--warn:#d4880a;
+  --text:#1a1610;--text-secondary:#5a5040;--muted:#a09880;
+  --shadow:rgba(0,0,0,0.07);--shadow-md:rgba(0,0,0,0.13);--overlay:rgba(0,0,0,0.4);
   --radius-sm:8px;--radius:12px;--radius-lg:16px;
   --font-display:'Space Grotesk',system-ui,sans-serif;
   --font-body:'Inter',system-ui,sans-serif;
   --font-mono:'Space Mono',monospace;
 }
 [data-theme="dark"]{
-  --bg:#080d18;--surface:#0e1525;--surface2:#162035;--border:#1e2d47;--border2:#2a3f5f;
-  --accent:#f0a830;--accent-hover:#f5bc52;--accent-dim:rgba(240,168,48,0.1);
-  --green:#34d399;--green-hover:#6ee7b7;--green-dim:rgba(52,211,153,0.1);
-  --red:#f87171;--red-hover:#fca5a5;--red-dim:rgba(248,113,113,0.1);
-  --blue:#60a5fa;--purple:#a78bfa;--warn:#f0a830;
-  --text:#e8edf5;--text-secondary:#7a90b0;--muted:#3a4f6a;
-  --shadow:rgba(0,0,0,0.5);--shadow-md:rgba(0,0,0,0.7);--overlay:rgba(0,5,15,0.8);
+  --bg:#111118;--surface:#1a1a24;--surface2:#22222f;--border:#2e2e3e;--border2:#3a3a4e;
+  --accent:#f5a623;--accent-hover:#fbbf3a;--accent-dim:rgba(245,166,35,0.12);
+  --green:#2dd4a0;--green-hover:#5ee8be;--green-dim:rgba(45,212,160,0.12);
+  --red:#f87171;--red-hover:#fca5a5;--red-dim:rgba(248,113,113,0.12);
+  --blue:#7eb8f7;--purple:#b794f4;--warn:#f5a623;
+  --red-vivid:#e53e3e;
+  --text:#f0ede8;--text-secondary:#9a96a0;--muted:#52505a;
+  --shadow:rgba(0,0,0,0.4);--shadow-md:rgba(0,0,0,0.6);--overlay:rgba(8,8,12,0.88);
 }
 *{box-sizing:border-box;margin:0;padding:0;}
 html{overflow-x:hidden;}
@@ -35,14 +36,16 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-body);font-si
 
 /* NAV — Desktop: full width, single row */
 nav:not(#bottom-nav){position:sticky;top:0;z-index:200;background:var(--surface);border-bottom:1px solid var(--border);}
-[data-theme="dark"] nav:not(#bottom-nav){background:rgba(14,21,37,0.97);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border-bottom-color:var(--border);}
+[data-theme="dark"] nav:not(#bottom-nav){background:rgba(17,17,24,0.98);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border-bottom-color:var(--border);}
+[data-theme="dark"] #bottom-nav{background:rgba(17,17,24,0.98);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);}
 .nav-inner{width:100%;max-width:1148px;margin:0 auto;display:flex;align-items:center;height:50px;padding:0 20px;gap:0;}
 /* Brand */
-.brand{display:flex;align-items:center;gap:9px;cursor:crosshair;user-select:none;flex-shrink:0;margin-right:16px;transition:opacity 0.15s;}
+.brand{display:flex;align-items:center;gap:9px;cursor:pointer;user-select:none;flex-shrink:0;margin-right:16px;transition:opacity 0.15s;}
 .brand:hover{opacity:0.8;}
 .brand-text{display:flex;flex-direction:column;gap:0;line-height:1;}
-.brand-general{font-family:'Inter',sans-serif;font-size:12px;font-weight:700;letter-spacing:0.14em;color:var(--text);text-transform:uppercase;}
-.brand-007{font-family:'Space Mono',monospace;font-size:10px;font-weight:700;color:var(--accent);letter-spacing:0.08em;}
+.brand-general{font-family:'Inter',sans-serif;font-size:12px;font-weight:800;letter-spacing:0.16em;color:var(--text);text-transform:uppercase;}
+.brand-007{font-family:'Space Mono',monospace;font-size:11px;font-weight:700;color:var(--accent);letter-spacing:0.1em;}
+.brand svg circle{filter:drop-shadow(0 0 3px rgba(245,166,35,0.4));}
 /* Primary tabs — left cluster */
 .tabs-row{display:flex;align-items:center;gap:0;flex-shrink:0;}
 .tabs{display:flex;gap:0;}
@@ -203,7 +206,7 @@ nav:not(#bottom-nav){position:sticky;top:0;z-index:200;background:var(--surface)
 .kcard.active-filter{border-color:var(--accent);background:var(--accent-dim);}
 .kcard.active-filter::before{content:'▾';position:absolute;bottom:10px;right:14px;font-size:14px;color:var(--accent);}
 .kcard::after{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:var(--accent);opacity:0.8;}
-.kcard.g::after{background:var(--green);}.kcard.r::after{background:var(--red);}.kcard.b::after{background:var(--blue);}.kcard.p::after{background:var(--purple);}
+.kcard.g::after{background:var(--green);}.kcard.r::after{background:#e05555;}.kcard.b::after{background:var(--blue);}.kcard.p::after{background:var(--purple);}
 .klabel{font-family:var(--font-display);font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;font-weight:600;}
 .kval{font-family:"Inter",system-ui,sans-serif;font-size:28px;font-weight:700;line-height:1.05;letter-spacing:-0.03em;margin:8px 0 4px;}
 .ksub{font-size:11px;color:var(--muted);margin-top:6px;font-weight:400;letter-spacing:0.01em;}
@@ -211,7 +214,7 @@ nav:not(#bottom-nav){position:sticky;top:0;z-index:200;background:var(--surface)
 /* INSIGHTS */
 .insights{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px;}
 .insight-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;display:flex;align-items:center;gap:12px;box-shadow:0 1px 2px var(--shadow);}
-.insight-icon{font-size:20px;flex-shrink:0;}
+.insight-icon{font-size:22px;flex-shrink:0;display:flex;align-items:center;justify-content:center;width:28px;height:28px;}
 .insight-label{font-family:var(--font-display);font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:0.07em;margin-bottom:5px;font-weight:600;}
 .insight-val{font-family:"Inter",system-ui,sans-serif;font-size:19px;font-weight:700;letter-spacing:-0.03em;}
 .insight-sub{font-size:11px;color:var(--text-secondary);margin-top:3px;}
@@ -227,7 +230,7 @@ nav:not(#bottom-nav){position:sticky;top:0;z-index:200;background:var(--surface)
 
 /* SECTION LABEL */
 .sl{display:inline-flex;align-items:center;width:auto;font-family:var(--font-display);font-size:10px;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;color:var(--muted);background:transparent;border:none;border-radius:0;padding:0;margin:20px 0 12px;box-sizing:border-box;gap:8px;}
-.sl::before{content:'';display:inline-block;width:16px;height:2px;background:var(--accent);border-radius:2px;flex-shrink:0;}
+.sl::before{content:'';display:inline-block;width:12px;height:2px;background:var(--accent);border-radius:2px;flex-shrink:0;}
 .sl::after{display:none;}
 
 /* MONTH GRID */
@@ -369,9 +372,7 @@ nav:not(#bottom-nav){position:sticky;top:0;z-index:200;background:var(--surface)
   .insights{grid-template-columns:1fr!important;}
   /* Summary 4-card: 2x2 on mobile */
   .kgrid-4{grid-template-columns:1fr 1fr!important;}
-  /* Period pills scroll on mobile */
-  .period-pills{flex-wrap:nowrap;overflow-x:auto;padding-bottom:4px;-webkit-overflow-scrolling:touch;}
-  .period-pills::-webkit-scrollbar{display:none;}
+
   /* Bar chart — more compact on mobile */
   .bars-wrap{height:160px;gap:3px;padding-top:10px;}
   .bar-pair{height:114px;}
@@ -491,15 +492,25 @@ nav:not(#bottom-nav){position:sticky;top:0;z-index:200;background:var(--surface)
 .chip{padding:7px 14px;border-radius:7px;border:none;background:transparent;color:var(--text-secondary);font-family:var(--font-body);font-size:12px;font-weight:500;letter-spacing:0;text-transform:none;cursor:pointer;transition:all 0.15s;white-space:nowrap;display:flex;align-items:center;gap:5px;}
 .chip:hover{color:var(--text);}
 .chip.active{background:var(--surface);color:var(--text);box-shadow:0 1px 4px var(--shadow);}
-[data-theme="light"] .chip.active{background:#fff;}
+[data-theme="light"] .chip.active{background:#fdf9f3;}
 .chip .chip-count{font-size:10px;color:var(--muted);font-weight:600;}
 .chip.active .chip-count{color:var(--text-secondary);}
 
 /* PERIOD PILLS — summary page */
-.period-pills{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px;}
-.period-pill{padding:6px 14px;border-radius:20px;border:1px solid var(--border);background:transparent;color:var(--text-secondary);font-family:var(--font-body);font-size:12px;font-weight:500;letter-spacing:0;cursor:pointer;transition:all 0.15s;white-space:nowrap;}
-.period-pill:hover{border-color:var(--accent);color:var(--text);}
-.period-pill.active{border-color:var(--accent);background:var(--accent);color:#000;font-weight:600;}
+/* PERIOD SELECT INLINE — sits in the sl row, ghost style */
+.period-select-inline{padding:6px 28px 6px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text-secondary);font-family:var(--font-body);font-size:12px;font-weight:500;cursor:pointer;outline:none;appearance:none;-webkit-appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 12 12'%3E%3Cpath fill='%239a96a0' d='M6 9L1 4h10z'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 9px center;transition:border-color 0.15s;white-space:nowrap;flex-shrink:0;}
+.period-select-inline:hover{border-color:var(--border2);}
+.period-select-inline:focus{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-dim);}
+[data-theme="dark"] .period-select-inline{color-scheme:dark;}
+/* PERIOD SELECT (standalone — keep for any other use) */
+.period-select-wrap{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;gap:12px;}
+.period-select-label{font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;white-space:nowrap;}
+.period-select{flex:1;max-width:200px;padding:8px 32px 8px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:var(--font-body);font-size:13px;font-weight:500;cursor:pointer;outline:none;appearance:none;-webkit-appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%238096b8' d='M6 9L1 4h10z'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center;transition:border-color 0.15s,box-shadow 0.15s;}
+.period-select:hover{border-color:var(--border2);}
+.period-select:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-dim);}
+[data-theme="dark"] .period-select{color-scheme:dark;}
+/* mobile: full width */
+@media(max-width:600px){.period-select{max-width:none;flex:1;}}
 
 /* LIST TOOLBAR */
 .list-toolbar{display:flex;align-items:center;gap:8px;margin-bottom:10px;padding:0 2px;flex-wrap:wrap;}
@@ -582,7 +593,7 @@ nav:not(#bottom-nav){position:sticky;top:0;z-index:200;background:var(--surface)
 .ip-postage-mode{display:flex;gap:0;background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:2px;flex-shrink:0;}
 .ip-postage-mode-btn{padding:4px 10px;border-radius:5px;border:none;background:transparent;font-size:11px;font-weight:600;color:var(--text-secondary);cursor:pointer;transition:all 0.12s;white-space:nowrap;}
 .ip-postage-mode-btn.active{background:var(--surface);color:var(--text);box-shadow:0 1px 3px var(--shadow);}
-[data-theme="light"] .ip-postage-mode-btn.active{background:#fff;}
+[data-theme="light"] .ip-postage-mode-btn.active{background:#fdf9f3;}
 .ip-postage-divider{width:1px;background:var(--border);height:20px;flex-shrink:0;}
 .ip-postage-select{flex:1;min-width:0;padding:4px 24px 4px 8px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:inherit;font-size:11px!important;font-weight:500;cursor:pointer;outline:none;transition:border-color 0.15s,box-shadow 0.15s;appearance:none;-webkit-appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 12 12'%3E%3Cpath fill='%236b7280' d='M6 9L1 4h10z'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 8px center;}
 .ip-postage-select:hover{border-color:var(--border2);}
@@ -706,16 +717,18 @@ nav:not(#bottom-nav){position:sticky;top:0;z-index:200;background:var(--surface)
 }
 
 /* ── G007 IDENTITY ─────────────────────────────────────────────────────── */
+/* Ambient page glow — warms up the summary page */
+[data-theme="dark"] #p-summary{background-image:radial-gradient(ellipse 60% 30% at 50% 0%,rgba(245,166,35,0.04) 0%,transparent 60%);}
+[data-theme="dark"] #p-monthly{background-image:radial-gradient(ellipse 50% 25% at 50% 0%,rgba(125,185,247,0.03) 0%,transparent 55%);}
 /* Auth overlay — dark background always, regardless of theme */
-#auth-overlay{background:#080d18!important;background-image:radial-gradient(ellipse 80% 60% at 50% 100%, rgba(30,45,71,0.6) 0%, transparent 70%),radial-gradient(ellipse 40% 40% at 20% 80%, rgba(240,168,48,0.04) 0%, transparent 60%);background-attachment:fixed;}
-#auth-screen-login,#auth-screen-reset{background:#0e1525!important;border-color:#1e2d47!important;}
+#auth-overlay{background:#111118!important;background-image:radial-gradient(ellipse 70% 50% at 50% 110%, rgba(245,166,35,0.06) 0%, transparent 60%),radial-gradient(ellipse 50% 40% at 15% 85%, rgba(229,83,83,0.05) 0%, transparent 55%),radial-gradient(ellipse 40% 40% at 85% 20%, rgba(125,185,247,0.04) 0%, transparent 50%);background-attachment:fixed;}
+#auth-screen-login,#auth-screen-reset{background:#1a1a24!important;border-color:#2e2e3e!important;}
 
 /* FAB — double ring on hover (target motif) */
 .fab{position:fixed;bottom:24px;right:24px;z-index:300;width:52px;height:52px;border-radius:50%;background:var(--accent);color:#000;border:none;cursor:pointer;font-size:24px;font-weight:700;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 20px var(--shadow-md),0 0 0 0 var(--accent-dim);transition:all 0.2s;}
 .fab:hover{transform:scale(1.08);background:var(--accent-hover);box-shadow:0 4px 20px var(--shadow-md),0 0 0 6px var(--accent-dim);}
 
-/* Brand — subtle crosshair cursor */
-.brand{cursor:crosshair!important;}
+.brand{cursor:pointer;}
 
 /* Scrollbar — amber thumb on hover */
 ::-webkit-scrollbar{width:5px;height:5px;}
@@ -745,23 +758,21 @@ nav:not(#bottom-nav){position:sticky;top:0;z-index:200;background:var(--surface)
   <div class="nav-inner">
 
     <!-- Brand -->
-    <div class="brand" onclick="goToTab('summary')" style="margin-right:16px;gap:9px;">
-      <svg width="28" height="28" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <!-- outer ring -->
-  <circle cx="14" cy="14" r="12.5" stroke="var(--accent)" stroke-width="1.2" opacity="0.7"/>
-  <!-- inner ring -->
-  <circle cx="14" cy="14" r="7" stroke="var(--accent)" stroke-width="0.8" opacity="0.5"/>
-  <!-- crosshair lines -->
-  <line x1="14" y1="1" x2="14" y2="5.5" stroke="var(--accent)" stroke-width="1" stroke-linecap="round" opacity="0.8"/>
-  <line x1="14" y1="22.5" x2="14" y2="27" stroke="var(--accent)" stroke-width="1" stroke-linecap="round" opacity="0.8"/>
-  <line x1="1" y1="14" x2="5.5" y2="14" stroke="var(--accent)" stroke-width="1" stroke-linecap="round" opacity="0.8"/>
-  <line x1="22.5" y1="14" x2="27" y2="14" stroke="var(--accent)" stroke-width="1" stroke-linecap="round" opacity="0.8"/>
-  <!-- centre dot -->
-  <circle cx="14" cy="14" r="1.5" fill="var(--accent)"/>
+    <div class="brand" onclick="goToTab('summary')" style="margin-right:16px;">
+      <div style="display:flex;flex-direction:column;gap:3px;line-height:1;">
+        <span style="font-family:'Inter',sans-serif;font-size:13px;font-weight:800;letter-spacing:0.2em;color:var(--text);text-transform:uppercase;line-height:1;">General</span>
+        <svg width="38" height="14" viewBox="0 0 38 14" fill="none" xmlns="http://www.w3.org/2000/svg" style="flex-shrink:0;display:block;">
+  <!-- 0 -->
+  <rect x="0.7" y="0.7" width="8.6" height="12.6" rx="3.2" stroke="var(--accent)" stroke-width="1.4" fill="none"/>
+  <!-- 0 -->
+  <rect x="13.7" y="0.7" width="8.6" height="12.6" rx="3.2" stroke="var(--accent)" stroke-width="1.4" fill="none"/>
+  <!-- 7 — horizontal top bar -->
+  <line x1="27" y1="1.4" x2="37" y2="1.4" stroke="var(--accent)" stroke-width="1.6" stroke-linecap="round"/>
+  <!-- 7 — angled barrel stroke (top-right to bottom-left with pistol kick) -->
+  <path d="M36.2 1.4 L30.8 8.5 L29.2 13" stroke="var(--accent)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+  <!-- 7 — small serif/tick at barrel foot -->
+  <line x1="28.0" y1="11.8" x2="31.0" y2="13.4" stroke="var(--accent)" stroke-width="1.2" stroke-linecap="round" opacity="0.7"/>
 </svg>
-      <div class="brand-text" style="display:flex;flex-direction:column;gap:0;line-height:1;">
-        <span style="font-family:'Inter',sans-serif;font-size:12px;font-weight:700;letter-spacing:0.12em;color:var(--text);text-transform:uppercase;">General</span>
-        <span style="font-family:'Space Mono',monospace;font-size:10px;font-weight:700;color:var(--accent);letter-spacing:0.08em;">007</span>
       </div>
     </div>
 
@@ -968,22 +979,19 @@ nav:not(#bottom-nav){position:sticky;top:0;z-index:200;background:var(--surface)
     <div style="position:absolute;top:0;left:50%;transform:translateX(-50%);width:1px;height:40px;background:linear-gradient(to bottom,var(--accent),transparent);opacity:0.4;pointer-events:none;"></div>
     <div style="position:absolute;top:20px;left:50%;transform:translate(-50%,-50%);width:40px;height:1px;background:linear-gradient(to right,transparent,var(--accent),transparent);opacity:0.4;pointer-events:none;"></div>
     <div style="text-align:center;margin-bottom:32px;padding-top:8px;">
-      <div style="margin-bottom:16px;display:inline-block;"><svg width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <circle cx="24" cy="24" r="21.5" stroke="var(--accent)" stroke-width="1.5" opacity="0.6"/>
-  <circle cx="24" cy="24" r="13" stroke="var(--accent)" stroke-width="1" opacity="0.4"/>
-  <circle cx="24" cy="24" r="6" stroke="var(--accent)" stroke-width="0.8" opacity="0.35"/>
-  <line x1="24" y1="2" x2="24" y2="9" stroke="var(--accent)" stroke-width="1.5" stroke-linecap="round" opacity="0.7"/>
-  <line x1="24" y1="39" x2="24" y2="46" stroke="var(--accent)" stroke-width="1.5" stroke-linecap="round" opacity="0.7"/>
-  <line x1="2" y1="24" x2="9" y2="24" stroke="var(--accent)" stroke-width="1.5" stroke-linecap="round" opacity="0.7"/>
-  <line x1="39" y1="24" x2="46" y2="24" stroke="var(--accent)" stroke-width="1.5" stroke-linecap="round" opacity="0.7"/>
-  <!-- diagonal ticks at 45deg -->
-  <line x1="7.5" y1="7.5" x2="10.5" y2="10.5" stroke="var(--accent)" stroke-width="1" stroke-linecap="round" opacity="0.35"/>
-  <line x1="40.5" y1="7.5" x2="37.5" y2="10.5" stroke="var(--accent)" stroke-width="1" stroke-linecap="round" opacity="0.35"/>
-  <line x1="7.5" y1="40.5" x2="10.5" y2="37.5" stroke="var(--accent)" stroke-width="1" stroke-linecap="round" opacity="0.35"/>
-  <line x1="40.5" y1="40.5" x2="37.5" y2="37.5" stroke="var(--accent)" stroke-width="1" stroke-linecap="round" opacity="0.35"/>
-  <circle cx="24" cy="24" r="2.5" fill="var(--accent)"/>
-</svg></div>
-      <div style="display:flex;align-items:baseline;gap:8px;justify-content:center;"><span style="font-family:'Inter',sans-serif;font-size:22px;font-weight:700;letter-spacing:0.14em;color:var(--text);text-transform:uppercase;">General</span><span style="font-family:'Space Mono',monospace;font-size:18px;font-weight:700;color:var(--accent);letter-spacing:0.06em;">007</span></div>
+      <div style="margin-bottom:20px;display:flex;flex-direction:column;align-items:center;gap:8px;"><svg width="62" height="22" viewBox="0 0 62 22" fill="none" xmlns="http://www.w3.org/2000/svg" style="display:block;margin:0 auto;">
+  <!-- 0 -->
+  <rect x="1" y="1" width="14" height="20" rx="5" stroke="var(--accent)" stroke-width="1.8" fill="none"/>
+  <!-- 0 -->
+  <rect x="22" y="1" width="14" height="20" rx="5" stroke="var(--accent)" stroke-width="1.8" fill="none"/>
+  <!-- 7 — horizontal top bar -->
+  <line x1="43" y1="2" x2="61" y2="2" stroke="var(--accent)" stroke-width="2" stroke-linecap="round"/>
+  <!-- 7 — angled barrel stroke -->
+  <path d="M59.5 2 L51.5 13.5 L48.5 21" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+  <!-- 7 — barrel foot tick -->
+  <line x1="46.8" y1="19.5" x2="51.2" y2="21.5" stroke="var(--accent)" stroke-width="1.5" stroke-linecap="round" opacity="0.65"/>
+</svg><div style="width:70%;height:2px;background:linear-gradient(90deg,transparent,#c0392b,transparent);border-radius:2px;opacity:0.7;"></div></div>
+      <span style="font-family:'Inter',sans-serif;font-size:22px;font-weight:800;letter-spacing:0.2em;color:#ffffff;text-transform:uppercase;display:block;text-align:center;line-height:1;">General</span>
       <div style="font-size:11px;color:var(--muted);margin-top:6px;letter-spacing:0.12em;text-transform:uppercase;font-family:'Space Mono',monospace;font-weight:400;">Intelligence Platform</div>
     </div>
     <div id="auth-error" style="display:none;background:var(--red-dim);border:1px solid var(--red);border-radius:8px;padding:10px 14px;font-size:13px;color:var(--red);margin-bottom:16px;"></div>
@@ -2461,7 +2469,7 @@ function renderItemPage(m,id){
 const CATEGORY_ICONS={
   'Electronics & Tech':'💻','Cameras & Photography':'📷','Audio & Music':'🎵',
   'Books & Media':'📚','Toys & Games':'🎮','Home & Garden':'🏡',
-  'Clothing & Fashion':'👗','Collectibles & Vintage':'🏺','Other':'📦'
+  'Clothing & Fashion':'👗','Collectibles & Vintage':'🏺','Other':'📬'
 };
 let _searchIdx=-1;
 let _searchResults=[];
@@ -2521,7 +2529,7 @@ function showSearchDropdown(q){
   }
   const rows=shown.map((i,idx)=>{
     const status=i.isReturned?'returned':i.resaleSalePrice?'resold':i.dateSold?'sold':i.condition==='spares'?'spares':'active';
-    const icon=CATEGORY_ICONS[i.category]||'📦';
+    const icon=CATEGORY_ICONS[i.category]||'📬';
     const price=i.salePrice?fmt(i.salePrice):'—';
     return`<div class="search-result" data-idx="${idx}" onclick="selectSearchResult(${idx})" onmouseenter="setSearchActive(${idx})">
       <div class="sr-icon">${icon}</div>
@@ -2623,7 +2631,7 @@ function renderSearchResults(q){
     const status=i.isReturned?'returned':i.resaleSalePrice?'resold':i.dateSold?'sold':i.condition==='spares'?'spares':'listed';
     const profit=(i.dateSold||i.resaleSalePrice)&&!i.isReturned?calcGrossProfit(i):null;
     const roi=calcROI(i);
-    const icon=CATEGORY_ICONS[i.category]||'📦';
+    const icon=CATEGORY_ICONS[i.category]||'📬';
     return`<div class="item-row" onclick="openItemPage('${i.month}','${i.id}','p-search')">
       <div class="item-main">
         <div class="item-header">
@@ -2638,7 +2646,7 @@ function renderSearchResults(q){
           ${i.category?`<div class="item-meta-item">📁 ${esc(i.category)}</div>`:''}
         </div>
         <div class="item-meta">
-          <div class="item-meta-item">🏷️ ${fmt(i.salePrice)}</div>
+          <div class="item-meta-item">£${fmt(i.salePrice).replace("£","")}</div>
           ${profit!==null?`<div class="item-meta-item" style="color:var(--green);font-weight:600">Profit: ${fmt(profit)}</div>`:''}
           ${roi!==null?`<div class="item-meta-item" style="color:var(--muted);font-size:12px">ROI: ${roi.toFixed(1)}%</div>`:''}
         </div>
@@ -3487,16 +3495,15 @@ function renderSummary(){
     {key:'current_fy',label:'Current FY'},
     {key:'prev_fy',label:'Previous FY'},
   ];
-  const pickerHTML=`<div class="period-pills">
-    ${periods.map(p=>{
-      const active=SUMMARY_PERIOD===p.key;
-      return`<button onclick="setSummaryPeriod('${p.key}')" class="period-pill${active?' active':''}">${p.label}</button>`;
-    }).join('')}
-  </div>`;
+  const pickerHTML='';
 
   const html=`
-    <div class="sl">Overview</div>
-    ${pickerHTML}
+    <div style="display:flex;align-items:center;justify-content:space-between;width:100%;margin:20px 0 12px;">
+      <div class="sl" style="margin:0;">Overview</div>
+      <select class="period-select-inline" onchange="setSummaryPeriod(this.value)">
+        ${periods.map(p=>`<option value="${p.key}"${SUMMARY_PERIOD===p.key?' selected':''}>${p.label}</option>`).join('')}
+      </select>
+    </div>
     <div class="kgrid kgrid-4">
       <div class="kcard b clickable" onclick="showFilteredItems('revenue')">
         <div class="klabel">Total Revenue</div>
@@ -3522,21 +3529,21 @@ function renderSummary(){
 
     <div class="insights">
       <div class="insight-card">
-        <div class="insight-icon">💰</div>
+        <div class="insight-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg></div>
         <div>
           <div class="insight-label">Avg Sale Price</div>
           <div class="insight-val">${fmt(stats.avgSale)}</div>
         </div>
       </div>
       <div class="insight-card">
-        <div class="insight-icon">🏷️</div>
+        <div class="insight-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg></div>
         <div>
           <div class="insight-label">Avg Buy Price</div>
           <div class="insight-val">${fmt(stats.avgCostPrice)}</div>
         </div>
       </div>
       <div class="insight-card">
-        <div class="insight-icon">📦</div>
+        <div class="insight-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg></div>
         <div>
           <div class="insight-label">Avg Profit (net)</div>
           <div class="insight-val" style="color:var(--green)">${fmt(stats.avgProfit)}</div>
@@ -3649,7 +3656,7 @@ function renderSummary(){
               const isEmpty=ms.totalRev===0&&ms.listedCount===0;
               const revH=(ms.totalRev/maxVal)*100;
               const profH=(Math.max(0,ms.realisedProfit)/maxVal)*100;
-              return'<div class="bar-group'+(isEmpty?' bar-zero':'')+'" style="cursor:'+(isEmpty?'default':'pointer')+'" onclick="'+(isEmpty?'':'goToMonth(\''+k+'\')') +'">'
+              return'<div class="bar-group'+(isEmpty?' bar-zero':'')+'" style="cursor:'+(isEmpty?'default':'pointer')+'" onclick="'+(isEmpty?'':'showMonthSnapshot(\''+k+'\')') +'">'
                 +'<div class="bar-pair" title="'+(isEmpty?'':'Click to view '+keyName(k))+'">'
                 +'<div class="bar-rev" style="height:'+(isEmpty?'0':revH)+'%"></div>'
                 +'<div class="bar-prof" style="height:'+(isEmpty?'0':profH)+'%"></div>'
@@ -3692,7 +3699,7 @@ function renderSummary(){
             const revH=(b.rev/maxVal)*100;
             const profH=(Math.max(0,b.profit)/maxVal)*100;
             const showLabel=idx%labelEvery===0||idx===bData.length-1;
-            return'<div class="bar-group'+(isEmpty?' bar-zero':'')+'" style="cursor:default">'
+            return'<div class="bar-group'+(isEmpty?' bar-zero':'')+'" style="cursor:'+(isEmpty?'default':'pointer')+'" onclick="'+(isEmpty?'':"showRangeSnapshot('"+b.label+"','"+b.from+"','"+b.to+"')")+'">'
               +'<div class="bar-pair" title="'+b.label+': '+fmt(b.rev)+' rev · '+fmt(b.profit)+' profit">'
               +'<div class="bar-rev" style="height:'+(isEmpty?'0':revH)+'%"></div>'
               +'<div class="bar-prof" style="height:'+(isEmpty?'0':profH)+'%"></div>'
@@ -3745,6 +3752,128 @@ function renderSummary(){
   `;
   document.getElementById('p-summary').innerHTML=html;
 }
+// ── BAR CHART SNAPSHOT PANEL ──────────────────────────────────────────────
+// monthKey e.g. "2025-04" — for FY monthly bars
+function showMonthSnapshot(monthKey){
+  const ms = calcMonthStats(monthKey);
+  const items = (DB[monthKey]||[]).filter(i=>(i.item||'').trim().toUpperCase()!=='MONTH END');
+  const sold  = items.filter(i=>(i.dateSold||i.resaleSalePrice)&&!i.isReturned);
+  const listed= items.filter(i=>!i.isReturned&&!i.dateSold&&!i.resaleSalePrice);
+  const returned=items.filter(i=>i.isReturned);
+  const marginPct = ms.totalRev>0 ? (ms.realisedProfit/ms.totalRev*100).toFixed(1) : null;
+  const profColor = ms.realisedProfit>=0?'var(--green)':'var(--red)';
+
+  const kpis = `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px">
+      <div style="background:var(--surface2);border-radius:10px;padding:12px 14px">
+        <div style="font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:4px">Revenue</div>
+        <div style="font-size:22px;font-weight:700;font-family:'Inter',sans-serif;letter-spacing:-0.04em;color:var(--blue)">${fmt(ms.totalRev)}</div>
+        ${marginPct!==null?`<div style="font-size:11px;color:var(--muted);margin-top:2px">${marginPct}% margin</div>`:''}
+      </div>
+      <div style="background:var(--surface2);border-radius:10px;padding:12px 14px">
+        <div style="font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:4px">Profit</div>
+        <div style="font-size:22px;font-weight:700;font-family:'Inter',sans-serif;letter-spacing:-0.04em;color:${profColor}">${fmt(ms.realisedProfit)}</div>
+        ${ms.avgDays!==null?`<div style="font-size:11px;color:var(--muted);margin-top:2px">${ms.avgDays}d avg to sell</div>`:''}
+      </div>
+      <div style="background:var(--surface2);border-radius:10px;padding:12px 14px">
+        <div style="font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:4px">Sold</div>
+        <div style="font-size:22px;font-weight:700;font-family:'Inter',sans-serif;letter-spacing:-0.04em;color:var(--text)">${ms.soldCount}</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:2px">items</div>
+      </div>
+      <div style="background:var(--surface2);border-radius:10px;padding:12px 14px">
+        <div style="font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:4px">Active Stock</div>
+        <div style="font-size:22px;font-weight:700;font-family:'Inter',sans-serif;letter-spacing:-0.04em;color:var(--accent)">${ms.listedCount}</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:2px">${fmt(ms.stockValue)} listed</div>
+      </div>
+    </div>`;
+
+  const renderItem = (i,showProfit=true) => {
+    const profit = calcGrossProfit(i);
+    const roi = calcROI(i);
+    const profColor = (profit||0)>=0?'var(--green)':'var(--red)';
+    return `<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);cursor:pointer" onclick="openItemDetail('${i.month||monthKey}','${i.id}')">
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(i.item)}</div>
+        ${showProfit&&profit!==null?`<div style="font-size:11px;color:${profColor};margin-top:2px;font-weight:600">${fmt(profit)}${roi!==null?` <span style="color:var(--muted);font-weight:400">· ${roi.toFixed(0)}% ROI</span>`:''}</div>`:''}
+      </div>
+      <div style="font-size:13px;font-weight:600;font-family:'Space Mono',monospace;color:var(--text);flex-shrink:0">${fmt(i.salePrice)}</div>
+    </div>`;
+  };
+
+  let itemsHTML = '';
+  if(sold.length){
+    itemsHTML += `<div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.1em;margin:14px 0 6px">Sold (${sold.length})</div>`;
+    itemsHTML += sold.map(i=>renderItem(i,true)).join('');
+  }
+  if(listed.length){
+    itemsHTML += `<div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.1em;margin:14px 0 6px">Active Stock (${listed.length})</div>`;
+    itemsHTML += listed.map(i=>renderItem(i,false)).join('');
+  }
+  if(returned.length){
+    itemsHTML += `<div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.1em;margin:14px 0 6px">Returned (${returned.length})</div>`;
+    itemsHTML += returned.map(i=>renderItem(i,false)).join('');
+  }
+
+  const navBtn = `<button onclick="closePanel();goToMonth('${monthKey}')" style="width:100%;padding:11px;background:transparent;border:1px solid var(--border);border-radius:8px;color:var(--text-secondary);font-family:'Inter',sans-serif;font-size:13px;font-weight:500;cursor:pointer;margin-top:14px;transition:all 0.15s" onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--text-secondary)'">Open full month view →</button>`;
+
+  openPanel(keyName(monthKey), kpis + itemsHTML + navBtn, false);
+}
+
+// dateRange snapshot for rolling period bars (day/week buckets)
+function showRangeSnapshot(label, fromDate, toDate){
+  const items = [];
+  allDBKeys().forEach(k=>(DB[k]||[]).forEach(i=>{
+    if((i.item||'').trim().toUpperCase()==='MONTH END') return;
+    if(i.isReturned) return;
+    const sd = i.resaleSalePrice ? i.resaleDateSold : i.dateSold;
+    if(sd && sd>=fromDate && sd<=toDate){
+      const profit = calcGrossProfit(i);
+      const roi = calcROI(i);
+      items.push({...i, _month:k, _profit:profit, _roi:roi, _sd:sd});
+    }
+  }));
+
+  if(!items.length){
+    openPanel(label, `<div style="text-align:center;padding:32px 0;color:var(--muted);font-size:14px">No sales in this period</div>`, false);
+    return;
+  }
+
+  const totalRev  = items.reduce((s,i)=>s+(i.salePrice||0)+(i.resaleSalePrice||0),0);
+  const totalProf = items.reduce((s,i)=>s+(i._profit||0),0);
+  const margin    = totalRev>0?(totalProf/totalRev*100).toFixed(1):null;
+  const profColor = totalProf>=0?'var(--green)':'var(--red)';
+
+  const kpis = `
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:14px">
+      <div style="background:var(--surface2);border-radius:10px;padding:11px 12px">
+        <div style="font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:3px">Revenue</div>
+        <div style="font-size:18px;font-weight:700;font-family:'Inter',sans-serif;letter-spacing:-0.04em;color:var(--blue)">${fmt(totalRev)}</div>
+      </div>
+      <div style="background:var(--surface2);border-radius:10px;padding:11px 12px">
+        <div style="font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:3px">Profit</div>
+        <div style="font-size:18px;font-weight:700;font-family:'Inter',sans-serif;letter-spacing:-0.04em;color:${profColor}">${fmt(totalProf)}</div>
+        ${margin?`<div style="font-size:10px;color:var(--muted);margin-top:1px">${margin}%</div>`:''}
+      </div>
+      <div style="background:var(--surface2);border-radius:10px;padding:11px 12px">
+        <div style="font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:3px">Sold</div>
+        <div style="font-size:18px;font-weight:700;font-family:'Inter',sans-serif;letter-spacing:-0.04em;color:var(--text)">${items.length}</div>
+      </div>
+    </div>`;
+
+  items.sort((a,b)=>(b._profit||0)-(a._profit||0));
+  const rows = items.map(i=>`
+    <div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);cursor:pointer" onclick="openItemDetail('${i._month}','${i.id}')">
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(i.item)}</div>
+        ${i._profit!==null?`<div style="font-size:11px;color:${(i._profit>=0)?'var(--green)':'var(--red)'};margin-top:2px;font-weight:600">${fmt(i._profit)}${i._roi!==null?` <span style="color:var(--muted);font-weight:400">· ${i._roi.toFixed(0)}% ROI</span>`:''}</div>`:''}
+      </div>
+      <div style="font-size:13px;font-weight:600;font-family:'Space Mono',monospace;flex-shrink:0">${fmt((i.salePrice||0)+(i.resaleSalePrice||0))}</div>
+    </div>`).join('');
+
+  openPanel(label, kpis + `<div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:6px">Items Sold</div>` + rows, false);
+}
+// ─────────────────────────────────────────────────────────────────────────
+
 function goToMonth(m){
   SELECTED_MONTH=m;
   MONTH_FILTER='listed';
@@ -4086,7 +4215,7 @@ function renderMonth(){
 
     ${allItems.length===0?`
       <div class="empty-state">
-        <div class="empty-state-icon">📦</div>
+        <div class="empty-state-icon">📬</div>
         <div class="empty-state-text">No items for ${m} yet</div>
         <div class="empty-state-sub">Tap the + button to add your first item</div>
       </div>
@@ -4484,7 +4613,7 @@ function renderStock(){
 
     ${cAll===0?`
       <div class="empty-state">
-        <div class="empty-state-icon">📦</div>
+        <div class="empty-state-icon">📬</div>
         <div class="empty-state-text">No active listings</div>
         <div class="empty-state-sub">Add items via + or import from Excel</div>
       </div>
