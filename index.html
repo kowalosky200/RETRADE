@@ -880,7 +880,7 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
 .ip-field,.ip-field-select,.ip-field-date{font-size:15px;}
 #auth-screen-login,#auth-screen-reset{max-width:420px;border-radius:28px;padding:42px 36px!important;box-shadow:0 22px 60px rgba(0,0,0,.18);} 
 #auth-screen-login > div:first-child + div + div span{letter-spacing:.16em!important;}
-#auth-btn,#preview-btn{height:48px;border-radius:16px;}
+#auth-btn{height:48px;border-radius:16px;}
 .summary-shell{display:grid;grid-template-columns:minmax(0,1.84fr) minmax(0,.92fr);gap:18px;align-items:start;}
 .summary-main{display:flex;flex-direction:column;gap:18px;min-height:100%;min-width:0;}
 .summary-side{display:grid;grid-template-rows:repeat(3,minmax(0,1fr));gap:18px;min-height:100%;align-self:stretch;}
@@ -1305,10 +1305,6 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
     <button onclick="doSignIn()" id="auth-btn"
       style="width:100%;padding:12px;background:var(--accent);color:#000;border:none;border-radius:8px;font-weight:700;font-size:15px;cursor:pointer;transition:background 0.15s;">
       Sign In
-    </button>
-    <button onclick="startPreviewMode()" id="preview-btn"
-      style="width:100%;padding:12px;background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:8px;font-weight:700;font-size:15px;cursor:pointer;transition:background 0.15s;margin-top:10px;">
-      Developer preview
     </button>
     <button onclick="showForgotPassword()"
       style="width:100%;padding:10px;background:none;border:none;color:var(--text-secondary);font-size:13px;cursor:pointer;margin-top:8px;text-decoration:underline;text-underline-offset:3px;">
@@ -7117,24 +7113,7 @@ function refreshPanelParts(m,id){
 
 initTheme();
 
-function startPreviewMode(){
-  enablePreviewMode();
-  const url = new URL(window.location.href);
-  url.searchParams.set('preview','1');
-  history.replaceState({}, '', url.toString());
-  document.getElementById('auth-overlay').style.display = 'none';
-  if(window.innerWidth > 600){
-    document.getElementById('nav').style.display = '';
-    document.getElementById('bottom-nav').style.display = 'none';
-  } else {
-    document.getElementById('nav').style.display = 'none';
-    document.getElementById('bottom-nav').style.display = 'flex';
-  }
-  document.getElementById('main-content').style.display = '';
-  document.getElementById('fab').style.display = '';
-  const av=document.getElementById('user-avatar'); if(av) av.textContent='P';
-  requestAnimationFrame(()=>goToTab('summary'));
-}
+
 
 // ── BOOT: auth-gated ─────────────────────────────────────────────────────────
 // Show auth overlay while we check session. If already signed in, boot straight
@@ -7205,12 +7184,6 @@ function startPreviewMode(){
     if(_av && session.user?.email) _av.textContent=session.user.email[0].toUpperCase();
     await initDB();
     _dbSnapshot = _dbFingerprint();
-  } else if(PREVIEW_MODE_ENABLED){
-    enablePreviewMode();
-    showApp();
-    const _av=document.getElementById('user-avatar');
-    if(_av) _av.textContent='P';
-    requestAnimationFrame(()=>goToTab('summary'));
   } else {
     showLogin();
   }
