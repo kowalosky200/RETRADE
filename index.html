@@ -233,7 +233,7 @@ nav:not(#bottom-nav){position:sticky;top:0;z-index:200;background:var(--surface)
 .kcard::after{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:var(--accent);opacity:0.8;}
 .kcard.g::after{background:var(--green);}.kcard.r::after{background:#e05555;}.kcard.b::after{background:var(--blue);}.kcard.p::after{background:var(--purple);}
 .klabel{font-family:var(--font-display);font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;font-weight:600;}
-.kval{font-family:var(--font-body);font-size:28px;font-weight:800;line-height:1.05;letter-spacing:-0.03em;margin:8px 0 4px;overflow:hidden;text-overflow:ellipsis;}
+.kval{font-family:var(--font-body);font-size:clamp(15px,2.4vw,28px);font-weight:800;line-height:1.05;letter-spacing:-0.03em;margin:8px 0 4px;overflow:hidden;white-space:nowrap;}
 .ksub{font-size:11px;color:var(--muted);margin-top:6px;font-weight:400;letter-spacing:0.01em;}
 
 /* INSIGHTS */
@@ -826,7 +826,7 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
 .kcard:hover{transform:translateY(-3px);box-shadow:0 16px 42px var(--shadow-md);}
 .klabel{font-size:10px;font-weight:800;letter-spacing:.12em;color:var(--muted);} 
 .kval,.stat-num,.stat-num-sm,.stat-num-xs,.insight-val{font-variant-numeric:tabular-nums lining-nums;letter-spacing:-0.05em;}
-.kval{font-size:30px;font-weight:800;margin:10px 0 6px;line-height:.98;overflow:hidden;text-overflow:ellipsis;}
+.kval{font-size:clamp(16px,1.9vw,30px);font-weight:800;margin:10px 0 6px;line-height:.98;overflow:hidden;white-space:nowrap;}
 .ksub{font-size:12px;color:var(--text-secondary)}
 .insights{gap:14px;grid-template-columns:1fr;}
 .insight-card{border-radius:18px;padding:16px 16px;border:1px solid var(--border);box-shadow:0 10px 26px var(--shadow);align-items:flex-start;}
@@ -883,7 +883,9 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
 #auth-btn{height:48px;border-radius:16px;}
 .summary-shell{display:grid;grid-template-columns:minmax(0,1.84fr) minmax(0,.92fr);gap:18px;align-items:start;}
 .summary-main{display:flex;flex-direction:column;gap:18px;min-height:100%;min-width:0;}
-.summary-side{display:grid;grid-template-rows:repeat(3,minmax(0,1fr));gap:18px;min-height:100%;align-self:stretch;}
+.summary-side{display:grid;grid-template-rows:auto auto auto;gap:18px;}
+.summary-velocity{display:flex;flex-direction:column;}
+.summary-velocity .vel-cat-wrap{flex:1;min-height:0;display:flex;flex-direction:column;}
 .panel-card{background:linear-gradient(180deg,color-mix(in srgb,var(--surface) 96%, #fff 4%), var(--surface));border:1px solid var(--border);border-radius:22px;padding:20px;box-shadow:0 12px 30px var(--shadow);} 
 [data-theme="dark"] .panel-card{background:linear-gradient(180deg,color-mix(in srgb,var(--surface) 92%, #20304a 8%), var(--surface));border-color:color-mix(in srgb,var(--border) 88%, transparent);}
 .metric-inline{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;padding:12px 0;border-bottom:1px solid var(--border);} 
@@ -917,7 +919,7 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
   .kgrid,.kgrid-4{grid-template-columns:1fr!important;}
   .kcard{padding:14px 16px 12px;min-height:80px;border-radius:16px;}
   .klab{font-size:9px;letter-spacing:.08em;}
-  .kval{font-size:22px!important;margin:6px 0 3px;}
+  .kval{font-size:clamp(18px,5.5vw,26px)!important;margin:6px 0 3px;}
   .kval-sub{font-size:12px;}
   .page,.item-full-page{padding:16px 14px 100px!important;}
   .hero-title{font-size:26px!important;}
@@ -1017,7 +1019,7 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
   .chart-mobile-summary {order:2;margin-bottom:14px;width:100%;}
   .summary-snapshot     {order:3;margin-bottom:14px;width:100%;}
   .summary-inventory    {order:4;margin-bottom:14px;width:100%;}
-  .summary-velocity     {order:5;margin-bottom:14px;width:100%;}
+  .summary-velocity     {order:5;margin-bottom:14px;width:100%;display:block!important;}
   .summary-topflips     {order:6;margin-bottom:14px;width:100%;}
 }
 
@@ -3870,40 +3872,165 @@ function showROIItems(){
 }
 
 
-function showAvgCostItems(){
+function showListedInPeriodItems(){
+  const range=_periodDateRange(SUMMARY_PERIOD);
   let items=[];
   allDBKeys().forEach(k=>{(DB[k]||[]).forEach(i=>{
     if((i.item||'').trim().toUpperCase()==='MONTH END')return;
-    if(!i.isReturned)items.push({...i,month:k});
+    if(i.dateListed&&i.dateListed>=range.from&&i.dateListed<=range.to)
+      items.push({...i,month:k});
   });});
-  items.sort((a,b)=>(b.costPrice||0)-(a.costPrice||0));
-  const avg=items.length?items.reduce((s,i)=>s+(i.costPrice||0),0)/items.length:0;
-  const html=`
-    <div style="margin-bottom:16px;background:var(--surface2);border-radius:10px;padding:14px">
-      <div style="display:flex;align-items:center;gap:12px">
-        <div class="stat-num" style="color:var(--blue)">${fmt(avg)}</div>
-        <div>
-          <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px">Avg Cost Price</div>
-          <div style="font-size:13px;color:var(--text-secondary)">${items.length} items sourced total</div>
-        </div>
+  items.sort((a,b)=>(b.dateListed||'').localeCompare(a.dateListed||''));
+  if(!items.length){
+    openPanel('Listed in Period','<div style="padding:30px;text-align:center;color:var(--muted)">No items listed in this period.</div>');
+    return;
+  }
+  const sold=items.filter(i=>(i.dateSold||i.resaleSalePrice)&&!i.isReturned).length;
+  const active=items.filter(i=>!i.dateSold&&!i.isReturned&&!i.resaleSalePrice).length;
+  const returned=items.filter(i=>i.isReturned).length;
+  const periodLabel={'7d':'Last 7 days','30d':'Last 30 days','60d':'Last 60 days','90d':'Last 90 days','current_fy':'Current FY','prev_fy':'Previous FY'}[SUMMARY_PERIOD]||SUMMARY_PERIOD;
+  const summary='<div style="margin-bottom:16px;display:flex;gap:10px;flex-wrap:wrap">'
+    +'<div style="flex:1;min-width:80px;background:var(--surface2);border-radius:10px;padding:12px;text-align:center"><div style="font-size:20px;font-weight:700;color:var(--accent)">'+items.length+'</div><div style="font-size:11px;color:var(--muted);margin-top:2px">Total listed</div></div>'
+    +'<div style="flex:1;min-width:80px;background:var(--surface2);border-radius:10px;padding:12px;text-align:center"><div style="font-size:20px;font-weight:700;color:var(--green)">'+sold+'</div><div style="font-size:11px;color:var(--muted);margin-top:2px">Sold</div></div>'
+    +'<div style="flex:1;min-width:80px;background:var(--surface2);border-radius:10px;padding:12px;text-align:center"><div style="font-size:20px;font-weight:700;color:var(--blue)">'+active+'</div><div style="font-size:11px;color:var(--muted);margin-top:2px">Active</div></div>'
+    +(returned?'<div style="flex:1;min-width:80px;background:var(--surface2);border-radius:10px;padding:12px;text-align:center"><div style="font-size:20px;font-weight:700;color:var(--red)">'+returned+'</div><div style="font-size:11px;color:var(--muted);margin-top:2px">Returned</div></div>':'')
+    +'</div>';
+  const rows=items.map(i=>{
+    const isSold=(i.dateSold||i.resaleSalePrice)&&!i.isReturned;
+    const statusBadge=i.isReturned?'returned':isSold?'sold':'listed';
+    const profit=isSold?calcGrossProfit(i):null;
+    const daysListed=i.dateListed?daysBetween(i.dateListed,new Date().toISOString().split('T')[0]):null;
+    return'<div style="padding:10px;background:var(--surface2);border-radius:8px;margin-bottom:8px;cursor:pointer" onclick="openItemDetail(\''+i.month+'\',\''+i.id+'\')">'
+      +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">'
+      +'<div style="flex:1;font-weight:600;font-size:14px">'+esc(i.item)+'</div>'
+      +'<div class="item-badge '+statusBadge+'">'+statusBadge+'</div>'
+      +'</div>'
+      +'<div style="display:flex;gap:12px;font-size:12px;color:var(--text-secondary);flex-wrap:wrap">'
+      +(i.dateListed?'<span>Listed: <strong>'+i.dateListed+'</strong></span>':'')
+      +'<span>Ask: <strong>'+fmt(i.salePrice||0)+'</strong></span>'
+      +(profit!==null?'<span>Profit: <strong style="color:var(--green)">'+fmt(profit)+'</strong></span>':'')
+      +(i.category?'<span>'+esc(i.category)+'</span>':'')
+      +(daysListed&&!isSold&&!i.isReturned?'<span style="color:var(--muted)">'+daysListed+'d listed</span>':'')
+      +'</div>'
+      +'</div>';
+  }).join('');
+  openPanel('Listed in Period — '+periodLabel,summary+rows);
+}
+
+function showAvgCostItems(){showAvgBuyBreakdown();}
+
+function _snapshotSoldItems(){
+  const range=_periodDateRange(SUMMARY_PERIOD);
+  let items=[];
+  allDBKeys().forEach(k=>{(DB[k]||[]).forEach(i=>{
+    if((i.item||'').trim().toUpperCase()==='MONTH END')return;
+    if(i.isReturned)return;
+    if(i.condition==='spares')return;
+    const saleDate=i.resaleSalePrice?i.resaleDateSold:i.dateSold;
+    if(!saleDate)return;
+    if(saleDate<range.from||saleDate>range.to)return;
+    items.push({...i,month:k,_profit:calcGrossProfit(i)});
+  });});
+  return items;
+}
+
+function showAvgSaleBreakdown(){
+  const items=_snapshotSoldItems();
+  if(!items.length){openPanel('Average Sale Price','<div style="padding:30px;text-align:center;color:var(--muted)">No sales in this period.</div>');return;}
+  const prices=items.map(i=>i.resaleSalePrice||i.salePrice||0);
+  const avg=prices.reduce((s,v)=>s+v,0)/prices.length;
+  const periodLabel={'7d':'Last 7 days','30d':'Last 30 days','60d':'Last 60 days','90d':'Last 90 days','current_fy':'Current FY','prev_fy':'Previous FY'}[SUMMARY_PERIOD]||SUMMARY_PERIOD;
+  const sorted=[...items].sort((a,b)=>(b.resaleSalePrice||b.salePrice||0)-(a.resaleSalePrice||a.salePrice||0));
+  const header=`<div style="margin-bottom:16px;background:var(--surface2);border-radius:10px;padding:14px">
+    <div style="display:flex;align-items:center;gap:12px">
+      <div class="stat-num" style="color:var(--accent)">${fmt(avg)}</div>
+      <div>
+        <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px">Avg Sale Price</div>
+        <div style="font-size:13px;color:var(--text-secondary)">${items.length} sales in ${periodLabel}</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:3px">Sum ${fmt(prices.reduce((s,v)=>s+v,0))} ÷ ${items.length} items</div>
       </div>
     </div>
-    ${items.map(i=>{
-      const status=i.dateSold?'sold':'listed';
-      const roi=i.dateSold?calcROI(i):null;
-      return`<div style="padding:10px;background:var(--surface2);border-radius:8px;margin-bottom:8px;cursor:pointer" onclick="openItemDetail('${i.month}','${i.id}')">
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
-          <div style="flex:1;font-weight:600;font-size:14px">${esc(i.item)}</div>
-          <div class="item-badge ${status}">${i.month}</div>
-        </div>
-        <div style="display:flex;gap:12px;font-size:12px;color:var(--text-secondary)">
-          <span>Cost: <strong style="color:var(--blue)">${fmt(i.costPrice||0)}</strong></span>
-          <span>Listed: ${fmt(i.salePrice)}</span>
-          ${roi!==null?`<span style="color:var(--green)">ROI ${roi.toFixed(1)}%</span>`:''}
-        </div>
-      </div>`;
-    }).join('')}`;
-  openPanel('Avg Cost Price — All Items',html);
+  </div>`;
+  const rows=sorted.map(i=>{
+    const sp=i.resaleSalePrice||i.salePrice||0;
+    return`<div style="padding:10px;background:var(--surface2);border-radius:8px;margin-bottom:8px;cursor:pointer;display:flex;align-items:center;gap:10px" onclick="openItemDetail('${i.month}','${i.id}')">
+      <div style="flex:1">
+        <div style="font-weight:600;font-size:13px">${esc(i.item)}</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:2px">${i.resaleSalePrice?'Resale':'Sale'} · ${i.dateSold||i.resaleDateSold||''}</div>
+      </div>
+      <div style="font-weight:700;font-size:14px;color:var(--accent)">${fmt(sp)}</div>
+    </div>`;
+  }).join('');
+  openPanel('Average Sale Price — Breakdown',header+rows);
+}
+
+function showAvgBuyBreakdown(){
+  const items=_snapshotSoldItems();
+  if(!items.length){openPanel('Average Buy Price','<div style="padding:30px;text-align:center;color:var(--muted)">No sales in this period.</div>');return;}
+  const costs=items.map(i=>i.costPrice||0);
+  const avg=costs.reduce((s,v)=>s+v,0)/costs.length;
+  const periodLabel={'7d':'Last 7 days','30d':'Last 30 days','60d':'Last 60 days','90d':'Last 90 days','current_fy':'Current FY','prev_fy':'Previous FY'}[SUMMARY_PERIOD]||SUMMARY_PERIOD;
+  const sorted=[...items].sort((a,b)=>(b.costPrice||0)-(a.costPrice||0));
+  const header=`<div style="margin-bottom:16px;background:var(--surface2);border-radius:10px;padding:14px">
+    <div style="display:flex;align-items:center;gap:12px">
+      <div class="stat-num" style="color:var(--blue)">${fmt(avg)}</div>
+      <div>
+        <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px">Avg Buy Price</div>
+        <div style="font-size:13px;color:var(--text-secondary)">${items.length} sold items in ${periodLabel}</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:3px">Sum ${fmt(costs.reduce((s,v)=>s+v,0))} ÷ ${items.length} items</div>
+      </div>
+    </div>
+  </div>`;
+  const rows=sorted.map(i=>{
+    const sp=i.resaleSalePrice||i.salePrice||0;
+    const roi=calcROI(i);
+    return`<div style="padding:10px;background:var(--surface2);border-radius:8px;margin-bottom:8px;cursor:pointer;display:flex;align-items:center;gap:10px" onclick="openItemDetail('${i.month}','${i.id}')">
+      <div style="flex:1">
+        <div style="font-weight:600;font-size:13px">${esc(i.item)}</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:2px">Sold ${fmt(sp)} · ${i.dateSold||i.resaleDateSold||''}</div>
+      </div>
+      <div style="text-align:right">
+        <div style="font-weight:700;font-size:14px;color:var(--blue)">${fmt(i.costPrice||0)}</div>
+        ${roi!==null?`<div style="font-size:11px;color:var(--green)">${roi.toFixed(1)}% ROI</div>`:''}
+      </div>
+    </div>`;
+  }).join('');
+  openPanel('Average Buy Price — Breakdown',header+rows);
+}
+
+function showAvgProfitBreakdown(){
+  const items=_snapshotSoldItems();
+  if(!items.length){openPanel('Average Profit','<div style="padding:30px;text-align:center;color:var(--muted)">No sales in this period.</div>');return;}
+  const profits=items.map(i=>i._profit||0);
+  const avg=profits.reduce((s,v)=>s+v,0)/profits.length;
+  const periodLabel={'7d':'Last 7 days','30d':'Last 30 days','60d':'Last 60 days','90d':'Last 90 days','current_fy':'Current FY','prev_fy':'Previous FY'}[SUMMARY_PERIOD]||SUMMARY_PERIOD;
+  const sorted=[...items].sort((a,b)=>(b._profit||0)-(a._profit||0));
+  const header=`<div style="margin-bottom:16px;background:var(--surface2);border-radius:10px;padding:14px">
+    <div style="display:flex;align-items:center;gap:12px">
+      <div class="stat-num" style="color:var(--green)">${fmt(avg)}</div>
+      <div>
+        <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px">Avg Profit Per Sale</div>
+        <div style="font-size:13px;color:var(--text-secondary)">${items.length} sold items in ${periodLabel}</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:3px">Total ${fmt(profits.reduce((s,v)=>s+v,0))} ÷ ${items.length} items</div>
+      </div>
+    </div>
+  </div>`;
+  const rows=sorted.map(i=>{
+    const sp=i.resaleSalePrice||i.salePrice||0;
+    const roi=calcROI(i);
+    const profColor=(i._profit||0)>=0?'var(--green)':'var(--red)';
+    return`<div style="padding:10px;background:var(--surface2);border-radius:8px;margin-bottom:8px;cursor:pointer;display:flex;align-items:center;gap:10px" onclick="openItemDetail('${i.month}','${i.id}')">
+      <div style="flex:1">
+        <div style="font-weight:600;font-size:13px">${esc(i.item)}</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:2px">Sold ${fmt(sp)} · Cost ${fmt(i.costPrice||0)}</div>
+      </div>
+      <div style="text-align:right">
+        <div style="font-weight:700;font-size:14px;color:${profColor}">${fmt(i._profit||0)}</div>
+        ${roi!==null?`<div style="font-size:11px;color:var(--muted)">${roi.toFixed(1)}% ROI</div>`:''}
+      </div>
+    </div>`;
+  }).join('');
+  openPanel('Average Profit — Breakdown',header+rows);
 }
 
 function showAllItemsPanel(defaultFilter){_renderAllItemsPanel(defaultFilter||'sold');}
@@ -4297,30 +4424,82 @@ function renderSummary(){
           </div>
         </div>
         <div class="summary-side">
-          <div class="panel-card clickable summary-snapshot" onclick="showFilteredItems('revenue')">
+          <div class="panel-card summary-snapshot">
             <div class="sl">Snapshot</div>
-            <div class="metric-inline clickable" onclick="event.stopPropagation();showFilteredItems('revenue')"><div><div class="metric-k">Average sale price</div><div style="font-size:11px;color:var(--muted);margin-top:4px">Ticket quality</div></div><div class="metric-v">${fmt(stats.avgSale||0)}</div></div>
-            <div class="metric-inline clickable" onclick="event.stopPropagation();showAvgCostItems()"><div><div class="metric-k">Average buy price</div><div style="font-size:11px;color:var(--muted);margin-top:4px">Sourcing discipline</div></div><div class="metric-v">${fmt(stats.avgCostPrice||0)}</div></div>
-            <div class="metric-inline clickable" onclick="event.stopPropagation();showFilteredItems('realised')"><div><div class="metric-k">Average profit</div><div style="font-size:11px;color:var(--muted);margin-top:4px">Per completed sale</div></div><div class="metric-v" style="color:var(--green)">${fmt(stats.avgProfit||0)}</div></div>
+            <div class="metric-inline clickable" onclick="showAvgSaleBreakdown()"><div><div class="metric-k">Average sale price</div><div style="font-size:11px;color:var(--muted);margin-top:4px">Ticket quality · tap for detail</div></div><div class="metric-v">${fmt(stats.avgSale||0)}</div></div>
+            <div class="metric-inline clickable" onclick="showAvgBuyBreakdown()"><div><div class="metric-k">Average buy price</div><div style="font-size:11px;color:var(--muted);margin-top:4px">Sourcing discipline · tap for detail</div></div><div class="metric-v">${fmt(stats.avgCostPrice||0)}</div></div>
+            <div class="metric-inline clickable" onclick="showAvgProfitBreakdown()"><div><div class="metric-k">Average profit</div><div style="font-size:11px;color:var(--muted);margin-top:4px">Per completed sale · tap for detail</div></div><div class="metric-v" style="color:var(--green)">${fmt(stats.avgProfit||0)}</div></div>
           </div>
           <div class="panel-card summary-inventory">
             <div class="sl">Inventory health</div>
             <div class="metric-inline clickable" onclick="openDashboardStock('all')"><div><div class="metric-k">Active stock</div><div style="font-size:11px;color:var(--muted);margin-top:4px">Current live inventory</div></div><div class="metric-v">${activeStockCount}</div></div>
             <div class="metric-inline clickable" onclick="showFilteredItems('stock')"><div><div class="metric-k">Active stock value</div><div style="font-size:11px;color:var(--muted);margin-top:4px">At current ask</div></div><div class="metric-v">${fmt(activeStockVal)}</div></div>
-            <div class="metric-inline clickable" onclick="openDashboardStock('all')"><div><div class="metric-k">Listed in period</div><div style="font-size:11px;color:var(--muted);margin-top:4px">Fresh sourcing pace</div></div><div class="metric-v" style="color:var(--accent)">${listedInPeriod}</div></div>
+            <div class="metric-inline clickable" onclick="showListedInPeriodItems()"><div><div class="metric-k">Listed in period</div><div style="font-size:11px;color:var(--muted);margin-top:4px">Fresh sourcing pace</div></div><div class="metric-v" style="color:var(--accent)">${listedInPeriod}</div></div>
             ${(stats.stale&&stats.stale.length)>0?`<div style="margin-top:14px;padding:14px 15px;border-radius:16px;background:var(--accent-dim);border:1px solid rgba(245,166,35,.24);cursor:pointer" onclick="openDashboardStock('stale')"><div style="font-size:12px;font-weight:700;color:var(--accent)">${stats.stale.length} stale item${stats.stale.length!==1?'s':''}</div><div style="font-size:12px;color:var(--text-secondary);margin-top:4px">Listed 30+ days. Open filtered stock.</div></div>`:''}
           </div>          <div class="panel-card summary-velocity">
             <div class="sl">Velocity</div>
-            <div class="metric-inline"><div><div class="metric-k">Average days to sell</div><div style="font-size:11px;color:var(--muted);margin-top:4px">Current period signal</div></div><div class="metric-v">${stats.avgDays!==null&&stats.avgDays!==undefined?stats.avgDays+'d':'—'}</div></div>
-            <div class="metric-inline"><div><div class="metric-k">Sell-through</div><div style="font-size:11px;color:var(--muted);margin-top:4px">Sold vs total viewed</div></div><div class="metric-v">${stats.sellThrough!==null&&stats.sellThrough!==undefined?Math.round(stats.sellThrough)+'%':'—'}</div></div>
-            <div id="velocity-cat-rows" style="display:none"><div class="category-mini-grid" style="margin-top:10px">${catLeaders.slice(0,3).map(c=>{const sellPct=c.total?Math.round((c.sold/c.total)*100):0; const safeCat=String(c.cat).replace(/'/g,"\'"); return `<div class="category-mini-row" onclick="showCategoryItems('${safeCat}')"><div><div class="metric-k">${esc(c.cat)}</div><div class="category-mini-meta">${c.avgDays!==null?c.avgDays+'d avg':'No sales yet'}</div></div><div class="category-mini-val">${sellPct}%</div></div>`;}).join('')}</div></div>
-            <div class="category-mini-footer" style="margin-top:12px" onclick="(function(){var el=document.getElementById('velocity-cat-rows');var open=el.style.display!=='none';el.style.display=open?'none':'block';event.currentTarget.textContent=open?'Category Breakdown \u203a':'Hide breakdown \u2715';})()">${catLeaders.length?'Category Breakdown ›':'No category data yet'}</div>
+            <div class="metric-inline"><div><div class="metric-k">Avg days to sell</div><div style="font-size:11px;color:var(--muted);margin-top:4px">Current period signal</div></div><div class="metric-v">${stats.avgDays!==null&&stats.avgDays!==undefined?stats.avgDays+'d':'—'}</div></div>
+            ${SUMMARY_PERIOD==='7d'
+              ?`<div class="metric-inline"><div><div class="metric-k">Fast-mover rate</div><div style="font-size:11px;color:var(--muted);margin-top:4px">Sold within 14d of listing</div></div><div class="metric-v" style="color:${(stats.sellThrough14||0)>=50?'var(--green)':(stats.sellThrough14||0)>=25?'var(--warn)':'var(--text)'}">${stats.eligible14Count>0?Math.round(stats.sellThrough14||0)+'%':'—'}</div></div>`
+              :`<div class="metric-inline"><div><div class="metric-k">Sell-through</div><div style="font-size:11px;color:var(--muted);margin-top:4px">Listed in period that sold</div></div><div class="metric-v">${stats.sellThrough!==null&&stats.sellThrough!==undefined?Math.round(stats.sellThrough)+'%':'—'}</div></div>`
+            }
+            ${catLeaders.length?`<div class="vel-cat-wrap" id="vel-cat-wrap"><div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;font-weight:700;margin-top:14px;margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid var(--border)">Category breakdown</div><div class="category-mini-grid" id="vel-cat-grid" style="margin-top:0">${catLeaders.map(c=>{const sellPct=c.total?Math.round((c.sold/c.total)*100):0;return`<div class="category-mini-row vel-cat-item" onclick="showCategoryItems(${JSON.stringify(c.cat).replace(/"/g,'&quot;')})"><div><div class="metric-k">${esc(c.cat)}</div><div class="category-mini-meta">${c.sold}/${c.total} sold · ${c.avgDays!==null?c.avgDays+'d avg':'—'}</div></div><div class="category-mini-val">${sellPct}%</div></div>`;}).join('')}</div><div id="vel-cat-more" style="display:none;margin-top:10px"><button style="width:100%;padding:8px;border-radius:10px;border:none;background:var(--accent);color:#000;font-size:12px;font-weight:700;cursor:pointer" onclick="showVelocityCategoriesPanel(window.__summaryByCat||[])">View all categories</button></div></div>`:''}
           </div>
         </div>
       </div>`;
     el.innerHTML=html;
     window.__summaryByCat=stats.byCat||[];
     renderSummaryChart(chartLabels,chartRev,chartProfit);
+    // Desktop only: match velocity card height to top flips, collapse overflow cats
+    (function _matchVelocityHeight(){
+      if(window.innerWidth<=980)return;
+      // Use a small delay to let the chart render and full layout settle
+      setTimeout(()=>{
+        const topFlips=document.querySelector('.summary-topflips');
+        const side=document.querySelector('.summary-side');
+        const velCard=document.querySelector('.summary-velocity');
+        const wrap=document.getElementById('vel-cat-wrap');
+        const grid=document.getElementById('vel-cat-grid');
+        const more=document.getElementById('vel-cat-more');
+        if(!topFlips||!side||!velCard)return;
+
+        // Calculate total main column height
+        const mainH=topFlips.getBoundingClientRect().bottom - side.getBoundingClientRect().top;
+        // Calculate space already used by snapshot + inventory health + gaps
+        const sideChildren=Array.from(side.children);
+        const otherH=sideChildren.filter(c=>!c.classList.contains('summary-velocity'))
+          .reduce((s,c)=>s+c.getBoundingClientRect().height,0);
+        const gaps=18*(sideChildren.length-1);
+        const velH=Math.max(0, mainH - otherH - gaps);
+
+        if(velH>0) velCard.style.minHeight=velH+'px';
+
+        // Now collapse category rows that don't fit
+        if(!wrap||!grid||!more)return;
+        const rows=Array.from(grid.querySelectorAll('.vel-cat-item'));
+        if(!rows.length)return;
+        // Reset visibility first (in case of re-render)
+        rows.forEach(r=>r.style.display='');
+        more.style.display='none';
+        // Wait for minHeight reflow to settle before measuring
+        setTimeout(()=>{
+          const cardBottom=velCard.getBoundingClientRect().bottom;
+          const wrapTop=wrap.getBoundingClientRect().top;
+          const labelH=wrap.querySelector(':scope > div:first-child')?.getBoundingClientRect().height||32;
+          const moreBtnH=52; // btn height + margin
+          const padding=20;
+          const available=cardBottom - wrapTop - labelH - moreBtnH - padding;
+          let used=0, anyHidden=false;
+          rows.forEach(r=>{
+            const h=r.getBoundingClientRect().height+8;
+            if(used+h<=available){ used+=h; }
+            else{ r.style.display='none'; anyHidden=true; }
+          });
+          // Always show button if any hidden; hide only if all fit
+          more.style.display=anyHidden?'block':'none';
+        },40);
+      },120);
+    })();
     // Mobile chart summary
     (function(){
       const el=document.getElementById('chart-mobile-inner');
@@ -6771,7 +6950,26 @@ function calcYearlyStats(period){
   const avgROI=soldItems.length?soldItems.reduce((s,i)=>s+calcROI(i),0)/soldItems.length:0;
   const avgSale=saleTransactions.length?saleTransactions.reduce((s,v)=>s+v,0)/saleTransactions.length:0;
   const avgProfit=soldItems.length?realisedProfit/soldItems.length:0;
-  const sellThrough=totalItems?soldCount/totalItems*100:0;
+  // Sell-through: of items that were LISTED within this period, how many sold?
+  // Sold = sold in period AND listed in period (or listed before but sold in window)
+  // Total = sold-in-period + still-active items listed in this period
+  let stItems=0,stSold=0;
+  allDBKeys().forEach(k=>{(DB[k]||[]).forEach(i=>{
+    if((i.item||'').trim().toUpperCase()==='MONTH END')return;
+    if(i.isReturned)return;
+    const saleDate=i.resaleSalePrice?i.resaleDateSold:i.dateSold;
+    const listedInPeriod=i.dateListed&&inRange(i.dateListed);
+    const soldInPeriod=inRange(saleDate);
+    if(listedInPeriod){
+      stItems++;
+      if(saleDate)stSold++;
+    } else if(soldInPeriod&&!listedInPeriod){
+      // sold in period but listed before — still counts as a sell-through event
+      stItems++;
+      stSold++;
+    }
+  });});
+  const sellThrough=stItems?stSold/stItems*100:0;
   // 14-day sell-through: items that sold within 14 days of listing
   const eligible14=[];
   allDBKeys().forEach(k=>{(DB[k]||[]).forEach(i=>{
@@ -6801,7 +6999,10 @@ function calcYearlyStats(period){
     (DB[k]||[]).forEach(i=>{
       if((i.item||"").trim().toUpperCase()==="MONTH END")return;
       const sdCat=i.resaleSalePrice?i.resaleDateSold:i.dateSold;
-      if(!inRange(sdCat||i.dateListed))return;
+      const listedInPeriodCat=i.dateListed&&inRange(i.dateListed);
+      const soldInPeriodCat=inRange(sdCat);
+      // Include in category if listed in period OR sold in period
+      if(!listedInPeriodCat&&!soldInPeriodCat)return;
       const cat=i.category||'Uncategorised';
       if(!catMap[cat])catMap[cat]={sold:0,total:0,daysSum:0,stale:0,fast:0,avgS:0,slow:0};
       catMap[cat].total++;
