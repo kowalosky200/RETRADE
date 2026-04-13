@@ -1295,10 +1295,12 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
           style="width:100%;padding:10px 44px 10px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:14px;outline:none;transition:border-color 0.15s;box-sizing:border-box;"
           onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border)'"
           onkeydown="if(event.key==='Enter')doSignIn()">
-        <button type="button" onclick="(function(){const i=document.getElementById('auth-pass');const b=document.getElementById('auth-pass-eye');i.type=i.type==='password'?'text':'password';b.innerHTML=i.type==='password'?'<path d=\'M1 8s3-5 7-5 7 5 7 5-3 5-7 5-7-5-7-5z\' stroke=\'currentColor\' stroke-width=\'1.5\' fill=\'none\'/><circle cx=\'8\' cy=\'8\' r=\'2\' stroke=\'currentColor\' stroke-width=\'1.5\' fill=\'none\'/>':'<path d=\'M2 2l12 12M6.5 6.5A3 3 0 0011 11M4.2 4.2C2.8 5.3 1 8 1 8s3 5 7 5c1.4 0 2.7-.4 3.8-1.2M9 3.5C8.4 3.2 7.7 3 7 3 3 3 1 8 1 8s.8 1.4 2 2.8\' stroke=\'currentColor\' stroke-width=\'1.5\' fill=\'none\' stroke-linecap=\'round\'/>'})()"
-          id="auth-pass-eye"
+        <button type="button" onclick="toggleAuthPass()"
           style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--text-secondary);padding:2px;display:flex;align-items:center;">
-          <svg width="18" height="18" viewBox="0 0 16 16" fill="none"><path d='M1 8s3-5 7-5 7 5 7 5-3 5-7 5-7-5-7-5z' stroke='currentColor' stroke-width='1.5' fill='none'/><circle cx='8' cy='8' r='2' stroke='currentColor' stroke-width='1.5' fill='none'/></svg>
+          <svg id="auth-pass-svg" width="18" height="18" viewBox="0 0 16 16" fill="none">
+            <path d='M1 8s3-5 7-5 7 5 7 5-3 5-7 5-7-5-7-5z' stroke='currentColor' stroke-width='1.5' fill='none'/>
+            <circle cx='8' cy='8' r='2' stroke='currentColor' stroke-width='1.5' fill='none'/>
+          </svg>
         </button>
       </div>
     </div>
@@ -1306,6 +1308,7 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
       style="width:100%;padding:12px;background:var(--accent);color:#000;border:none;border-radius:8px;font-weight:700;font-size:15px;cursor:pointer;transition:background 0.15s;">
       Sign In
     </button>
+
     <button onclick="showForgotPassword()"
       style="width:100%;padding:10px;background:none;border:none;color:var(--text-secondary);font-size:13px;cursor:pointer;margin-top:8px;text-decoration:underline;text-underline-offset:3px;">
       Forgot password?
@@ -1625,42 +1628,140 @@ const _previewStored = localStorage.getItem(PREVIEW_STORAGE_KEY) === '1' || LEGA
 const PREVIEW_MODE_ENABLED = false;
 
 function _buildPreviewDB(){
+  const MONTHS_=['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
   const now = new Date();
-  const monthKey = MONTHS[now.getMonth()] + '-' + String(now.getFullYear()).slice(-2);
-  const prevDate = d => {
-    const x = new Date(now);
-    x.setDate(x.getDate()-d);
-    return x.toISOString().split('T')[0];
-  };
-  const listedDate = prevDate(18);
-  const soldDate = prevDate(4);
+  // Build month keys for current + 4 previous months
+  function mkey(offset){
+    const d = new Date(now.getFullYear(), now.getMonth() - offset, 1);
+    return MONTHS_[d.getMonth()] + '-' + String(d.getFullYear()).slice(-2);
+  }
+  function mdate(monthOffset, day){
+    const d = new Date(now.getFullYear(), now.getMonth() - monthOffset, day);
+    return d.toISOString().split('T')[0];
+  }
+  const m0=mkey(0), m1=mkey(1), m2=mkey(2), m3=mkey(3), m4=mkey(4);
+
+  const item = (id,num,name,cost,sale,listedOff,soldOff,cat,key,bpp,pkg,promo,parts,returns,notes,resale,resaleDate)=>({
+    id:'pv-'+id, gid:'R-'+String(num).padStart(4,'0'),
+    item:name, costPrice:cost, salePrice:sale??null,
+    dateListed:listedOff, dateSold:soldOff??null,
+    category:cat, postageMode:'sdp', postageKey:key,
+    buyerPaysPostage:bpp??false, packagingCost:pkg, promoPercent:promo??0,
+    parts:parts??[], returnHistory:returns??[], isReturned:false,
+    resaleSalePrice:resale??null, resaleDateSold:resaleDate??null,
+    _wasRelisted:false, notes:notes??''
+  });
+
+  const SP='small_parcel_2kg', LP='large_parcel', LL='large_letter', ML='medium_letter';
+
   return {
     _userOwned: false,
-    [monthKey]: [
-      {
-        id:'preview-1', gid:'R-0001', item:'Sony WH-1000XM4 Headphones', costPrice:95, salePrice:149.99,
-        dateListed:listedDate, dateSold:soldDate, category:'Audio', postageMode:'sdp', postageKey:'small_parcel_2kg',
-        buyerPaysPostage:false, packagingCost:1.25, promoPercent:0.05, parts:[], returnHistory:[], isReturned:false,
-        resaleSalePrice:null, resaleDateSold:null, _wasRelisted:false, notes:'Demo preview item'
-      },
-      {
-        id:'preview-2', gid:'R-0002', item:'Canon Powershot G7', costPrice:55, salePrice:null,
-        dateListed:prevDate(6), dateSold:null, category:'Camera', postageMode:'sdp', postageKey:'small_parcel_2kg',
-        buyerPaysPostage:false, packagingCost:1.10, promoPercent:0.03, parts:[{desc:'Battery', cost:8, date:prevDate(5)}], returnHistory:[], isReturned:false,
-        resaleSalePrice:null, resaleDateSold:null, _wasRelisted:false, notes:'Active stock demo item'
-      },
-      {
-        id:'preview-3', gid:'R-0003', item:'Nintendo Switch Joy-Con Pair', costPrice:22, salePrice:39.99,
-        dateListed:prevDate(12), dateSold:prevDate(2), category:'Gaming', postageMode:'sdp', postageKey:'small_parcel_2kg',
-        buyerPaysPostage:true, packagingCost:0.80, promoPercent:0, parts:[], returnHistory:[], isReturned:false,
-        resaleSalePrice:null, resaleDateSold:null, _wasRelisted:false, notes:'Buyer paid postage demo item'
-      }
+
+    // ── CURRENT MONTH ──────────────────────────────────────────────────────
+    [m0]: [
+      item('c1',1,'Sony WH-1000XM5 Headphones',88,159.99,mdate(0,3),mdate(0,10),'Audio',SP,false,1.20,0.05),
+      item('c2',2,'iPhone 12 64GB Unlocked',195,289.00,mdate(0,2),mdate(0,9),'Phones',SP,false,1.00,0.03),
+      item('c3',3,'Nintendo DS Lite + Charger',18,34.99,mdate(0,4),mdate(0,11),'Gaming',LL,false,0.60,0),
+      item('c4',4,'Logitech MX Master 3 Mouse',32,64.99,mdate(0,5),mdate(0,12),'Computing',LL,false,0.75,0.05),
+      item('c5',5,'Garmin Forerunner 245',62,119.00,mdate(0,1),mdate(0,8),'Wearables',SP,false,1.10,0),
+      item('c6',6,'Canon EOS 1300D Body',75,null,mdate(0,6),null,'Camera',SP,false,1.20,0.03,[{desc:'Replacement strap',cost:3.50,date:mdate(0,6)}]),
+      item('c7',7,'Xbox 360 S Console 250GB',28,null,mdate(0,7),null,'Gaming',SP,false,1.80,0),
+      item('c8',8,'Bose SoundLink Mini II',45,89.99,mdate(0,3),mdate(0,14),'Audio',SP,false,0.90,0.05),
+      item('c9',9,'iPad Mini 4 WiFi 128GB',110,null,mdate(0,8),null,'Tablets',SP,false,1.00,0),
+      item('c10',10,'GBA SP AGS-101 + Game',55,null,mdate(0,9),null,'Gaming',LL,false,0.60,0,[{desc:'Replacement battery',cost:4.99,date:mdate(0,9)}]),
     ],
+
+    // ── 1 MONTH AGO ────────────────────────────────────────────────────────
+    [m1]: [
+      item('b1',11,'PlayStation 4 Slim 500GB',98,169.99,mdate(1,2),mdate(1,12),'Gaming',SP,false,1.80,0.05),
+      item('b2',12,'MacBook Air 2017 i5',155,285.00,mdate(1,4),mdate(1,18),'Computing',LP,false,2.50,0.03),
+      item('b3',13,'Kindle Paperwhite Gen 10',28,54.99,mdate(1,5),mdate(1,14),'Electronics',LL,false,0.50,0),
+      item('b4',14,'Sony A6000 Camera Body',105,189.00,mdate(1,3),mdate(1,16),'Camera',SP,false,1.20,0.05),
+      item('b5',15,'GBC Pokemon Yellow Cart',12,29.99,mdate(1,6),mdate(1,11),'Gaming',ML,false,0.40,0),
+      item('b6',16,'Dyson V7 Cordless Hoover',85,159.99,mdate(1,1),mdate(1,9),'Appliances',LP,false,2.80,0.05),
+      item('b7',17,'Apple Watch Series 3 38mm',42,79.00,mdate(1,7),mdate(1,19),'Wearables',SP,false,1.00,0.03),
+      item('b8',18,'Razer Kraken Headset',22,44.99,mdate(1,8),mdate(1,20),'Audio',SP,false,0.90,0),
+      item('b9',19,'Samsung Galaxy Tab A 2019',65,null,mdate(1,9),null,'Tablets',SP,false,1.00,0),
+      item('b10',20,'JBL Flip 5 Speaker',30,58.99,mdate(1,10),mdate(1,22),'Audio',SP,false,0.80,0),
+      item('b11',21,'Nintendo Switch Lite Yellow',95,155.00,mdate(1,12),mdate(1,24),'Gaming',SP,false,1.20,0.03),
+      item('b12',22,'Xbox One Controller',18,34.00,mdate(1,14),mdate(1,25),'Gaming',LL,false,0.60,0),
+    ],
+
+    // ── 2 MONTHS AGO ───────────────────────────────────────────────────────
+    [m2]: [
+      item('a1',23,'iPhone 11 128GB Black',175,259.99,mdate(2,3),mdate(2,10),'Phones',SP,false,1.00,0.05),
+      item('a2',24,'Canon 18-55mm IS II Lens',35,69.99,mdate(2,5),mdate(2,14),'Camera',SP,false,1.10,0),
+      item('a3',25,'PS2 Slim + 2 Controllers',38,72.00,mdate(2,2),mdate(2,8),'Gaming',SP,false,1.80,0),
+      item('a4',26,'Fitbit Charge 4',25,49.00,mdate(2,6),mdate(2,15),'Wearables',LL,false,0.50,0.03),
+      item('a5',27,'Nikon D3200 18-55mm Kit',110,199.00,mdate(2,4),mdate(2,13),'Camera',SP,false,1.20,0.05),
+      item('a6',28,'Dell Latitude E7470 i5',120,225.00,mdate(2,7),mdate(2,18),'Computing',LP,false,2.50,0.03),
+      item('a7',29,'GBA SP + Pokemon Fire Red',68,119.00,mdate(2,8),mdate(2,19),'Gaming',SP,false,0.80,0),
+      item('a8',30,'Anker PowerCore 26800',20,38.99,mdate(2,9),mdate(2,20),'Electronics',LL,false,0.40,0),
+      item('a9',31,'Sennheiser HD 599',55,105.00,mdate(2,10),mdate(2,22),'Audio',SP,false,0.90,0.05),
+      item('a10',32,'Sony PSP 3000 + Case',28,54.99,mdate(2,11),mdate(2,24),'Gaming',SP,false,0.80,0),
+      item('a11',33,'Ring Video Doorbell 3',48,89.99,mdate(2,1),mdate(2,7),'Smart Home',SP,false,1.00,0.05),
+      item('a12',34,'Logitech C920 Webcam',22,null,mdate(2,12),null,'Computing',SP,false,0.70,0,
+        [{desc:'USB cable replacement',cost:2.99,date:mdate(2,12)}],[],'Spares or repair listing'),
+    ],
+
+    // ── 3 MONTHS AGO ───────────────────────────────────────────────────────
+    [m3]: [
+      item('9a',35,'iPhone XR 64GB Coral',140,209.99,mdate(3,4),mdate(3,13),'Phones',SP,false,1.00,0.05),
+      item('9b',36,'Nintendo 3DS XL Blue',55,95.00,mdate(3,6),mdate(3,15),'Gaming',SP,false,0.80,0.03),
+      item('9c',37,'Samsung Galaxy S10 128GB',115,185.00,mdate(3,2),mdate(3,9),'Phones',SP,false,1.00,0.05),
+      item('9d',38,'Dyson AM07 Tower Fan',60,115.99,mdate(3,5),mdate(3,16),'Appliances',LP,false,2.80,0),
+      item('9e',39,'HP EliteBook 840 G3 i5',105,199.00,mdate(3,7),mdate(3,20),'Computing',LP,false,2.50,0.03),
+      item('9f',40,'GBC Gameboy Color Purple',24,47.99,mdate(3,8),mdate(3,18),'Gaming',ML,false,0.40,0),
+      item('9g',41,'Canon 50mm f1.8 STM Lens',42,79.99,mdate(3,9),mdate(3,21),'Camera',SP,false,1.10,0.03),
+      item('9h',42,'Jawbone Jambox Speaker',15,28.99,mdate(3,10),mdate(3,22),'Audio',LL,false,0.50,0),
+      item('9i',43,'Xbox 360 Games Bundle x8',14,29.99,mdate(3,11),mdate(3,23),'Gaming',SP,false,1.20,0),
+      item('9j',44,'Kodak Mini 2 Printer',22,39.99,mdate(3,12),mdate(3,24),'Electronics',SP,false,0.90,0),
+      item('9k',45,'Sonos Play:1 Speaker',48,94.99,mdate(3,3),mdate(3,11),'Audio',SP,false,1.00,0.05),
+      item('9l',46,'Surface Pro 4 i5 256GB',165,299.00,mdate(3,1),mdate(3,8),'Computing',LP,false,2.50,0.05),
+    ],
+
+    // ── 4 MONTHS AGO ───────────────────────────────────────────────────────
+    [m4]: [
+      item('8a',47,'iPhone SE 2020 64GB',110,169.99,mdate(4,3),mdate(4,10),'Phones',SP,false,1.00,0.05),
+      item('8b',48,'Nintendo Switch OLED White',195,279.00,mdate(4,5),mdate(4,14),'Gaming',SP,false,1.20,0.03),
+      item('8c',49,'Nikon D5300 + 18-55mm',130,235.00,mdate(4,4),mdate(4,12),'Camera',SP,false,1.20,0.05),
+      item('8d',50,'Sony Xperia 5 II',125,195.00,mdate(4,6),mdate(4,16),'Phones',SP,false,1.00,0),
+      item('8e',51,'Plantronics Voyager 5200',18,34.99,mdate(4,7),mdate(4,17),'Audio',LL,false,0.50,0),
+      item('8f',52,'Lenovo ThinkPad T470 i5',138,249.00,mdate(4,8),mdate(4,19),'Computing',LP,false,2.50,0.03),
+      item('8g',53,'GBA Pokemon Emerald Cart',35,67.99,mdate(4,9),mdate(4,20),'Gaming',ML,false,0.40,0),
+      item('8h',54,'Oculus Quest 2 128GB',155,239.00,mdate(4,2),mdate(4,9),'Gaming',SP,false,1.80,0.05),
+      item('8i',55,'Canon EOS M50 Body',145,265.00,mdate(4,10),mdate(4,22),'Camera',SP,false,1.20,0.05),
+      item('8j',56,'Sony SRS-XB33 Speaker',35,64.99,mdate(4,11),mdate(4,23),'Audio',SP,false,0.90,0),
+      item('8k',57,'Samsung Galaxy Watch Active2',45,84.99,mdate(4,12),mdate(4,24),'Wearables',SP,false,1.00,0.03),
+      item('8l',58,'Raspberry Pi 4 4GB Kit',38,72.00,mdate(4,13),mdate(4,25),'Computing',SP,false,0.80,0),
+    ],
+
     expenses:[
-      {id:'preview-exp-1', label:'Packaging supplies', amount:12.40, date:prevDate(9), category:'Supplies', notes:'Demo expense'}
+      {id:'pv-ex1', label:'Packaging supplies (bubble wrap, boxes)', amount:18.40, date:mdate(0,5), category:'Supplies', notes:''},
+      {id:'pv-ex2', label:'Packing tape x4 rolls', amount:7.99, date:mdate(0,12), category:'Supplies', notes:''},
+      {id:'pv-ex3', label:'eBay promoted listings fee', amount:14.22, date:mdate(1,28), category:'Fees', notes:'Monthly promoted'},
+      {id:'pv-ex4', label:'Packaging supplies', amount:15.60, date:mdate(1,8), category:'Supplies', notes:''},
+      {id:'pv-ex5', label:'Car boot entry x2', amount:5.00, date:mdate(1,6), category:'Sourcing', notes:'Weekend boot sale'},
+      {id:'pv-ex6', label:'eBay promoted listings fee', amount:11.85, date:mdate(2,28), category:'Fees', notes:''},
+      {id:'pv-ex7', label:'Jiffy bags x50', amount:9.99, date:mdate(2,4), category:'Supplies', notes:''},
+      {id:'pv-ex8', label:'Car boot entry x3', amount:7.50, date:mdate(2,9), category:'Sourcing', notes:''},
+      {id:'pv-ex9', label:'eBay promoted listings fee', amount:18.40, date:mdate(3,28), category:'Fees', notes:''},
+      {id:'pv-ex10', label:'Packaging supplies', amount:22.10, date:mdate(3,5), category:'Supplies', notes:''},
+      {id:'pv-ex11', label:'eBay promoted listings fee', amount:9.75, date:mdate(4,28), category:'Fees', notes:''},
+      {id:'pv-ex12', label:'Bubble wrap roll x2', amount:12.50, date:mdate(4,3), category:'Supplies', notes:''},
     ],
+
     trips:[
-      {id:'preview-trip-1', date:prevDate(8), miles:14, purpose:'Post office and sourcing', notes:'Demo mileage'}
+      {id:'pv-tr1', date:mdate(0,4), miles:8, purpose:'Post office run', notes:''},
+      {id:'pv-tr2', date:mdate(0,11), miles:22, purpose:'Car boot sourcing — Basingstoke', notes:'Picked up PS4 + 3DS'},
+      {id:'pv-tr3', date:mdate(1,5), miles:9, purpose:'Post office run', notes:''},
+      {id:'pv-tr4', date:mdate(1,12), miles:18, purpose:'Charity shop run x3 stops', notes:''},
+      {id:'pv-tr5', date:mdate(1,22), miles:26, purpose:'Car boot — Newbury', notes:'Good haul'},
+      {id:'pv-tr6', date:mdate(2,6), miles:11, purpose:'Post office + drop-off', notes:''},
+      {id:'pv-tr7', date:mdate(2,14), miles:20, purpose:'Car boot sourcing', notes:''},
+      {id:'pv-tr8', date:mdate(3,4), miles:8, purpose:'Post office run', notes:''},
+      {id:'pv-tr9', date:mdate(3,18), miles:24, purpose:'Car boot — Winchester', notes:''},
+      {id:'pv-tr10', date:mdate(4,7), miles:12, purpose:'Post office + charity shops', notes:''},
     ]
   };
 }
@@ -1681,6 +1782,21 @@ function disablePreviewMode(){
 }
 
 // ── AUTH ─────────────────────────────────────────────────────────────────────
+
+const _EYE_OPEN = `<path d='M1 8s3-5 7-5 7 5 7 5-3 5-7 5-7-5-7-5z' stroke='currentColor' stroke-width='1.5' fill='none'/><circle cx='8' cy='8' r='2' stroke='currentColor' stroke-width='1.5' fill='none'/>`;
+const _EYE_SLASH = `<path d='M13.4 13.4C12.1 14.4 10.1 15 8 15c-4 0-7-5-7-5a12.4 12.4 0 013.6-3.6' stroke='currentColor' stroke-width='1.5' fill='none' stroke-linecap='round'/><path d='M2.6 2.6l10.8 10.8' stroke='currentColor' stroke-width='1.5' fill='none' stroke-linecap='round'/><path d='M6.5 3.3A7.2 7.2 0 018 3c4 0 7 5 7 5a12.4 12.4 0 01-1.6 2.3' stroke='currentColor' stroke-width='1.5' fill='none' stroke-linecap='round'/><path d='M10.7 10.7A3 3 0 015.3 5.3' stroke='currentColor' stroke-width='1.5' fill='none' stroke-linecap='round'/>`;
+
+function toggleAuthPass(){
+  const input = document.getElementById('auth-pass');
+  const svg   = document.getElementById('auth-pass-svg');
+  if(input.type === 'password'){
+    input.type    = 'text';
+    svg.innerHTML = _EYE_SLASH; // now visible — show slash icon
+  } else {
+    input.type    = 'password';
+    svg.innerHTML = _EYE_OPEN;  // now hidden — show open eye icon
+  }
+}
 
 async function doSignIn(){
   const email = document.getElementById('auth-email').value.trim();
@@ -1769,9 +1885,11 @@ async function doResetPassword(){
 async function doSignOut(){
   if(_previewMode){
     disablePreviewMode();
-    const url = new URL(window.location.href);
-    url.searchParams.delete('preview');
-    history.replaceState({}, '', url.toString());
+    try{
+      const url = new URL(window.location.href);
+      url.searchParams.delete('preview');
+      history.replaceState({}, '', url.toString());
+    }catch(e){ /* sandboxed iframe — ignore */ }
     _currentUserId = null;
     DB = {};
     _dbSnapshot = {};
