@@ -826,7 +826,7 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
 .kcard:hover{transform:translateY(-3px);box-shadow:0 16px 42px var(--shadow-md);}
 .klabel{font-size:10px;font-weight:800;letter-spacing:.12em;color:var(--muted);} 
 .kval,.stat-num,.stat-num-sm,.stat-num-xs,.insight-val{font-variant-numeric:tabular-nums lining-nums;letter-spacing:-0.05em;}
-.kval{font-size:clamp(16px,1.9vw,30px);font-weight:800;margin:10px 0 6px;line-height:.98;overflow:hidden;white-space:nowrap;}
+.kval{font-size:28px;font-weight:800;margin:10px 0 6px;line-height:.98;overflow:hidden;white-space:nowrap;}
 .ksub{font-size:12px;color:var(--text-secondary)}
 .insights{gap:14px;grid-template-columns:1fr;}
 .insight-card{border-radius:18px;padding:16px 16px;border:1px solid var(--border);box-shadow:0 10px 26px var(--shadow);align-items:flex-start;}
@@ -881,11 +881,11 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
 #auth-screen-login,#auth-screen-reset{max-width:420px;border-radius:28px;padding:42px 36px!important;box-shadow:0 22px 60px rgba(0,0,0,.18);} 
 #auth-screen-login > div:first-child + div + div span{letter-spacing:.16em!important;}
 #auth-btn{height:48px;border-radius:16px;}
-.summary-shell{display:grid;grid-template-columns:minmax(0,1.84fr) minmax(0,.92fr);gap:18px;align-items:start;}
-.summary-main{display:flex;flex-direction:column;gap:18px;min-height:100%;min-width:0;}
-.summary-side{display:grid;grid-template-rows:auto auto auto;gap:18px;}
-.summary-velocity{display:flex;flex-direction:column;}
-.summary-velocity .vel-cat-wrap{flex:1;min-height:0;display:flex;flex-direction:column;}
+.summary-shell{display:grid;grid-template-columns:minmax(0,1.84fr) minmax(0,.92fr);gap:18px;align-items:stretch;}
+.summary-main{display:flex;flex-direction:column;gap:18px;min-width:0;}
+.summary-side{display:flex;flex-direction:column;gap:18px;min-height:0;}
+.summary-velocity{display:flex;flex-direction:column;flex:1;min-height:0;}
+.summary-velocity .vel-cat-wrap{flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden;}
 .panel-card{background:linear-gradient(180deg,color-mix(in srgb,var(--surface) 96%, #fff 4%), var(--surface));border:1px solid var(--border);border-radius:22px;padding:20px;box-shadow:0 12px 30px var(--shadow);} 
 [data-theme="dark"] .panel-card{background:linear-gradient(180deg,color-mix(in srgb,var(--surface) 92%, #20304a 8%), var(--surface));border-color:color-mix(in srgb,var(--border) 88%, transparent);}
 .metric-inline{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;padding:12px 0;border-bottom:1px solid var(--border);} 
@@ -4234,6 +4234,40 @@ function _chartColors(){
   };
 }
 
+// KPI font autosizer — runs once on render + on window resize (debounced).
+// No ResizeObserver to avoid feedback loops.
+function _autoSizeKpis(){
+  const cards=document.querySelectorAll('#p-summary .kcard');
+  if(!cards.length)return;
+  cards.forEach(card=>{
+    const val=card.querySelector('.kval');
+    if(!val)return;
+    // Reset to max so we always measure from a known state
+    val.style.fontSize='28px';
+    // Force reflow so offsetWidth/scrollWidth are accurate
+    void card.offsetWidth;
+    const available=card.clientWidth-40;
+    if(available<=0)return;
+    if(val.scrollWidth<=available)return; // fits at 28px, done
+    // Binary search downward
+    let lo=11,hi=27,best=11;
+    for(let i=0;i<9;i++){
+      const mid=(lo+hi)>>1;
+      val.style.fontSize=mid+'px';
+      void val.offsetWidth; // force reflow each step
+      if(val.scrollWidth<=available){best=mid;lo=mid+1;}
+      else{hi=mid-1;}
+    }
+    val.style.fontSize=best+'px';
+  });
+}
+(function _initKpiResize(){
+  let _t;
+  window.addEventListener('resize',()=>{
+    clearTimeout(_t);
+    _t=setTimeout(_autoSizeKpis,120);
+  });
+})();
 function renderSummaryChart(labels,revData,profitData){
   const canvas=document.getElementById('summary-chart-canvas');
   if(!canvas||typeof Chart==='undefined')return;
@@ -4387,7 +4421,7 @@ function renderSummary(){
     const topRows=top.length ? top.map((i,idx)=>{
       const profitCol=(i.profit||0)>=0?'var(--green)':'var(--red)';
       return `<div class="metric-inline clickable" onclick="openItemDetail('${i.month}','${i.id}')"><div><div class="metric-k">#${idx+1} · ${esc(i.item)}</div><div style="font-size:11px;color:var(--muted);margin-top:4px">${keyName(i.month)} · ${i.dateSold||i.resaleDateSold||''}</div></div><div style="text-align:right"><div class="metric-v" style="font-size:20px;color:${profitCol}">${fmt(i.profit)}</div><div style="font-size:11px;color:var(--text-secondary)">${i.roi!==null?i.roi.toFixed(0)+'% ROI':'—'}</div></div></div>`;
-    }).join('') : `<div style="font-size:13px;color:var(--text-secondary)">No completed sales in this period yet.</div>`;
+    }).join('') : [1,2,3,4,5].map(n=>`<div class="metric-inline" style="opacity:.22;pointer-events:none;user-select:none"><div><div style="width:${48+n*14}px;height:11px;border-radius:6px;background:var(--border2)"></div><div style="width:80px;height:9px;border-radius:5px;background:var(--border2);margin-top:7px"></div></div><div style="text-align:right"><div style="width:54px;height:18px;border-radius:6px;background:var(--border2)"></div><div style="width:38px;height:9px;border-radius:5px;background:var(--border2);margin-top:5px"></div></div></div>`).join('');
     const catRows=catLeaders.length ? catLeaders.map(c=>{
       const sellPct=c.total?Math.round((c.sold/c.total)*100):0;
       const avgDays=c.avgDays!==null?c.avgDays+'d avg':'No sales yet';
@@ -4450,55 +4484,55 @@ function renderSummary(){
     el.innerHTML=html;
     window.__summaryByCat=stats.byCat||[];
     renderSummaryChart(chartLabels,chartRev,chartProfit);
-    // Desktop only: match velocity card height to top flips, collapse overflow cats
-    (function _matchVelocityHeight(){
+    // Size KPI fonts after chart paint (rAF lets layout settle first)
+    requestAnimationFrame(()=>requestAnimationFrame(_autoSizeKpis));
+    // Desktop only: collapse velocity category rows to fit available height
+    (function _watchVelocityFit(){
       if(window.innerWidth<=980)return;
-      // Use a small delay to let the chart render and full layout settle
-      setTimeout(()=>{
-        const topFlips=document.querySelector('.summary-topflips');
-        const side=document.querySelector('.summary-side');
-        const velCard=document.querySelector('.summary-velocity');
-        const wrap=document.getElementById('vel-cat-wrap');
-        const grid=document.getElementById('vel-cat-grid');
-        const more=document.getElementById('vel-cat-more');
-        if(!topFlips||!side||!velCard)return;
+      const velCard=document.querySelector('.summary-velocity');
+      const wrap=document.getElementById('vel-cat-wrap');
+      const grid=document.getElementById('vel-cat-grid');
+      const more=document.getElementById('vel-cat-more');
+      // Ensure button is in a known state
+      if(more) more.style.display='none';
+      if(!velCard)return;
 
-        // Calculate total main column height
-        const mainH=topFlips.getBoundingClientRect().bottom - side.getBoundingClientRect().top;
-        // Calculate space already used by snapshot + inventory health + gaps
-        const sideChildren=Array.from(side.children);
-        const otherH=sideChildren.filter(c=>!c.classList.contains('summary-velocity'))
-          .reduce((s,c)=>s+c.getBoundingClientRect().height,0);
-        const gaps=18*(sideChildren.length-1);
-        const velH=Math.max(0, mainH - otherH - gaps);
-
-        if(velH>0) velCard.style.minHeight=velH+'px';
-
-        // Now collapse category rows that don't fit
+      function collapseRows(){
         if(!wrap||!grid||!more)return;
         const rows=Array.from(grid.querySelectorAll('.vel-cat-item'));
         if(!rows.length)return;
-        // Reset visibility first (in case of re-render)
-        rows.forEach(r=>r.style.display='');
+        // Reset all visible
+        rows.forEach(r=>{r.style.display='';});
         more.style.display='none';
-        // Wait for minHeight reflow to settle before measuring
-        setTimeout(()=>{
-          const cardBottom=velCard.getBoundingClientRect().bottom;
-          const wrapTop=wrap.getBoundingClientRect().top;
-          const labelH=wrap.querySelector(':scope > div:first-child')?.getBoundingClientRect().height||32;
-          const moreBtnH=52; // btn height + margin
-          const padding=20;
-          const available=cardBottom - wrapTop - labelH - moreBtnH - padding;
-          let used=0, anyHidden=false;
-          rows.forEach(r=>{
-            const h=r.getBoundingClientRect().height+8;
-            if(used+h<=available){ used+=h; }
-            else{ r.style.display='none'; anyHidden=true; }
-          });
-          // Always show button if any hidden; hide only if all fit
-          more.style.display=anyHidden?'block':'none';
-        },40);
-      },120);
+        void wrap.offsetWidth; // force reflow before measuring
+        const velRect=velCard.getBoundingClientRect();
+        const wrapRect=wrap.getBoundingClientRect();
+        if(!velRect.height||!wrapRect.top)return;
+        const labelEl=wrap.querySelector(':scope > div:first-child');
+        const labelH=labelEl?labelEl.getBoundingClientRect().height+10:38;
+        const moreBtnH=44;
+        const cardPad=20;
+        const available=velRect.bottom - wrapRect.top - labelH - moreBtnH - cardPad;
+        if(available<=0)return;
+        let used=0, anyHidden=false;
+        rows.forEach(r=>{
+          const h=r.getBoundingClientRect().height+8;
+          if(used+h<=available){used+=h;}
+          else{r.style.display='none';anyHidden=true;}
+        });
+        more.style.display=anyHidden?'block':'none';
+      }
+
+      // Disconnect any previous observer before attaching a new one
+      if(window._velResizeObs){window._velResizeObs.disconnect();window._velResizeObs=null;}
+      window._velResizeObs=new ResizeObserver(entries=>{
+        // Guard: only fire if the velocity card itself changed size
+        if(!entries.some(e=>e.target===velCard))return;
+        collapseRows();
+      });
+      window._velResizeObs.observe(velCard);
+      // Run once after double-rAF so layout is fully painted
+      requestAnimationFrame(()=>requestAnimationFrame(collapseRows));
     })();
     // Mobile chart summary
     (function(){
