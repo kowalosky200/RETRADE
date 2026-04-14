@@ -70,9 +70,10 @@ nav:not(#bottom-nav){position:sticky;top:0;z-index:200;background:var(--surface)
 .nav-more-btn:hover{color:var(--text);}
 .nav-more-btn.on{color:var(--accent);}
 .nav-more-btn.has-items{display:flex;}
-.nav-more-menu{display:none;position:absolute;top:calc(100% + 4px);right:0;min-width:160px;background:var(--surface);border:1px solid var(--border);border-radius:12px;box-shadow:0 8px 32px var(--shadow-md);z-index:300;overflow:hidden;padding:4px;}
+.nav-more-menu{display:none;position:absolute;top:calc(100% + 4px);right:0;min-width:180px;background:var(--surface);border:1px solid var(--border);border-radius:12px;box-shadow:0 8px 32px var(--shadow-md);z-index:300;overflow:hidden;padding:4px;}
 .nav-more.open .nav-more-menu{display:block;}
-.nav-more-menu button{width:100%;padding:10px 14px;background:none;border:none;text-align:left;cursor:pointer;font-size:13px;font-weight:500;color:var(--text-secondary);transition:all 0.15s;border-radius:8px;}
+.nav-more-menu button{width:100%;padding:10px 14px;background:none;border:none;text-align:left;cursor:pointer;font-size:13px;font-weight:500;color:var(--text-secondary);transition:all 0.15s;border-radius:8px;display:flex;align-items:center;gap:9px;}
+.nav-more-menu button svg{flex-shrink:0;opacity:0.7;}
 .nav-more-menu button:hover{background:var(--surface2);color:var(--text);}
 .nav-more-menu button.on{color:var(--accent);font-weight:600;}
 /* Search — centred in remaining space */
@@ -137,7 +138,7 @@ nav:not(#bottom-nav){position:sticky;top:0;z-index:200;background:var(--surface)
 .bnt{
   flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
   gap:3px;border:none;background:transparent;cursor:pointer;
-  font-family:var(--font-body);color:var(--muted);font-size:9px;font-weight:500;letter-spacing:0;text-transform:none;
+  font-family:var(--font-body);color:var(--muted);font-size:11px;font-weight:500;letter-spacing:0;text-transform:none;
   transition:color 0.15s;padding:0;
   -webkit-tap-highlight-color:transparent;
 }
@@ -357,6 +358,7 @@ nav:not(#bottom-nav){position:sticky;top:0;z-index:200;background:var(--surface)
 
 /* TOAST */
 #toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(100px);background:var(--surface);border:1px solid var(--border);color:var(--text);padding:14px 24px;border-radius:10px;font-size:14px;font-weight:500;z-index:500;opacity:0;transition:all 0.3s cubic-bezier(0.4,0,0.2,1);box-shadow:0 4px 20px var(--shadow-md);max-width:90vw;}
+@media(max-width:600px){#toast{bottom:84px;}}
 #toast.on{opacity:1;transform:translateX(-50%) translateY(0);}
 #toast.err{background:var(--red);color:#fff;border-color:var(--red-hover);}
 
@@ -425,7 +427,7 @@ nav:not(#bottom-nav){position:sticky;top:0;z-index:200;background:var(--surface)
 ::-webkit-scrollbar-thumb:hover{background:var(--muted);}
 .loading{display:flex;align-items:center;justify-content:center;min-height:200px;color:var(--text-secondary);font-size:14px;}
 .empty-state{text-align:center;padding:60px 20px;color:var(--text-secondary);}
-.empty-state-icon{font-size:48px;margin-bottom:16px;opacity:0.5;}
+.empty-state-icon{font-size:48px;margin-bottom:16px;opacity:0.5;display:flex;justify-content:center;align-items:center;}
 .empty-state-text{font-size:16px;font-weight:500;}
 .bpf-info{background:rgba(96,165,250,0.06);border:1px solid rgba(96,165,250,0.15);border-radius:8px;padding:10px 12px;font-size:12px;color:var(--text-secondary);margin-top:8px;}
 .bpf-breakdown{display:flex;gap:16px;margin-top:6px;font-size:11px;}
@@ -857,7 +859,9 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
 .btn-s{background:color-mix(in srgb,var(--surface2) 70%, transparent);} 
 .empty-state{padding:86px 20px;border:1px dashed var(--border2);border-radius:24px;background:color-mix(in srgb,var(--surface) 55%, transparent);} 
 .mgrid{gap:14px;}
-.mcard{min-height:138px;border-radius:20px;padding:20px 18px;box-shadow:0 12px 26px var(--shadow);border:1px solid var(--border);background:linear-gradient(180deg,color-mix(in srgb,var(--surface) 96%, #fff 4%), var(--surface));}
+.mcard{min-height:138px;border-radius:20px;padding:20px 18px;box-shadow:0 12px 26px var(--shadow);border:1px solid var(--border);background:linear-gradient(180deg,color-mix(in srgb,var(--surface) 96%, #fff 4%), var(--surface));display:flex;flex-direction:column;justify-content:space-between;}
+.mcard-body-left{display:flex;flex-direction:column;gap:4px;}
+.mcard-body-right{margin-top:8px;}
 [data-theme="dark"] .mcard{border-color:color-mix(in srgb,var(--border) 88%, transparent);}
 .mname{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text-secondary);}
 .mval{font-size:28px;font-weight:800;letter-spacing:-.05em;font-family:"Inter",system-ui,sans-serif;font-variant-numeric:tabular-nums lining-nums;}
@@ -914,16 +918,33 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
 @media(max-width:980px) and (min-width:601px){.kgrid-4{grid-template-columns:1fr 1fr!important;} .kval{font-size:26px!important;}}
 @media(max-width:820px){.nav-right{gap:6px}.user-menu-btn{padding-right:6px}.tab,.nav-more-btn{padding:0 10px;font-size:12px}}
 
-/* ===== Mobile ≤480px: 1-col KPI cards ===== */
+/* ===== Mobile ≤480px ===== */
 @media(max-width:480px){
-  .kgrid,.kgrid-4{grid-template-columns:1fr!important;}
-  .kcard{padding:14px 16px 12px;min-height:80px;border-radius:16px;}
+  /* KPI cards: keep 2-col — 1-col causes too much scroll before content */
+  .kgrid,.kgrid-4{grid-template-columns:1fr 1fr!important;}
+  .kcard{padding:12px 14px 10px;min-height:80px;border-radius:16px;}
   .klab{font-size:9px;letter-spacing:.08em;}
-  .kval{font-size:26px!important;margin:6px 0 3px;}
-  .kval-sub{font-size:12px;}
+  .kval{font-size:22px!important;margin:4px 0 2px;}
+  .kval-sub{font-size:11px;}
   .page,.item-full-page{padding:16px 14px 100px!important;}
   .hero-title{font-size:26px!important;}
   .page-intro-sub,.hero-sub{font-size:12px!important;}
+  /* Monthly grid: compact single-column list rows */
+  .mgrid{grid-template-columns:1fr!important;gap:6px!important;}
+  .mcard{
+    min-height:0!important;
+    padding:12px 14px!important;
+    border-radius:14px!important;
+    flex-direction:row!important;
+    align-items:center!important;
+    justify-content:space-between!important;
+    gap:10px!important;
+  }
+  .mcard-body-left{flex:1;min-width:0;}
+  .mcard-body-right{flex-shrink:0;text-align:right;}
+  .mval{font-size:18px!important;margin-bottom:0!important;}
+  .msub{font-size:11px;margin-top:2px!important;}
+  .mname{font-size:11px;margin-bottom:2px!important;}
 }
 
 /* ===== end overrides ===== */
@@ -931,6 +952,7 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
 /* === Retrade v8 safe fixes === */
 /* On mobile, expand panel search-wrap must never be killed by nav rules */
 @media(max-width:600px){#nav-search-expand .search-wrap{display:block!important;width:100%!important;max-width:none!important;}}
+@media(max-width:600px){.fy-stat-hide{display:none!important;}}
 @media (min-width: 601px){
   nav:not(#bottom-nav){display:block!important;}
   .nav-inner{max-width:1280px!important;display:grid!important;grid-template-columns:auto minmax(0,1fr) auto auto!important;align-items:center!important;gap:18px!important;overflow:visible;}
@@ -1023,11 +1045,10 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
   .summary-topflips     {order:6;margin-bottom:14px;width:100%;}
 }
 
-/* ≤480px: swap chart canvas for text summary panel */
-@media(max-width:480px){
+/* ≤360px: swap chart canvas for text summary panel (keep chart on wider phones) */
+@media(max-width:360px){
   #p-summary .summary-chart{display:none!important;}
   .chart-mobile-summary{display:block!important;}
-  .kgrid,.kgrid-4{grid-template-columns:1fr!important;}
 }
 .chart-mobile-summary{
   background:var(--surface);border:1px solid var(--border);
@@ -1079,17 +1100,17 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
     <!-- Primary tabs — always visible: Summary, Monthly, Stock -->
     <div class="tabs-row">
       <div class="tabs">
-        <button class="tab on" data-tab="summary" onclick="goToTab('summary',this)" title="Home"><span class="tab-ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5L12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/></svg></span><span class="tab-label">Home</span></button>
+        <button class="tab on" data-tab="summary" onclick="goToTab('summary',this)" title="Home"><span class="tab-ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="10" width="4" height="11" rx="1"/><rect x="10" y="6" width="4" height="15" rx="1"/><rect x="17" y="2" width="4" height="19" rx="1"/><line x1="2" y1="21" x2="22" y2="21"/></svg></span><span class="tab-label">Home</span></button>
         <button class="tab" data-tab="monthly" onclick="goToTab('monthly',this)" title="Calendar"><span class="tab-ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></span><span class="tab-label">Calendar</span></button>
-        <button class="tab" data-tab="stock" onclick="goToTab('stock',this)" title="Stock"><span class="tab-ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 7H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z"/><path d="M16 3H8l-2 4h12l-2-4z"/></svg></span><span class="tab-label">Stock</span></button>
+        <button class="tab" data-tab="stock" onclick="goToTab('stock',this)" title="Stock"><span class="tab-ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 10L7 7.5V2L12 4.5V10Z"/><path d="M12 10L17 7.5V2L12 4.5V10Z"/><path d="M12 4.5L7 2L12 0L17 2L12 4.5Z"/><path d="M6 20L1 17.5V12L6 14.5V20Z"/><path d="M6 20L11 17.5V12L6 14.5V20Z"/><path d="M6 14.5L1 12L6 9.5L11 12L6 14.5Z"/><path d="M18 20L13 17.5V12L18 14.5V20Z"/><path d="M18 20L23 17.5V12L18 14.5V20Z"/><path d="M18 14.5L13 12L18 9.5L23 12L18 14.5Z"/></svg></span><span class="tab-label">Stock</span></button>
       </div>
       <!-- More dropdown — Expenses, Tax, Data always here, no dynamic overflow -->
       <div class="nav-more" id="nav-more-wrap">
         <button class="nav-more-btn has-items" id="nav-more-trigger" onclick="event.stopPropagation();toggleNavMore()" title="More pages" style="gap:5px;padding:0 12px;" title="More"><span class="tab-ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/></svg></span><span class="tab-label">More</span></button>
         <div class="nav-more-menu" id="nav-more-menu">
-          <button data-tab="expenses" onclick="goToTab('expenses',this);document.querySelector('.nav-more').classList.remove('open')">Expenses</button>
-          <button data-tab="tax" onclick="goToTab('tax',this);document.querySelector('.nav-more').classList.remove('open')">Tax / SA103</button>
-          <button data-tab="data" onclick="goToTab('data',this);document.querySelector('.nav-more').classList.remove('open')">Data</button>
+          <button data-tab="expenses" onclick="goToTab('expenses',this);document.querySelector('.nav-more').classList.remove('open')"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 2h14a1 1 0 0 1 1 1v18l-2.5-1.5L15 21l-2.5-1.5L10 21l-2.5-1.5L5 21V3a1 1 0 0 1 0-1z"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="12" y2="16"/></svg>Expenses</button>
+          <button data-tab="tax" onclick="goToTab('tax',this);document.querySelector('.nav-more').classList.remove('open')"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="8.5" y1="15.5" x2="15.5" y2="8.5"/><circle cx="9.5" cy="9.5" r="1.2" fill="currentColor" stroke="none"/><circle cx="14.5" cy="14.5" r="1.2" fill="currentColor" stroke="none"/></svg>Tax / SA103</button>
+          <button data-tab="data" onclick="goToTab('data',this);document.querySelector('.nav-more').classList.remove('open')"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>Data</button>
         </div>
       </div>
     </div>
@@ -1125,7 +1146,7 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
 <!-- BOTTOM NAV — always pinned to bottom, mobile + desktop -->
 <nav id="bottom-nav" style="display:none;">
   <button class="bnt on" data-tab="summary" onclick="goToTab('summary',this)">
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="10" width="4" height="11" rx="1"/><rect x="10" y="6" width="4" height="15" rx="1"/><rect x="17" y="2" width="4" height="19" rx="1"/><line x1="2" y1="21" x2="22" y2="21"/></svg>
     Home
   </button>
   <button class="bnt" data-tab="monthly" onclick="goToTab('monthly',this)">
@@ -1133,7 +1154,7 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
     Calendar
   </button>
   <button class="bnt" data-tab="stock" onclick="goToTab('stock',this)">
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 7H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z"/><path d="M16 3H8l-2 4h12l-2-4z"/></svg>
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 10L7 7.5V2L12 4.5V10Z"/><path d="M12 10L17 7.5V2L12 4.5V10Z"/><path d="M12 4.5L7 2L12 0L17 2L12 4.5Z"/><path d="M6 20L1 17.5V12L6 14.5V20Z"/><path d="M6 20L11 17.5V12L6 14.5V20Z"/><path d="M6 14.5L1 12L6 9.5L11 12L6 14.5Z"/><path d="M18 20L13 17.5V12L18 14.5V20Z"/><path d="M18 20L23 17.5V12L18 14.5V20Z"/><path d="M18 14.5L13 12L18 9.5L23 12L18 14.5Z"/></svg>
     Stock
   </button>
   <button class="bnt" id="bnt-search" onclick="toggleNavSearch()">
@@ -1169,11 +1190,11 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
 <div id="more-sheet" style="display:none;position:fixed;bottom:60px;left:0;right:0;z-index:301;background:var(--surface);border-top:1px solid var(--border);border-radius:20px 20px 0 0;padding:8px 0 16px;box-shadow:0 -8px 40px var(--shadow-md);">
   <div style="width:36px;height:4px;background:var(--border2);border-radius:2px;margin:0 auto 16px;"></div>
   <button onclick="closeMoreSheet();goToTab('expenses',document.querySelector('[data-tab=\'expenses\']'))" class="more-sheet-row" data-sheet-tab="expenses">
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 2h14a1 1 0 0 1 1 1v18l-2.5-1.5L15 21l-2.5-1.5L10 21l-2.5-1.5L5 21V3a1 1 0 0 1 0-1z"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="12" y2="16"/></svg>
     <span>Expenses</span>
   </button>
   <button onclick="closeMoreSheet();goToTab('tax',document.querySelector('[data-tab=\'tax\']'))" class="more-sheet-row" data-sheet-tab="tax">
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="8.5" y1="15.5" x2="15.5" y2="8.5"/><circle cx="9.5" cy="9.5" r="1.2" fill="currentColor" stroke="none"/><circle cx="14.5" cy="14.5" r="1.2" fill="currentColor" stroke="none"/></svg>
     <span>Tax / SA103</span>
   </button>
   <button onclick="closeMoreSheet();goToTab('data',document.querySelector('[data-tab=\'data\']'))" class="more-sheet-row" data-sheet-tab="data">
@@ -1222,7 +1243,7 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
 
 <div id="confirm-modal">
   <div class="confirm-box">
-    <div class="confirm-icon" id="confirm-icon">&#x26A0;&#xFE0F;</div>
+    <div class="confirm-icon" id="confirm-icon"><svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="var(--warn)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></div>
     <div class="confirm-title" id="confirm-title">Are you sure?</div>
     <div class="confirm-msg" id="confirm-msg"></div>
     <div class="confirm-btns">
@@ -1325,7 +1346,11 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
       Back to sign in
     </button>
     <div style="text-align:center;margin-bottom:28px;">
-      <div style="font-size:36px;margin-bottom:8px;">📧</div>
+      <div style="display:flex;justify-content:center;margin-bottom:12px;">
+        <div style="width:52px;height:52px;border-radius:14px;background:var(--surface2);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M2 7l10 7 10-7"/></svg>
+        </div>
+      </div>
       <div style="font-size:20px;font-weight:700;letter-spacing:-0.02em;">Reset Password</div>
       <div style="font-size:13px;color:var(--text-secondary);margin-top:4px;">Enter your email and we'll send a reset link</div>
     </div>
@@ -1486,7 +1511,17 @@ function showConfirm(title,msg,opts){
   opts=opts||{};
   return new Promise(function(resolve){
     _confirmResolve=resolve;
-    document.getElementById('confirm-icon').textContent=opts.icon||'⚠️';
+    const iconEl=document.getElementById('confirm-icon');
+  const iconVal=opts.icon||'warn';
+  if(iconVal==='warn'||!iconVal){
+    iconEl.innerHTML='<svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="var(--warn)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>';
+  } else if(iconVal==='danger'){
+    iconEl.innerHTML='<svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="var(--red)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>';
+  } else if(iconVal==='delete'){
+    iconEl.innerHTML='<svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="var(--red)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>';
+  } else {
+    iconEl.textContent=iconVal;
+  }
     document.getElementById('confirm-title').textContent=title;
     document.getElementById('confirm-msg').textContent=msg;
     var okBtn=document.getElementById('confirm-ok');
@@ -3250,7 +3285,7 @@ function renderSearchResults(q){
   }).join('');
 
   const noResults=`<div style="padding:60px 20px;text-align:center;color:var(--muted)">
-    <div style="font-size:48px;margin-bottom:12px">🔍</div>
+    <div style="display:flex;justify-content:center;margin-bottom:12px;opacity:0.5"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></div>
     <div style="font-size:18px;font-weight:600;margin-bottom:6px">No results for "${esc(q)}"</div>
     <div style="font-size:14px">Try a different keyword or category</div>
   </div>`;
@@ -4793,22 +4828,29 @@ function renderMonthlyGrid(){
         const borderStyle=isCurrent?'border-color:var(--accent);':'';
         let cardContent;
         if(trulyEmpty){
-          cardContent='<div class="mval nil" style="font-size:16px;margin-bottom:6px;">—</div>'
-            +'<div class="msub" style="opacity:0.5">No items yet · tap to add</div>';
+          cardContent='<div class="mval nil" style="font-size:16px;">—</div>';
         } else if(hasListedOnly){
-          cardContent='<div class="mval nil">—</div>'
-            +'<div class="msub">0 sold · '+ms.listedCount+' active · — avg</div>';
+          cardContent='<div class="mval nil">—</div>';
         } else {
           const profVal=ms.realisedProfit>0?'pos':ms.realisedProfit<0?'neg':'nil';
-          cardContent='<div class="mval '+profVal+'">'+(ms.soldCount>0?fmt(ms.realisedProfit):'—')+'</div>'
-            +'<div class="msub">'+ms.soldCount+' sold · '+ms.listedCount+' active'+(ms.avgDays!==null?' · '+ms.avgDays+'d avg':' · — avg')+'</div>';
+          cardContent='<div class="mval '+profVal+'">'+(ms.soldCount>0?fmt(ms.realisedProfit):'—')+'</div>';
         }
         const nowBadge=isCurrent?'<span style="font-size:10px;font-weight:700;color:var(--accent);letter-spacing:0.5px;text-transform:uppercase;">Now</span>':'';
         const monthLabel=MONTH_NAMES[keyCode(k)]; // e.g. 'April'
         return '<div class="mcard'+(trulyEmpty?' mcard-empty':'')+'" style="'+borderStyle+'" onclick="goToMonth(\''+k+'\')">' 
-          +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">'
+          +'<div class="mcard-body-left">'
+          +'<div style="display:flex;align-items:center;gap:6px;">'
           +'<div class="mname" style="margin-bottom:0">'+monthLabel+'</div>'+nowBadge+'</div>'
-          +cardContent+'</div>';
+          +'<div class="msub">'+
+            (trulyEmpty?'No items yet · tap to add':
+             hasListedOnly?'0 sold · '+ms.listedCount+' active':
+             ms.soldCount+' sold · '+ms.listedCount+' active'+(ms.avgDays!==null?' · '+ms.avgDays+'d avg':''))
+          +'</div>'
+          +'</div>'
+          +'<div class="mcard-body-right">'
+          +cardContent
+          +'</div>'
+          +'</div>';
       }).join('');
       gridHTML='<div class="mgrid" style="margin-top:10px;">'+cards+'</div>';
     }
@@ -4820,8 +4862,8 @@ function renderMonthlyGrid(){
       +currentBadge+'</div>'
       +'<div style="display:flex;align-items:center;gap:20px;">'
       +'<div style="display:flex;gap:16px;align-items:center;font-size:13px;">'
-      +'<span style="color:var(--text-secondary)">'+fySold+' sold</span>'
-      +roiSpan
+      +'<span class="fy-stat-hide" style="color:var(--text-secondary)">'+fySold+' sold</span>'
+      +(roiSpan?roiSpan.replace('<span ','<span class="fy-stat-hide" '):'')
       +'<span style="font-weight:700;color:'+profitColor+'">'+fmt(fyProfit)+'</span>'
       +'</div>'
       +'<span style="font-size:14px;color:var(--muted);transition:transform 0.2s;display:inline-block;transform:rotate('+chevronRot+');">▾</span>'
@@ -4972,30 +5014,30 @@ function renderMonth(){
 
 
 
-    <div class="filter-row">
-      <select class="sort-select" onchange="setMonthFilter(this.value)">
-        <option value="listed" ${MONTH_FILTER==='listed'?'selected':''}>Listed (${cListed})</option>
-        <option value="all" ${MONTH_FILTER==='all'?'selected':''}>All (${cAll})</option>
-        <option value="sold" ${MONTH_FILTER==='sold'?'selected':''}>Sold (${cSold})</option>
-        ${cReturned>0?`<option value="returned" ${MONTH_FILTER==='returned'?'selected':''}>Returned (${cReturned})</option>`:''}
-      </select>
-      <select class="sort-select" onchange="setMonthSort(this.value)">
-        <option value="date-listed" ${MONTH_SORT==='date-listed'?'selected':''}>↑ Date listed</option>
-        <option value="date-sold" ${MONTH_SORT==='date-sold'?'selected':''}>↑ Date sold</option>
-        <option value="profit" ${MONTH_SORT==='profit'?'selected':''}>↑ Profit</option>
-        <option value="price" ${MONTH_SORT==='price'?'selected':''}>↑ Price</option>
+    <div class="filter-row" style="flex-wrap:wrap;gap:8px;">
+      <div class="filter-chips">
+        <button class="chip ${MONTH_FILTER==='listed'?'active':''}" onclick="setMonthFilter('listed')">Listed <span class="chip-count">${cListed}</span></button>
+        <button class="chip ${MONTH_FILTER==='all'?'active':''}" onclick="setMonthFilter('all')">All <span class="chip-count">${cAll}</span></button>
+        <button class="chip ${MONTH_FILTER==='sold'?'active':''}" onclick="setMonthFilter('sold')">Sold <span class="chip-count">${cSold}</span></button>
+        ${cReturned>0?`<button class="chip ${MONTH_FILTER==='returned'?'active':''}" onclick="setMonthFilter('returned')">Returned <span class="chip-count">${cReturned}</span></button>`:''}
+      </div>
+      <select class="sort-select" onchange="setMonthSort(this.value)" style="margin-left:auto;">
+        <option value="date-listed" ${MONTH_SORT==='date-listed'?'selected':''}>Date listed</option>
+        <option value="date-sold" ${MONTH_SORT==='date-sold'?'selected':''}>Date sold</option>
+        <option value="profit" ${MONTH_SORT==='profit'?'selected':''}>Profit</option>
+        <option value="price" ${MONTH_SORT==='price'?'selected':''}>Price</option>
       </select>
     </div>
 
     ${allItems.length===0?`
       <div class="empty-state">
-        <div class="empty-state-icon">📬</div>
+        <div class="empty-state-icon"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg></div>
         <div class="empty-state-text">No items for ${m} yet</div>
         <div class="empty-state-sub">Tap the + button to add your first item</div>
       </div>
     `:items.length===0?`
       <div class="empty-state">
-        <div class="empty-state-icon">🔍</div>
+        <div class="empty-state-icon"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></div>
         <div class="empty-state-text">No ${MONTH_FILTER} items</div>
         <div class="empty-state-sub"><span style="color:var(--accent);cursor:pointer;font-weight:600" onclick="setMonthFilter('all')">Show all ${cAll}</span></div>
       </div>
@@ -5252,7 +5294,7 @@ async function bulkAction(action){
     toast(`Marked items as sold`);
     renderMonth();
   }else if(action==='delete'){
-    const ok=await showConfirm('Delete '+SELECTED_ITEMS.size+' items?','This cannot be undone.',{icon:'🗑️',okLabel:'Delete all'});
+    const ok=await showConfirm('Delete '+SELECTED_ITEMS.size+' items?','This cannot be undone.',{icon:'delete',okLabel:'Delete all'});
     if(!ok)return;
     SELECTED_ITEMS.forEach(id=>{
       const idx=(DB[SELECTED_MONTH]||[]).findIndex(i=>i.id===id);
@@ -5308,7 +5350,7 @@ async function stockBulkAction(action,items){
     });
     saveDB();STOCK_SELECTED.clear();STOCK_SELECTION_MODE=false;toast('Marked as sold');renderStock();
   }else if(action==='delete'){
-    const ok=await showConfirm('Delete '+STOCK_SELECTED.size+' items?','This cannot be undone.',{icon:'🗑️',okLabel:'Delete all'});
+    const ok=await showConfirm('Delete '+STOCK_SELECTED.size+' items?','This cannot be undone.',{icon:'delete',okLabel:'Delete all'});
     if(!ok)return;
     STOCK_SELECTED.forEach(id=>{
       allDBKeys().forEach(k=>{
@@ -5408,7 +5450,7 @@ function renderExpenses(){
     <div class="sl">Sourcing Trips</div>
     ${trips.length===0?`
       <div class="empty-state">
-        <div class="empty-state-icon">&#x1F697;</div>
+        <div class="empty-state-icon"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 17H3a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2h11l4 4v4a2 2 0 0 1-2 2h-1"/><path d="M14 17a2 2 0 1 0 4 0 2 2 0 0 0-4 0"/><path d="M5 17a2 2 0 1 0 4 0 2 2 0 0 0-4 0"/><line x1="3" y1="9" x2="14" y2="9"/></svg></div>
         <div class="empty-state-text">No trips logged</div>
         <div class="empty-state-sub">Log sourcing runs to claim mileage at HMRC approved rate</div>
       </div>
@@ -5421,8 +5463,8 @@ function renderExpenses(){
           </div>
           <div style="display:flex;align-items:center;gap:10px">
             <div class="expense-amount">${fmt((t.mileage||0)*(t.ratePerMile||0.45))}</div>
-            <button class="btn btn-s" style="padding:5px 10px;font-size:12px" onclick="editTrip(${idx})">&#x270F;&#xFE0F;</button>
-            <button class="btn btn-s" style="padding:5px 10px;font-size:12px;color:var(--red);border-color:rgba(248,113,113,0.3)" onclick="deleteTrip(${idx})">&#x1F5D1;&#xFE0F;</button>
+            <button class="btn btn-s" style="padding:5px 10px;font-size:12px" onclick="editTrip(${idx})"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
+            <button class="btn btn-s" style="padding:5px 10px;font-size:12px;color:var(--red);border-color:rgba(248,113,113,0.3)" onclick="deleteTrip(${idx})"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg></button>
           </div>
         </div>
       `).join('')}
@@ -5431,7 +5473,7 @@ function renderExpenses(){
     <div class="sl" style="margin-top:40px">Other Expenses</div>
     ${expenses.length===0?`
       <div class="empty-state">
-        <div class="empty-state-icon">&#x1F4BC;</div>
+        <div class="empty-state-icon"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 2h14a1 1 0 0 1 1 1v18l-2.5-1.5L15 21l-2.5-1.5L10 21l-2.5-1.5L5 21V3a1 1 0 0 1 0-1z"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="12" y2="16"/></svg></div>
         <div class="empty-state-text">No expenses logged</div>
         <div class="empty-state-sub">Add packaging, fees, equipment and other business costs</div>
       </div>
@@ -5444,8 +5486,8 @@ function renderExpenses(){
           </div>
           <div style="display:flex;align-items:center;gap:10px">
             <div class="expense-amount">${fmt(e.amount||0)}</div>
-            <button class="btn btn-s" style="padding:5px 10px;font-size:12px" onclick="editExpense(${idx})">&#x270F;&#xFE0F;</button>
-            <button class="btn btn-s" style="padding:5px 10px;font-size:12px;color:var(--red);border-color:rgba(248,113,113,0.3)" onclick="deleteExpense(${idx})">&#x1F5D1;&#xFE0F;</button>
+            <button class="btn btn-s" style="padding:5px 10px;font-size:12px" onclick="editExpense(${idx})"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
+            <button class="btn btn-s" style="padding:5px 10px;font-size:12px;color:var(--red);border-color:rgba(248,113,113,0.3)" onclick="deleteExpense(${idx})"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg></button>
           </div>
         </div>
       `).join('')}
@@ -6241,7 +6283,7 @@ function closeResaleModal(){
 async function deleteItem(m,id){
   const item=(DB[m]||[]).find(i=>i.id===id);
   const name=item?item.item:'this item';
-  const ok=await showConfirm('Delete item?',name+' will be permanently removed.',{icon:'🗑️',okLabel:'Delete'});
+  const ok=await showConfirm('Delete item?',name+' will be permanently removed.',{icon:'delete',okLabel:'Delete'});
   if(!ok)return;
   const idx=(DB[m]||[]).findIndex(i=>i.id===id);
   if(idx>-1){
