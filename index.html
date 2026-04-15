@@ -44,7 +44,7 @@ nav:not(#bottom-nav){position:sticky;top:0;z-index:200;background:var(--surface)
 .brand{display:flex;align-items:center;gap:9px;cursor:pointer;user-select:none;flex-shrink:0;margin-right:16px;transition:opacity 0.15s;}
 .brand:hover{opacity:0.8;}
 .brand-text{display:flex;flex-direction:column;gap:0;line-height:1;}
-.brand-wordmark{font-family:'Inter',sans-serif;font-size:12px;font-weight:800;letter-spacing:0.16em;color:var(--text);text-transform:uppercase;}
+.brand-wordmark{font-family:'Inter',sans-serif;font-size:15px;font-weight:800;letter-spacing:0.16em;color:var(--text);text-transform:uppercase;}
 .brand-re{color:var(--text);}
 .brand-trade{color:var(--accent);text-shadow:0 0 10px rgba(245,166,35,.14);}
 .tab .tab-ic,.nav-more-btn .tab-ic{display:inline-flex;align-items:center;justify-content:center;opacity:.9}
@@ -948,7 +948,9 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
   .mval{font-size:18px!important;margin-bottom:0!important;}
   .msub{font-size:11px;margin-top:2px!important;}
   .mname{font-size:11px;margin-bottom:2px!important;}
-.filter-chips{display:none!important;}.filter-chips-select{display:block!important;}}
+.filter-chips{display:none!important;}.filter-chips-select{display:block!important;}
+.stock-filter-row{flex-wrap:wrap!important;gap:8px!important;}
+.stock-filter-row .sort-select{flex:1 1 140px;min-width:140px;margin-left:0!important;}}
 
 /* ===== end overrides ===== */
 
@@ -1334,7 +1336,6 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
       style="width:100%;padding:12px;background:var(--accent);color:#000;border:none;border-radius:8px;font-weight:700;font-size:15px;cursor:pointer;transition:background 0.15s;">
       Sign In
     </button>
-
 
     <button onclick="showForgotPassword()"
       style="width:100%;padding:10px;background:none;border:none;color:var(--text-secondary);font-size:13px;cursor:pointer;margin-top:8px;text-decoration:underline;text-underline-offset:3px;">
@@ -1839,6 +1840,26 @@ function toggleAuthPass(){
   }
 }
 
+function startPreviewMode(){
+  enablePreviewMode();
+  try{
+    const url = new URL(window.location.href);
+    url.searchParams.set('preview','1');
+    history.replaceState({}, '', url.toString());
+  }catch(e){ /* sandboxed iframe — ignore */ }
+  document.getElementById('auth-overlay').style.display = 'none';
+  if(window.innerWidth > 600){
+    document.getElementById('nav').style.display = '';
+    document.getElementById('bottom-nav').style.display = 'none';
+  } else {
+    document.getElementById('nav').style.display = 'none';
+    document.getElementById('bottom-nav').style.display = 'flex';
+  }
+  document.getElementById('main-content').style.display = '';
+  document.getElementById('fab').style.display = '';
+  const av=document.getElementById('user-avatar'); if(av) av.textContent='P';
+  requestAnimationFrame(()=>goToTab('summary'));
+}
 
 async function doSignIn(){
   const email = document.getElementById('auth-email').value.trim();
@@ -5417,11 +5438,30 @@ function renderStock(){
       <div class="kcard"><div class="klabel">Average ask</div><div class="kval">${fmt(avgAsking)}</div><div class="ksub">Per active item</div></div>
     </div>
     ${cAll===0?`<div class="empty-state"><div class="empty-state-text">No active listings</div><div class="empty-state-sub">Add stock to start building your live inventory command view.</div></div>`:`
-      <div class="filter-row" style="margin-bottom:14px;">
+      <div class="filter-row stock-filter-row" style="margin-bottom:14px;">
         <select class="sort-select" onchange="setStockFilter(this.value)"><option value="all" ${STOCK_FILTER==='all'?'selected':''}>All live stock (${cAll})</option>${cStale>0?`<option value="stale" ${STOCK_FILTER==='stale'?'selected':''}>Stale 30d+ (${cStale})</option>`:''}</select>
-        <select class="sort-select" style="margin-left:auto;" onchange="setStockSort(this.value)"><option value="days" ${STOCK_SORT==='days'?'selected':''}>Oldest first</option><option value="profit" ${STOCK_SORT==='profit'?'selected':''}>Best est. profit</option><option value="price" ${STOCK_SORT==='price'?'selected':''}>Highest ask</option></select>
+        <select class="sort-select" onchange="setStockSort(this.value)"><option value="days" ${STOCK_SORT==='days'?'selected':''}>Oldest first</option><option value="profit" ${STOCK_SORT==='profit'?'selected':''}>Best est. profit</option><option value="price" ${STOCK_SORT==='price'?'selected':''}>Highest ask</option></select>
       </div>
-      <div class="item-table">${items.map(i=>renderStockRow(i.month,i)).join('')}</div>`}`;
+      <div class="list-toolbar">
+        ${STOCK_SELECTION_MODE?`
+          <button class="sel-check" onclick="${STOCK_SELECTED.size===items.length?'STOCK_SELECTED.clear();renderStock()':'selectAllStockVisible()'}">
+            <span class="sel-check-box ${STOCK_SELECTED.size===items.length?'all':STOCK_SELECTED.size>0?'some':''}">
+              ${STOCK_SELECTED.size===items.length?'\u2713':STOCK_SELECTED.size>0?'\u2212':''}
+            </span>
+            <span style="color:${STOCK_SELECTED.size>0?'var(--text)':'var(--text-secondary)'}">
+              ${STOCK_SELECTED.size>0?STOCK_SELECTED.size+' selected':'Select all'}
+            </span>
+          </button>
+          ${STOCK_SELECTED.size>0?`
+            <button class="btn btn-s" style="padding:5px 10px;font-size:12px;display:inline-flex;align-items:center;gap:5px;color:var(--green)" onclick="stockBulkAction('sold',window.__stockItems||[])"><svg width="13" height="13" viewBox="0 0 15 15" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M8.5 1.5h4a1 1 0 011 1v4a.5.5 0 01-.15.35l-6 6a1 1 0 01-1.41 0l-4-4a1 1 0 010-1.41l6-6A.5.5 0 018.5 1.5z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/><circle cx="11" cy="4" r="0.8" fill="currentColor"/></svg> Mark Sold</button>
+            <button class="btn btn-s danger" style="padding:5px 10px;font-size:12px;display:inline-flex;align-items:center;gap:5px" onclick="stockBulkAction('delete',window.__stockItems||[])"><svg width="13" height="13" viewBox="0 0 15 15" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M5.5 1h4M1 3.5h13M2.5 3.5l1 9a1 1 0 001 .9h6a1 1 0 001-.9l1-9" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M6 6.5v4M9 6.5v4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg> Delete</button>
+          `:''}
+          <button class="sel-exit" onclick="toggleStockSelection()">\u2715 Done</button>
+        `:`
+          <button class="select-toggle" onclick="toggleStockSelection()">Select</button>
+        `}
+      </div>
+      <div class="item-table">${(()=>{window.__stockItems=items;return items.map(i=>renderStockRow(i.month,i)).join('');})()}</div>`}`;
   document.getElementById('p-stock').innerHTML=html;
 }
 
@@ -5470,7 +5510,7 @@ function renderExpenses(){
         <div class="empty-state-sub">Log sourcing runs to claim mileage at HMRC approved rate</div>
       </div>
     `:`
-      ${trips.map((t,idx)=>`
+      ${[...trips].map((t,_,arr)=>({t,origIdx:trips.indexOf(t)})).sort((a,b)=>(b.t.date||'').localeCompare(a.t.date||'')).map(({t,origIdx})=>`
         <div class="expense-item">
           <div class="expense-main">
             <div class="expense-label">${esc(t.description||'Sourcing trip')}</div>
@@ -5478,8 +5518,8 @@ function renderExpenses(){
           </div>
           <div style="display:flex;align-items:center;gap:10px">
             <div class="expense-amount">${fmt((t.mileage||0)*(t.ratePerMile||0.45))}</div>
-            <button class="btn btn-s" style="padding:5px 10px;font-size:12px" onclick="editTrip(${idx})"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
-            <button class="btn btn-s" style="padding:5px 10px;font-size:12px;color:var(--red);border-color:rgba(248,113,113,0.3)" onclick="deleteTrip(${idx})"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg></button>
+            <button class="btn btn-s" style="padding:5px 10px;font-size:12px" onclick="editTrip(${origIdx})"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
+            <button class="btn btn-s" style="padding:5px 10px;font-size:12px;color:var(--red);border-color:rgba(248,113,113,0.3)" onclick="deleteTrip(${origIdx})"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg></button>
           </div>
         </div>
       `).join('')}
@@ -6677,54 +6717,83 @@ function showReturnedItems(){
   const items=[];
   allDBKeys().forEach(function(k){
     (DB[k]||[]).forEach(function(i){
-      if(i.isReturned||(i.returnHistory&&i.returnHistory.length>0)){
-        // Filter by most recent return date
-        const lastReturn=i.returnHistory&&i.returnHistory.length?i.returnHistory[i.returnHistory.length-1]:null;
-        const returnDate=lastReturn?lastReturn.loggedAt:i.dateSold||'';
-        if(!_inSummaryPeriod(returnDate))return;
-        items.push(Object.assign({},i,{month:k}));
-      }
+      if((i.returnHistory||[]).length===0)return;
+      // Period filter: use the most recent return's loggedAt
+      const lastReturn=i.returnHistory[i.returnHistory.length-1];
+      if(!_inSummaryPeriod(lastReturn.loggedAt||''))return;
+      items.push(Object.assign({},i,{month:k}));
     });
   });
 
-  const totalRefundedAll=items.reduce(function(s,i){
-    return s+(i.returnHistory||[]).reduce(function(s2,r){return s2+(r.refundAmount||0);},0);
-  },0);
+  // Sort newest return first
+  items.sort(function(a,b){
+    const aD=(a.returnHistory[a.returnHistory.length-1].loggedAt||'');
+    const bD=(b.returnHistory[b.returnHistory.length-1].loggedAt||'');
+    return bD.localeCompare(aD);
+  });
+
   const fullyReturned=items.filter(function(i){
     return (i.returnHistory||[]).some(r=>r.type==='full_seller'||r.type==='full_ebay');
-  }).length;
+  });
   const partialOnly=items.filter(function(i){
     const hasFull=(i.returnHistory||[]).some(r=>r.type==='full_seller'||r.type==='full_ebay');
     return !hasFull&&(i.returnHistory||[]).some(r=>r.type==='partial_seller'||r.type==='partial_ebay');
-  }).length;
-
-  // Sort by most recent return event
-  items.sort(function(a,b){
-    const aDate=(a.returnHistory&&a.returnHistory.length?a.returnHistory[a.returnHistory.length-1].loggedAt:'') || '';
-    const bDate=(b.returnHistory&&b.returnHistory.length?b.returnHistory[b.returnHistory.length-1].loggedAt:'') || '';
-    return bDate.localeCompare(aDate);
   });
+  const totalRefundedAll=items.reduce(function(s,i){
+    return s+(i.returnHistory||[]).reduce(function(s2,r){return s2+(r.refundAmount||0);},0);
+  },0);
 
-  const rows=items.map(function(i){
+  function buildRow(i){
     const hasFull=(i.returnHistory||[]).some(r=>r.type==='full_seller'||r.type==='full_ebay');
     const isResold=!!i.resaleSalePrice;
-    const lastReturn=i.returnHistory&&i.returnHistory.length>0?i.returnHistory[i.returnHistory.length-1]:null;
+    const isRelisted=!i.isReturned&&!i.dateSold&&!i.resaleSalePrice&&hasFull;
+    const lastRet=i.returnHistory[i.returnHistory.length-1];
     const refundTotal=(i.returnHistory||[]).reduce(function(s,r){return s+(r.refundAmount||0);},0);
     const profit=calcGrossProfit(i);
     const borderCol=hasFull?'var(--red)':'var(--warn)';
     const refundCol=hasFull?'var(--red)':'var(--warn)';
-    const resoldBadge=isResold?'<span style="font-size:10px;padding:2px 6px;border-radius:4px;font-weight:600;background:rgba(167,139,250,0.15);color:var(--purple);margin-left:6px">resold</span>':'';
-    return '<div style="padding:12px;background:var(--surface2);border-radius:8px;margin-bottom:8px;cursor:pointer;border-left:3px solid '+borderCol+'" onclick="openItemDetail(\''+i.month+'\',\''+i.id+'\')">'      +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">'      +'<div style="flex:1;font-weight:600;font-size:14px">'+esc(i.item)+resoldBadge+'</div>'      +'<div style="font-size:16px;font-weight:700;color:'+refundCol+'">'+fmt(refundTotal)+'</div>'      +'</div>'      +'<div style="display:flex;gap:16px;font-size:12px;color:var(--text-secondary)">'      +'<span>Sale: <strong>'+fmt(i.salePrice)+'</strong></span>'      +'<span>Net P\u0026L: <strong style="color:'+(profit>=0?'var(--green)':'var(--red)')+'">'+fmt(profit)+'</strong></span>'      +(i.gid?'<span style="color:var(--muted);font-family:monospace">'+esc(i.gid)+'</span>':'')      +'<span style="color:var(--muted)">'+i.month+(lastReturn?' · '+lastReturn.loggedAt:'')+'</span>'      +'</div>'      +'</div>';
-  }).join('');
+    const typeBadge=hasFull
+      ?'<span style="font-size:10px;padding:2px 6px;border-radius:4px;font-weight:600;background:var(--red-dim);color:var(--red);margin-left:6px">full return</span>'
+      :'<span style="font-size:10px;padding:2px 6px;border-radius:4px;font-weight:600;background:rgba(212,136,10,0.13);color:var(--warn);margin-left:6px">partial</span>';
+    const statusBadge=isResold
+      ?'<span style="font-size:10px;padding:2px 6px;border-radius:4px;font-weight:600;background:rgba(167,139,250,0.15);color:var(--purple);margin-left:6px">resold</span>'
+      :isRelisted
+      ?'<span style="font-size:10px;padding:2px 6px;border-radius:4px;font-weight:600;background:var(--accent-dim);color:var(--accent);margin-left:6px">relisted</span>'
+      :'';
+    return '<div style="padding:12px;background:var(--surface2);border-radius:8px;margin-bottom:8px;cursor:pointer;border-left:3px solid '+borderCol+'" onclick="openItemDetail(\''+i.month+'\',\''+i.id+'\')">'
+      +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">'
+      +'<div style="flex:1;font-weight:600;font-size:14px">'+esc(i.item)+typeBadge+statusBadge+'</div>'
+      +'<div style="font-size:15px;font-weight:700;color:'+refundCol+'">'+fmt(refundTotal)+'</div>'
+      +'</div>'
+      +'<div style="display:flex;gap:16px;flex-wrap:wrap;font-size:12px;color:var(--text-secondary)">'
+      +'<span>Sale: <strong>'+fmt(i.salePrice)+'</strong></span>'
+      +(profit!==null?'<span>Net P&L: <strong style="color:'+(profit>=0?'var(--green)':'var(--red)')+'">'+fmt(profit)+'</strong></span>':'')
+      +(i.gid?'<span style="color:var(--muted);font-family:monospace">'+esc(i.gid)+'</span>':'')
+      +'<span style="color:var(--muted)">'+i.month+' · '+lastRet.loggedAt+'</span>'
+      +'</div>'
+      +'</div>';
+  }
+
+  // Two sections: full returns, then partials
+  let rows='';
+  if(fullyReturned.length>0){
+    rows+='<div style="font-size:11px;font-weight:700;color:var(--red);text-transform:uppercase;letter-spacing:.08em;margin:0 0 8px">Full returns — affect return rate</div>';
+    rows+=fullyReturned.map(buildRow).join('');
+  }
+  if(partialOnly.length>0){
+    rows+='<div style="font-size:11px;font-weight:700;color:var(--warn);text-transform:uppercase;letter-spacing:.08em;margin:'+(fullyReturned.length>0?'16px':'0')+' 0 8px">Partial refunds — buyer kept item</div>';
+    rows+=partialOnly.map(buildRow).join('');
+  }
 
   const summary='<div style="margin-bottom:16px;display:flex;align-items:center;gap:12px;background:var(--surface2);border-radius:10px;padding:14px">'
     +'<div class="stat-num" style="color:var(--red)">'+fmt(totalRefundedAll)+'</div>'
-    +'<div><div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px">Total Refunded</div><div style="font-size:13px;color:var(--text-secondary);margin-top:2px">'+items.length+' item'+(items.length!==1?'s':'')+' · '+fullyReturned+' full · '+partialOnly+' partial</div></div>'
+    +'<div><div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px">Total paid out</div>'
+    +'<div style="font-size:13px;color:var(--text-secondary);margin-top:2px">'+fullyReturned.length+' full return'+(fullyReturned.length!==1?'s':'')+' · '+partialOnly.length+' partial'+(partialOnly.length!==1?'s':'')+' · '+items.length+' item'+(items.length!==1?'s':'')+' total</div></div>'
     +'</div>';
 
   const content=items.length>0
     ? summary+rows
-    : '<div style="padding:30px;text-align:center;color:var(--muted)">No returns logged yet</div>';
+    : '<div style="padding:30px;text-align:center;color:var(--muted)">No returns in this period</div>';
 
   openPanel('Refunds — '+items.length+' item'+(items.length!==1?'s':''),content);
 }
@@ -6982,9 +7051,13 @@ function calcYearlyStats(period){
       totalItems++;
       if(soldInRange&&(i.dateSold||i.resaleSalePrice)&&!i.isReturned&&i.condition!=='spares')saleTransactions.push(i.salePrice||0);
       if(soldInRange&&i.resaleSalePrice&&i.condition!=='spares')saleTransactions.push(i.resaleSalePrice||0);
-      // Count as a return if item has any full return in history (even if since relisted)
+      // Return counting: use the last return's loggedAt for period check — dateSold may be null on returned items
+      const lastReturnDate=(i.returnHistory&&i.returnHistory.length)?i.returnHistory[i.returnHistory.length-1].loggedAt:null;
+      const returnInRange=inRange(lastReturnDate);
       const hadFullReturn=(i.returnHistory||[]).some(r=>r.type==='full_seller'||r.type==='full_ebay');
-      if(soldInRange&&(i.isReturned||hadFullReturn)){
+      const hadAnyReturn=(i.returnHistory||[]).length>0;
+      // Count full returns and partial-only returns separately for the rate
+      if(returnInRange&&hadFullReturn){
         returnCount++;
       }
       if(soldInRange&&(i.dateSold||i.resaleSalePrice) && !i.isReturned){
@@ -7085,16 +7158,19 @@ function calcYearlyStats(period){
     fast:v.fast,avgS:v.avgS,slow:v.slow,stale:v.stale
   })).sort((a,b)=>(a.avgDays===null?999:a.avgDays)-(b.avgDays===null?999:b.avgDays));
   const returnRate=(soldCount+returnCount)>0?returnCount/(soldCount+returnCount)*100:0;
-  // Partial refund stats
+  // Partial refund stats — use return loggedAt for period check
   let partialRefundCount=0;
   allDBKeys().forEach(k=>{(DB[k]||[]).forEach(i=>{
-    const sdPR=i.resaleSalePrice?i.resaleDateSold:i.dateSold;
-    if(!inRange(sdPR))return;
-    if(i.returnHistory&&i.returnHistory.some(r=>r.type==='partial_seller'||r.type==='partial_ebay'))partialRefundCount++;
+    const lastRetPR=(i.returnHistory&&i.returnHistory.length)?i.returnHistory[i.returnHistory.length-1].loggedAt:null;
+    const hadFull=(i.returnHistory||[]).some(r=>r.type==='full_seller'||r.type==='full_ebay');
+    // Only count as partial-only if no full return (full returns already counted above)
+    if(!hadFull&&inRange(lastRetPR)&&(i.returnHistory||[]).some(r=>r.type==='partial_seller'||r.type==='partial_ebay'))partialRefundCount++;
   });});
+  // Combined refund rate includes both full returns and partial-only items
+  const totalAffected=returnCount+partialRefundCount;
   const partialRefundRate=(soldCount+returnCount)>0?partialRefundCount/(soldCount+returnCount)*100:0;
   const totalStaleCount=byCat.reduce((s,c)=>s+(c.stale||0),0);
-  return{totalRev,realisedProfit,unrealisedProfit,stockValue,soldCount,listedCount,totalItems,returnCount,returnRate,partialRefundCount,partialRefundRate,avgROI,avgSale,avgProfit,avgCostPrice,sellThrough,sellThrough14,sold14Count,eligible14Count:eligible14.length,avgDays,stale,byCat,totalStaleCount};
+  return{totalRev,realisedProfit,unrealisedProfit,stockValue,soldCount,listedCount,totalItems,returnCount,returnRate,partialRefundCount,partialRefundRate,totalAffected,avgROI,avgSale,avgProfit,avgCostPrice,sellThrough,sellThrough14,sold14Count,eligible14Count:eligible14.length,avgDays,stale,byCat,totalStaleCount};
 }
 
 // ── Summary aliases ──────────────────────────────────────────────────────────
