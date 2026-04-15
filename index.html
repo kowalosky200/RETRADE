@@ -73,7 +73,7 @@ nav:not(#bottom-nav){position:sticky;top:0;z-index:200;background:var(--surface)
 .nav-more-menu{display:none;position:absolute;top:calc(100% + 4px);right:0;min-width:180px;background:var(--surface);border:1px solid var(--border);border-radius:12px;box-shadow:0 8px 32px var(--shadow-md);z-index:300;overflow:hidden;padding:4px;}
 .nav-more.open .nav-more-menu{display:block;}
 .nav-more-menu button{width:100%;padding:10px 14px;background:none;border:none;text-align:left;cursor:pointer;font-size:13px;font-weight:500;color:var(--text-secondary);transition:all 0.15s;border-radius:8px;display:flex;align-items:center;gap:10px;}
-.nav-more-menu button svg{flex-shrink:0;opacity:0.65;position:relative;top:0;}
+.nav-more-menu button svg{flex-shrink:0;opacity:0.65;display:block;}
 .nav-more-menu button:hover{background:var(--surface2);color:var(--text);}
 .nav-more-menu button.on{color:var(--accent);font-weight:600;}
 /* Search — centred in remaining space */
@@ -275,8 +275,10 @@ nav:not(#bottom-nav){position:sticky;top:0;z-index:200;background:var(--surface)
 
 /* CHART */
 .chart-wrap{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:14px;box-shadow:0 1px 2px var(--shadow);}
-.chart-title{font-family:var(--font-display);font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:16px;display:flex;align-items:center;gap:16px;}
-.chart-legend{display:flex;gap:16px;margin-left:auto;}
+.chart-title{font-family:var(--font-display);font-size:11px;font-weight:700;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.14em;margin-bottom:14px;display:flex;align-items:center;gap:8px;}
+.chart-title::before{content:'';display:inline-block;width:18px;height:2px;background:linear-gradient(90deg,var(--accent),transparent);border-radius:999px;flex-shrink:0;}
+.chart-legend{display:flex;align-items:center;gap:6px;margin-left:auto;font-size:11px;font-weight:600;letter-spacing:0;text-transform:none;color:var(--muted);}
+.chart-legend-dot{display:inline-block;width:8px;height:8px;border-radius:2px;flex-shrink:0;margin-right:3px;}
 .leg{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text-secondary);}
 .leg-dot{width:8px;height:8px;border-radius:2px;}
 .chart-canvas-wrap{position:relative;width:100%;height:240px;min-width:0;overflow:hidden;}
@@ -505,7 +507,8 @@ nav:not(#bottom-nav){position:sticky;top:0;z-index:200;background:var(--surface)
 .filter-row{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:16px;flex-wrap:nowrap;}
 
 /* FILTER CHIPS — segmented toggle style */
-.filter-chips{display:flex;gap:0;flex-wrap:nowrap;margin-bottom:16px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:3px;width:fit-content;}
+.filter-chips{display:flex;gap:0;flex-wrap:nowrap;margin-bottom:0;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:3px;width:fit-content;}
+.filter-chips-select{display:none;}
 .chip{padding:7px 14px;border-radius:7px;border:none;background:transparent;color:var(--text-secondary);font-family:var(--font-body);font-size:12px;font-weight:500;letter-spacing:0;text-transform:none;cursor:pointer;transition:all 0.15s;white-space:nowrap;display:flex;align-items:center;gap:5px;}
 .chip:hover{color:var(--text);}
 .chip.active{background:var(--surface);color:var(--text);box-shadow:0 1px 4px var(--shadow);}
@@ -800,7 +803,7 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
 .nav-inner{max-width:1280px;height:68px;padding:0 24px;gap:16px;}
 .brand{margin-right:8px!important;position:relative;padding-right:18px;}
 .brand::after{content:'';position:absolute;right:0;top:50%;transform:translateY(-50%);height:24px;width:1px;background:linear-gradient(180deg,transparent,var(--border2),transparent);}
-.brand span{font-size:14px!important;letter-spacing:.14em!important;font-weight:800!important;}
+.brand span{font-size:15px!important;letter-spacing:.14em!important;font-weight:800!important;}
 .search-wrap{width:360px!important;}
 .search-wrap input{height:42px;border-radius:14px;padding-left:38px;background:color-mix(in srgb,var(--surface2) 75%, var(--surface));}
 .search-wrap input:-webkit-autofill,.search-wrap input:-webkit-autofill:hover,.search-wrap input:-webkit-autofill:focus{transition:background-color 99999s ease-out 0s;-webkit-text-fill-color:var(--text);box-shadow:0 0 0 1000px color-mix(in srgb,var(--surface2) 75%, var(--surface)) inset;}
@@ -840,7 +843,7 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
 [data-theme="dark"] .chart-wrap,[data-theme="dark"] .section-card,[data-theme="dark"] .month-picker-dropdown,[data-theme="dark"] .confirm-box{border-color:color-mix(in srgb,var(--border) 88%, transparent);}
 .chart-wrap{padding:22px;margin-bottom:18px;background:linear-gradient(180deg,color-mix(in srgb,var(--surface) 96%, #fff 4%) 0%, var(--surface) 100%);} 
 [data-theme="dark"] .chart-wrap{background:linear-gradient(180deg,color-mix(in srgb,var(--surface) 92%, #20304a 8%) 0%, var(--surface) 100%);}
-.chart-title{font-size:11px;letter-spacing:.12em;margin-bottom:18px;}
+.chart-title{margin-bottom:16px;}
 .item-table{overflow:visible;background:transparent;box-shadow:none;border:none;}
 .item-row{background:linear-gradient(180deg,color-mix(in srgb,var(--surface) 96%, #fff 4%) 0%, var(--surface) 100%);border:1px solid var(--border);border-radius:18px;padding:16px 18px;margin-bottom:10px;box-shadow:0 10px 24px var(--shadow);}
 [data-theme="dark"] .item-row{border-color:color-mix(in srgb,var(--border) 88%, transparent);}
@@ -945,7 +948,7 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
   .mval{font-size:18px!important;margin-bottom:0!important;}
   .msub{font-size:11px;margin-top:2px!important;}
   .mname{font-size:11px;margin-bottom:2px!important;}
-}
+.filter-chips{display:none!important;}.filter-chips-select{display:block!important;}}
 
 /* ===== end overrides ===== */
 
@@ -1077,7 +1080,7 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
     <!-- Brand -->
     <div class="brand" onclick="goToTab('summary')" style="margin-right:16px;">
       <div style="display:flex;flex-direction:column;gap:2px;line-height:1;">
-        <span style="font-family:'Inter',sans-serif;font-size:13px;line-height:1;"><span class="brand-name">Re<span class="gold">trade</span></span></span>
+        <span style="font-family:'Inter',sans-serif;font-size:15px;line-height:1;"><span class="brand-name">Re<span class="gold">trade</span></span></span>
       </div>
     </div>
 
@@ -1331,6 +1334,7 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
       style="width:100%;padding:12px;background:var(--accent);color:#000;border:none;border-radius:8px;font-weight:700;font-size:15px;cursor:pointer;transition:background 0.15s;">
       Sign In
     </button>
+
 
     <button onclick="showForgotPassword()"
       style="width:100%;padding:10px;background:none;border:none;color:var(--text-secondary);font-size:13px;cursor:pointer;margin-top:8px;text-decoration:underline;text-underline-offset:3px;">
@@ -1834,6 +1838,7 @@ function toggleAuthPass(){
     svg.innerHTML = _EYE_OPEN;  // now hidden — show open eye icon
   }
 }
+
 
 async function doSignIn(){
   const email = document.getElementById('auth-email').value.trim();
@@ -4306,15 +4311,7 @@ function renderSummaryChart(labels,revData,profitData){
         if(h){try{eval(h);}catch(e){}}
       },
       plugins:{
-        legend:{
-          display:true,position:'top',align:'end',
-          labels:{
-            boxWidth:10,boxHeight:10,borderRadius:3,usePointStyle:false,
-            color:c.text,
-            font:{size:11,family:"'Inter',sans-serif",weight:'600'},
-            padding:16
-          }
-        },
+        legend:{display:false},
         tooltip:{
           backgroundColor:c.tooltip,borderColor:c.tooltipBorder,borderWidth:1,
           titleColor:c.text,bodyColor:c.text,padding:10,cornerRadius:8,
@@ -4341,6 +4338,7 @@ function renderSummaryChart(labels,revData,profitData){
       }
     }
   });
+  (function(){const cc=_chartColors();const dd=document.querySelectorAll('#summary-chart-legend .chart-legend-dot');if(dd[0])dd[0].style.background=cc.rev;if(dd[1])dd[1].style.background=cc.prof;})();
 }
 
 function _updateChartTheme(){
@@ -4352,7 +4350,7 @@ function _updateChartTheme(){
   const t=_summaryChart.options.plugins.tooltip;
   t.backgroundColor=c.tooltip; t.borderColor=c.tooltipBorder;
   t.titleColor=c.text; t.bodyColor=c.text;
-  _summaryChart.options.plugins.legend.labels.color=c.text;
+  (function(){const dd=document.querySelectorAll('#summary-chart-legend .chart-legend-dot');if(dd[0])dd[0].style.background=c.rev;if(dd[1])dd[1].style.background=c.prof;})();
   _summaryChart.options.scales.x.ticks.color=c.text;
   _summaryChart.options.scales.y.ticks.color=c.text;
   _summaryChart.options.scales.y.grid.color=c.grid;
@@ -4446,7 +4444,7 @@ function renderSummary(){
             <div class="kcard r clickable" onclick="showReturnedItems()"><div class="klabel">Refund rate</div><div class="kval">${Number(stats.returnRate||0).toFixed(1)}%</div><div class="ksub">${stats.returnCount||0} full · ${stats.partialRefundCount||0} partial</div></div>
           </div>
           <div class="chart-wrap summary-chart">
-            <div class="chart-title">Activity overview</div>
+            <div class="chart-title">Activity overview<div class="chart-legend" id="summary-chart-legend"><span class="chart-legend-dot"></span>Revenue<span class="chart-legend-dot" style="margin-left:10px"></span>Profit</div></div>
             <div class="chart-canvas-wrap"><canvas id="summary-chart-canvas"></canvas></div>
           </div>
           <div class="chart-mobile-summary" id="chart-mobile-summary" style="display:none">
@@ -4488,52 +4486,66 @@ function renderSummary(){
     // Desktop only: match velocity card height to top flips, collapse overflow cats
     (function _matchVelocityHeight(){
       if(window.innerWidth<=980)return;
-      // Use a small delay to let the chart render and full layout settle
-      setTimeout(()=>{
-        const topFlips=document.querySelector('.summary-topflips');
+      // Two-pass: first lock the height, then trim rows that don't fit
+      function run(){
+        const mainCol=document.querySelector('.summary-main');
         const side=document.querySelector('.summary-side');
         const velCard=document.querySelector('.summary-velocity');
         const wrap=document.getElementById('vel-cat-wrap');
         const grid=document.getElementById('vel-cat-grid');
         const more=document.getElementById('vel-cat-more');
-        if(!topFlips||!side||!velCard)return;
+        if(!mainCol||!side||!velCard)return;
 
-        // Calculate total main column height
-        const mainH=topFlips.getBoundingClientRect().bottom - side.getBoundingClientRect().top;
-        // Calculate space already used by snapshot + inventory health + gaps
-        const sideChildren=Array.from(side.children);
-        const otherH=sideChildren.filter(c=>!c.classList.contains('summary-velocity'))
-          .reduce((s,c)=>s+c.getBoundingClientRect().height,0);
-        const gaps=18*(sideChildren.length-1);
-        const velH=Math.max(0, mainH - otherH - gaps);
+        // ── Pass 1: reset constraints, measure, lock ──
+        velCard.style.minHeight='';
+        velCard.style.maxHeight='';
+        velCard.style.overflow='';
 
-        if(velH>0) velCard.style.minHeight=velH+'px';
+        // Target is the full height of the main column (KPIs + chart + top flips)
+        const targetH=mainCol.getBoundingClientRect().height;
 
-        // Now collapse category rows that don't fit
+        // Measure all side cards except velocity (snapshot + inventory health + their gaps)
+        const sideKids=Array.from(side.children);
+        const otherH=sideKids
+          .filter(ch=>!ch.classList.contains('summary-velocity'))
+          .reduce((s,ch)=>s+ch.getBoundingClientRect().height,0);
+        const gaps=18*(sideKids.length-1);
+        const velH=Math.max(0,targetH-otherH-gaps);
+
+        // Lock: both min and max so the card can never exceed main column
+        velCard.style.minHeight=velH+'px';
+        velCard.style.maxHeight=velH+'px';
+        velCard.style.overflow='hidden';
+
+        // ── Pass 2: after reflow, trim category rows ──
         if(!wrap||!grid||!more)return;
         const rows=Array.from(grid.querySelectorAll('.vel-cat-item'));
         if(!rows.length)return;
-        // Reset visibility first (in case of re-render)
         rows.forEach(r=>r.style.display='');
         more.style.display='none';
-        // Wait for minHeight reflow to settle before measuring
-        setTimeout(()=>{
-          const cardBottom=velCard.getBoundingClientRect().bottom;
+
+        requestAnimationFrame(()=>{
+          const cardRect=velCard.getBoundingClientRect();
           const wrapTop=wrap.getBoundingClientRect().top;
-          const labelH=wrap.querySelector(':scope > div:first-child')?.getBoundingClientRect().height||32;
-          const moreBtnH=52; // btn height + margin
+          const labelEl=wrap.querySelector(':scope > div:first-child');
+          const labelH=labelEl?labelEl.getBoundingClientRect().height+10:32;
+          // Measure actual button height rather than hardcoding
+          more.style.display='block';
+          const moreBtnH=more.getBoundingClientRect().height+12;
+          more.style.display='none';
           const padding=20;
-          const available=cardBottom - wrapTop - labelH - moreBtnH - padding;
-          let used=0, anyHidden=false;
+          const avail=cardRect.bottom-wrapTop-labelH-moreBtnH-padding;
+          let used=0,anyHidden=false;
           rows.forEach(r=>{
             const h=r.getBoundingClientRect().height+8;
-            if(used+h<=available){ used+=h; }
-            else{ r.style.display='none'; anyHidden=true; }
+            if(used+h<=avail){used+=h;}
+            else{r.style.display='none';anyHidden=true;}
           });
-          // Always show button if any hidden; hide only if all fit
           more.style.display=anyHidden?'block':'none';
-        },40);
-      },120);
+        });
+      }
+      // Wait for chart + stale banner to render before first measure
+      setTimeout(run,180);
     })();
     // Mobile chart summary
     (function(){
@@ -5014,14 +5026,20 @@ function renderMonth(){
 
 
 
-    <div class="filter-row" style="flex-wrap:wrap;gap:8px;">
+    <div class="filter-row" style="gap:8px;">
       <div class="filter-chips">
         <button class="chip ${MONTH_FILTER==='listed'?'active':''}" onclick="setMonthFilter('listed')">Listed <span class="chip-count">${cListed}</span></button>
         <button class="chip ${MONTH_FILTER==='all'?'active':''}" onclick="setMonthFilter('all')">All <span class="chip-count">${cAll}</span></button>
         <button class="chip ${MONTH_FILTER==='sold'?'active':''}" onclick="setMonthFilter('sold')">Sold <span class="chip-count">${cSold}</span></button>
         ${cReturned>0?`<button class="chip ${MONTH_FILTER==='returned'?'active':''}" onclick="setMonthFilter('returned')">Returned <span class="chip-count">${cReturned}</span></button>`:''}
       </div>
-      <select class="sort-select" onchange="setMonthSort(this.value)" style="margin-left:auto;">
+      <select class="sort-select filter-chips-select" onchange="setMonthFilter(this.value)" style="flex-shrink:0;">
+        <option value="listed" ${MONTH_FILTER==='listed'?'selected':''}>Listed (${cListed})</option>
+        <option value="all" ${MONTH_FILTER==='all'?'selected':''}>All (${cAll})</option>
+        <option value="sold" ${MONTH_FILTER==='sold'?'selected':''}>Sold (${cSold})</option>
+        ${cReturned>0?`<option value="returned" ${MONTH_FILTER==='returned'?'selected':''}>Returned (${cReturned})</option>`:''}
+      </select>
+      <select class="sort-select" onchange="setMonthSort(this.value)" style="margin-left:auto;flex-shrink:0;">
         <option value="date-listed" ${MONTH_SORT==='date-listed'?'selected':''}>Date listed</option>
         <option value="date-sold" ${MONTH_SORT==='date-sold'?'selected':''}>Date sold</option>
         <option value="profit" ${MONTH_SORT==='profit'?'selected':''}>Profit</option>
@@ -5399,12 +5417,9 @@ function renderStock(){
       <div class="kcard"><div class="klabel">Average ask</div><div class="kval">${fmt(avgAsking)}</div><div class="ksub">Per active item</div></div>
     </div>
     ${cAll===0?`<div class="empty-state"><div class="empty-state-text">No active listings</div><div class="empty-state-sub">Add stock to start building your live inventory command view.</div></div>`:`
-      <div class="panel-card" style="padding:16px 16px 8px;margin-bottom:16px;">
-        <div class="filter-row">
-          <select class="sort-select" onchange="setStockFilter(this.value)"><option value="all" ${STOCK_FILTER==='all'?'selected':''}>All live stock (${cAll})</option>${cStale>0?`<option value="stale" ${STOCK_FILTER==='stale'?'selected':''}>Stale 30d+ (${cStale})</option>`:''}</select>
-          <select class="sort-select" onchange="setStockSort(this.value)"><option value="days" ${STOCK_SORT==='days'?'selected':''}>Oldest first</option><option value="profit" ${STOCK_SORT==='profit'?'selected':''}>Best est. profit</option><option value="price" ${STOCK_SORT==='price'?'selected':''}>Highest ask</option></select>
-        </div>
-        <div class="list-toolbar" style="justify-content:space-between"><div class="list-count">${items.length} item${items.length!==1?'s':''} visible</div>${cStale>0?`<div style="font-size:12px;color:var(--text-secondary)">${cStale} stale item${cStale!==1?'s':''} need attention</div>`:''}</div>
+      <div class="filter-row" style="margin-bottom:14px;">
+        <select class="sort-select" onchange="setStockFilter(this.value)"><option value="all" ${STOCK_FILTER==='all'?'selected':''}>All live stock (${cAll})</option>${cStale>0?`<option value="stale" ${STOCK_FILTER==='stale'?'selected':''}>Stale 30d+ (${cStale})</option>`:''}</select>
+        <select class="sort-select" style="margin-left:auto;" onchange="setStockSort(this.value)"><option value="days" ${STOCK_SORT==='days'?'selected':''}>Oldest first</option><option value="profit" ${STOCK_SORT==='profit'?'selected':''}>Best est. profit</option><option value="price" ${STOCK_SORT==='price'?'selected':''}>Highest ask</option></select>
       </div>
       <div class="item-table">${items.map(i=>renderStockRow(i.month,i)).join('')}</div>`}`;
   document.getElementById('p-stock').innerHTML=html;
@@ -7740,5 +7755,5 @@ function exportForSupabase(){
 </html>
 <style>
 .nav-more.open .nav-more-btn{background:var(--surface2)!important;color:var(--text)!important;box-shadow:inset 0 0 0 1px var(--border)!important;}
-#nav-more-menu button{display:block;}
+#nav-more-menu button{display:flex;}
 </style>
