@@ -134,7 +134,10 @@ nav:not(#bottom-nav){position:sticky;top:0;z-index:200;background:var(--surface)
   height:60px;background:var(--surface);border-top:1px solid var(--border);
   z-index:200;padding-bottom:env(safe-area-inset-bottom);
   box-shadow:0 -1px 0 var(--border);
+  transform:translateY(0);
+  transition:transform 0.28s cubic-bezier(0.4,0,0.2,1);
 }
+#bottom-nav.nav-hidden{transform:translateY(calc(100% + env(safe-area-inset-bottom)));}
 .bnt{
   flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
   gap:3px;border:none;background:transparent;cursor:pointer;
@@ -887,7 +890,7 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
 .ip-field,.ip-field-select,.ip-field-date{font-size:15px;}
 #auth-screen-login,#auth-screen-reset{max-width:420px;border-radius:28px;padding:42px 36px!important;box-shadow:0 22px 60px rgba(0,0,0,.18);} 
 #auth-screen-login > div:first-child + div + div span{letter-spacing:.16em!important;}
-#auth-btn{height:48px;border-radius:16px;}
+
 .summary-shell{display:grid;grid-template-columns:minmax(0,1.84fr) minmax(0,.92fr);gap:18px;align-items:start;}
 .summary-main{display:flex;flex-direction:column;gap:18px;min-height:100%;min-width:0;}
 .summary-side{display:grid;grid-template-rows:auto auto auto;gap:18px;}
@@ -924,7 +927,8 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
 /* ===== Mobile ≤480px ===== */
 @media(max-width:480px){
   /* KPI cards: keep 2-col — 1-col causes too much scroll before content */
-  .kgrid,.kgrid-4{grid-template-columns:1fr 1fr!important;}
+  .kgrid,.kgrid-4,.kgrid-3{grid-template-columns:1fr 1fr!important;}
+  .kgrid-3>.kcard:last-child:nth-child(odd){grid-column:span 2;}
   .kcard{padding:12px 14px 10px;min-height:80px;border-radius:16px;}
   .klab{font-size:9px;letter-spacing:.08em;}
   .kval{font-size:22px!important;margin:4px 0 2px;}
@@ -1667,7 +1671,7 @@ const _previewParam = new URLSearchParams(window.location.search).get('preview')
 const PREVIEW_STORAGE_KEY='retrade_preview_mode';
 const LEGACY_PREVIEW_STORAGE_KEYS=['general_preview_mode'];
 const _previewStored = localStorage.getItem(PREVIEW_STORAGE_KEY) === '1' || LEGACY_PREVIEW_STORAGE_KEYS.some(function(k){ return localStorage.getItem(k) === '1'; });
-const PREVIEW_MODE_ENABLED = false;
+
 
 function _buildPreviewDB(){
   const MONTHS_=['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
@@ -2478,9 +2482,10 @@ function goToTab(name,sourceEl){
   document.querySelector('.nav-more')?.classList.remove('open');
   handleNavResize();
   window.scrollTo(0,0);
+  document.getElementById('bottom-nav')?.classList.remove('nav-hidden');
   if(name==='summary')renderSummary();
-  else if(name==='monthly'){MONTHLY_VIEW='grid';renderMonthlyPage();}
-  else if(name==='stock')renderStock();
+  else if(name==='monthly'){SELECTED_MONTH=currentMonthKey();MONTHLY_VIEW='detail';renderMonthlyPage();}
+  else if(name==='stock'){_stockFromSummary=false;renderStock();}
   else if(name==='expenses')renderExpenses();
   else if(name==='tax')renderTax();
   else if(name==='data')renderData();
@@ -4259,9 +4264,108 @@ function showFilteredItems(filter){
 function setSummaryPeriod(p){SUMMARY_PERIOD=p;renderSummary();}
 
 
+let _stockFromSummary=false;
 function openDashboardStock(filter){
+  _stockFromSummary=true;
   goToTab('stock',document.querySelector('[data-tab="stock"]'));
   if(filter)setStockFilter(filter);
+}
+
+function showAvgDaysBreakdown(){
+  const range=_periodDateRange(SUMMARY_PERIOD);
+  function inRange(d){return !!d&&d>=range.from&&d<=range.to;}
+  const periodLabel={'7d':'Last 7 days','30d':'Last 30 days','60d':'Last 60 days','90d':'Last 90 days','current_fy':'Current FY','prev_fy':'Previous FY'}[SUMMARY_PERIOD]||SUMMARY_PERIOD;
+  let items=[];
+  allDBKeys().forEach(k=>{(DB[k]||[]).forEach(i=>{
+    if((i.item||'').trim().toUpperCase()==='MONTH END')return;
+    if(i.isReturned||i.condition==='spares')return;
+    const saleDate=i.resaleSalePrice?i.resaleDateSold:i.dateSold;
+    if(!saleDate||!inRange(saleDate))return;
+    const d=calcDaysToSell(i);
+    if(d===null)return;
+    items.push({...i,month:k,_days:d});
+  });});
+  if(!items.length){openPanel('Avg Days to Sell','<div style="padding:30px;text-align:center;color:var(--muted)">No sold items with listing dates in this period.</div>');return;}
+  const avg=Math.round(items.reduce((s,i)=>s+i._days,0)/items.length);
+  const sorted=[...items].sort((a,b)=>a._days-b._days);
+  const header=`<div style="margin-bottom:16px;background:var(--surface2);border-radius:10px;padding:14px">
+    <div style="display:flex;align-items:center;gap:12px">
+      <div class="stat-num" style="color:var(--accent)">${avg}d</div>
+      <div>
+        <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px">Avg Days to Sell</div>
+        <div style="font-size:13px;color:var(--text-secondary)">${items.length} sold items in ${periodLabel}</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:3px">Fastest first · tap to open item</div>
+      </div>
+    </div>
+  </div>`;
+  const rows=sorted.map(i=>{
+    const col=i._days<=14?'var(--green)':i._days<=30?'var(--warn)':'var(--red)';
+    return`<div style="padding:10px;background:var(--surface2);border-radius:8px;margin-bottom:8px;cursor:pointer;display:flex;align-items:center;gap:10px" onclick="openItemDetail('${i.month}','${i.id}')">
+      <div style="flex:1">
+        <div style="font-weight:600;font-size:13px">${esc(i.item)}</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:2px">${i.dateListed||'?'} → ${i.resaleSalePrice?i.resaleDateSold:i.dateSold}</div>
+      </div>
+      <div style="font-weight:800;font-size:15px;color:${col}">${i._days}d</div>
+    </div>`;
+  }).join('');
+  openPanel('Avg Days to Sell — '+periodLabel,header+rows);
+}
+
+function showSellThroughBreakdown(){
+  const range=_periodDateRange(SUMMARY_PERIOD);
+  function inRange(d){return !!d&&d>=range.from&&d<=range.to;}
+  const periodLabel={'7d':'Last 7 days','30d':'Last 30 days','60d':'Last 60 days','90d':'Last 90 days','current_fy':'Current FY','prev_fy':'Previous FY'}[SUMMARY_PERIOD]||SUMMARY_PERIOD;
+  const is7d=SUMMARY_PERIOD==='7d';
+  const title=is7d?'Fast-Mover Rate':'Sell-Through Rate';
+  let sold=[],unsold=[];
+  allDBKeys().forEach(k=>{(DB[k]||[]).forEach(i=>{
+    if((i.item||'').trim().toUpperCase()==='MONTH END')return;
+    if(i.isReturned||i.condition==='spares')return;
+    const saleDate=i.resaleSalePrice?i.resaleDateSold:i.dateSold;
+    const listedDate=i.dateListed;
+    if(!listedDate)return;
+    const listedInPeriod=inRange(listedDate);
+    const soldInPeriod=saleDate&&inRange(saleDate);
+    if(is7d){
+      // Fast-mover: items in period, did they sell within 14d?
+      if(!inRange(saleDate||listedDate))return;
+      const d=calcDaysToSell(i);
+      if(saleDate){sold.push({...i,month:k,_days:d,_fast:d!==null&&d<=14});}
+      else{const daysOn=daysBetween(listedDate,new Date().toISOString().split('T')[0]);if(daysOn>=14)unsold.push({...i,month:k});}
+    } else {
+      // Sell-through: listed in period — did it sell?
+      if(!listedInPeriod&&!soldInPeriod)return;
+      if(saleDate)sold.push({...i,month:k,_days:calcDaysToSell(i)});
+      else unsold.push({...i,month:k});
+    }
+  });});
+  const total=sold.length+unsold.length;
+  if(!total){openPanel(title,'<div style="padding:30px;text-align:center;color:var(--muted)">No items in this period.</div>');return;}
+  const pct=Math.round(sold.length/total*100);
+  const header=`<div style="margin-bottom:16px;background:var(--surface2);border-radius:10px;padding:14px">
+    <div style="display:flex;align-items:center;gap:12px">
+      <div class="stat-num" style="color:${pct>=60?'var(--green)':pct>=30?'var(--warn)':'var(--red)'}">${pct}%</div>
+      <div>
+        <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px">${title}</div>
+        <div style="font-size:13px;color:var(--text-secondary)">${sold.length} sold · ${unsold.length} still listed · ${periodLabel}</div>
+      </div>
+    </div>
+  </div>`;
+  const soldRows=sold.length?`<div style="font-size:11px;font-weight:700;color:var(--green);text-transform:uppercase;letter-spacing:.08em;margin:0 0 8px">Sold (${sold.length})</div>`+
+    [...sold].sort((a,b)=>(a._days||999)-(b._days||999)).map(i=>{
+      const col=i._days!==null?(i._days<=14?'var(--green)':i._days<=30?'var(--warn)':'var(--red)'):'var(--muted)';
+      return`<div style="padding:10px;background:var(--surface2);border-radius:8px;margin-bottom:8px;cursor:pointer;display:flex;align-items:center;gap:10px" onclick="openItemDetail('${i.month}','${i.id}')">
+        <div style="flex:1"><div style="font-weight:600;font-size:13px">${esc(i.item)}</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:2px">${i.dateListed||'?'} → ${i.resaleSalePrice?i.resaleDateSold:i.dateSold||'?'}</div></div>
+        <div style="font-weight:800;font-size:14px;color:${col}">${i._days!==null?i._days+'d':'—'}</div>
+      </div>`;}).join(''):'';
+  const unsoldRows=unsold.length?`<div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin:${sold.length?'16px':0} 0 8px">Still listed (${unsold.length})</div>`+
+    unsold.map(i=>`<div style="padding:10px;background:var(--surface2);border-radius:8px;margin-bottom:8px;cursor:pointer;display:flex;align-items:center;gap:10px" onclick="openItemDetail('${i.month}','${i.id}')">
+      <div style="flex:1"><div style="font-weight:600;font-size:13px">${esc(i.item)}</div>
+      <div style="font-size:11px;color:var(--muted);margin-top:2px">Listed ${i.dateListed||'?'}</div></div>
+      <div style="font-size:12px;color:var(--muted)">active</div>
+    </div>`).join(''):'';
+  openPanel(title+' — '+periodLabel,header+soldRows+unsoldRows);
 }
 
 function showVelocityCategoriesPanel(byCat){
@@ -4492,10 +4596,10 @@ function renderSummary(){
             ${(stats.stale&&stats.stale.length)>0?`<div style="margin-top:14px;padding:14px 15px;border-radius:16px;background:var(--accent-dim);border:1px solid rgba(245,166,35,.24);cursor:pointer" onclick="openDashboardStock('stale')"><div style="font-size:12px;font-weight:700;color:var(--accent)">${stats.stale.length} stale item${stats.stale.length!==1?'s':''}</div><div style="font-size:12px;color:var(--text-secondary);margin-top:4px">Listed 30+ days. Open filtered stock.</div></div>`:''}
           </div>          <div class="panel-card summary-velocity">
             <div class="sl">Velocity</div>
-            <div class="metric-inline"><div><div class="metric-k">Avg days to sell</div><div style="font-size:11px;color:var(--muted);margin-top:4px">Current period signal</div></div><div class="metric-v">${stats.avgDays!==null&&stats.avgDays!==undefined?stats.avgDays+'d':'—'}</div></div>
+            <div class="metric-inline clickable" onclick="showAvgDaysBreakdown()"><div><div class="metric-k">Avg days to sell</div><div style="font-size:11px;color:var(--muted);margin-top:4px">Current period signal · tap for detail</div></div><div class="metric-v">${stats.avgDays!==null&&stats.avgDays!==undefined?stats.avgDays+'d':'—'}</div></div>
             ${SUMMARY_PERIOD==='7d'
-              ?`<div class="metric-inline"><div><div class="metric-k">Fast-mover rate</div><div style="font-size:11px;color:var(--muted);margin-top:4px">Sold within 14d of listing</div></div><div class="metric-v" style="color:${(stats.sellThrough14||0)>=50?'var(--green)':(stats.sellThrough14||0)>=25?'var(--warn)':'var(--text)'}">${stats.eligible14Count>0?Math.round(stats.sellThrough14||0)+'%':'—'}</div></div>`
-              :`<div class="metric-inline"><div><div class="metric-k">Sell-through</div><div style="font-size:11px;color:var(--muted);margin-top:4px">Listed in period that sold</div></div><div class="metric-v">${stats.sellThrough!==null&&stats.sellThrough!==undefined?Math.round(stats.sellThrough)+'%':'—'}</div></div>`
+              ?`<div class="metric-inline clickable" onclick="showSellThroughBreakdown()"><div><div class="metric-k">Fast-mover rate</div><div style="font-size:11px;color:var(--muted);margin-top:4px">Sold within 14d · tap for detail</div></div><div class="metric-v" style="color:${(stats.sellThrough14||0)>=50?'var(--green)':(stats.sellThrough14||0)>=25?'var(--warn)':'var(--text)'}">${stats.eligible14Count>0?Math.round(stats.sellThrough14||0)+'%':'—'}</div></div>`
+              :`<div class="metric-inline clickable" onclick="showSellThroughBreakdown()"><div><div class="metric-k">Sell-through</div><div style="font-size:11px;color:var(--muted);margin-top:4px">Listed in period that sold · tap for detail</div></div><div class="metric-v">${stats.sellThrough!==null&&stats.sellThrough!==undefined?Math.round(stats.sellThrough)+'%':'—'}</div></div>`
             }
             ${catLeaders.length?`<div class="vel-cat-wrap" id="vel-cat-wrap"><div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;font-weight:700;margin-top:14px;margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid var(--border)">Category breakdown</div><div class="category-mini-grid" id="vel-cat-grid" style="margin-top:0">${catLeaders.map(c=>{const sellPct=c.total?Math.round((c.sold/c.total)*100):0;return`<div class="category-mini-row vel-cat-item" onclick="showCategoryItems(${JSON.stringify(c.cat).replace(/"/g,'&quot;')})"><div><div class="metric-k">${esc(c.cat)}</div><div class="category-mini-meta">${c.sold}/${c.total} sold · ${c.avgDays!==null?c.avgDays+'d avg':'—'}</div></div><div class="category-mini-val">${sellPct}%</div></div>`;}).join('')}</div><div id="vel-cat-more" style="display:none;margin-top:10px"><button style="width:100%;padding:8px;border-radius:10px;border:none;background:var(--accent);color:#000;font-size:12px;font-weight:700;cursor:pointer" onclick="showVelocityCategoriesPanel(window.__summaryByCat||[])">View all categories</button></div></div>`:''}
           </div>
@@ -5428,6 +5532,7 @@ function renderStock(){
   const html=`
     <div class="page-header">
       <div>
+        ${_stockFromSummary?`<button class="btn btn-s" onclick="goToTab('summary',document.querySelector('[data-tab=\\'summary\\']'));_stockFromSummary=false;" style="margin-bottom:10px;font-size:13px">← Dashboard</button>`:''}
         <div class="page-title">Active Stock</div>
         <div class="page-subtitle">Inventory view built for quick scanning, pricing confidence, and proactive cleanup.</div>
       </div>
@@ -7359,6 +7464,26 @@ window.addEventListener('resize',function(){
   if(bnav) bnav.style.display = isMobile ? 'flex' : 'none';
 });
 window.addEventListener('load',handleNavResize);
+
+// Bottom nav scroll-hide: touchmove finger direction (immune to iOS rubber-band bounce)
+(function(){
+  let _touchStartY=0,_navHidden=false;
+  function _bnav(){return document.getElementById('bottom-nav');}
+  document.addEventListener('touchstart',function(e){
+    _touchStartY=e.touches[0].clientY;
+  },{passive:true});
+  document.addEventListener('touchmove',function(e){
+    const bnav=_bnav();
+    if(!bnav||bnav.style.display!=='flex')return;
+    if((window.scrollY||window.pageYOffset)<20){
+      if(_navHidden){bnav.classList.remove('nav-hidden');_navHidden=false;}
+      return;
+    }
+    const delta=_touchStartY-e.touches[0].clientY;
+    if(delta>12&&!_navHidden){bnav.classList.add('nav-hidden');_navHidden=true;}
+    else if(delta<-12&&_navHidden){bnav.classList.remove('nav-hidden');_navHidden=false;}
+  },{passive:true});
+})();
 
 function _recalcRelist(currentPL,salePrice,bpf,shipping,packaging,postage){
   const promoInput=parseFloat(document.getElementById('rl-promo-input').value)||0;
