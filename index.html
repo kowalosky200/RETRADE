@@ -211,7 +211,7 @@ nav:not(#bottom-nav){position:sticky;top:0;z-index:200;background:var(--surface)
 /* PANEL */
 .panel-overlay{display:none;position:fixed;inset:0;background:var(--overlay);z-index:400;backdrop-filter:blur(4px);}
 .panel-overlay.on{display:block;}
-.slide-panel{position:fixed;top:0;right:-440px;width:440px;max-width:95vw;height:100vh;background:var(--surface);border-left:1px solid var(--border);z-index:401;transition:right 0.3s cubic-bezier(0.4,0,0.2,1);overflow-y:auto;overscroll-behavior:contain;padding:24px;box-shadow:-4px 0 24px var(--shadow-md);}
+.slide-panel{position:fixed;top:0;right:-440px;width:440px;max-width:95vw;height:100vh;background:var(--surface);border-left:1px solid var(--border);z-index:401;transition:right 0.3s cubic-bezier(0.4,0,0.2,1);overflow-y:auto;overscroll-behavior:contain;padding:24px;box-shadow:-4px 0 24px var(--shadow-md);box-sizing:border-box;}
 .slide-panel.on{right:0;}
 .slide-panel.dragging{transition:none!important;}
 .panel-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;}
@@ -228,6 +228,8 @@ nav:not(#bottom-nav){position:sticky;top:0;z-index:200;background:var(--surface)
 .kgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px;margin-bottom:14px;}
 .kgrid-3{grid-template-columns:repeat(3,1fr);}
 .kgrid-4{grid-template-columns:repeat(4,minmax(0,1fr));}
+/* Single-col variant for pages like Stock + Expenses on mobile — applied via .kgrid-1col modifier */
+.kgrid.kgrid-1col{grid-template-columns:repeat(3,1fr);} /* desktop: still 3-col */
 .kcard{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px 16px 14px;position:relative;overflow:hidden;cursor:pointer;transition:border-color 0.2s,transform 0.15s,box-shadow 0.2s;box-shadow:0 1px 2px var(--shadow);min-height:108px;display:flex;flex-direction:column;justify-content:space-between;;min-width:0;overflow:hidden;}
 .kcard.clickable{cursor:pointer;}
 .kcard.clickable:hover{border-color:var(--accent);transform:translateY(-1px);box-shadow:0 4px 16px var(--shadow-md);}
@@ -395,12 +397,27 @@ nav:not(#bottom-nav){position:sticky;top:0;z-index:200;background:var(--surface)
   /* KPI card grids — 2-col on mobile */
   .kgrid{grid-template-columns:1fr 1fr!important;}
   .kgrid-3{grid-template-columns:1fr 1fr!important;}
-  .insights{grid-template-columns:1fr!important;}
+  /* kgrid-3 with 3 items: last odd child spans 2 cols (orphan fix) */
+  .kgrid-3>.kcard:last-child:nth-child(odd){grid-column:span 2;}
+  /* kgrid-1col (Stock/Expenses): single col at all mobile sizes */
+  .kgrid.kgrid-1col{grid-template-columns:1fr!important;}
+  .kgrid.kgrid-1col .kcard{min-height:0!important;padding:10px 14px 10px 18px!important;flex-direction:row!important;align-items:center!important;justify-content:space-between!important;gap:10px!important;}
+  .kgrid.kgrid-1col .kcard .klabel{font-size:10px;margin-bottom:0;flex-shrink:0;flex:1;}
+  .kgrid.kgrid-1col .kcard .kval{font-size:20px!important;margin:0!important;white-space:nowrap;flex-shrink:0;order:2;}
+  .kgrid.kgrid-1col .kcard .ksub{display:none!important;}
+  .kgrid.kgrid-1col .kcard::after{width:3px;height:calc(100% - 16px);top:8px;left:0;right:auto;border-radius:0 2px 2px 0;}
+  .kgrid.kgrid-1col>.kcard:last-child:nth-child(odd){grid-column:unset!important;}
+  /* Stat strip tokens in popup: single col compact rows */
+  .stat-strip-grid{grid-template-columns:1fr!important;}
+  .stat-strip-grid .ip-token{display:flex!important;flex-direction:row!important;align-items:center!important;justify-content:space-between!important;padding:10px 14px!important;gap:10px!important;}
+  .stat-strip-grid .ip-token-label{font-size:10px;margin-bottom:0!important;flex-shrink:0;flex:1;}
+  .stat-strip-grid .ip-token-val{font-size:20px!important;margin:0!important;flex-shrink:0;white-space:nowrap;}
+  .stat-strip-grid .ip-token-sub{display:none!important;}
   /* Summary 4-card: 2x2 on mobile */
   .kgrid-4{grid-template-columns:1fr 1fr!important;}
 
-  .chart-title{font-size:10px;flex-wrap:wrap;gap:8px;margin-bottom:14px;}
-  .chart-legend{margin-left:0;gap:10px;}
+  .chart-title{font-size:10px;flex-wrap:nowrap;gap:8px;margin-bottom:14px;}
+  .chart-legend{margin-left:auto;gap:8px;flex-shrink:0;}
   .chart-wrap{padding:14px;}
 }
 
@@ -890,7 +907,7 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
 .ip-field,.ip-field-select,.ip-field-date{font-size:15px;}
 #auth-screen-login,#auth-screen-reset{max-width:420px;border-radius:28px;padding:42px 36px!important;box-shadow:0 22px 60px rgba(0,0,0,.18);} 
 #auth-screen-login > div:first-child + div + div span{letter-spacing:.16em!important;}
-
+#auth-btn{height:48px;border-radius:16px;}
 .summary-shell{display:grid;grid-template-columns:minmax(0,1.84fr) minmax(0,.92fr);gap:18px;align-items:start;}
 .summary-main{display:flex;flex-direction:column;gap:18px;min-height:100%;min-width:0;}
 .summary-side{display:grid;grid-template-rows:auto auto auto;gap:18px;}
@@ -926,9 +943,8 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
 
 /* ===== Mobile ≤480px ===== */
 @media(max-width:480px){
-  /* KPI cards: keep 2-col — 1-col causes too much scroll before content */
+  /* KPI cards: keep 2-col — handled above at 600px; kgrid-1col already single-col */
   .kgrid,.kgrid-4,.kgrid-3{grid-template-columns:1fr 1fr!important;}
-  .kgrid-3>.kcard:last-child:nth-child(odd){grid-column:span 2;}
   .kcard{padding:12px 14px 10px;min-height:80px;border-radius:16px;}
   .klab{font-size:9px;letter-spacing:.08em;}
   .kval{font-size:22px!important;margin:4px 0 2px;}
@@ -4266,9 +4282,10 @@ function setSummaryPeriod(p){SUMMARY_PERIOD=p;renderSummary();}
 
 let _stockFromSummary=false;
 function openDashboardStock(filter){
-  _stockFromSummary=true;
   goToTab('stock',document.querySelector('[data-tab="stock"]'));
+  _stockFromSummary=true;   // set AFTER goToTab (which clears it)
   if(filter)setStockFilter(filter);
+  renderStock(); // re-render so back button appears
 }
 
 function showAvgDaysBreakdown(){
@@ -5320,7 +5337,7 @@ function openItemDetail(m,id,noHistory){
   // Stat strip — sale + cost as editable ip-tokens, profit read-only
   const saleEditable=isUnsold;
   const statStrip=`
-    <div style="display:grid;grid-template-columns:1fr 1fr${profit!==null?' 1fr':''};gap:8px;margin-bottom:16px">
+    <div class="stat-strip-grid" style="display:grid;grid-template-columns:1fr 1fr${profit!==null?' 1fr':''};gap:8px;margin-bottom:16px">
       <div class="ip-token${saleEditable?'':' locked'}" id="tok-salePrice-${id}"${saleEditable?` onpointerdown="tokenPointerDown('${m}','${id}','salePrice')" onclick="openTokenEdit('${m}','${id}','salePrice')"`:''}>
         <div class="ip-token-label">Sale Price</div>
         <div class="ip-token-val">${fmt(i.salePrice||0)}</div>
@@ -5537,7 +5554,7 @@ function renderStock(){
         <div class="page-subtitle">Inventory view built for quick scanning, pricing confidence, and proactive cleanup.</div>
       </div>
     </div>
-    <div class="kgrid kgrid-3">
+    <div class="kgrid kgrid-3 kgrid-1col">
       <div class="kcard b"><div class="klabel">Live stock value</div><div class="kval">${fmt(totalValue)}</div><div class="ksub">Current asking total</div></div>
       <div class="kcard g"><div class="klabel">Estimated profit</div><div class="kval">${fmt(potentialProfit)}</div><div class="ksub">If every item sells</div></div>
       <div class="kcard"><div class="klabel">Average ask</div><div class="kval">${fmt(avgAsking)}</div><div class="ksub">Per active item</div></div>
@@ -5589,7 +5606,7 @@ function renderExpenses(){
       </div>
     </div>
 
-    <div class="kgrid kgrid-3">
+    <div class="kgrid kgrid-3 kgrid-1col">
       <div class="kcard">
         <div class="klabel">Trip Expenses</div>
         <div class="kval">${fmt(totalTrips)}</div>
@@ -7465,23 +7482,44 @@ window.addEventListener('resize',function(){
 });
 window.addEventListener('load',handleNavResize);
 
-// Bottom nav scroll-hide: touchmove finger direction (immune to iOS rubber-band bounce)
+// Bottom nav scroll-hide: per-touch delta tracking, auto-restore safety net
 (function(){
-  let _touchStartY=0,_navHidden=false;
+  let _startY=0,_lastY=0,_navHidden=false,_restoreTimer=null;
   function _bnav(){return document.getElementById('bottom-nav');}
+  function _show(){
+    const bnav=_bnav();if(!bnav)return;
+    bnav.classList.remove('nav-hidden');_navHidden=false;
+    clearTimeout(_restoreTimer);_restoreTimer=null;
+  }
+  function _hide(){
+    const bnav=_bnav();if(!bnav)return;
+    bnav.classList.add('nav-hidden');_navHidden=true;
+  }
+  function _scheduleRestore(){
+    clearTimeout(_restoreTimer);
+    _restoreTimer=setTimeout(_show,2000);
+  }
   document.addEventListener('touchstart',function(e){
-    _touchStartY=e.touches[0].clientY;
+    _startY=e.touches[0].clientY;
+    _lastY=_startY;
+    clearTimeout(_restoreTimer);_restoreTimer=null;
   },{passive:true});
   document.addEventListener('touchmove',function(e){
     const bnav=_bnav();
     if(!bnav||bnav.style.display!=='flex')return;
-    if((window.scrollY||window.pageYOffset)<20){
-      if(_navHidden){bnav.classList.remove('nav-hidden');_navHidden=false;}
-      return;
+    const y=e.touches[0].clientY;
+    const delta=_lastY-y;   // positive = scrolling down
+    _lastY=y;
+    // Always show when near top — use max(scrollY,0) to guard iOS negative bounce
+    if(Math.max(window.scrollY||window.pageYOffset,0)<24){
+      _show();return;
     }
-    const delta=_touchStartY-e.touches[0].clientY;
-    if(delta>12&&!_navHidden){bnav.classList.add('nav-hidden');_navHidden=true;}
-    else if(delta<-12&&_navHidden){bnav.classList.remove('nav-hidden');_navHidden=false;}
+    if(delta>6&&!_navHidden){_hide();_scheduleRestore();}
+    else if(delta<-6&&_navHidden){_show();}
+  },{passive:true});
+  document.addEventListener('touchend',function(){
+    // If hidden and finger lifted, schedule auto-restore
+    if(_navHidden)_scheduleRestore();
   },{passive:true});
 })();
 
