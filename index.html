@@ -2042,7 +2042,7 @@ async function saveItemToSupabase(m, i){
   if(itemErr) throw new Error('Save item failed: ' + itemErr.message);
 
   // Replace parts: delete old, insert new
-  await _sbCall(()=>_sb.from('item_parts').delete().eq('item_id', i.id));
+  await _sbCall(()=>_sb.from('item_parts').delete().eq('item_id', i.id).eq('user_id', _currentUserId));
   if((i.parts||[]).length > 0){
     const partsRows = (i.parts||[]).map(p => ({
       item_id:     i.id,
@@ -2055,7 +2055,7 @@ async function saveItemToSupabase(m, i){
   }
 
   // Replace returns: delete old, insert new
-  await _sbCall(()=>_sb.from('item_returns').delete().eq('item_id', i.id));
+  await _sbCall(()=>_sb.from('item_returns').delete().eq('item_id', i.id).eq('user_id', _currentUserId));
   if((i.returnHistory||[]).length > 0){
     const retRows = (i.returnHistory||[]).map(r => ({
       item_id:       i.id,
@@ -2085,7 +2085,7 @@ async function deleteItemFromSupabase(id){
 
 async function saveTripToSupabase(t){
   const row = {id:t.id, user_id:_currentUserId||null, date:t.date, description:t.description||'', mileage:t.mileage||0, rate_per_mile:t.ratePerMile||0.45};
-  const {error} = await _sbCall(()=>_sb.from('trips').upsert(row, {onConflict:'id'}));
+  const {error} = await _sbCall(()=>_sb.from('trips').upsert(row, {onConflict:'id,user_id'}));
   if(error) throw new Error('Save trip failed: ' + error.message);
 }
 
@@ -2098,7 +2098,7 @@ async function deleteTripFromSupabase(id){
 
 async function saveExpenseToSupabase(e){
   const row = {id:e.id, user_id:_currentUserId||null, date:e.date, description:e.description||'', amount:e.amount||0, category:e.category||null};
-  const {error} = await _sbCall(()=>_sb.from('expenses').upsert(row, {onConflict:'id'}));
+  const {error} = await _sbCall(()=>_sb.from('expenses').upsert(row, {onConflict:'id,user_id'}));
   if(error) throw new Error('Save expense failed: ' + error.message);
 }
 
