@@ -135,9 +135,13 @@ nav:not(#bottom-nav){position:sticky;top:0;z-index:200;background:var(--surface)
   z-index:200;padding-bottom:env(safe-area-inset-bottom);
   box-shadow:0 -1px 0 var(--border);
   transform:translateY(0);
-  transition:transform 0.28s cubic-bezier(0.4,0,0.2,1);
+  transition:transform 0.22s cubic-bezier(0.34,1.38,0.64,1);
+  will-change:transform;
 }
-#bottom-nav.nav-hidden{transform:translateY(calc(100% + env(safe-area-inset-bottom)));}
+#bottom-nav.nav-hidden{
+  transform:translateY(calc(100% + env(safe-area-inset-bottom)));
+  transition:transform 0.18s cubic-bezier(0.4,0,1,1);
+}
 .bnt{
   flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
   gap:3px;border:none;background:transparent;cursor:pointer;
@@ -145,10 +149,9 @@ nav:not(#bottom-nav){position:sticky;top:0;z-index:200;background:var(--surface)
   transition:color 0.15s;padding:0;
   -webkit-tap-highlight-color:transparent;
 }
-.bnt:active{opacity:0.7;}
 .bnt.on{color:var(--accent);}
-.bnt svg{transition:transform 0.15s;}
-.bnt.on svg{transform:scale(1.1);}
+.bnt svg{transition:transform 0.2s cubic-bezier(0.34,1.5,0.64,1);}
+.bnt.on svg{transform:scale(1.18);}
 @media(max-width:720px) and (min-width:481px){
   .insights{grid-template-columns:1fr 1fr 1fr!important;}
 }
@@ -209,10 +212,15 @@ nav:not(#bottom-nav){position:sticky;top:0;z-index:200;background:var(--surface)
 /* FAB */
 
 /* PANEL */
-.panel-overlay{display:none;position:fixed;inset:0;background:var(--overlay);z-index:400;backdrop-filter:blur(4px);}
-.panel-overlay.on{display:block;}
-.slide-panel{position:fixed;top:0;right:-440px;width:440px;max-width:95vw;height:100vh;background:var(--surface);border-left:1px solid var(--border);z-index:401;transition:right 0.3s cubic-bezier(0.4,0,0.2,1);overflow-y:auto;overscroll-behavior:contain;padding:24px;box-shadow:-4px 0 24px var(--shadow-md);box-sizing:border-box;}
-.slide-panel.on{right:0;}
+.panel-overlay{position:fixed;inset:0;background:var(--overlay);z-index:400;backdrop-filter:blur(4px);
+  opacity:0;pointer-events:none;transition:opacity 0.24s ease;}
+.panel-overlay.on{opacity:1;pointer-events:auto;}
+.slide-panel{position:fixed;top:0;right:0;width:440px;max-width:95vw;height:100vh;background:var(--surface);border-left:1px solid var(--border);z-index:401;overflow-y:auto;overscroll-behavior:contain;padding:24px;box-shadow:-4px 0 24px var(--shadow-md);box-sizing:border-box;
+  transform:translateX(100%);
+  transition:transform 0.32s cubic-bezier(0.34,1.2,0.64,1);
+  will-change:transform;
+}
+.slide-panel.on{transform:translateX(0);}
 .slide-panel.dragging{transition:none!important;}
 .panel-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;}
 .panel-title{font-family:var(--font-display);font-weight:800;font-size:18px;color:var(--accent);letter-spacing:-0.01em;}
@@ -230,10 +238,13 @@ nav:not(#bottom-nav){position:sticky;top:0;z-index:200;background:var(--surface)
 .kgrid-4{grid-template-columns:repeat(4,minmax(0,1fr));}
 /* Single-col variant for pages like Stock + Expenses on mobile — applied via .kgrid-1col modifier */
 .kgrid.kgrid-1col{grid-template-columns:repeat(3,1fr);} /* desktop: still 3-col */
-.kcard{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px 16px 14px;position:relative;overflow:hidden;cursor:pointer;transition:border-color 0.2s,transform 0.15s,box-shadow 0.2s;box-shadow:0 1px 2px var(--shadow);min-height:108px;display:flex;flex-direction:column;justify-content:space-between;;min-width:0;overflow:hidden;}
-.kcard.clickable{cursor:pointer;}
-.kcard.clickable:hover{border-color:var(--accent);transform:translateY(-1px);box-shadow:0 4px 16px var(--shadow-md);}
-.kcard:hover{border-color:var(--accent);transform:translateY(-2px);box-shadow:0 6px 20px var(--shadow-md);}
+.kcard{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px 16px 14px;position:relative;overflow:hidden;cursor:pointer;transition:border-color 0.2s,transform 0.18s cubic-bezier(0.34,1.2,0.64,1),box-shadow 0.2s;box-shadow:0 1px 2px var(--shadow);min-height:108px;display:flex;flex-direction:column;justify-content:space-between;;min-width:0;overflow:hidden;-webkit-tap-highlight-color:transparent;}
+.kcard.clickable{cursor:pointer;-webkit-tap-highlight-color:transparent;}
+@media(hover:hover){.kcard.clickable:hover{border-color:var(--accent);transform:translateY(-1px);box-shadow:0 4px 16px var(--shadow-md);}}
+.kcard.clickable:active{transform:scale(0.97) translateY(0)!important;box-shadow:0 1px 4px var(--shadow)!important;transition:transform 0.08s ease,box-shadow 0.08s ease!important;}
+.bnt{transition:color 0.15s,opacity 0.1s;-webkit-tap-highlight-color:transparent;}
+.bnt:active{opacity:0.55;transform:scale(0.92);}
+@media(hover:hover){.kcard:hover{border-color:var(--accent);transform:translateY(-2px);box-shadow:0 6px 20px var(--shadow-md);}}
 .kcard.active-filter{border-color:var(--accent);background:var(--accent-dim);}
 .kcard.active-filter::before{content:'▾';position:absolute;bottom:10px;right:14px;font-size:14px;color:var(--accent);}
 .kcard::after{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:var(--accent);opacity:0.8;}
@@ -364,7 +375,7 @@ nav:not(#bottom-nav){position:sticky;top:0;z-index:200;background:var(--surface)
 .ddmenu button.danger:hover{background:var(--red-dim);}
 
 /* TOAST */
-#toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(100px);background:var(--surface);border:1px solid var(--border);color:var(--text);padding:14px 24px;border-radius:10px;font-size:14px;font-weight:500;z-index:500;opacity:0;transition:all 0.3s cubic-bezier(0.4,0,0.2,1);box-shadow:0 4px 20px var(--shadow-md);max-width:90vw;}
+#toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(100px);background:var(--surface);border:1px solid var(--border);color:var(--text);padding:14px 24px;border-radius:10px;font-size:14px;font-weight:500;z-index:500;opacity:0;transition:opacity 0.22s ease, transform 0.32s cubic-bezier(0.34,1.32,0.64,1);box-shadow:0 4px 20px var(--shadow-md);max-width:90vw;}
 @media(max-width:600px){#toast{bottom:84px;}}
 #toast.on{opacity:1;transform:translateX(-50%) translateY(0);}
 #toast.err{background:var(--red);color:#fff;border-color:var(--red-hover);}
@@ -438,11 +449,12 @@ nav:not(#bottom-nav){position:sticky;top:0;z-index:200;background:var(--surface)
 .stat-mini-val{font-size:16px;font-weight:700;}
 .info-box{background:rgba(96,165,250,0.1);border:1px solid rgba(96,165,250,0.2);border-radius:8px;padding:12px 14px;font-size:13px;color:var(--blue);margin-bottom:14px;line-height:1.6;}
 .info-box strong{font-weight:600;}
-.expense-item{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px 14px;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;gap:12px;}
-.expense-main{flex:1;}
-.expense-label{font-weight:600;font-size:14px;margin-bottom:4px;}
+.expense-item{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;gap:12px;transition:border-color 0.15s;box-shadow:0 1px 3px var(--shadow);}
+.expense-item:hover{border-color:var(--border2);}
+.expense-main{flex:1;min-width:0;}
+.expense-label{font-weight:600;font-size:14px;margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .expense-meta{font-size:12px;color:var(--text-secondary);}
-.expense-amount{font-size:18px;font-weight:600;font-family:var(--font-mono);}
+.expense-amount{font-size:17px;font-weight:800;font-family:var(--font-body);color:var(--text);white-space:nowrap;letter-spacing:-0.02em;}
 ::-webkit-scrollbar{width:10px;height:10px;}
 ::-webkit-scrollbar-track{background:var(--bg);}
 ::-webkit-scrollbar-thumb{background:var(--border2);border-radius:5px;}
@@ -503,7 +515,8 @@ nav:not(#bottom-nav){position:sticky;top:0;z-index:200;background:var(--surface)
 
 /* CONFIRM MODAL */
 #confirm-modal{display:none;position:fixed;inset:0;background:var(--overlay);z-index:1000;align-items:center;justify-content:center;backdrop-filter:blur(4px);}
-#confirm-modal.open{display:flex;}
+#confirm-modal.open{display:flex;animation:confirmOverlayIn 0.22s ease both;}
+#confirm-modal.open .confirm-box{animation:confirmIn 0.3s cubic-bezier(0.34,1.32,0.64,1) both;}
 .confirm-box{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:28px 24px;width:340px;max-width:90vw;box-shadow:0 8px 32px var(--shadow-md);}
 .confirm-icon{font-size:36px;margin-bottom:12px;text-align:center;}
 .confirm-title{font-family:var(--font-display);font-weight:800;font-size:17px;margin-bottom:8px;text-align:center;letter-spacing:-0.01em;}
@@ -613,7 +626,7 @@ nav:not(#bottom-nav){position:sticky;top:0;z-index:200;background:var(--surface)
 
 /* Editable token grid — 4 tokens: Sale Price, Buy Price, Promo %, Net Profit */
 .ip-tokens{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:0;width:100%;}
-.ip-token{background:var(--surface);border:1.5px solid var(--border);border-radius:12px;padding:12px 14px;cursor:pointer;transition:border-color 0.15s,box-shadow 0.15s;position:relative;user-select:none;}
+.ip-token{background:var(--surface);border:1.5px solid var(--border);border-radius:12px;padding:12px 14px;cursor:pointer;transition:border-color 0.15s,box-shadow 0.15s;position:relative;user-select:none;-webkit-tap-highlight-color:transparent;}
 .ip-token:not(.locked):not(.editing){border-color:var(--border2);}
 .ip-token:hover:not(.locked){border-color:var(--accent);box-shadow:0 2px 10px var(--accent-dim);}
 .ip-token.editing{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-dim);}
@@ -654,7 +667,7 @@ nav:not(#bottom-nav){position:sticky;top:0;z-index:200;background:var(--surface)
 .ip-body{display:flex;flex-direction:column;gap:12px;width:100%;}
 .ip-section{background:var(--surface2);border-radius:12px;padding:0;overflow:hidden;width:100%;}
 .ip-section-pnl{background:var(--surface);border:1px solid var(--border);box-shadow:0 1px 4px var(--shadow);}
-.ip-section-header{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;cursor:pointer;user-select:none;gap:8px;}
+.ip-section-header{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;cursor:pointer;user-select:none;gap:8px;-webkit-tap-highlight-color:transparent;}
 .ip-section-header:hover{background:rgba(0,0,0,0.03);}
 [data-theme="dark"] .ip-section-header:hover{background:rgba(255,255,255,0.03);}
 .ip-section-title{font-family:var(--font-display);font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:0.1em;color:var(--muted);}
@@ -817,8 +830,12 @@ nav:not(#bottom-nav){position:sticky;top:0;z-index:200;background:var(--surface)
 }
 html,body{background:linear-gradient(180deg,var(--bg) 0%, color-mix(in srgb,var(--bg) 92%, #7d90bb 8%) 100%);} 
 body{font-size:14px;}
-.page{max-width:1280px;margin:0 auto;padding:28px 28px 120px;animation:pageFade .26s ease;}
+.page{max-width:1280px;margin:0 auto;padding:28px 28px 120px;animation:pageFade .3s cubic-bezier(0.34,1.1,0.64,1) both;}
 @keyframes pageFade{from{opacity:.0;transform:translateY(6px)}to{opacity:1;transform:none}}
+@keyframes panelContentIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+@keyframes confirmIn{from{opacity:0;transform:scale(0.93) translateY(8px)}to{opacity:1;transform:scale(1) translateY(0)}}
+@keyframes confirmOverlayIn{from{opacity:0}to{opacity:1}}
+#panel-content{animation:panelContentIn 0.28s cubic-bezier(0.34,1.2,0.64,1) both;}
 nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparent);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);border-bottom:1px solid color-mix(in srgb,var(--border) 76%, transparent);}
 .nav-inner{max-width:1280px;height:68px;padding:0 24px;gap:16px;}
 .brand{margin-right:8px!important;position:relative;padding-right:18px;}
@@ -848,7 +865,7 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
 .kcard.r::after{background:linear-gradient(90deg,var(--red),transparent 86%)}
 .kcard.b::after{background:linear-gradient(90deg,var(--blue),transparent 86%)}
 .kcard.p::after{background:linear-gradient(90deg,var(--purple),transparent 86%)}
-.kcard:hover{transform:translateY(-3px);box-shadow:0 16px 42px var(--shadow-md);}
+@media(hover:hover){.kcard:hover{transform:translateY(-3px);box-shadow:0 16px 42px var(--shadow-md);}}
 .klabel{font-size:11px;font-weight:800;letter-spacing:.10em;color:var(--muted);} 
 .kval,.stat-num,.stat-num-sm,.stat-num-xs,.insight-val{font-variant-numeric:tabular-nums lining-nums;letter-spacing:-0.05em;}
 .kval{font-size:26px;font-weight:800;margin:10px 0 6px;line-height:.98;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;}
@@ -1357,6 +1374,7 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
       Sign In
     </button>
 
+
     <button onclick="showForgotPassword()"
       style="width:100%;padding:10px;background:none;border:none;color:var(--text-secondary);font-size:13px;cursor:pointer;margin-top:8px;text-decoration:underline;text-underline-offset:3px;">
       Forgot password?
@@ -1684,203 +1702,6 @@ const _sb = (typeof supabase !== 'undefined')
 
 let _previewMode = false;
 const _previewParam = new URLSearchParams(window.location.search).get('preview');
-const PREVIEW_STORAGE_KEY='retrade_preview_mode';
-const LEGACY_PREVIEW_STORAGE_KEYS=['general_preview_mode'];
-const _previewStored = localStorage.getItem(PREVIEW_STORAGE_KEY) === '1' || LEGACY_PREVIEW_STORAGE_KEYS.some(function(k){ return localStorage.getItem(k) === '1'; });
-
-
-function _buildPreviewDB(){
-  const MONTHS_=['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
-  const now = new Date();
-  // Build month keys for current + 4 previous months
-  function mkey(offset){
-    const d = new Date(now.getFullYear(), now.getMonth() - offset, 1);
-    return MONTHS_[d.getMonth()] + '-' + String(d.getFullYear()).slice(-2);
-  }
-  function mdate(monthOffset, day){
-    const d = new Date(now.getFullYear(), now.getMonth() - monthOffset, day);
-    return d.toISOString().split('T')[0];
-  }
-  const m0=mkey(0), m1=mkey(1), m2=mkey(2), m3=mkey(3), m4=mkey(4);
-
-  const item = (id,num,name,cost,sale,listedOff,soldOff,cat,key,bpp,pkg,promo,parts,returns,notes,resale,resaleDate)=>({
-    id:'pv-'+id, gid:'R-'+String(num).padStart(4,'0'),
-    item:name, costPrice:cost, salePrice:sale??null,
-    dateListed:listedOff, dateSold:soldOff??null,
-    category:cat, postageMode:'sdp', postageKey:key,
-    buyerPaysPostage:bpp??false, packagingCost:pkg, promoPercent:promo??0,
-    parts:parts??[], returnHistory:returns??[], isReturned:false,
-    resaleSalePrice:resale??null, resaleDateSold:resaleDate??null,
-    _wasRelisted:false, notes:notes??''
-  });
-
-  const SP='small_parcel_2kg', LP='large_parcel', LL='large_letter', ML='medium_letter';
-
-  return {
-    _userOwned: false,
-
-    // ── CURRENT MONTH ──────────────────────────────────────────────────────
-    [m0]: [
-      item('c1',1,'Sony WH-1000XM5 Headphones',88,159.99,mdate(0,3),mdate(0,10),'Audio',SP,false,1.20,0.05),
-      item('c2',2,'iPhone 12 64GB Unlocked',195,289.00,mdate(0,2),mdate(0,9),'Phones',SP,false,1.00,0.03),
-      item('c3',3,'Nintendo DS Lite + Charger',18,34.99,mdate(0,4),mdate(0,11),'Gaming',LL,false,0.60,0),
-      item('c4',4,'Logitech MX Master 3 Mouse',32,64.99,mdate(0,5),mdate(0,12),'Computing',LL,false,0.75,0.05),
-      item('c5',5,'Garmin Forerunner 245',62,119.00,mdate(0,1),mdate(0,8),'Wearables',SP,false,1.10,0),
-      item('c6',6,'Canon EOS 1300D Body',75,null,mdate(0,6),null,'Camera',SP,false,1.20,0.03,[{desc:'Replacement strap',cost:3.50,date:mdate(0,6)}]),
-      item('c7',7,'Xbox 360 S Console 250GB',28,null,mdate(0,7),null,'Gaming',SP,false,1.80,0),
-      item('c8',8,'Bose SoundLink Mini II',45,89.99,mdate(0,3),mdate(0,14),'Audio',SP,false,0.90,0.05),
-      item('c9',9,'iPad Mini 4 WiFi 128GB',110,null,mdate(0,8),null,'Tablets',SP,false,1.00,0),
-      item('c10',10,'GBA SP AGS-101 + Game',55,null,mdate(0,9),null,'Gaming',LL,false,0.60,0,[{desc:'Replacement battery',cost:4.99,date:mdate(0,9)}]),
-    ],
-
-    // ── 1 MONTH AGO ────────────────────────────────────────────────────────
-    [m1]: [
-      item('b1',11,'PlayStation 4 Slim 500GB',98,169.99,mdate(1,2),mdate(1,12),'Gaming',SP,false,1.80,0.05),
-      item('b2',12,'MacBook Air 2017 i5',155,285.00,mdate(1,4),mdate(1,18),'Computing',LP,false,2.50,0.03),
-      item('b3',13,'Kindle Paperwhite Gen 10',28,54.99,mdate(1,5),mdate(1,14),'Electronics',LL,false,0.50,0),
-      item('b4',14,'Sony A6000 Camera Body',105,189.00,mdate(1,3),mdate(1,16),'Camera',SP,false,1.20,0.05),
-      item('b5',15,'GBC Pokemon Yellow Cart',12,29.99,mdate(1,6),mdate(1,11),'Gaming',ML,false,0.40,0),
-      item('b6',16,'Dyson V7 Cordless Hoover',85,159.99,mdate(1,1),mdate(1,9),'Appliances',LP,false,2.80,0.05),
-      item('b7',17,'Apple Watch Series 3 38mm',42,79.00,mdate(1,7),mdate(1,19),'Wearables',SP,false,1.00,0.03),
-      item('b8',18,'Razer Kraken Headset',22,44.99,mdate(1,8),mdate(1,20),'Audio',SP,false,0.90,0),
-      item('b9',19,'Samsung Galaxy Tab A 2019',65,null,mdate(1,9),null,'Tablets',SP,false,1.00,0),
-      item('b10',20,'JBL Flip 5 Speaker',30,58.99,mdate(1,10),mdate(1,22),'Audio',SP,false,0.80,0),
-      item('b11',21,'Nintendo Switch Lite Yellow',95,155.00,mdate(1,12),mdate(1,24),'Gaming',SP,false,1.20,0.03),
-      item('b12',22,'Xbox One Controller',18,34.00,mdate(1,14),mdate(1,25),'Gaming',LL,false,0.60,0),
-    ],
-
-    // ── 2 MONTHS AGO ───────────────────────────────────────────────────────
-    [m2]: [
-      item('a1',23,'iPhone 11 128GB Black',175,259.99,mdate(2,3),mdate(2,10),'Phones',SP,false,1.00,0.05),
-      item('a2',24,'Canon 18-55mm IS II Lens',35,69.99,mdate(2,5),mdate(2,14),'Camera',SP,false,1.10,0),
-      item('a3',25,'PS2 Slim + 2 Controllers',38,72.00,mdate(2,2),mdate(2,8),'Gaming',SP,false,1.80,0),
-      item('a4',26,'Fitbit Charge 4',25,49.00,mdate(2,6),mdate(2,15),'Wearables',LL,false,0.50,0.03),
-      item('a5',27,'Nikon D3200 18-55mm Kit',110,199.00,mdate(2,4),mdate(2,13),'Camera',SP,false,1.20,0.05),
-      item('a6',28,'Dell Latitude E7470 i5',120,225.00,mdate(2,7),mdate(2,18),'Computing',LP,false,2.50,0.03),
-      item('a7',29,'GBA SP + Pokemon Fire Red',68,119.00,mdate(2,8),mdate(2,19),'Gaming',SP,false,0.80,0),
-      item('a8',30,'Anker PowerCore 26800',20,38.99,mdate(2,9),mdate(2,20),'Electronics',LL,false,0.40,0),
-      item('a9',31,'Sennheiser HD 599',55,105.00,mdate(2,10),mdate(2,22),'Audio',SP,false,0.90,0.05),
-      item('a10',32,'Sony PSP 3000 + Case',28,54.99,mdate(2,11),mdate(2,24),'Gaming',SP,false,0.80,0),
-      item('a11',33,'Ring Video Doorbell 3',48,89.99,mdate(2,1),mdate(2,7),'Smart Home',SP,false,1.00,0.05),
-      item('a12',34,'Logitech C920 Webcam',22,null,mdate(2,12),null,'Computing',SP,false,0.70,0,
-        [{desc:'USB cable replacement',cost:2.99,date:mdate(2,12)}],[],'Spares or repair listing'),
-    ],
-
-    // ── 3 MONTHS AGO ───────────────────────────────────────────────────────
-    [m3]: [
-      item('9a',35,'iPhone XR 64GB Coral',140,209.99,mdate(3,4),mdate(3,13),'Phones',SP,false,1.00,0.05),
-      item('9b',36,'Nintendo 3DS XL Blue',55,95.00,mdate(3,6),mdate(3,15),'Gaming',SP,false,0.80,0.03),
-      item('9c',37,'Samsung Galaxy S10 128GB',115,185.00,mdate(3,2),mdate(3,9),'Phones',SP,false,1.00,0.05),
-      item('9d',38,'Dyson AM07 Tower Fan',60,115.99,mdate(3,5),mdate(3,16),'Appliances',LP,false,2.80,0),
-      item('9e',39,'HP EliteBook 840 G3 i5',105,199.00,mdate(3,7),mdate(3,20),'Computing',LP,false,2.50,0.03),
-      item('9f',40,'GBC Gameboy Color Purple',24,47.99,mdate(3,8),mdate(3,18),'Gaming',ML,false,0.40,0),
-      item('9g',41,'Canon 50mm f1.8 STM Lens',42,79.99,mdate(3,9),mdate(3,21),'Camera',SP,false,1.10,0.03),
-      item('9h',42,'Jawbone Jambox Speaker',15,28.99,mdate(3,10),mdate(3,22),'Audio',LL,false,0.50,0),
-      item('9i',43,'Xbox 360 Games Bundle x8',14,29.99,mdate(3,11),mdate(3,23),'Gaming',SP,false,1.20,0),
-      item('9j',44,'Kodak Mini 2 Printer',22,39.99,mdate(3,12),mdate(3,24),'Electronics',SP,false,0.90,0),
-      item('9k',45,'Sonos Play:1 Speaker',48,94.99,mdate(3,3),mdate(3,11),'Audio',SP,false,1.00,0.05),
-      item('9l',46,'Surface Pro 4 i5 256GB',165,299.00,mdate(3,1),mdate(3,8),'Computing',LP,false,2.50,0.05),
-    ],
-
-    // ── 4 MONTHS AGO ───────────────────────────────────────────────────────
-    [m4]: [
-      item('8a',47,'iPhone SE 2020 64GB',110,169.99,mdate(4,3),mdate(4,10),'Phones',SP,false,1.00,0.05),
-      item('8b',48,'Nintendo Switch OLED White',195,279.00,mdate(4,5),mdate(4,14),'Gaming',SP,false,1.20,0.03),
-      item('8c',49,'Nikon D5300 + 18-55mm',130,235.00,mdate(4,4),mdate(4,12),'Camera',SP,false,1.20,0.05),
-      item('8d',50,'Sony Xperia 5 II',125,195.00,mdate(4,6),mdate(4,16),'Phones',SP,false,1.00,0),
-      item('8e',51,'Plantronics Voyager 5200',18,34.99,mdate(4,7),mdate(4,17),'Audio',LL,false,0.50,0),
-      item('8f',52,'Lenovo ThinkPad T470 i5',138,249.00,mdate(4,8),mdate(4,19),'Computing',LP,false,2.50,0.03),
-      item('8g',53,'GBA Pokemon Emerald Cart',35,67.99,mdate(4,9),mdate(4,20),'Gaming',ML,false,0.40,0),
-      item('8h',54,'Oculus Quest 2 128GB',155,239.00,mdate(4,2),mdate(4,9),'Gaming',SP,false,1.80,0.05),
-      item('8i',55,'Canon EOS M50 Body',145,265.00,mdate(4,10),mdate(4,22),'Camera',SP,false,1.20,0.05),
-      item('8j',56,'Sony SRS-XB33 Speaker',35,64.99,mdate(4,11),mdate(4,23),'Audio',SP,false,0.90,0),
-      item('8k',57,'Samsung Galaxy Watch Active2',45,84.99,mdate(4,12),mdate(4,24),'Wearables',SP,false,1.00,0.03),
-      item('8l',58,'Raspberry Pi 4 4GB Kit',38,72.00,mdate(4,13),mdate(4,25),'Computing',SP,false,0.80,0),
-    ],
-
-    expenses:[
-      {id:'pv-ex1', label:'Packaging supplies (bubble wrap, boxes)', amount:18.40, date:mdate(0,5), category:'Supplies', notes:''},
-      {id:'pv-ex2', label:'Packing tape x4 rolls', amount:7.99, date:mdate(0,12), category:'Supplies', notes:''},
-      {id:'pv-ex3', label:'eBay promoted listings fee', amount:14.22, date:mdate(1,28), category:'Fees', notes:'Monthly promoted'},
-      {id:'pv-ex4', label:'Packaging supplies', amount:15.60, date:mdate(1,8), category:'Supplies', notes:''},
-      {id:'pv-ex5', label:'Car boot entry x2', amount:5.00, date:mdate(1,6), category:'Sourcing', notes:'Weekend boot sale'},
-      {id:'pv-ex6', label:'eBay promoted listings fee', amount:11.85, date:mdate(2,28), category:'Fees', notes:''},
-      {id:'pv-ex7', label:'Jiffy bags x50', amount:9.99, date:mdate(2,4), category:'Supplies', notes:''},
-      {id:'pv-ex8', label:'Car boot entry x3', amount:7.50, date:mdate(2,9), category:'Sourcing', notes:''},
-      {id:'pv-ex9', label:'eBay promoted listings fee', amount:18.40, date:mdate(3,28), category:'Fees', notes:''},
-      {id:'pv-ex10', label:'Packaging supplies', amount:22.10, date:mdate(3,5), category:'Supplies', notes:''},
-      {id:'pv-ex11', label:'eBay promoted listings fee', amount:9.75, date:mdate(4,28), category:'Fees', notes:''},
-      {id:'pv-ex12', label:'Bubble wrap roll x2', amount:12.50, date:mdate(4,3), category:'Supplies', notes:''},
-    ],
-
-    trips:[
-      {id:'pv-tr1', date:mdate(0,4), miles:8, purpose:'Post office run', notes:''},
-      {id:'pv-tr2', date:mdate(0,11), miles:22, purpose:'Car boot sourcing — Basingstoke', notes:'Picked up PS4 + 3DS'},
-      {id:'pv-tr3', date:mdate(1,5), miles:9, purpose:'Post office run', notes:''},
-      {id:'pv-tr4', date:mdate(1,12), miles:18, purpose:'Charity shop run x3 stops', notes:''},
-      {id:'pv-tr5', date:mdate(1,22), miles:26, purpose:'Car boot — Newbury', notes:'Good haul'},
-      {id:'pv-tr6', date:mdate(2,6), miles:11, purpose:'Post office + drop-off', notes:''},
-      {id:'pv-tr7', date:mdate(2,14), miles:20, purpose:'Car boot sourcing', notes:''},
-      {id:'pv-tr8', date:mdate(3,4), miles:8, purpose:'Post office run', notes:''},
-      {id:'pv-tr9', date:mdate(3,18), miles:24, purpose:'Car boot — Winchester', notes:''},
-      {id:'pv-tr10', date:mdate(4,7), miles:12, purpose:'Post office + charity shops', notes:''},
-    ]
-  };
-}
-
-function enablePreviewMode(){
-  _previewMode = true;
-  _currentUserId = 'preview-user';
-  localStorage.setItem(PREVIEW_STORAGE_KEY,'1');
-  LEGACY_PREVIEW_STORAGE_KEYS.forEach(function(k){ if(k!==PREVIEW_STORAGE_KEY) localStorage.removeItem(k); });
-  DB = _buildPreviewDB();
-  _dbSnapshot = _dbFingerprint();
-}
-
-function disablePreviewMode(){
-  _previewMode = false;
-  localStorage.removeItem(PREVIEW_STORAGE_KEY);
-  LEGACY_PREVIEW_STORAGE_KEYS.forEach(function(k){ if(k!==PREVIEW_STORAGE_KEY) localStorage.removeItem(k); });
-}
-
-// ── AUTH ─────────────────────────────────────────────────────────────────────
-
-const _EYE_OPEN = `<path d='M1 8s3-5 7-5 7 5 7 5-3 5-7 5-7-5-7-5z' stroke='currentColor' stroke-width='1.5' fill='none'/><circle cx='8' cy='8' r='2' stroke='currentColor' stroke-width='1.5' fill='none'/>`;
-const _EYE_SLASH = `<path d='M13.4 13.4C12.1 14.4 10.1 15 8 15c-4 0-7-5-7-5a12.4 12.4 0 013.6-3.6' stroke='currentColor' stroke-width='1.5' fill='none' stroke-linecap='round'/><path d='M2.6 2.6l10.8 10.8' stroke='currentColor' stroke-width='1.5' fill='none' stroke-linecap='round'/><path d='M6.5 3.3A7.2 7.2 0 018 3c4 0 7 5 7 5a12.4 12.4 0 01-1.6 2.3' stroke='currentColor' stroke-width='1.5' fill='none' stroke-linecap='round'/><path d='M10.7 10.7A3 3 0 015.3 5.3' stroke='currentColor' stroke-width='1.5' fill='none' stroke-linecap='round'/>`;
-
-function toggleAuthPass(){
-  const input = document.getElementById('auth-pass');
-  const svg   = document.getElementById('auth-pass-svg');
-  if(input.type === 'password'){
-    input.type    = 'text';
-    svg.innerHTML = _EYE_SLASH; // now visible — show slash icon
-  } else {
-    input.type    = 'password';
-    svg.innerHTML = _EYE_OPEN;  // now hidden — show open eye icon
-  }
-}
-
-function startPreviewMode(){
-  enablePreviewMode();
-  try{
-    const url = new URL(window.location.href);
-    url.searchParams.set('preview','1');
-    history.replaceState({}, '', url.toString());
-  }catch(e){ /* sandboxed iframe — ignore */ }
-  document.getElementById('auth-overlay').style.display = 'none';
-  if(window.innerWidth > 600){
-    document.getElementById('nav').style.display = '';
-    document.getElementById('bottom-nav').style.display = 'none';
-  } else {
-    document.getElementById('nav').style.display = 'none';
-    document.getElementById('bottom-nav').style.display = 'flex';
-  }
-  document.getElementById('main-content').style.display = '';
-  document.getElementById('fab').style.display = '';
-  const av=document.getElementById('user-avatar'); if(av) av.textContent='P';
-  requestAnimationFrame(()=>goToTab('summary'));
-}
-
 async function doSignIn(){
   const email = document.getElementById('auth-email').value.trim();
   const pass  = document.getElementById('auth-pass').value;
@@ -3075,7 +2896,7 @@ function renderItemPage(m,id){
 
   // Parts & Expenses
   const hasParts=(i.parts||[]).length>0;
-  html+=sec('Parts &amp; Expenses'+(hasParts?' ('+i.parts.length+')':''),partsHTML(m,id,'page'),false,null);
+  html+=sec('Parts &amp; Expenses'+(hasParts?' ('+i.parts.length+')':''),partsHTML(m,id,'page'),hasParts,null);
 
   // Timeline — always open
   html+=sec('Timeline',timelineHTML||'<div style="color:var(--muted);font-size:13px;padding:4px 0">No history yet</div>',true,null,null);
@@ -3393,6 +3214,11 @@ function openPanel(title,content,pushHistory,_meta){
   panel._panelMeta=_meta||null;
   document.getElementById('panel-title').textContent=title;
   document.getElementById('panel-content').innerHTML=content;
+  // Restart content stagger animation
+  const pc=document.getElementById('panel-content');
+  pc.style.animation='none';
+  void pc.offsetWidth; // reflow
+  pc.style.animation='';
   document.getElementById('panel-overlay').classList.add('on');
   panel.classList.remove('dragging');
   panel.style.transition='';
@@ -5636,10 +5462,10 @@ function renderExpenses(){
         <div class="expense-item">
           <div class="expense-main">
             <div class="expense-label">${esc(t.description||'Sourcing trip')}</div>
-            <div class="expense-meta">${t.date} &middot; ${t.mileage} miles @ ${fmt(t.ratePerMile||0.45)}/mi</div>
+            <div class="expense-meta">${t.date} &middot; ${t.mileage||0} mi @ ${fmt(t.ratePerMile||0.45)}/mi</div>
           </div>
           <div style="display:flex;align-items:center;gap:10px">
-            <div class="expense-amount">${fmt((t.mileage||0)*(t.ratePerMile||0.45))}</div>
+            <div class="expense-amount">${(t.mileage||0)>0?fmt((t.mileage||0)*(t.ratePerMile||0.45)):'<span style="color:var(--muted);font-weight:500">—</span>'}</div>
             <button class="btn btn-s" style="padding:5px 10px;font-size:12px" onclick="editTrip(${origIdx})"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
             <button class="btn btn-s" style="padding:5px 10px;font-size:12px;color:var(--red);border-color:rgba(248,113,113,0.3)" onclick="deleteTrip(${origIdx})"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg></button>
           </div>
@@ -5662,7 +5488,7 @@ function renderExpenses(){
             <div class="expense-meta">${e.date}${e.category?` &middot; ${esc(e.category)}`:''}</div>
           </div>
           <div style="display:flex;align-items:center;gap:10px">
-            <div class="expense-amount">${fmt(e.amount||0)}</div>
+            <div class="expense-amount">${(e.amount||0)>0?fmt(e.amount):'<span style="color:var(--muted);font-weight:500">—</span>'}</div>
             <button class="btn btn-s" style="padding:5px 10px;font-size:12px" onclick="editExpense(${idx})"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
             <button class="btn btn-s" style="padding:5px 10px;font-size:12px;color:var(--red);border-color:rgba(248,113,113,0.3)" onclick="deleteExpense(${idx})"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg></button>
           </div>
@@ -7482,44 +7308,36 @@ window.addEventListener('resize',function(){
 });
 window.addEventListener('load',handleNavResize);
 
-// Bottom nav scroll-hide: per-touch delta tracking, auto-restore safety net
+// Bottom nav scroll-hide — position-based, not delta-based
 (function(){
-  let _startY=0,_lastY=0,_navHidden=false,_restoreTimer=null;
+  var _navHidden = false;
+  var _lastScrollY = 0;
+  var _raf = null;
+
   function _bnav(){return document.getElementById('bottom-nav');}
-  function _show(){
-    const bnav=_bnav();if(!bnav)return;
-    bnav.classList.remove('nav-hidden');_navHidden=false;
-    clearTimeout(_restoreTimer);_restoreTimer=null;
-  }
-  function _hide(){
-    const bnav=_bnav();if(!bnav)return;
-    bnav.classList.add('nav-hidden');_navHidden=true;
-  }
-  function _scheduleRestore(){
-    clearTimeout(_restoreTimer);
-    _restoreTimer=setTimeout(_show,2000);
-  }
-  document.addEventListener('touchstart',function(e){
-    _startY=e.touches[0].clientY;
-    _lastY=_startY;
-    clearTimeout(_restoreTimer);_restoreTimer=null;
+  function _show(){var b=_bnav();if(!b||!_navHidden)return;b.classList.remove('nav-hidden');_navHidden=false;}
+  function _hide(){var b=_bnav();if(!b||_navHidden)return;b.classList.add('nav-hidden');_navHidden=true;}
+
+  window.addEventListener('scroll',function(){
+    if(_raf)return;
+    _raf=requestAnimationFrame(function(){
+      _raf=null;
+      var b=_bnav();
+      if(!b||b.style.display!=='flex')return;
+      var y=window.scrollY||window.pageYOffset||0;
+      var diff=y-_lastScrollY;
+      // Always show when near top
+      if(y<10){_show();_lastScrollY=y;return;}
+      // Hide on downward scroll, show on upward
+      if(diff>8){_hide();}
+      else if(diff<-8){_show();}
+      _lastScrollY=y;
+    });
   },{passive:true});
-  document.addEventListener('touchmove',function(e){
-    const bnav=_bnav();
-    if(!bnav||bnav.style.display!=='flex')return;
-    const y=e.touches[0].clientY;
-    const delta=_lastY-y;   // positive = scrolling down
-    _lastY=y;
-    // Always show when near top — use max(scrollY,0) to guard iOS negative bounce
-    if(Math.max(window.scrollY||window.pageYOffset,0)<24){
-      _show();return;
-    }
-    if(delta>6&&!_navHidden){_hide();_scheduleRestore();}
-    else if(delta<-6&&_navHidden){_show();}
-  },{passive:true});
-  document.addEventListener('touchend',function(){
-    // If hidden and finger lifted, schedule auto-restore
-    if(_navHidden)_scheduleRestore();
+
+  // Reset on tab switch (goToTab calls window.scrollTo(0,0))
+  window.addEventListener('scrollend',function(){
+    if((window.scrollY||0)<10)_show();
   },{passive:true});
 })();
 
@@ -7799,6 +7617,12 @@ initTheme();
     if(_av && session.user?.email) _av.textContent=session.user.email[0].toUpperCase();
     await initDB();
     _dbSnapshot = _dbFingerprint();
+  } else if(PREVIEW_MODE_ENABLED){
+    enablePreviewMode();
+    showApp();
+    const _av=document.getElementById('user-avatar');
+    if(_av) _av.textContent='P';
+    requestAnimationFrame(()=>goToTab('summary'));
   } else {
     showLogin();
   }
@@ -7979,9 +7803,6 @@ function exportForSupabase(){
   const trips=(DB.trips||[]).map(function(t){return{id:t.id||String(Date.now()),date:t.date,description:t.description||'',mileage:t.mileage||0,rate_per_mile:t.ratePerMile||0.45};});
   const expenses=(DB.expenses||[]).map(function(e){return{id:e.id||String(Date.now()),date:e.date,description:e.description||'',amount:e.amount||0,category:e.category||null};});
   const out={items,item_parts:parts,item_returns:returns,trips,expenses};
-  console.log('=== SUPABASE EXPORT ===');
-  console.log(JSON.stringify(out,null,2));
-  console.log('Items:',items.length,'Parts:',parts.length,'Returns:',returns.length,'Trips:',trips.length,'Expenses:',expenses.length);
   return out;
 }
 // Usage: open browser console and run: exportForSupabase()
