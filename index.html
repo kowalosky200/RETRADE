@@ -1700,6 +1700,10 @@ const _sb = (typeof supabase !== 'undefined')
   : {auth:{getSession:async()=>({data:{session:null}}),onAuthStateChange:()=>({data:{subscription:{unsubscribe:()=>{}}}}),signInWithPassword:async()=>({error:{message:'offline'}}),signOut:async()=>{},refreshSession:async()=>({data:{},error:true}),resetPasswordForEmail:async()=>({error:null})}};
 
 
+const PREVIEW_STORAGE_KEY='retrade_preview_mode';
+const LEGACY_PREVIEW_STORAGE_KEYS=['general_preview_mode'];
+const PREVIEW_MODE_ENABLED=false;
+const _previewStored=false;
 let _previewMode = false;
 const _previewParam = new URLSearchParams(window.location.search).get('preview');
 async function doSignIn(){
