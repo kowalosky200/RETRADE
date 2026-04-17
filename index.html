@@ -1705,6 +1705,9 @@ const LEGACY_PREVIEW_STORAGE_KEYS=['general_preview_mode'];
 const PREVIEW_MODE_ENABLED=false;
 const _previewStored=false;
 let _previewMode = false;
+function enablePreviewMode(){_previewMode=true;}
+function disablePreviewMode(){_previewMode=false;}
+
 const _previewParam = new URLSearchParams(window.location.search).get('preview');
 async function doSignIn(){
   const email = document.getElementById('auth-email').value.trim();
