@@ -1713,13 +1713,32 @@ const _sb = (typeof supabase !== 'undefined')
 
 
 let _previewMode = false;
-// Preview mode stubs (production build — preview disabled)
+// Preview-mode stubs (dev build ships with real implementations).
+// _previewMode declared above must NOT be redeclared here.
 const PREVIEW_STORAGE_KEY='retrade_preview_mode';
 const LEGACY_PREVIEW_STORAGE_KEYS=['general_preview_mode'];
 const PREVIEW_MODE_ENABLED=false;
 const _previewStored=false;
 function enablePreviewMode(){_previewMode=false;}
 function disablePreviewMode(){_previewMode=false;}
+// ── AUTH ─────────────────────────────────────────────────────────────────────
+
+const _EYE_OPEN = `<path d='M1 8s3-5 7-5 7 5 7 5-3 5-7 5-7-5-7-5z' stroke='currentColor' stroke-width='1.5' fill='none'/><circle cx='8' cy='8' r='2' stroke='currentColor' stroke-width='1.5' fill='none'/>`;
+const _EYE_SLASH = `<path d='M13.4 13.4C12.1 14.4 10.1 15 8 15c-4 0-7-5-7-5a12.4 12.4 0 013.6-3.6' stroke='currentColor' stroke-width='1.5' fill='none' stroke-linecap='round'/><path d='M2.6 2.6l10.8 10.8' stroke='currentColor' stroke-width='1.5' fill='none' stroke-linecap='round'/><path d='M6.5 3.3A7.2 7.2 0 018 3c4 0 7 5 7 5a12.4 12.4 0 01-1.6 2.3' stroke='currentColor' stroke-width='1.5' fill='none' stroke-linecap='round'/><path d='M10.7 10.7A3 3 0 015.3 5.3' stroke='currentColor' stroke-width='1.5' fill='none' stroke-linecap='round'/>`;
+
+function toggleAuthPass(){
+  const input = document.getElementById('auth-pass');
+  const svg   = document.getElementById('auth-pass-svg');
+  if(input.type === 'password'){
+    input.type    = 'text';
+    svg.innerHTML = _EYE_SLASH; // now visible — show slash icon
+  } else {
+    input.type    = 'password';
+    svg.innerHTML = _EYE_OPEN;  // now hidden — show open eye icon
+  }
+}
+
+function startPreviewMode(){ /* no-op in production build */ }
 
 async function doSignIn(){
   const email = document.getElementById('auth-email').value.trim();
@@ -3372,6 +3391,20 @@ function openQuickAdd(){
 
 function submitQuickAdd(){
   const m=document.getElementById('qa-month').value;
+  // Validation gate — require an item name and a positive cost before persisting.
+  // Prevents "Untitled" ghost rows from empty submits.
+  const rawName=(document.getElementById('qa-item').value||'').trim();
+  const rawCost=parseFloat(document.getElementById('qa-cost').value);
+  if(!rawName){
+    toast('Item name is required','error');
+    try{document.getElementById('qa-item').focus();}catch(e){}
+    return;
+  }
+  if(!isFinite(rawCost)||rawCost<=0){
+    toast('Cost must be a positive number','error');
+    try{document.getElementById('qa-cost').focus();}catch(e){}
+    return;
+  }
   // Read delivery mode
   const isSimple=document.getElementById('qa-delivery-simple')&&document.getElementById('qa-delivery-simple').style.display!=='none';
   let postage=0,shippingCost=0,packagingCost=0,_postageMode,_sdRateIdx=1,_sdBuyerPays=true;
@@ -3392,11 +3425,11 @@ function submitQuickAdd(){
     id:'qa_'+Date.now(),
     gid:'R-'+String(getNextGID()).padStart(4,'0'),
     dateListed:document.getElementById('qa-date').value||new Date().toISOString().split('T')[0],
-    item:document.getElementById('qa-item').value||'Untitled',
+    item:rawName,
     source:document.getElementById('qa-source').value||'',
     category:document.getElementById('qa-category').value||'',
     location:document.getElementById('qa-location').value||'',
-    costPrice:parseFloat(document.getElementById('qa-cost').value)||0,
+    costPrice:rawCost,
     salePrice:parseFloat(document.getElementById('qa-price').value)||0,
     postage,shippingCost,packagingCost,
     _postageMode,_sdRateIdx,_sdBuyerPays,
@@ -4029,8 +4062,12 @@ function showFilteredItems(filter){
         const rPromoCost=rGrossInc*(i.resalePromoPercent||0)*1.20;
         const sale2Profit=+(i.resaleSalePrice-rBPF-(i.resaleShippingCost||0)-rPromoCost).toFixed(2);
         if(filter==='revenue'){
-          // Revenue: two real cash transactions — show both
-          items.push({...i,month:k,_entryType:'sale1',_displayPrice:i.salePrice,_displayDate:i.dateSold||(i.returnHistory&&i.returnHistory[0]?i.returnHistory[0].loggedAt:'')||'',_entryProfit:sale1Profit});
+          // Revenue: two real cash transactions — show both (net of any partial refunds on sale 1)
+          const s1PartialRefunds=(i.returnHistory||[])
+            .filter(r=>r.type==='partial_seller'||r.type==='partial_ebay')
+            .reduce((s,r)=>s+(r.refundAmount||0),0);
+          const s1NetPrice=Math.max(0,(i.salePrice||0)-s1PartialRefunds);
+          items.push({...i,month:k,_entryType:'sale1',_displayPrice:s1NetPrice,_displayDate:i.dateSold||(i.returnHistory&&i.returnHistory[0]?i.returnHistory[0].loggedAt:'')||'',_entryProfit:sale1Profit});
           items.push({...i,month:k,_entryType:'sale2',_displayPrice:i.resaleSalePrice,_displayDate:i.resaleDateSold||'',_entryProfit:sale2Profit});
         }else{
           // Realised P&L: one lifetime entry — the full story
@@ -4039,7 +4076,12 @@ function showFilteredItems(filter){
           items.push({...i,month:k,_entryType:'resold',_displayPrice:i.resaleSalePrice,_displayDate:saleDate,_entryProfit:lifetimeProfit});
         }
       } else {
-        items.push({...i,month:k,_entryType:'normal',_displayPrice:i.salePrice,_displayDate:i.dateSold||'',_entryProfit:calcGrossProfit(i)});
+        // Normal sale — for revenue filter show salePrice net of any partial refunds
+        const nPartialRefunds=(i.returnHistory||[])
+          .filter(r=>r.type==='partial_seller'||r.type==='partial_ebay')
+          .reduce((s,r)=>s+(r.refundAmount||0),0);
+        const nDisplayPrice=filter==='revenue'?Math.max(0,(i.salePrice||0)-nPartialRefunds):i.salePrice;
+        items.push({...i,month:k,_entryType:'normal',_displayPrice:nDisplayPrice,_displayDate:i.dateSold||'',_entryProfit:calcGrossProfit(i)});
       }
     } else if(filter==='unrealised'&&!sold&&!i.isReturned){
       items.push({...i,month:k});
@@ -4402,7 +4444,7 @@ function renderSummary(){
       if(isDaily){while(cur<=range.to){buckets.push({from:cur,to:cur,label:fmtShort(cur)});cur=addDays(cur,1);}}
       else{while(cur<=range.to){const end=addDays(cur,6)<=range.to?addDays(cur,6):range.to;buckets.push({from:cur,to:end,label:fmtShort(cur)});cur=addDays(cur,7);}}
       const allSold=[];
-      allDBKeys().forEach(k=>(DB[k]||[]).forEach(i=>{if((i.dateSold||i.resaleSalePrice)&&!i.isReturned){const sd=i.resaleSalePrice?i.resaleDateSold:i.dateSold;if(sd&&sd>=range.from&&sd<=range.to)allSold.push({rev:(i.salePrice||0)+(i.resaleSalePrice||0),profit:calcGrossProfit(i)||0,date:sd});}}));
+      allDBKeys().forEach(k=>(DB[k]||[]).forEach(i=>{if((i.dateSold||i.resaleSalePrice)&&!i.isReturned){const sd=i.resaleSalePrice?i.resaleDateSold:i.dateSold;if(sd&&sd>=range.from&&sd<=range.to)allSold.push({rev:calcItemRevenue(i),profit:calcGrossProfit(i)||0,date:sd});}}));
       const bData=buckets.map(b=>{const inB=allSold.filter(x=>x.date>=b.from&&x.date<=b.to);return{...b,rev:inB.reduce((s,x)=>s+x.rev,0),profit:inB.reduce((s,x)=>s+x.profit,0)};});
       bData.forEach(b=>{
         chartLabels.push(b.label);
@@ -4415,7 +4457,7 @@ function renderSummary(){
 
     const topRows=top.length ? top.map((i,idx)=>{
       const profitCol=(i.profit||0)>=0?'var(--green)':'var(--red)';
-      return `<div class="metric-inline clickable" onclick="openItemDetail('${i.month}','${i.id}')"><div><div class="metric-k">#${idx+1} · ${esc(i.item)}</div><div style="font-size:11px;color:var(--muted);margin-top:4px">${keyName(i.month)} · ${i.dateSold||i.resaleDateSold||''}</div></div><div style="text-align:right"><div class="metric-v" style="font-size:20px;color:${profitCol}">${fmt(i.profit)}</div><div style="font-size:11px;color:var(--text-secondary)">${i.roi!==null?i.roi.toFixed(0)+'% ROI':'—'}</div></div></div>`;
+      return `<div class="metric-inline clickable" onclick="openItemDetail('${i.month}','${i.id}')"><div><div class="metric-k">#${idx+1} · ${esc(i.item)}</div><div style="font-size:11px;color:var(--muted);margin-top:4px">${keyName(i.month)} · ${i.dateSold||i.resaleDateSold||''}</div></div><div style="text-align:right"><div class="metric-v" style="font-size:20px;color:${profitCol}">${fmt(i.profit)}</div><div style="font-size:11px;color:var(--text-secondary)">${i.roi!==null?i.roi.toFixed(1)+'% ROI':'—'}</div></div></div>`;
     }).join('') : `<div style="font-size:13px;color:var(--text-secondary)">No completed sales in this period yet.</div>`;
     const catRows=catLeaders.length ? catLeaders.map(c=>{
       const sellPct=c.total?Math.round((c.sold/c.total)*100):0;
@@ -4611,7 +4653,7 @@ function showMonthSnapshot(monthKey){
     return `<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);cursor:pointer" onclick="openItemDetail('${i.month||monthKey}','${i.id}')">
       <div style="flex:1;min-width:0">
         <div style="font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(i.item)}</div>
-        ${showProfit&&profit!==null?`<div style="font-size:11px;color:${profColor};margin-top:2px;font-weight:600">${fmt(profit)}${roi!==null?` <span style="color:var(--muted);font-weight:400">· ${roi.toFixed(0)}% ROI</span>`:''}</div>`:''}
+        ${showProfit&&profit!==null?`<div style="font-size:11px;color:${profColor};margin-top:2px;font-weight:600">${fmt(profit)}${roi!==null?` <span style="color:var(--muted);font-weight:400">· ${roi.toFixed(1)}% ROI</span>`:''}</div>`:''}
       </div>
       <div style="font-size:13px;font-weight:600;font-family:'Space Mono',monospace;color:var(--text);flex-shrink:0">${fmt(i.salePrice)}</div>
     </div>`;
@@ -4655,7 +4697,8 @@ function showRangeSnapshot(label, fromDate, toDate){
     return;
   }
 
-  const totalRev  = items.reduce((s,i)=>s+(i.salePrice||0)+(i.resaleSalePrice||0),0);
+  // Revenue net of partial refunds — keep drill-down in sync with primary Revenue KPI.
+  const totalRev  = items.reduce((s,i)=>s+calcItemRevenue(i),0);
   const totalProf = items.reduce((s,i)=>s+(i._profit||0),0);
   const margin    = totalRev>0?(totalProf/totalRev*100).toFixed(1):null;
   const profColor = totalProf>=0?'var(--green)':'var(--red)';
@@ -4682,9 +4725,9 @@ function showRangeSnapshot(label, fromDate, toDate){
     <div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);cursor:pointer" onclick="openItemDetail('${i._month}','${i.id}')">
       <div style="flex:1;min-width:0">
         <div style="font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(i.item)}</div>
-        ${i._profit!==null?`<div style="font-size:11px;color:${(i._profit>=0)?'var(--green)':'var(--red)'};margin-top:2px;font-weight:600">${fmt(i._profit)}${i._roi!==null?` <span style="color:var(--muted);font-weight:400">· ${i._roi.toFixed(0)}% ROI</span>`:''}</div>`:''}
+        ${i._profit!==null?`<div style="font-size:11px;color:${(i._profit>=0)?'var(--green)':'var(--red)'};margin-top:2px;font-weight:600">${fmt(i._profit)}${i._roi!==null?` <span style="color:var(--muted);font-weight:400">· ${i._roi.toFixed(1)}% ROI</span>`:''}</div>`:''}
       </div>
-      <div style="font-size:13px;font-weight:600;font-family:'Space Mono',monospace;flex-shrink:0">${fmt((i.salePrice||0)+(i.resaleSalePrice||0))}</div>
+      <div style="font-size:13px;font-weight:600;font-family:'Space Mono',monospace;flex-shrink:0">${fmt(calcItemRevenue(i))}</div>
     </div>`).join('');
 
   openPanel(label, kpis + `<div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:6px">Items Sold</div>` + rows, false);
@@ -5539,11 +5582,11 @@ function addTrip(){
     </div>
     <div class="fg">
       <label>Mileage</label>
-      <input type="number" id="trip-miles" step="0.1" placeholder="e.g. 25.5">
+      <input type="number" id="trip-miles" step="0.1" min="0" placeholder="e.g. 25.5">
     </div>
     <div class="fg">
       <label>Rate per mile (£)</label>
-      <input type="number" id="trip-rate" step="0.01" value="0.45">
+      <input type="number" id="trip-rate" step="0.01" min="0" value="0.45">
     </div>
     <button class="btn btn-p" style="width:100%;margin-top:16px" onclick="saveTrip()">Save Trip</button>
   `;
@@ -5551,12 +5594,25 @@ function addTrip(){
 }
 
 function saveTrip(){
+  // Validation: mileage must be positive, rate non-negative
+  const miles=parseFloat(document.getElementById('trip-miles').value);
+  const rate=parseFloat(document.getElementById('trip-rate').value);
+  if(!isFinite(miles)||miles<=0){
+    toast('Mileage must be a positive number','error');
+    try{document.getElementById('trip-miles').focus();}catch(e){}
+    return;
+  }
+  if(!isFinite(rate)||rate<0){
+    toast('Rate must be a positive number','error');
+    try{document.getElementById('trip-rate').focus();}catch(e){}
+    return;
+  }
   const trip={
     id:'trip_'+Date.now(),
     date:document.getElementById('trip-date').value,
     description:document.getElementById('trip-desc').value,
-    mileage:parseFloat(document.getElementById('trip-miles').value)||0,
-    ratePerMile:parseFloat(document.getElementById('trip-rate').value)||0.45
+    mileage:miles,
+    ratePerMile:rate
   };
   if(!DB.trips)DB.trips=[];
   DB.trips.push(trip);
@@ -5585,7 +5641,7 @@ function addExpense(){
     </div>
     <div class="fg">
       <label>Amount (£)</label>
-      <input type="number" id="exp-amt" step="0.01" placeholder="0.00">
+      <input type="number" id="exp-amt" step="0.01" min="0" placeholder="0.00">
     </div>
     <button class="btn btn-p" style="width:100%;margin-top:16px" onclick="saveExpense()">Save Expense</button>
   `;
@@ -5593,12 +5649,25 @@ function addExpense(){
 }
 
 function saveExpense(){
+  // Validation: description required, amount must be positive
+  const desc=(document.getElementById('exp-desc').value||'').trim();
+  const amt=parseFloat(document.getElementById('exp-amt').value);
+  if(!desc){
+    toast('Description is required','error');
+    try{document.getElementById('exp-desc').focus();}catch(e){}
+    return;
+  }
+  if(!isFinite(amt)||amt<=0){
+    toast('Amount must be a positive number','error');
+    try{document.getElementById('exp-amt').focus();}catch(e){}
+    return;
+  }
   const exp={
     id:'exp_'+Date.now(),
     date:document.getElementById('exp-date').value,
-    description:document.getElementById('exp-desc').value,
+    description:desc,
     category:document.getElementById('exp-cat').value,
-    amount:parseFloat(document.getElementById('exp-amt').value)||0
+    amount:amt
   };
   if(!DB.expenses)DB.expenses=[];
   DB.expenses.push(exp);
@@ -5613,15 +5682,27 @@ function editTrip(idx){
   openPanel('Edit Trip',`
     <div class="fg"><label>Date</label><input type="date" id="trip-date" value="${t.date||''}"></div>
     <div class="fg"><label>Description</label><input type="text" id="trip-desc" value="${esc(t.description||'')}"></div>
-    <div class="fg"><label>Mileage</label><input type="number" id="trip-miles" step="0.1" value="${t.mileage||''}"></div>
-    <div class="fg"><label>Rate per mile (£)</label><input type="number" id="trip-rate" step="0.01" value="${t.ratePerMile||0.45}"></div>
+    <div class="fg"><label>Mileage</label><input type="number" id="trip-miles" step="0.1" min="0" value="${t.mileage||''}"></div>
+    <div class="fg"><label>Rate per mile (£)</label><input type="number" id="trip-rate" step="0.01" min="0" value="${t.ratePerMile||0.45}"></div>
     <button class="btn btn-p" style="width:100%;margin-top:16px" onclick="saveTripEdit(${idx})">Update Trip</button>
   `);
 }
 function saveTripEdit(idx){
   const trips=DB.trips||[];if(!trips[idx])return;
+  const miles=parseFloat(document.getElementById('trip-miles').value);
+  const rate=parseFloat(document.getElementById('trip-rate').value);
+  if(!isFinite(miles)||miles<=0){
+    toast('Mileage must be a positive number','error');
+    try{document.getElementById('trip-miles').focus();}catch(e){}
+    return;
+  }
+  if(!isFinite(rate)||rate<0){
+    toast('Rate must be a positive number','error');
+    try{document.getElementById('trip-rate').focus();}catch(e){}
+    return;
+  }
   const existingId = trips[idx].id || ('trip_'+Date.now());
-  trips[idx]={id:existingId,date:document.getElementById('trip-date').value,description:document.getElementById('trip-desc').value,mileage:parseFloat(document.getElementById('trip-miles').value)||0,ratePerMile:parseFloat(document.getElementById('trip-rate').value)||0.45};
+  trips[idx]={id:existingId,date:document.getElementById('trip-date').value,description:document.getElementById('trip-desc').value,mileage:miles,ratePerMile:rate};
   DB.trips=trips;saveDB();closePanel();toast('Trip updated');renderExpenses();
 }
 async function deleteTrip(idx){
@@ -5634,14 +5715,26 @@ function editExpense(idx){
     <div class="fg"><label>Date</label><input type="date" id="exp-date" value="${e.date||''}"></div>
     <div class="fg"><label>Description</label><input type="text" id="exp-desc" value="${esc(e.description||'')}"></div>
     <div class="fg"><label>Category</label><select id="exp-cat"><option value="">Select category...</option>${EXPENSE_CATEGORIES.map(c=>`<option value="${c}" ${e.category===c?'selected':''}>${c}</option>`).join('')}</select></div>
-    <div class="fg"><label>Amount (£)</label><input type="number" id="exp-amt" step="0.01" value="${e.amount||''}"></div>
+    <div class="fg"><label>Amount (£)</label><input type="number" id="exp-amt" step="0.01" min="0" value="${e.amount||''}"></div>
     <button class="btn btn-p" style="width:100%;margin-top:16px" onclick="saveExpenseEdit(${idx})">Update Expense</button>
   `);
 }
 function saveExpenseEdit(idx){
   const expenses=DB.expenses||[];if(!expenses[idx])return;
+  const desc=(document.getElementById('exp-desc').value||'').trim();
+  const amt=parseFloat(document.getElementById('exp-amt').value);
+  if(!desc){
+    toast('Description is required','error');
+    try{document.getElementById('exp-desc').focus();}catch(e){}
+    return;
+  }
+  if(!isFinite(amt)||amt<=0){
+    toast('Amount must be a positive number','error');
+    try{document.getElementById('exp-amt').focus();}catch(e){}
+    return;
+  }
   const existingId = expenses[idx].id || ('exp_'+Date.now());
-  expenses[idx]={id:existingId,date:document.getElementById('exp-date').value,description:document.getElementById('exp-desc').value,category:document.getElementById('exp-cat').value,amount:parseFloat(document.getElementById('exp-amt').value)||0};
+  expenses[idx]={id:existingId,date:document.getElementById('exp-date').value,description:desc,category:document.getElementById('exp-cat').value,amount:amt};
   DB.expenses=expenses;saveDB();closePanel();toast('Expense updated');renderExpenses();
 }
 async function deleteExpense(idx){
@@ -6803,13 +6896,22 @@ function renderTax(){
   const totalParts=soldItems.reduce(function(s,i){return s+calcPartsCost(i);},0);
   const tripsInYear=(DB.trips||[]).filter(function(t){return inTaxYear(t.date);});
   const totalMiles=tripsInYear.reduce(function(s,t){return s+(t.mileage||0);},0);
-  const totalMileage=+(totalMiles*0.45).toFixed(2);
+  // HMRC Approved Mileage Allowance — cars/vans: 45p for first 10,000 mi, 25p after.
+  // Rates persist across tax years as of now; sum per tax year, split at the 10k boundary.
+  const tier1Miles=Math.min(totalMiles,10000);
+  const tier2Miles=Math.max(0,totalMiles-10000);
+  const totalMileage=+((tier1Miles*0.45)+(tier2Miles*0.25)).toFixed(2);
   const expensesInYear=(DB.expenses||[]).filter(function(e){return inTaxYear(e.date);});
   const totalOtherExpenses=expensesInYear.reduce(function(s,e){return s+(e.amount||0);},0);
   const totalActualExpenses=+(totalBPF+totalPromo+totalPostage+totalPackaging+totalStockCost+totalMileage+totalOtherExpenses+totalParts).toFixed(2);
   const TRADING_ALLOWANCE=1000;
+  // Trading allowance path — can never produce a loss (allowance is capped at income).
   const taxableTA=Math.max(0,+(totalIncome-TRADING_ALLOWANCE).toFixed(2));
-  const taxableActual=Math.max(0,+(totalIncome-totalActualExpenses).toFixed(2));
+  // Actual expenses path — allow negative values so real trading losses surface.
+  // HMRC allows loss carry-forward / offset against other income, so the user
+  // needs to see the loss rather than a misleading £0.
+  const taxableActual=+(totalIncome-totalActualExpenses).toFixed(2); // may be negative
+  // Method auto-pick: whichever produces the lower taxable figure (incl. losses).
   const taWins=taxableTA<=taxableActual;
   const belowThreshold=totalIncome<TRADING_ALLOWANCE;
 
@@ -6848,7 +6950,7 @@ function renderTax(){
       +'<div style="font-weight:700;font-size:14px;margin-bottom:14px;padding-top:'+((selected||isAuto)?'10px':'0')+'">' +title+'</div>'
       +'<div class="tax-row" style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--border);font-size:13px"><span style="color:var(--text-secondary)">Gross income</span><span style="font-weight:600">'+fmt(income)+'</span></div>'
       +'<div class="tax-row" style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--border);font-size:13px"><span style="color:var(--text-secondary)">'+deductLabel+'</span><span style="color:var(--red)">\u2212'+fmt(deductVal)+'</span></div>'
-      +'<div class="tax-row" style="display:flex;justify-content:space-between;padding:9px 0;font-size:15px;font-weight:700"><span>Taxable profit</span><span style="color:'+(selected?'var(--green)':taxable===0?'var(--green)':'var(--text)')+'">'+fmt(taxable)+'</span></div>'
+      +'<div class="tax-row" style="display:flex;justify-content:space-between;padding:9px 0;font-size:15px;font-weight:700"><span>'+(taxable<0?'Taxable loss':'Taxable profit')+'</span><span style="color:'+(taxable<0?'var(--accent)':selected?'var(--green)':taxable===0?'var(--green)':'var(--text)')+'">'+(taxable<0?'\u2212'+fmt(Math.abs(taxable)):fmt(taxable))+'</span></div>'
       +'<div style="margin-top:10px;font-size:11px;color:var(--muted);line-height:1.5">'+note+'</div>'
       +'</div>';
   }
@@ -6901,7 +7003,7 @@ function renderTax(){
       ?'<div class="tax-exp-row" style="display:flex;justify-content:space-between;align-items:center;padding:10px 16px;border-bottom:1px solid var(--border);font-size:13px"><span style="color:var(--text-secondary)">Trading allowance (flat deduction)</span><span style="font-family:var(--font-mono);font-weight:600;color:var(--red)">\u2212'+fmt(Math.min(TRADING_ALLOWANCE,totalIncome))+'</span></div>'
       // Actual — full breakdown
       :expRows
-        +'<div class="tax-exp-row" style="display:flex;justify-content:space-between;align-items:center;padding:10px 16px;border-bottom:1px solid var(--border);font-size:13px"><span style="color:var(--text-secondary)">Mileage ('+totalMiles.toFixed(1)+' mi @ 45p)</span><span style="font-family:var(--font-mono);font-weight:600;color:'+(totalMileage>0?'var(--red)':'var(--muted)')+'">'+( totalMileage>0?'\u2212'+fmt(totalMileage):'--')+'</span></div>'
+        +'<div class="tax-exp-row" style="display:flex;justify-content:space-between;align-items:center;padding:10px 16px;border-bottom:1px solid var(--border);font-size:13px"><span style="color:var(--text-secondary)">Mileage ('+(tier2Miles>0?tier1Miles.toFixed(1)+' mi @ 45p + '+tier2Miles.toFixed(1)+' mi @ 25p':totalMiles.toFixed(1)+' mi @ 45p')+')</span><span style="font-family:var(--font-mono);font-weight:600;color:'+(totalMileage>0?'var(--red)':'var(--muted)')+'">'+( totalMileage>0?'\u2212'+fmt(totalMileage):'--')+'</span></div>'
         +'<div class="tax-exp-row" style="display:flex;justify-content:space-between;align-items:center;padding:10px 16px;border-bottom:1px solid var(--border);font-size:13px"><span style="color:var(--text-secondary)">Other business expenses</span><span style="font-family:var(--font-mono);font-weight:600;color:'+(totalOtherExpenses>0?'var(--red)':'var(--muted)')+'">'+( totalOtherExpenses>0?'\u2212'+fmt(totalOtherExpenses):'--')+'</span></div>'
     )
     +'<div style="display:flex;justify-content:space-between;align-items:center;padding:12px 16px;font-size:14px;font-weight:700;background:var(--surface2)">'
@@ -6926,8 +7028,8 @@ function renderTax(){
 
     +'<div class="tax-box-row" style="display:flex;align-items:center;gap:12px;padding:12px 16px;background:var(--surface2);flex-wrap:wrap">'
     +'<div class="tax-box-tag" style="background:var(--accent);border-radius:6px;padding:5px 10px;font-family:var(--font-mono);font-size:11px;font-weight:700;color:#000;flex-shrink:0;min-width:56px;text-align:center">Box 23</div>'
-    +'<div class="tax-box-desc" style="flex:1;font-size:12px;color:var(--text-secondary);min-width:120px">Net profit (taxable)</div>'
-    +'<div class="tax-box-val" style="font-weight:700;font-size:15px;font-family:var(--font-mono);color:'+(box23<500?'var(--green)':'var(--text)')+';flex-shrink:0">'+fmt(box23)+'</div>'
+    +'<div class="tax-box-desc" style="flex:1;font-size:12px;color:var(--text-secondary);min-width:120px">'+(box23<0?'Net loss (may be offset / carried forward)':'Net profit (taxable)')+'</div>'
+    +'<div class="tax-box-val" style="font-weight:700;font-size:15px;font-family:var(--font-mono);color:'+(box23<0?'var(--accent)':box23<500?'var(--green)':'var(--text)')+';flex-shrink:0">'+(box23<0?'Loss of '+fmt(Math.abs(box23)):fmt(box23))+'</div>'
     +'</div></div>';
 
   // ── Tax Estimate (UK self-employed rates) ─────────────────────────────────
@@ -6937,7 +7039,9 @@ function renderTax(){
     2023:{pa:12570,basicBand:37700,basicRate:0.20,higherRate:0.40,addRate:0.45,c2weekly:3.45,c2spt:12570,c4low:0.09,c4high:0.02,c4upper:50270},
   };
   var r=TAX_RATES[selectedYear]||TAX_RATES[2025];
-  var taxableForEst=box23;
+  // Tax estimate floors at 0 — a trading loss can't produce negative tax owed.
+  // The loss itself is shown in Box 23 for carry-forward / offset purposes.
+  var taxableForEst=Math.max(0,box23);
   var itTaxable=Math.max(0,taxableForEst-r.pa);
   var basicTaxable=Math.min(itTaxable,r.basicBand);
   var higherTaxable=Math.max(0,Math.min(itTaxable-r.basicBand,r.c4upper-r.pa-r.basicBand));
@@ -7041,8 +7145,7 @@ function calcYearlyStats(period){
       if(soldInRange&&(i.dateSold||i.resaleSalePrice) && !i.isReturned){
         soldCount++;
         const prof=calcGrossProfit(i);
-        totalRev+=(i.totalRev||i.salePrice||0);
-        if(i.resaleSalePrice)totalRev+=i.resaleSalePrice;
+        totalRev+=calcItemRevenue(i);
         realisedProfit+=prof;
         soldItems.push({...i,profit:prof});
       }else if(!i.isReturned&&!i.resaleSalePrice){
@@ -7163,8 +7266,7 @@ function calcMonthStats(m){
     if((i.item||"").trim().toUpperCase()==="MONTH END")return;
     if((i.dateSold||i.resaleSalePrice)&&!i.isReturned){
       soldCount++;
-      totalRev+=(i.salePrice||0);
-      if(i.resaleSalePrice)totalRev+=i.resaleSalePrice;
+      totalRev+=calcItemRevenue(i);
       realisedProfit+=calcGrossProfit(i);
       const _d=calcDaysToSell(i);
       if(_d!==null)daysSum+=_d;
@@ -7196,19 +7298,51 @@ function calcEbayBPF(salePrice){
 function calcPartsCost(i){
   return (i.parts||[]).reduce(function(s,p){return s+(p.cost||0);},0);
 }
+// Revenue for an item, net of refunds.
+// - Full returns (isReturned=true, not yet relisted): revenue = 0 (sale fully reversed)
+// - Partial refunds (any type): revenue = salePrice − partial refunds
+// - Resold items: add resale sale price on top
+// Used by all Revenue KPIs and rollups so totals match cash-in reality.
+function calcItemRevenue(i){
+  if(!i.salePrice)return 0;
+  const hasFullReturn=(i.returnHistory||[]).some(r=>r.type==='full_seller'||r.type==='full_ebay');
+  const partialRefunds=(i.returnHistory||[])
+    .filter(r=>r.type==='partial_seller'||r.type==='partial_ebay')
+    .reduce((s,r)=>s+(r.refundAmount||0),0);
+  // Primary sale revenue: 0 if fully returned and not resold, else salePrice net of partials
+  let rev=0;
+  if(hasFullReturn && !i.resaleSalePrice){
+    rev=0;
+  } else if(i.dateSold || i.resaleSalePrice || i.isReturned){
+    rev=Math.max(0,(i.salePrice||0)-partialRefunds);
+  }
+  if(i.resaleSalePrice) rev+=(i.resaleSalePrice||0);
+  return+rev.toFixed(2);
+}
 function calcGrossProfit(i){
   if(!i.salePrice)return null;
-  const bpf=calcEbayBPF(i.salePrice);
-  const grossInc=i.salePrice-bpf;
+  // Partial refund handling for fees:
+  //   partial_seller (seller agreed): eBay refunds the fee difference — recalc BPF/promo on net sale price
+  //   partial_ebay (eBay stepped in): eBay keeps the original fee — BPF/promo stay on full sale price
+  //   Full returns are handled separately below (fee fully refunded on relist path)
+  const partialSellerRefund=(i.returnHistory||[]).filter(r=>r.type==='partial_seller')
+    .reduce((s,r)=>s+(r.refundAmount||0),0);
+  const effectiveSaleForFees=Math.max(0,i.salePrice-partialSellerRefund);
+  const bpf=calcEbayBPF(effectiveSaleForFees);
+  const grossInc=effectiveSaleForFees-bpf;
   const promoCost=grossInc*(i.promoPercent||0)*1.20;
   // Determine if this item has been relisted after a full return
   // (isReturned=false but returnHistory has a full return entry, and no dateSold / resaleSalePrice)
   // Full returns only: eBay refunds BPF back to seller (transaction fully reversed)
-  // Partial returns: no BPF refund — eBay keeps the fee, buyer keeps the item
+  // Partial returns: fee treatment depends on refund type (see above)
   const _wasRelisted = !i.isReturned && !i.dateSold && !i.resaleSalePrice &&
     (i.returnHistory||[]).some(r=>r.type==='full_seller'||r.type==='full_ebay');
-  // When relisted: Sale 1 was fully reversed — no net revenue yet. Rev=0 until item sells again.
-  const rev=_wasRelisted ? 0 : i.salePrice+(i.postage||0)-bpf;
+  // Revenue = net sale after BPF + postage − partial-seller refunds (fees already
+  // recalculated on reduced base above, so only subtract the refund principal).
+  // Partial-ebay refunds still count as cost (seller eats the refund AND the fee).
+  const partialEbayRefund=(i.returnHistory||[]).filter(r=>r.type==='partial_ebay')
+    .reduce((s,r)=>s+(r.refundAmount||0),0);
+  const rev=_wasRelisted ? 0 : effectiveSaleForFees+(i.postage||0)-bpf-partialEbayRefund;
   const returnCost=(i.returnHistory||[]).reduce(function(s,r){
     const fullReturn=(r.type==='full_seller'||r.type==='full_ebay');
     if(fullReturn){
@@ -7223,7 +7357,9 @@ function calcGrossProfit(i){
       const netRefund=Math.max(0,(r.refundAmount||0)-origBPF);
       return s+netRefund+(r.returnPostage||0);
     }
-    return s+(r.refundAmount||0)+(r.returnPostage||0);
+    // Partial refunds: refund principal handled via revenue adjustment above.
+    // Only charge return postage here (refund amount itself is already netted out).
+    return s+(r.returnPostage||0);
   },0);
   const partsCost=calcPartsCost(i);
   const cost=(i.costPrice||0)+(i.shippingCost||0)+(i.packagingCost||0)+promoCost+returnCost+partsCost;
@@ -7241,16 +7377,14 @@ function calcGrossProfit(i){
 
 function calcROI(i){
   if(!i.dateSold&&!i.isReturned&&!i.resaleSalePrice)return null;
-  const bpf=calcEbayBPF(i.salePrice||0);
-  const grossInc=(i.salePrice||0)-bpf;
-  const promoCost=grossInc*(i.promoPercent||0)*1.20;
-  let totalInvested=(i.costPrice||0)+(i.shippingCost||0)+(i.packagingCost||0)+bpf+promoCost;
-  // For resold items: also invest Sale2 BPF, resale shipping and resale promo
+  // ROI denominator = capital actually outlaid to acquire and prep the item.
+  // eBay fees (BPF) and promo fees are deductions from revenue, not investments —
+  // they do not belong in the denominator. This keeps ROI honest:
+  //   e.g. £15 cost → £39 net profit = 260% ROI (not 135%).
+  let totalInvested=(i.costPrice||0)+(i.shippingCost||0)+(i.packagingCost||0)+calcPartsCost(i);
+  // For resold items: add resale shipping/packaging (real outlay on the second go).
   if(i.resaleSalePrice){
-    const rBPF=calcEbayBPF(i.resaleSalePrice);
-    const rGrossInc=i.resaleSalePrice-rBPF;
-    const rPromoCost=rGrossInc*(i.resalePromoPercent||0)*1.20;
-    totalInvested+=rBPF+(i.resaleShippingCost||0)+rPromoCost;
+    totalInvested+=(i.resaleShippingCost||0)+(i.resalePackagingCost||0);
   }
   if(totalInvested<=0)return null;
   return+((calcGrossProfit(i)/totalInvested)*100).toFixed(1);
