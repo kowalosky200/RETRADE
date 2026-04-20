@@ -1374,7 +1374,6 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
       style="width:100%;padding:12px;background:var(--accent);color:#000;border:none;border-radius:8px;font-weight:700;font-size:15px;cursor:pointer;transition:background 0.15s;">
       Sign In
     </button>
-
     <button onclick="showForgotPassword()"
       style="width:100%;padding:10px;background:none;border:none;color:var(--text-secondary);font-size:13px;cursor:pointer;margin-top:8px;text-decoration:underline;text-underline-offset:3px;">
       Forgot password?
@@ -1713,32 +1712,15 @@ const _sb = (typeof supabase !== 'undefined')
 
 
 let _previewMode = false;
-// Preview-mode stubs (dev build ships with real implementations).
-// _previewMode declared above must NOT be redeclared here.
+const _previewParam = new URLSearchParams(window.location.search).get('preview');
 const PREVIEW_STORAGE_KEY='retrade_preview_mode';
 const LEGACY_PREVIEW_STORAGE_KEYS=['general_preview_mode'];
-const PREVIEW_MODE_ENABLED=false;
 const _previewStored=false;
+const PREVIEW_MODE_ENABLED=false;
+function _buildPreviewDB(){return {};}
 function enablePreviewMode(){_previewMode=false;}
 function disablePreviewMode(){_previewMode=false;}
-// ── AUTH ─────────────────────────────────────────────────────────────────────
-
-const _EYE_OPEN = `<path d='M1 8s3-5 7-5 7 5 7 5-3 5-7 5-7-5-7-5z' stroke='currentColor' stroke-width='1.5' fill='none'/><circle cx='8' cy='8' r='2' stroke='currentColor' stroke-width='1.5' fill='none'/>`;
-const _EYE_SLASH = `<path d='M13.4 13.4C12.1 14.4 10.1 15 8 15c-4 0-7-5-7-5a12.4 12.4 0 013.6-3.6' stroke='currentColor' stroke-width='1.5' fill='none' stroke-linecap='round'/><path d='M2.6 2.6l10.8 10.8' stroke='currentColor' stroke-width='1.5' fill='none' stroke-linecap='round'/><path d='M6.5 3.3A7.2 7.2 0 018 3c4 0 7 5 7 5a12.4 12.4 0 01-1.6 2.3' stroke='currentColor' stroke-width='1.5' fill='none' stroke-linecap='round'/><path d='M10.7 10.7A3 3 0 015.3 5.3' stroke='currentColor' stroke-width='1.5' fill='none' stroke-linecap='round'/>`;
-
-function toggleAuthPass(){
-  const input = document.getElementById('auth-pass');
-  const svg   = document.getElementById('auth-pass-svg');
-  if(input.type === 'password'){
-    input.type    = 'text';
-    svg.innerHTML = _EYE_SLASH; // now visible — show slash icon
-  } else {
-    input.type    = 'password';
-    svg.innerHTML = _EYE_OPEN;  // now hidden — show open eye icon
-  }
-}
-
-function startPreviewMode(){ /* no-op in production build */ }
+function startPreviewMode(){}
 
 async function doSignIn(){
   const email = document.getElementById('auth-email').value.trim();
@@ -2701,7 +2683,23 @@ function renderItemPage(m,id){
 
   // ── P&L receipt (read-only, derived) ─────────────────────────────────
   const partsCost=calcPartsCost(i);
-  const sale1Net=i.resaleSalePrice?(+((i.salePrice+(i.postage||0)-calcEbayBPF(i.salePrice))-((i.costPrice||0)+(i.shippingCost||0)+(i.packagingCost||0)+promoCost+calcPartsCost(i))-(i.returnHistory||[]).reduce(function(s,r){const f=(r.type==='full_seller'||r.type==='full_ebay');if(f){const osp=r._salePriceAtReturn||r.refundAmount||i.salePrice||0;return s+Math.max(0,(r.refundAmount||0)-calcEbayBPF(osp))+(r.returnPostage||0);}return s+(r.refundAmount||0)+(r.returnPostage||0);},0)).toFixed(2)):profit;
+  // Sale 1 net: for resold items, compute using calcGrossProfit on a clone with resale fields stripped.
+  // This guarantees the receipt's displayed net uses the SAME fee logic as calcGrossProfit
+  // (including partial_seller fee-base reduction), so line items reconcile to the total.
+  let sale1Net;
+  if(i.resaleSalePrice){
+    const _sale1Clone=Object.assign({},i,{resaleSalePrice:null,resaleDateSold:null,resalePromoPercent:null,resaleShippingCost:null,resalePackagingCost:null});
+    sale1Net=calcGrossProfit(_sale1Clone);
+  }else{
+    sale1Net=profit;
+  }
+  // Effective fee values under partial_seller refunds — used for receipt credit lines.
+  const _psTotal=(i.returnHistory||[]).filter(function(r){return r.type==='partial_seller';}).reduce(function(s,r){return s+(r.refundAmount||0);},0);
+  const _effSale=Math.max(0,(i.salePrice||0)-_psTotal);
+  const _effBPF=calcEbayBPF(_effSale);
+  const _effPromo=(_effSale-_effBPF)*(i.promoPercent||0)*1.20;
+  const _bpfCredit=+(bpf-_effBPF).toFixed(2);
+  const _promoCredit=+(promoCost-_effPromo).toFixed(2);
   function rcp(label,val,color,indent){
     return'<div class="ip-receipt-row'+(indent?' indent':'')+'"><span style="flex:1;color:'+(color&&color.includes('--text')?color:'var(--text-secondary)')+'">'+label+'</span><span class="ip-receipt-val" style="color:'+(color||'var(--text)')+'">'+val+'</span></div>';
   }
@@ -2730,6 +2728,12 @@ function renderItemPage(m,id){
       if(fullReturn)pb+=rcp('eBay refunds BPF back to you','+'+fmt(bpf),'var(--green)',true);
       if((r.returnPostage||0)>0)pb+=rcp('Return postage','−'+fmt(r.returnPostage),'var(--red)');
     });
+    // Partial-seller: eBay refunds the fee difference (BPF + promo) on the reduced sale base.
+    // Show explicit credit lines so line items reconcile to the net profit total.
+    if(_psTotal>0){
+      if(_bpfCredit>0)pb+=rcp('eBay refunds BPF difference','+'+fmt(_bpfCredit),'var(--green)',true);
+      if(_promoCredit>0)pb+=rcp('eBay refunds promo difference','+'+fmt(_promoCredit),'var(--green)',true);
+    }
   }
   pb+='<div class="ip-receipt-row total"><span style="flex:1">'+(i.resaleSalePrice?'Sale 1 net':'Net profit / loss')+'</span><span class="ip-receipt-val" style="color:'+(sale1Net>=0?'var(--green)':'var(--red)')+'">'+fmt(sale1Net)+'</span></div>';
 
