@@ -1614,15 +1614,6 @@ function migrateLegacyLocalStorage(){
         }
       }
     }
-    const hasPreview = localStorage.getItem(PREVIEW_STORAGE_KEY) === '1';
-    if(!hasPreview){
-      for(const key of LEGACY_PREVIEW_STORAGE_KEYS){
-        if(localStorage.getItem(key) === '1'){
-          localStorage.setItem(PREVIEW_STORAGE_KEY,'1');
-          break;
-        }
-      }
-    }
   }catch(e){
     console.warn('Legacy storage migration skipped:', e);
   }
@@ -1710,17 +1701,22 @@ const _sb = (typeof supabase !== 'undefined')
   ? supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {auth:{autoRefreshToken:true,persistSession:true,detectSessionInUrl:false,flowType:"implicit"}})
   : {auth:{getSession:async()=>({data:{session:null}}),onAuthStateChange:()=>({data:{subscription:{unsubscribe:()=>{}}}}),signInWithPassword:async()=>({error:{message:'offline'}}),signOut:async()=>{},refreshSession:async()=>({data:{},error:true}),resetPasswordForEmail:async()=>({error:null})}};
 
+// ── AUTH ─────────────────────────────────────────────────────────────────────
 
-let _previewMode = false;
-const _previewParam = new URLSearchParams(window.location.search).get('preview');
-const PREVIEW_STORAGE_KEY='retrade_preview_mode';
-const LEGACY_PREVIEW_STORAGE_KEYS=['general_preview_mode'];
-const _previewStored=false;
-const PREVIEW_MODE_ENABLED=false;
-function _buildPreviewDB(){return {};}
-function enablePreviewMode(){_previewMode=false;}
-function disablePreviewMode(){_previewMode=false;}
-function startPreviewMode(){}
+const _EYE_OPEN = `<path d='M1 8s3-5 7-5 7 5 7 5-3 5-7 5-7-5-7-5z' stroke='currentColor' stroke-width='1.5' fill='none'/><circle cx='8' cy='8' r='2' stroke='currentColor' stroke-width='1.5' fill='none'/>`;
+const _EYE_SLASH = `<path d='M13.4 13.4C12.1 14.4 10.1 15 8 15c-4 0-7-5-7-5a12.4 12.4 0 013.6-3.6' stroke='currentColor' stroke-width='1.5' fill='none' stroke-linecap='round'/><path d='M2.6 2.6l10.8 10.8' stroke='currentColor' stroke-width='1.5' fill='none' stroke-linecap='round'/><path d='M6.5 3.3A7.2 7.2 0 018 3c4 0 7 5 7 5a12.4 12.4 0 01-1.6 2.3' stroke='currentColor' stroke-width='1.5' fill='none' stroke-linecap='round'/><path d='M10.7 10.7A3 3 0 015.3 5.3' stroke='currentColor' stroke-width='1.5' fill='none' stroke-linecap='round'/>`;
+
+function toggleAuthPass(){
+  const input = document.getElementById('auth-pass');
+  const svg   = document.getElementById('auth-pass-svg');
+  if(input.type === 'password'){
+    input.type    = 'text';
+    svg.innerHTML = _EYE_SLASH; // now visible — show slash icon
+  } else {
+    input.type    = 'password';
+    svg.innerHTML = _EYE_OPEN;  // now hidden — show open eye icon
+  }
+}
 
 async function doSignIn(){
   const email = document.getElementById('auth-email').value.trim();
@@ -1807,24 +1803,6 @@ async function doResetPassword(){
 }
 
 async function doSignOut(){
-  if(_previewMode){
-    disablePreviewMode();
-    try{
-      const url = new URL(window.location.href);
-      url.searchParams.delete('preview');
-      history.replaceState({}, '', url.toString());
-    }catch(e){ /* sandboxed iframe — ignore */ }
-    _currentUserId = null;
-    DB = {};
-    _dbSnapshot = {};
-    document.getElementById('nav').style.display = 'none';
-    document.getElementById('bottom-nav').style.display = 'none';
-    document.getElementById('main-content').style.display = 'none';
-    const _fabPreview = document.getElementById('fab');
-    if(_fabPreview) _fabPreview.style.display = 'none';
-    document.getElementById('auth-overlay').style.display = 'flex';
-    return;
-  }
   // If a sync is actively running, wait for it to finish before signing out.
   // Updates the indicator label so the user knows why there's a brief pause.
   if(_syncing){
@@ -1925,7 +1903,7 @@ function _rowToItem(row, parts, returns){
     isReturned:      !!row.is_returned,
     _postageMode:    row.postage_mode || 'simple',
     _sdRateIdx:      row.sd_rate_idx != null ? row.sd_rate_idx : 1,
-    _sdBuyerPays:    row.sd_buyer_pays !== false,
+    _sdBuyerPays:    row.sd_buyer_pays === true,
     resaleSalePrice:    row.resale_sale_price ? Number(row.resale_sale_price) : null,
     resaleDateSold:     row.resale_date_sold || null,
     resaleShippingCost: row.resale_shipping_cost ? Number(row.resale_shipping_cost) : null,
@@ -1972,7 +1950,7 @@ function _itemToRow(i, month){
     is_returned:      !!i.isReturned,
     postage_mode:     i._postageMode || 'simple',
     sd_rate_idx:      i._sdRateIdx != null ? i._sdRateIdx : 1,
-    sd_buyer_pays:    i._sdBuyerPays !== false,
+    sd_buyer_pays:    i._sdBuyerPays === true,
     resale_sale_price:    i.resaleSalePrice || null,
     resale_date_sold:     i.resaleDateSold || null,
     resale_shipping_cost: i.resaleShippingCost || null,
@@ -2151,13 +2129,6 @@ function _waitForSync(){
 }
 
 function saveDB(){
-  if(_previewMode){
-    DB._userOwned = false;
-    refreshActivePage();
-    clearTimeout(_saveTimer);
-    _saveTimer = null;
-    return;
-  }
   DB._userOwned = true;
   refreshActivePage();
   // Debounce: wait 400ms of quiet before persisting (handles rapid edits)
@@ -2460,15 +2431,34 @@ function exitItemPage(){
 // ── Simple Delivery rate bands (UK, current as of early 2026, both carriers enabled, items under £100)
 // eBay shows these as size bands — label costs are what eBay charge the seller via the prepaid label
 // Rates shown: Large Letter £2.70 · Small Parcel 0-2kg £3.38 · Medium Parcel 0-1kg £5.15 · 1-5kg £6.16
+// eBay Simple Delivery — "all couriers selected" rates.
+// Source: ebay.co.uk/sellercentre/postage/simple-delivery (verified Apr 2026).
+// Items sold >£100 use costHigh automatically via _sdRateFor().
+// If eBay changes their rate card, update these two columns — the UI,
+// save path, and tier selection will pick up the new values on next render.
 const SIMPLE_DELIVERY_RATES=[
-  {label:'Large Letter (750g)',   cost:2.70},
-  {label:'Small Parcel (1kg)',    cost:2.94},
-  {label:'Small Parcel (2kg)',    cost:4.26},
-  {label:'Medium Parcel (1kg)',   cost:3.42},
-  {label:'Medium Parcel (2kg)',   cost:4.26},
-  {label:'Medium Parcel (10kg)',  cost:5.88},
-  {label:'Medium Parcel (20kg)',  cost:8.41},
+  {label:'Large Letter (1kg)',       cost:2.70, costHigh:3.42},
+  {label:'Small Parcel (0-1kg)',     cost:2.94, costHigh:3.42},
+  {label:'Medium Parcel (0-1kg)',    cost:2.94, costHigh:3.42},
+  {label:'Small Parcel (1-2kg)',     cost:3.38, costHigh:4.26},
+  {label:'Medium Parcel (1-2kg)',    cost:3.71, costHigh:4.26},
+  {label:'Parcel (2-10kg)',          cost:5.21, costHigh:5.88},
+  {label:'Parcel (10-20kg)',         cost:7.19, costHigh:8.41},
 ];
+// Returns the tier-correct cost for a rate index given a sale price.
+// eBay splits Simple Delivery rates at the £100 threshold.
+function _sdRateFor(idx,salePrice){
+  const r=SIMPLE_DELIVERY_RATES[idx]||SIMPLE_DELIVERY_RATES[1];
+  return(Number(salePrice)||0)>100?(r.costHigh||r.cost):r.cost;
+}
+// Returns a formatted option list for a given sale price — used by Quick Add,
+// item detail, and relist surfaces so all three show tier-correct prices.
+function _sdOptionsFor(salePrice,selectedIdx){
+  return SIMPLE_DELIVERY_RATES.map(function(r,idx){
+    const c=_sdRateFor(idx,salePrice);
+    return'<option value="'+idx+'"'+(idx===selectedIdx?' selected':'')+'>'+r.label+' — \u00a3'+c.toFixed(2)+'</option>';
+  }).join('');
+}
 
 // ── Token editing helpers ─────────────────────────────────────────────────────
 // ── Section open-state persistence across re-renders ─────────────────────────
@@ -2588,18 +2578,18 @@ function savePostageMode(m,id,mode){
   const i=(DB[m]||[]).find(x=>x.id===id);
   if(!i)return;
   i._postageMode=mode;
-  if(mode==='simple'&&i._sdRateIdx==null)i._sdRateIdx=0;
+  if(mode==='simple'&&i._sdRateIdx==null)i._sdRateIdx=1;
   saveDB();
   const s=_getSecStates();renderItemPage(m,id);_applySecStates(s);
 }
 function saveSDRate(m,id,idx){
   const i=(DB[m]||[]).find(x=>x.id===id);
   if(!i)return;
-  i._sdRateIdx=parseInt(idx)||0;
-  const rate=SIMPLE_DELIVERY_RATES[i._sdRateIdx]||SIMPLE_DELIVERY_RATES[0];
-  i.shippingCost=rate.cost;
+  i._sdRateIdx=parseInt(idx);if(isNaN(i._sdRateIdx))i._sdRateIdx=1;
+  const rateCost=_sdRateFor(i._sdRateIdx,i.salePrice||0);
+  i.shippingCost=rateCost;
   // _sdBuyerPays=true means buyer pays postage; false/undefined means free shipping
-  i.postage=i._sdBuyerPays?rate.cost:0;
+  i.postage=i._sdBuyerPays?rateCost:0;
   if(i.dateSold||i.isReturned||i.resaleSalePrice)i.grossProfit=calcGrossProfit(i);
   saveDB();
   const s=_getSecStates();renderItemPage(m,id);_applySecStates(s);
@@ -2608,17 +2598,24 @@ function saveSDFree(m,id,buyerPays){
   const i=(DB[m]||[]).find(x=>x.id===id);
   if(!i)return;
   i._sdBuyerPays=buyerPays;
-  const rate=SIMPLE_DELIVERY_RATES[i._sdRateIdx||0];
-  i.postage=buyerPays?(rate?rate.cost:0):0;
+  const rateCost=_sdRateFor(i._sdRateIdx!=null?i._sdRateIdx:1,i.salePrice||0);
+  i.postage=buyerPays?rateCost:0;
   if(i.dateSold||i.isReturned||i.resaleSalePrice)i.grossProfit=calcGrossProfit(i);
   saveDB();
   const s=_getSecStates();renderItemPage(m,id);_applySecStates(s);
 }
 
 function renderItemPage(m,id){
-  const i=(DB[m]||[]).find(x=>x.id===id);
+  // Lookup tolerates both id and gid — some entry points (search deep-links,
+  // external references) hold only a gid like "R-0042". Internal handlers
+  // downstream all use the resolved i.id so nothing else needs to change.
+  const i=(DB[m]||[]).find(x=>x.id===id||x.gid===id);
   const page=document.getElementById('p-item');
   if(!i){page.innerHTML='<div style="padding:40px;text-align:center;color:var(--muted)">Item not found</div>';return;}
+  // Normalise id to the canonical internal id — the rest of this function
+  // interpolates `id` into inline onclick handlers (undoSale, openTokenEdit,
+  // savePostageMode, etc.) which all look items up by i.id only.
+  id=i.id;
 
   const bpf=calcEbayBPF(i.salePrice||0);
   const grossInc=(i.salePrice||0)-bpf;
@@ -2630,8 +2627,7 @@ function renderItemPage(m,id){
   const totalRefunded=(i.returnHistory||[]).reduce((s,r)=>s+(r.refundAmount||0),0);
   const totalReturnPostage=(i.returnHistory||[]).reduce((s,r)=>s+(r.returnPostage||0),0);
   const postageMode=i._postageMode||(i.shippingCost>0?'custom':'simple');
-  const sdIdx=i._sdRateIdx||0;
-  const sdRate=SIMPLE_DELIVERY_RATES[sdIdx]||SIMPLE_DELIVERY_RATES[0];
+  const sdIdx=i._sdRateIdx!=null?i._sdRateIdx:1;
 
   // ── Timeline entries ─────────────────────────────────────────────────
   const timeline=[];
@@ -2831,10 +2827,11 @@ function renderItemPage(m,id){
   }
 
   // ── Postage row HTML ──────────────────────────────────────────────────
-  const sdOpts=SIMPLE_DELIVERY_RATES.map((r,idx)=>'<option value="'+idx+'"'+(idx===sdIdx?' selected':'')+'>'+r.label+' — £'+r.cost.toFixed(2)+'</option>').join('');
+  // Options show tier-correct prices based on the item's current sale price.
+  const sdOpts=_sdOptionsFor(i.salePrice||0,sdIdx);
   const postageRowInner=postageMode==='simple'
     ?'<select class="ip-postage-select" onchange="saveSDRate(\''+m+'\',\''+id+'\',this.value)">'+sdOpts+'</select>'
-     +'<div class="ip-postage-buyer"><label><input type="checkbox" '+(i._sdBuyerPays?'checked':'')+' onchange="saveSDFree(\''+m+'\',\''+id+'\',this.checked)"> Buyer pays</label></div>'
+     +'<div class="ip-postage-buyer"><label><input type="checkbox" '+(i._sdBuyerPays===true?'checked':'')+' onchange="saveSDFree(\''+m+'\',\''+id+'\',this.checked)"> Buyer pays</label></div>'
     :'<div class="ip-postage-custom">'
      +'<div class="ip-postage-custom-field"><label>You pay</label><input type="number" step="0.01" value="'+(i.shippingCost||0)+'" onchange="ipSaveNum(\''+m+'\',\''+id+'\',\'shippingCost\',this.value)" onkeydown="if(event.key===\'Enter\')this.blur()"></div>'
      +'<div class="ip-postage-custom-field"><label>Buyer pays</label><input type="number" step="0.01" value="'+(i.postage||0)+'" onchange="ipSaveNum(\''+m+'\',\''+id+'\',\'postage\',this.value)" onkeydown="if(event.key===\'Enter\')this.blur()"></div>'
@@ -3411,14 +3408,19 @@ function submitQuickAdd(){
   }
   // Read delivery mode
   const isSimple=document.getElementById('qa-delivery-simple')&&document.getElementById('qa-delivery-simple').style.display!=='none';
-  let postage=0,shippingCost=0,packagingCost=0,_postageMode,_sdRateIdx=1,_sdBuyerPays=true;
+  const _qaSalePrice=parseFloat(document.getElementById('qa-price').value)||0;
+  let postage=0,shippingCost=0,packagingCost=0,_postageMode,_sdRateIdx=1,_sdBuyerPays=false;
   if(isSimple){
     _postageMode='simple';
-    _sdRateIdx=parseInt(document.getElementById('qa-sd-rate')?.value||'1')||1;
-    _sdBuyerPays=document.getElementById('qa-sd-buyer-pays')?.checked!==false;
-    const rate=SIMPLE_DELIVERY_RATES[_sdRateIdx]||SIMPLE_DELIVERY_RATES[0];
-    shippingCost=rate.cost;
-    postage=_sdBuyerPays?rate.cost:0;
+    // NaN-safe parse — an empty dropdown (price not yet entered) is impossible here
+    // because the validation gate above requires a positive cost and rawName. If
+    // somehow the dropdown is still in its disabled "" state, default to SP (1).
+    const _rawIdx=parseInt(document.getElementById('qa-sd-rate')?.value,10);
+    _sdRateIdx=isNaN(_rawIdx)?1:_rawIdx;
+    _sdBuyerPays=document.getElementById('qa-sd-buyer-pays')?.checked===true;
+    const rateCost=_sdRateFor(_sdRateIdx,_qaSalePrice);
+    shippingCost=rateCost;
+    postage=_sdBuyerPays?rateCost:0;
   }else{
     _postageMode='custom';
     postage=parseFloat(document.getElementById('qa-postage')?.value)||0;
@@ -3499,11 +3501,11 @@ function formHTML(){
     <div class="form-grid-2" style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
       <div class="fg">
         <label>Cost Price (£)</label>
-        <input type="number" id="qa-cost" step="0.01" placeholder="0.00" oninput="updateBPFPreview()">
+        <input type="number" id="qa-cost" step="0.01" min="0" placeholder="0.00" oninput="updateBPFPreview()">
       </div>
       <div class="fg">
         <label>Listed Price — what buyer pays (£)</label>
-        <input type="number" id="qa-price" step="0.01" placeholder="0.00" oninput="updateBPFPreview()">
+        <input type="number" id="qa-price" step="0.01" min="0" placeholder="0.00" oninput="updateBPFPreview();updateSDDropdown()">
       </div>
     </div>
     <div id="bpf-preview" class="bpf-info" style="display:none">
@@ -3539,11 +3541,11 @@ function formHTML(){
       </div>
 
       <div id="qa-delivery-simple">
-        <select id="qa-sd-rate" onchange="updateBPFPreview()" style="width:100%;padding:9px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:14px;margin-bottom:8px">
-          ${SIMPLE_DELIVERY_RATES.map((r,idx)=>`<option value="${idx}">${r.label} — £${r.cost.toFixed(2)}</option>`).join('')}
+        <select id="qa-sd-rate" onchange="updateBPFPreview()" disabled style="width:100%;padding:9px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--muted);font-size:14px;margin-bottom:8px;opacity:0.55;cursor:not-allowed">
+          <option value="">Enter listed price to see options</option>
         </select>
         <label style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:500;cursor:pointer">
-          <input type="checkbox" id="qa-sd-buyer-pays" checked onchange="updateBPFPreview()" style="width:16px;height:16px;cursor:pointer">
+          <input type="checkbox" id="qa-sd-buyer-pays" onchange="updateBPFPreview()" style="width:16px;height:16px;cursor:pointer">
           Buyer pays postage
         </label>
       </div>
@@ -3552,23 +3554,23 @@ function formHTML(){
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:8px">
           <div class="fg" style="margin-bottom:0">
             <label style="margin-bottom:4px">Your cost (£)</label>
-            <input type="number" id="qa-shipping" step="0.01" placeholder="0.00" oninput="updateBPFPreview()">
+            <input type="number" id="qa-shipping" step="0.01" min="0" placeholder="0.00" oninput="updateBPFPreview()">
           </div>
           <div class="fg" style="margin-bottom:0">
             <label style="margin-bottom:4px">Buyer pays (£)</label>
-            <input type="number" id="qa-postage" step="0.01" placeholder="0.00" oninput="updateBPFPreview()">
+            <input type="number" id="qa-postage" step="0.01" min="0" placeholder="0.00" oninput="updateBPFPreview()">
           </div>
         </div>
         <div class="fg" style="margin-bottom:0">
           <label style="margin-bottom:4px">Packaging (£)</label>
-          <input type="number" id="qa-packaging" step="0.01" placeholder="0.00" oninput="updateBPFPreview()">
+          <input type="number" id="qa-packaging" step="0.01" min="0" placeholder="0.00" oninput="updateBPFPreview()">
         </div>
       </div>
     </div>
 
     <div class="fg">
       <label>Promo %</label>
-      <input type="number" id="qa-promo" step="0.1" placeholder="0" oninput="updateBPFPreview()">
+      <input type="number" id="qa-promo" step="0.1" min="0" placeholder="0" oninput="updateBPFPreview()">
     </div>
   `;
 }
@@ -3589,6 +3591,35 @@ function qaSetDeliveryMode(mode){
   updateBPFPreview();
 }
 
+// Quick Add — rebuild the Simple Delivery dropdown whenever the listed
+// price changes. Below £0.01 the dropdown is disabled with a placeholder;
+// otherwise options render with tier-correct prices via _sdOptionsFor().
+// The previously-selected index is preserved across rebuilds so changing
+// the price from £95 → £105 only shifts the visible price, not the size.
+function updateSDDropdown(){
+  const sel=document.getElementById('qa-sd-rate');
+  if(!sel)return;
+  const price=parseFloat(document.getElementById('qa-price')?.value)||0;
+  if(price<=0){
+    sel.disabled=true;
+    sel.style.opacity='0.55';
+    sel.style.cursor='not-allowed';
+    sel.style.color='var(--muted)';
+    sel.innerHTML='<option value="">Enter listed price to see options</option>';
+    updateBPFPreview();
+    return;
+  }
+  // Preserve current selection if valid; default to SP (index 1) on first enable.
+  let prev=parseInt(sel.value,10);
+  if(isNaN(prev)||prev<0||prev>=SIMPLE_DELIVERY_RATES.length)prev=1;
+  sel.disabled=false;
+  sel.style.opacity='1';
+  sel.style.cursor='';
+  sel.style.color='var(--text)';
+  sel.innerHTML=_sdOptionsFor(price,prev);
+  updateBPFPreview();
+}
+
 function updateBPFPreview(){
   const price=parseFloat(document.getElementById('qa-price').value)||0;
   const preview=document.getElementById('bpf-preview');
@@ -3604,11 +3635,12 @@ function updateBPFPreview(){
   const isSimple=document.getElementById('qa-delivery-simple')&&document.getElementById('qa-delivery-simple').style.display!=='none';
   let shipping=0,buyerPostage=0,packaging=0;
   if(isSimple){
-    const sdIdx=parseInt(document.getElementById('qa-sd-rate')?.value||'0')||0;
-    const rate=SIMPLE_DELIVERY_RATES[sdIdx]||SIMPLE_DELIVERY_RATES[0];
-    const buyerPays=document.getElementById('qa-sd-buyer-pays')?.checked!==false;
-    shipping=rate.cost;
-    buyerPostage=buyerPays?rate.cost:0;
+    const _sdRaw=parseInt(document.getElementById('qa-sd-rate')?.value,10);
+    const sdIdx=isNaN(_sdRaw)?1:_sdRaw;
+    const rateCost=_sdRateFor(sdIdx,price);
+    const buyerPays=document.getElementById('qa-sd-buyer-pays')?.checked===true;
+    shipping=rateCost;
+    buyerPostage=buyerPays?rateCost:0;
   }else{
     shipping=parseFloat(document.getElementById('qa-shipping')?.value)||0;
     buyerPostage=parseFloat(document.getElementById('qa-postage')?.value)||0;
@@ -4483,7 +4515,7 @@ function renderSummary(){
             <div class="kcard b clickable" onclick="showFilteredItems('revenue')"><div class="klabel">Total revenue</div><div class="kval">${fmt(stats.totalRev||0)}</div><div class="ksub">${stats.soldCount||0} sold in view</div></div>
             <div class="kcard g clickable" onclick="showFilteredItems('realised')"><div class="klabel">Net profit</div><div class="kval">${fmt(stats.realisedProfit||0)}</div><div class="ksub">${(stats.soldCount||0)>0&&(stats.totalRev||0)>0?((stats.realisedProfit/stats.totalRev)*100).toFixed(0)+'% margin':'No margin yet'}</div></div>
             <div class="kcard clickable" onclick="showROIItems()"><div class="klabel">Avg ROI</div><div class="kval">${Number(stats.avgROI||0).toFixed(1)}%</div><div class="ksub">Sold items only</div></div>
-            <div class="kcard r clickable" onclick="showReturnedItems()"><div class="klabel">Refund rate</div><div class="kval">${Number(stats.returnRate||0).toFixed(1)}%</div><div class="ksub">${stats.returnCount||0} full · ${stats.partialRefundCount||0} partial</div></div>
+            <div class="kcard r clickable" onclick="showReturnedItems()"><div class="klabel">Refund rate</div><div class="kval">${(Number(stats.returnRate||0)+Number(stats.partialRefundRate||0)).toFixed(1)}%</div><div class="ksub">${stats.returnCount||0} return${(stats.returnCount||0)!==1?'s':''} · ${stats.partialRefundCount||0} partial${(stats.partialRefundCount||0)!==1?'s':''} · ${stats.totalAffected||0} event${(stats.totalAffected||0)!==1?'s':''}</div></div>
           </div>
           <div class="chart-wrap summary-chart">
             <div class="chart-title">Activity overview<div class="chart-legend" id="summary-chart-legend"><span class="chart-legend-dot"></span>Revenue<span class="chart-legend-dot" style="margin-left:10px"></span>Profit</div></div>
@@ -5270,7 +5302,7 @@ function openItemDetail(m,id,noHistory){
           <input type="date" id="pd-date-listed" value="${i.dateListed||''}" onchange="savePanelQuickEdit('${m}','${id}')" onblur="savePanelQuickEdit('${m}','${id}')">
         </div>`:`<div class="fg" style="margin-bottom:0">
           <label style="margin-bottom:4px">${i.resaleSalePrice?'Resold':'Date sold'}</label>
-          <div style="padding:8px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;font-size:13px;color:var(--text-secondary)">${i.resaleSalePrice?(i.resaleDateSold||'—'):(i.dateSold||'—')}</div>
+          <input type="date" id="${i.resaleSalePrice?'pd-resale-date-sold':'pd-date-sold'}" value="${i.resaleSalePrice?(i.resaleDateSold||''):(i.dateSold||'')}" onchange="savePanelQuickEdit('${m}','${id}')" onblur="savePanelQuickEdit('${m}','${id}')">
         </div>`}
       </div>
       <div style="margin-top:10px">
@@ -5492,7 +5524,31 @@ function renderStock(){
 function renderExpenses(){
   const trips=DB.trips||[];
   const expenses=DB.expenses||[];
-  const totalTrips=trips.reduce((s,t)=>s+(t.mileage||0)*(t.ratePerMile||0.45),0);
+  // HMRC tiering: 45p for first 10,000 miles per tax year, 25p after.
+  // 10k threshold resets each UK tax year (6 Apr - 5 Apr), so we group trips
+  // by their tax year before tiering. Matches the calc on the Tax page
+  // (line ~7098) but summed across all tax years rather than a single year.
+  function _taxYearOf(ds){
+    if(!ds)return null;
+    const d=new Date(ds);
+    const y=d.getFullYear();
+    // If before 6 Apr, belongs to prior tax year; otherwise current calendar year.
+    return (d.getMonth()<3||(d.getMonth()===3&&d.getDate()<6))?y-1:y;
+  }
+  const _milesByYear={};
+  trips.forEach(function(t){
+    const ty=_taxYearOf(t.date);
+    if(ty===null)return;
+    _milesByYear[ty]=(_milesByYear[ty]||0)+(t.mileage||0);
+  });
+  const totalTrips=Object.keys(_milesByYear).reduce(function(s,ty){
+    const miles=_milesByYear[ty];
+    const tier1=Math.min(miles,10000);
+    const tier2=Math.max(0,miles-10000);
+    return s+(tier1*0.45)+(tier2*0.25);
+  },0);
+  const _totalMilesAll=trips.reduce((s,t)=>s+(t.mileage||0),0);
+  const _anyTier2=Object.values(_milesByYear).some(m=>m>10000);
   const totalExp=expenses.reduce((s,e)=>s+(e.amount||0),0);
   
   const html=`
@@ -5511,7 +5567,7 @@ function renderExpenses(){
       <div class="kcard">
         <div class="klabel">Trip Expenses</div>
         <div class="kval">${fmt(totalTrips)}</div>
-        <div class="ksub">${trips.length} trips &middot; ${trips.reduce((s,t)=>s+(t.mileage||0),0).toFixed(1)} miles</div>
+        <div class="ksub">${trips.length} trips &middot; ${_totalMilesAll.toFixed(1)} miles${_anyTier2?' &middot; HMRC-tiered':''}</div>
       </div>
       <div class="kcard">
         <div class="klabel">Other Expenses</div>
@@ -6298,6 +6354,8 @@ function savePanelQuickEdit(m,id,silent){
   if(!item)return;
   // Only read fields that are currently in the DOM (panel may have changed)
   const fListed=document.getElementById('pd-date-listed');
+  const fDateSold=document.getElementById('pd-date-sold');
+  const fResaleDateSold=document.getElementById('pd-resale-date-sold');
   const fLocation=document.getElementById('pd-location');
   const fSource=document.getElementById('pd-source');
   const fCat=document.getElementById('pd-category');
@@ -6306,6 +6364,10 @@ function savePanelQuickEdit(m,id,silent){
   // Guard: if location field isn't present, the panel has been replaced - abort
   if(!fLocation)return;
   if(fListed)item.dateListed=fListed.value||new Date().toISOString().split('T')[0];
+  // Date sold edits: preserve existing value if the input is cleared (don't blank
+  // a sold item back to unsold via Quick Edit — that's what "undo sale" is for).
+  if(fDateSold&&fDateSold.value)item.dateSold=fDateSold.value;
+  if(fResaleDateSold&&fResaleDateSold.value)item.resaleDateSold=fResaleDateSold.value;
   if(fLocation)item.location=fLocation.value.trim();
   if(fSource&&fSource.value)item.source=fSource.value;
   if(fCat&&fCat.value)item.category=fCat.value;
@@ -6478,8 +6540,12 @@ function openRelist(m,id){
   const i=(DB[m]||[]).find(x=>x.id===id);
   if(!i)return;
   const postageMode=i._postageMode||'simple';
-  const sdIdx=i._sdRateIdx||0;
-  const sdOpts=SIMPLE_DELIVERY_RATES.map((r,idx)=>'<option value="'+idx+'"'+(idx===sdIdx?' selected':'')+'>'+r.label+' — £'+r.cost.toFixed(2)+'</option>').join('');
+  const sdIdx=i._sdRateIdx!=null?i._sdRateIdx:1;
+  // Dropdown seeds with the item's current asking price; the tier may
+  // shift if the user changes the asking price in the Relist panel, but
+  // confirmRelist re-applies the rate using the final price, so the
+  // persisted value is always tier-correct.
+  const sdOpts=_sdOptionsFor(i.salePrice||0,sdIdx);
   const html=`
     <div style="margin-bottom:20px">
       <div style="font-size:13px;color:var(--text-secondary);margin-bottom:16px;line-height:1.6">
@@ -6553,7 +6619,7 @@ function openRelist(m,id){
           <select id="relist-sd-rate" style="padding:10px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;font-weight:600;font-family:inherit;width:100%">${sdOpts}</select>
         </div>
         <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-secondary);cursor:pointer">
-          <input type="checkbox" id="relist-sd-buyer-pays" ${i._sdBuyerPays?'checked':''} style="accent-color:var(--accent);width:15px;height:15px"> Buyer pays
+          <input type="checkbox" id="relist-sd-buyer-pays" ${i._sdBuyerPays===true?'checked':''} style="accent-color:var(--accent);width:15px;height:15px"> Buyer pays
         </label>
       </div>
       <div id="relist-post-custom-fields" style="display:${postageMode==='custom'?'block':'none'};margin-bottom:16px">
@@ -6589,13 +6655,13 @@ function confirmRelist(m,id){
   // Apply postage settings
   i._postageMode=postMode;
   if(postMode==='simple'){
-    const sdIdx=parseInt(document.getElementById('relist-sd-rate').value)||0;
+    let sdIdx=parseInt(document.getElementById('relist-sd-rate').value);if(isNaN(sdIdx))sdIdx=1;
     const buyerPays=document.getElementById('relist-sd-buyer-pays').checked;
-    const rate=SIMPLE_DELIVERY_RATES[sdIdx]||SIMPLE_DELIVERY_RATES[0];
+    const rateCost=_sdRateFor(sdIdx,price);
     i._sdRateIdx=sdIdx;
     i._sdBuyerPays=buyerPays;
-    i.shippingCost=rate.cost;
-    i.postage=buyerPays?rate.cost:0;
+    i.shippingCost=rateCost;
+    i.postage=buyerPays?rateCost:0;
   } else {
     i.shippingCost=parseFloat(document.getElementById('relist-shipping-cost').value)||0;
     i.postage=parseFloat(document.getElementById('relist-postage').value)||0;
@@ -6860,10 +6926,31 @@ function showReturnedItems(){
     rows+=partialOnly.map(buildRow).join('');
   }
 
-  const summary='<div style="margin-bottom:16px;display:flex;align-items:center;gap:12px;background:var(--surface2);border-radius:10px;padding:14px">'
+  // Period revenue denominator — sum calcItemRevenue across sold items whose
+  // sale date falls in the current Summary period. Uses the same scope as
+  // _inSummaryPeriod so the % lines up with the KPI card's period filter.
+  let _periodRevenue=0;
+  allDBKeys().forEach(function(k){
+    (DB[k]||[]).forEach(function(i){
+      if((i.item||'').trim().toUpperCase()==='MONTH END')return;
+      if(i.isReturned)return;
+      const sd=i.resaleSalePrice?i.resaleDateSold:i.dateSold;
+      if(!sd||!_inSummaryPeriod(sd))return;
+      _periodRevenue+=calcItemRevenue(i);
+    });
+  });
+  const _refundPctRev=_periodRevenue>0?(totalRefundedAll/_periodRevenue*100):0;
+
+  const summary='<div style="margin-bottom:16px;background:var(--surface2);border-radius:10px;padding:14px">'
+    +'<div style="display:flex;align-items:baseline;gap:10px;margin-bottom:4px">'
     +'<div class="stat-num" style="color:var(--red)">'+fmt(totalRefundedAll)+'</div>'
-    +'<div><div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px">Total paid out</div>'
-    +'<div style="font-size:13px;color:var(--text-secondary);margin-top:2px">'+fullyReturned.length+' full return'+(fullyReturned.length!==1?'s':'')+' · '+partialOnly.length+' partial'+(partialOnly.length!==1?'s':'')+' · '+items.length+' item'+(items.length!==1?'s':'')+' total</div></div>'
+    +'<div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;font-weight:600">Total paid out</div>'
+    +'</div>'
+    +'<div style="font-size:13px;color:var(--text-secondary);margin-bottom:12px"><strong style="color:var(--text);font-weight:600">'+items.length+' item'+(items.length!==1?'s':'')+'</strong> \u00b7 '+fullyReturned.length+' full return'+(fullyReturned.length!==1?'s':'')+' \u00b7 '+partialOnly.length+' partial'+(partialOnly.length!==1?'s':'')+'</div>'
+    +'<div style="display:flex;align-items:center;justify-content:space-between;padding-top:10px;border-top:1px solid var(--border);font-size:12px;color:var(--muted)">'
+    +'<span>% of period revenue</span>'
+    +'<span style="color:var(--text);font-weight:600">'+_refundPctRev.toFixed(1)+'% <span style="color:var(--muted);font-weight:400">of '+fmt(_periodRevenue)+'</span></span>'
+    +'</div>'
     +'</div>';
 
   const content=items.length>0
@@ -7777,7 +7864,6 @@ initTheme();
   let _initialLoadDone = !!session;
 
   if(session){
-    disablePreviewMode();
     _currentUserId = session.user.id;
     showApp();
     // Set avatar initial
@@ -7785,19 +7871,12 @@ initTheme();
     if(_av && session.user?.email) _av.textContent=session.user.email[0].toUpperCase();
     await initDB();
     _dbSnapshot = _dbFingerprint();
-  } else if(PREVIEW_MODE_ENABLED){
-    enablePreviewMode();
-    showApp();
-    const _av=document.getElementById('user-avatar');
-    if(_av) _av.textContent='P';
-    requestAnimationFrame(()=>goToTab('summary'));
   } else {
     showLogin();
   }
 
   // Listen for auth state changes
   _sb.auth.onAuthStateChange(async (event, sess) => {
-    if(_previewMode && event !== 'SIGNED_IN') return;
     if(event === 'SIGNED_IN' && sess){
       _currentUserId = sess.user.id;
       showApp();
@@ -7827,7 +7906,6 @@ initTheme();
   // Re-check session when tab becomes visible again (phone wake, tab switch)
   // If token expired while backgrounded, boot to login immediately
   document.addEventListener('visibilitychange', async () => {
-    if(_previewMode) return;
     if(document.visibilityState !== 'visible') return;
     if(!_currentUserId) return; // already on login screen
     try{
@@ -7951,7 +8029,7 @@ function exportForSupabase(){
         shipping_cost:i.shippingCost||0, packaging_cost:i.packagingCost||0,
         promo_percent:i.promoPercent||0, notes:i.notes||null,
         is_returned:!!i.isReturned,
-        postage_mode:i._postageMode||'simple', sd_rate_idx:i._sdRateIdx||1, sd_buyer_pays:i._sdBuyerPays!==false,
+        postage_mode:i._postageMode||'simple', sd_rate_idx:i._sdRateIdx!=null?i._sdRateIdx:1, sd_buyer_pays:i._sdBuyerPays===true,
         resale_sale_price:i.resaleSalePrice||null, resale_date_sold:i.resaleDateSold||null,
         resale_shipping_cost:i.resaleShippingCost||null, resale_promo_percent:i.resalePromoPercent||null,
         gross_profit:i.grossProfit||null
@@ -7971,6 +8049,9 @@ function exportForSupabase(){
   const trips=(DB.trips||[]).map(function(t){return{id:t.id||String(Date.now()),date:t.date,description:t.description||'',mileage:t.mileage||0,rate_per_mile:t.ratePerMile||0.45};});
   const expenses=(DB.expenses||[]).map(function(e){return{id:e.id||String(Date.now()),date:e.date,description:e.description||'',amount:e.amount||0,category:e.category||null};});
   const out={items,item_parts:parts,item_returns:returns,trips,expenses};
+  console.log('=== SUPABASE EXPORT ===');
+  console.log(JSON.stringify(out,null,2));
+  console.log('Items:',items.length,'Parts:',parts.length,'Returns:',returns.length,'Trips:',trips.length,'Expenses:',expenses.length);
   return out;
 }
 // Usage: open browser console and run: exportForSupabase()
