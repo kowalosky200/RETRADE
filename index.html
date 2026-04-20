@@ -4753,7 +4753,10 @@ function renderSummary(){
       if(isDaily){while(cur<=range.to){buckets.push({from:cur,to:cur,label:fmtShort(cur)});cur=addDays(cur,1);}}
       else{while(cur<=range.to){const end=addDays(cur,6)<=range.to?addDays(cur,6):range.to;buckets.push({from:cur,to:end,label:fmtShort(cur)});cur=addDays(cur,7);}}
       const allSold=[];
-      allDBKeys().forEach(k=>(DB[k]||[]).forEach(i=>{if((i.dateSold||i.resaleSalePrice)&&!i.isReturned){const sd=i.resaleSalePrice?i.resaleDateSold:i.dateSold;if(sd&&sd>=range.from&&sd<=range.to)allSold.push({rev:calcItemRevenue(i),profit:calcGrossProfit(i)||0,date:sd});}}));
+      // NEW7: include returned items with a dateSold — gross revenue counts the sale;
+      // calcGrossProfit absorbs the refund cost. Items with no dateSold (pure returns
+      // pre-sale, or relisted-awaiting-sale) still excluded via the dateSold guard.
+      allDBKeys().forEach(k=>(DB[k]||[]).forEach(i=>{if(i.dateSold||i.resaleSalePrice){const sd=i.resaleSalePrice?i.resaleDateSold:i.dateSold;if(sd&&sd>=range.from&&sd<=range.to)allSold.push({rev:calcItemRevenue(i),profit:calcGrossProfit(i)||0,date:sd});}}));
       const bData=buckets.map(b=>{const inB=allSold.filter(x=>x.date>=b.from&&x.date<=b.to);return{...b,rev:inB.reduce((s,x)=>s+x.rev,0),profit:inB.reduce((s,x)=>s+x.profit,0)};});
       bData.forEach(b=>{
         chartLabels.push(b.label);
@@ -4992,7 +4995,8 @@ function showRangeSnapshot(label, fromDate, toDate){
   const items = [];
   allDBKeys().forEach(k=>(DB[k]||[]).forEach(i=>{
     if((i.item||'').trim().toUpperCase()==='MONTH END') return;
-    if(i.isReturned) return;
+    // NEW7: include returned items — gross revenue counts the sale, calcGrossProfit
+    // absorbs the refund cost. dateSold guard below filters the non-sold cases.
     const sd = i.resaleSalePrice ? i.resaleDateSold : i.dateSold;
     if(sd && sd>=fromDate && sd<=toDate){
       const profit = calcGrossProfit(i);
@@ -5006,7 +5010,7 @@ function showRangeSnapshot(label, fromDate, toDate){
     return;
   }
 
-  // Revenue net of partial refunds — keep drill-down in sync with primary Revenue KPI.
+  // NEW7: gross revenue — refunds surface in Refund KPI drill-down, not here.
   const totalRev  = items.reduce((s,i)=>s+calcItemRevenue(i),0);
   const totalProf = items.reduce((s,i)=>s+(i._profit||0),0);
   const margin    = totalRev>0?(totalProf/totalRev*100).toFixed(1):null;
@@ -7206,11 +7210,13 @@ function showReturnedItems(){
   // Period revenue denominator — sum calcItemRevenue across sold items whose
   // sale date falls in the current Summary period. Uses the same scope as
   // _inSummaryPeriod so the % lines up with the KPI card's period filter.
+  // NEW7: returned items with a dateSold now count (gross revenue model) —
+  // this is what makes "refund % of revenue" meaningful: the sale happened,
+  // the refund is a separate event tracked against it.
   let _periodRevenue=0;
   allDBKeys().forEach(function(k){
     (DB[k]||[]).forEach(function(i){
       if((i.item||'').trim().toUpperCase()==='MONTH END')return;
-      if(i.isReturned)return;
       const sd=i.resaleSalePrice?i.resaleDateSold:i.dateSold;
       if(!sd||!_inSummaryPeriod(sd))return;
       _periodRevenue+=calcItemRevenue(i);
@@ -7510,12 +7516,22 @@ function calcYearlyStats(period){
       if(returnInRange&&hadFullReturn){
         returnCount++;
       }
-      if(soldInRange&&(i.dateSold||i.resaleSalePrice) && !i.isReturned){
-        soldCount++;
-        const prof=calcGrossProfit(i);
+      if(soldInRange&&(i.dateSold||i.resaleSalePrice)){
+        // NEW7: gross revenue + profit include fully-returned items (the sale
+        // happened, calcGrossProfit charges the refund as a cost). soldCount
+        // stays as NET completed sales — returned items don't count as a unit
+        // sold for avg/sell-through purposes.
         totalRev+=calcItemRevenue(i);
-        realisedProfit+=prof;
-        soldItems.push({...i,profit:prof});
+        if(!i.isReturned){
+          soldCount++;
+          const prof=calcGrossProfit(i);
+          realisedProfit+=prof;
+          soldItems.push({...i,profit:prof});
+        }else{
+          // Returned item — still contributes to realisedProfit (as a net loss
+          // via refund cost), but not to soldCount / avg metrics.
+          realisedProfit+=calcGrossProfit(i)||0;
+        }
       }else if(!i.isReturned&&!i.resaleSalePrice){
         listedCount++;
         stockValue+=i.salePrice||0;
@@ -7632,12 +7648,17 @@ function calcMonthStats(m){
   let soldCount=0,listedCount=0,daysSum=0;
   (DB[m]||[]).forEach(i=>{
     if((i.item||"").trim().toUpperCase()==="MONTH END")return;
-    if((i.dateSold||i.resaleSalePrice)&&!i.isReturned){
-      soldCount++;
+    if(i.dateSold||i.resaleSalePrice){
+      // NEW7: gross revenue + profit include returned items; soldCount stays net.
       totalRev+=calcItemRevenue(i);
-      realisedProfit+=calcGrossProfit(i);
-      const _d=calcDaysToSell(i);
-      if(_d!==null)daysSum+=_d;
+      if(!i.isReturned){
+        soldCount++;
+        realisedProfit+=calcGrossProfit(i);
+        const _d=calcDaysToSell(i);
+        if(_d!==null)daysSum+=_d;
+      }else{
+        realisedProfit+=calcGrossProfit(i)||0;
+      }
     }else if(!i.isReturned&&!i.resaleSalePrice){
       listedCount++;
       stockValue+=i.salePrice||0;
@@ -7673,19 +7694,12 @@ function calcPartsCost(i){
 // Used by all Revenue KPIs and rollups so totals match cash-in reality.
 function calcItemRevenue(i){
   if(!i.salePrice)return 0;
-  const hasFullReturn=(i.returnHistory||[]).some(r=>r.type==='full_seller'||r.type==='full_ebay');
-  const partialRefunds=(i.returnHistory||[])
-    .filter(r=>r.type==='partial_seller'||r.type==='partial_ebay')
-    .reduce((s,r)=>s+(r.refundAmount||0),0);
-  // Primary sale revenue: 0 if fully returned and not resold, else salePrice net of partials
-  let rev=0;
-  if(hasFullReturn && !i.resaleSalePrice){
-    rev=0;
-  } else if(i.dateSold || i.resaleSalePrice || i.isReturned){
-    rev=Math.max(0,(i.salePrice||0)-partialRefunds);
-  }
-  if(i.resaleSalePrice) rev+=(i.resaleSalePrice||0);
-  return+rev.toFixed(2);
+  // Gross revenue — raw sale amounts (salePrice + resaleSalePrice).
+  // NEW7 (Apr 20): switched from net-of-refunds to pure gross. Returns
+  // and partial refunds surface through the Refund Rate KPI drill-down
+  // and flow through calcGrossProfit as costs — they do NOT reduce
+  // revenue here. Matches SA103 Box 15 (HMRC gross income) by design.
+  return+((i.salePrice||0)+(i.resaleSalePrice||0)).toFixed(2);
 }
 function calcGrossProfit(i){
   if(!i.salePrice)return null;
