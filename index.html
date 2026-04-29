@@ -1001,6 +1001,30 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
 .stock-filter-row{flex-wrap:wrap!important;gap:8px!important;}
 .stock-filter-row .sort-select{flex:1 1 140px;min-width:140px;margin-left:0!important;}}
 
+/* Aging bar — stock page distribution viz */
+.age-bar-wrap{margin-bottom:16px;}
+.age-bar{display:flex;height:8px;border-radius:6px;overflow:hidden;background:var(--surface2);border:1px solid var(--border);}
+.age-bar-seg{height:100%;cursor:pointer;transition:opacity 0.15s,filter 0.15s;opacity:0.85;}
+.age-bar-seg:hover{opacity:1;filter:brightness(1.1);}
+.age-bar-seg.active{opacity:1;box-shadow:inset 0 0 0 2px var(--surface);}
+.age-legend{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;}
+.age-legend-btn{display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border-radius:14px;background:transparent;border:1px solid var(--border);cursor:pointer;font-size:11px;font-family:var(--font-body);color:var(--text-secondary);transition:all 0.12s;}
+.age-legend-btn:hover{background:var(--surface2);color:var(--text);border-color:var(--border2);}
+.age-legend-btn.active{background:var(--surface2);color:var(--text);border-color:var(--text-secondary);font-weight:600;}
+.age-legend-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;}
+.age-legend-label{font-weight:500;}
+.age-legend-count{color:var(--muted);font-weight:600;font-size:10px;}
+.age-legend-btn.active .age-legend-count{color:var(--text);}
+
+/* Row action hints — progressive escalation pill on stock rows */
+.row-hint{display:inline-flex;align-items:center;margin-left:6px;padding:1px 7px;border-radius:10px;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.04em;font-family:var(--font-body);line-height:1.4;cursor:help;}
+.row-hint.hint-maturing{background:transparent;color:var(--text-secondary);border:1px solid var(--border2);}
+.row-hint.hint-slow{background:rgba(212,136,10,0.12);color:var(--warn);border:1px solid rgba(212,136,10,0.3);}
+.row-hint.hint-stale{background:rgba(192,57,43,0.12);color:var(--red);border:1px solid rgba(192,57,43,0.3);}
+[data-theme="dark"] .row-hint.hint-slow{background:rgba(245,166,35,0.16);color:var(--accent);border-color:rgba(245,166,35,0.35);}
+[data-theme="dark"] .row-hint.hint-stale{background:rgba(248,113,113,0.16);color:var(--red);border-color:rgba(248,113,113,0.35);}
+@media(max-width:600px){.row-hint{font-size:9px;padding:0 6px;margin-left:4px;}}
+
 /* ===== end overrides ===== */
 
 /* === Retrade v8 safe fixes === */
@@ -4898,6 +4922,16 @@ function renderSummary(){
     const activeStockCount=activeStock.length;
     const activeStockVal=activeStock.reduce((s,i)=>s+(i.salePrice||0),0);
     const listedInPeriod=allItems().filter(i=>i.dateListed&&i.dateListed>=range.from&&i.dateListed<=range.to).length;
+    // Aging buckets for active stock — same model as Stock page, surfaced compactly here
+    const _todayStr=new Date().toISOString().split('T')[0];
+    const sumAgeBuckets={fresh:0,maturing:0,slow:0,stale:0};
+    activeStock.forEach(i=>{
+      const d=daysBetween(i.dateListed,_todayStr);
+      if(d<=30)sumAgeBuckets.fresh++;
+      else if(d<=60)sumAgeBuckets.maturing++;
+      else if(d<90)sumAgeBuckets.slow++;
+      else sumAgeBuckets.stale++;
+    });
     const catLeaders=Array.isArray(stats.byCat)?stats.byCat.slice(0,4):[];
     const sold=[];
     function inRangeTF(ds){return !!ds && ds>=range.from && ds<=range.to;}
@@ -4996,7 +5030,35 @@ function renderSummary(){
             <div class="metric-inline clickable" onclick="openDashboardStock('all')"><div><div class="metric-k">Active stock</div><div style="font-size:11px;color:var(--muted);margin-top:4px">Current live inventory</div></div><div class="metric-v">${activeStockCount}</div></div>
             <div class="metric-inline clickable" onclick="showFilteredItems('stock')"><div><div class="metric-k">Active stock value</div><div style="font-size:11px;color:var(--muted);margin-top:4px">At current ask</div></div><div class="metric-v">${fmt(activeStockVal)}</div></div>
             <div class="metric-inline clickable" onclick="showListedInPeriodItems()"><div><div class="metric-k">Listed in period</div><div style="font-size:11px;color:var(--muted);margin-top:4px">Fresh sourcing pace</div></div><div class="metric-v" style="color:var(--accent)">${listedInPeriod}</div></div>
-            ${(stats.stale&&stats.stale.length)>0?`<div style="margin-top:14px;padding:14px 15px;border-radius:16px;background:var(--accent-dim);border:1px solid rgba(245,166,35,.24);cursor:pointer" onclick="openDashboardStock('stale')"><div style="font-size:12px;font-weight:700;color:var(--accent)">${stats.stale.length} slow item${stats.stale.length!==1?'s':''}</div><div style="font-size:12px;color:var(--text-secondary);margin-top:4px">Listed 90+ days. Open filtered stock.</div></div>`:''}
+            ${activeStockCount>0?(()=>{
+              // Compact aging breakdown — sized down version of Stock page bar.
+              // Click any segment/legend item to jump to filtered Stock page.
+              const segs=[
+                {key:'fresh',label:'Fresh',count:sumAgeBuckets.fresh,col:'var(--green)'},
+                {key:'maturing',label:'Maturing',count:sumAgeBuckets.maturing,col:'var(--text-secondary)'},
+                {key:'slow',label:'Slow',count:sumAgeBuckets.slow,col:'var(--warn)'},
+                {key:'stale',label:'Stale',count:sumAgeBuckets.stale,col:'var(--red)'}
+              ];
+              const tot=activeStockCount||1;
+              const bar=segs.map(s=>{
+                const pct=(s.count/tot)*100;
+                if(pct===0)return '';
+                return `<div class="age-bar-seg" style="width:${pct}%;background:${s.col};" title="${s.label}: ${s.count}" onclick="openDashboardStock('${s.key}')"></div>`;
+              }).join('');
+              const legend=segs.map(s=>{
+                if(s.count===0)return '';
+                return `<button class="age-legend-btn" onclick="openDashboardStock('${s.key}')">
+                  <span class="age-legend-dot" style="background:${s.col};"></span>
+                  <span class="age-legend-label">${s.label}</span>
+                  <span class="age-legend-count">${s.count}</span>
+                </button>`;
+              }).join('');
+              return `<div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border);">
+                <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;font-weight:700;margin-bottom:10px;">Stock age</div>
+                <div class="age-bar">${bar}</div>
+                <div class="age-legend">${legend}</div>
+              </div>`;
+            })():''}
           </div>          <div class="panel-card summary-velocity">
             <div class="sl">Velocity</div>
             <div class="metric-inline clickable" onclick="showAvgDaysBreakdown()"><div><div class="metric-k">Avg days to sell</div><div style="font-size:11px;color:var(--muted);margin-top:4px">Current period signal · tap for detail</div></div><div class="metric-v">${stats.avgDays!==null&&stats.avgDays!==undefined?stats.avgDays+'d':'—'}</div></div>
@@ -5752,7 +5814,7 @@ function renderItemRow(m,i){
   const metaParts=[];
   if(status==='listed'){
     if(i.dateListed)metaParts.push(i.dateListed);
-    metaParts.push(daysListed+'d'+(isStale?' ⚠️':''));
+    metaParts.push(daysListed+'d');
   }else if(status==='sold'){
     if(i.dateSold)metaParts.push('sold '+i.dateSold);
     if(daysToSellVal!==null)metaParts.push(daysToSellVal+'d to sell');
@@ -5766,6 +5828,19 @@ function renderItemRow(m,i){
   if(i.gid)metaParts.push(i.gid);
 
   const metaStr=metaParts.join(' · ');
+
+  // Progressive action hint — shown only on active listings, escalates with age.
+  // Mirrors the four-bucket model from the Stock page so behaviour is consistent.
+  let actionHint='';
+  if(status==='listed'&&daysListed>30){
+    if(daysListed<=60){
+      actionHint='<span class="row-hint hint-maturing" title="31–60 days listed. Algorithm freshness is fading — consider a small price nudge or photo refresh.">refresh</span>';
+    }else if(daysListed<90){
+      actionHint='<span class="row-hint hint-slow" title="61–90 days listed. Action overdue — relist, drop price, or use Sell Similar to reset the listing.">relist</span>';
+    }else{
+      actionHint='<span class="row-hint hint-stale" title="90+ days listed. Decision time — keep, bundle, deep-discount, or accept the loss.">review</span>';
+    }
+  }
 
   // Right column — price + profit/ROI
   let profitEl='';
@@ -5810,6 +5885,7 @@ function renderItemRow(m,i){
           '<div class="item-row-meta">'+
             '<span class="item-badge '+badgeClass+'">'+badgeLabel+'</span>'+
             (metaStr?'<span class="item-row-meta-sep">·</span><span>'+metaStr+'</span>':'')+
+            actionHint+
           '</div>'+
         '</div>'+
         '<div class="item-row-right">'+
@@ -6017,6 +6093,9 @@ function selectAllStockVisible(){
   }));
   let items=allListed;
   if(STOCK_FILTER==='stale')items=allListed.filter(i=>daysBetween(i.dateListed,today)>=90);
+  else if(STOCK_FILTER==='slow')items=allListed.filter(i=>{const d=daysBetween(i.dateListed,today);return d>60&&d<90;});
+  else if(STOCK_FILTER==='maturing')items=allListed.filter(i=>{const d=daysBetween(i.dateListed,today);return d>30&&d<=60;});
+  else if(STOCK_FILTER==='fresh')items=allListed.filter(i=>daysBetween(i.dateListed,today)<=30);
   selectAllStock(items);
 }
 
@@ -6069,6 +6148,9 @@ function renderStock(){
   const cStale=allListed.filter(i=>daysBetween(i.dateListed,today)>=90).length;
   let items=allListed;
   if(STOCK_FILTER==='stale')items=allListed.filter(i=>daysBetween(i.dateListed,today)>=90);
+  else if(STOCK_FILTER==='slow')items=allListed.filter(i=>{const d=daysBetween(i.dateListed,today);return d>60&&d<90;});
+  else if(STOCK_FILTER==='maturing')items=allListed.filter(i=>{const d=daysBetween(i.dateListed,today);return d>30&&d<=60;});
+  else if(STOCK_FILTER==='fresh')items=allListed.filter(i=>daysBetween(i.dateListed,today)<=30);
   // Sort comparator (used both flat and within groups)
   const sortCmp=(a,b)=>{
     if(STOCK_SORT==='profit')return(calcGrossProfit(b)||0)-(calcGrossProfit(a)||0);
@@ -6125,6 +6207,18 @@ function renderStock(){
   const avgAge=allListed.length?Math.round(allListed.reduce((s,i)=>s+daysBetween(i.dateListed,today),0)/allListed.length):0;
   // Capital tied up in 90d+ stock (£ value)
   const capitalStale=allListed.filter(i=>daysBetween(i.dateListed,today)>=90).reduce((s,i)=>s+(i.salePrice||0),0);
+  // Aging buckets — reseller "three strikes" model: fresh (0-30) / maturing (31-60) / slow (61-90) / stale (90+)
+  const ageBuckets={fresh:0,maturing:0,slow:0,stale:0};
+  const ageBucketsValue={fresh:0,maturing:0,slow:0,stale:0};
+  allListed.forEach(i=>{
+    const d=daysBetween(i.dateListed,today);
+    const v=i.salePrice||0;
+    if(d<=30){ageBuckets.fresh++;ageBucketsValue.fresh+=v;}
+    else if(d<=60){ageBuckets.maturing++;ageBucketsValue.maturing+=v;}
+    else if(d<90){ageBuckets.slow++;ageBucketsValue.slow+=v;}
+    else{ageBuckets.stale++;ageBucketsValue.stale+=v;}
+  });
+  const cMaturing=ageBuckets.maturing, cSlow=ageBuckets.slow;
 
   const html=`
     <div class="page-header">
@@ -6146,8 +6240,38 @@ function renderStock(){
       <div class="kcard p" onclick="${cStale>0?`openDashboardStock('stale')`:''}"><div class="klabel">Avg age</div><div class="kval">${cAll>0?avgAge+'d':'—'}</div><div class="ksub">${capitalStale>0?fmt(capitalStale)+' stale (90d+)':cAll>0?'All stock moving well':'—'}</div></div>
     </div>
     ${cAll===0?`<div class="empty-state"><div class="empty-state-text">No active listings</div><div class="empty-state-sub">Add stock to start building your live inventory command view.</div></div>`:`
+      ${(()=>{
+        // Aging bar: shows distribution at a glance, click to filter.
+        // Uses subtle weights — only colours the buckets where attention matters.
+        const segs=[
+          {key:'fresh',  label:'Fresh',    sub:'0–30d',  count:ageBuckets.fresh,    val:ageBucketsValue.fresh,    col:'var(--green)',cls:'fresh'},
+          {key:'maturing',label:'Maturing',sub:'31–60d', count:ageBuckets.maturing, val:ageBucketsValue.maturing, col:'var(--text-secondary)',cls:'maturing'},
+          {key:'slow',   label:'Slow',     sub:'61–90d', count:ageBuckets.slow,     val:ageBucketsValue.slow,     col:'var(--warn)',cls:'slow'},
+          {key:'stale',  label:'Stale',    sub:'90d+',   count:ageBuckets.stale,    val:ageBucketsValue.stale,    col:'var(--red)',cls:'stale'}
+        ];
+        const tot=cAll||1;
+        const barSegs=segs.map(s=>{
+          const pct=(s.count/tot)*100;
+          if(pct===0)return '';
+          const isActive=STOCK_FILTER===s.key;
+          return `<div class="age-bar-seg ${s.cls}${isActive?' active':''}" style="width:${pct}%;background:${s.col};" title="${s.label} (${s.sub}): ${s.count} item${s.count!==1?'s':''} · ${fmt(s.val)}" onclick="setStockFilter('${s.key}')"></div>`;
+        }).join('');
+        const legend=segs.map(s=>{
+          if(s.count===0)return '';
+          const isActive=STOCK_FILTER===s.key;
+          return `<button class="age-legend-btn${isActive?' active':''}" onclick="setStockFilter('${s.key}')">
+            <span class="age-legend-dot" style="background:${s.col};"></span>
+            <span class="age-legend-label">${s.label}</span>
+            <span class="age-legend-count">${s.count}</span>
+          </button>`;
+        }).join('');
+        return `<div class="age-bar-wrap">
+          <div class="age-bar">${barSegs}</div>
+          <div class="age-legend">${legend}</div>
+        </div>`;
+      })()}
       <div class="filter-row stock-filter-row" style="margin-bottom:14px;gap:8px;flex-wrap:wrap;">
-        <select class="sort-select" onchange="setStockFilter(this.value)"><option value="all" ${STOCK_FILTER==='all'?'selected':''}>All stock (${cAll})</option>${cStale>0?`<option value="stale" ${STOCK_FILTER==='stale'?'selected':''}>Slow 90d+ (${cStale})</option>`:''}</select>
+        <select class="sort-select" onchange="setStockFilter(this.value)"><option value="all" ${STOCK_FILTER==='all'?'selected':''}>All stock (${cAll})</option>${ageBuckets.fresh>0?`<option value="fresh" ${STOCK_FILTER==='fresh'?'selected':''}>Fresh 0–30d (${ageBuckets.fresh})</option>`:''}${cMaturing>0?`<option value="maturing" ${STOCK_FILTER==='maturing'?'selected':''}>Maturing 31–60d (${cMaturing})</option>`:''}${cSlow>0?`<option value="slow" ${STOCK_FILTER==='slow'?'selected':''}>Slow 61–90d (${cSlow})</option>`:''}${cStale>0?`<option value="stale" ${STOCK_FILTER==='stale'?'selected':''}>Stale 90d+ (${cStale})</option>`:''}</select>
         <select class="sort-select" onchange="setStockSort(this.value)"><option value="days" ${STOCK_SORT==='days'?'selected':''}>Oldest first</option><option value="profit" ${STOCK_SORT==='profit'?'selected':''}>Best est. profit</option><option value="price" ${STOCK_SORT==='price'?'selected':''}>Highest ask</option></select>
       </div>
       <div class="list-toolbar">
