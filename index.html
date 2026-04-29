@@ -1424,11 +1424,6 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
 </div>
 
 <script>
-// Preview mode stubs — disabled in production build
-const _previewMode = false;
-const PREVIEW_MODE_ENABLED = false;
-function enablePreviewMode(){}
-function disablePreviewMode(){}
 const MONTHS=['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
 const MONTH_NAMES={JAN:'January',FEB:'February',MAR:'March',APR:'April',MAY:'May',JUN:'June',JUL:'July',AUG:'August',SEP:'September',OCT:'October',NOV:'November',DEC:'December'};
 
@@ -1564,11 +1559,12 @@ let DB={};
 let SELECTED_MONTH=currentMonthKey(); // e.g. 'APR-26'
 let SELECTED_ITEMS=new Set();
 let MODAL_CALLBACK=null;
-let MONTH_FILTER='listed';
-let MONTH_SORT='date-listed';
+let MONTH_FILTER='sold';
+let MONTH_SORT='date-sold';
 let SELECTION_MODE=false;
 let STOCK_SORT='profit';          // stock sort: days | profit | price
 let STOCK_FILTER='all';           // stock filter: all | stale
+let STOCK_GROUPED=false;          // Session B: false=flat list, true=group by listing month
 let STOCK_SELECTION_MODE=false;   // stock page checkbox mode
 let STOCK_SELECTED=new Set();     // stock page selection
 let MONTHLY_VIEW='grid';          // 'grid' | 'detail'
@@ -1728,8 +1724,19 @@ const _sb = (typeof supabase !== 'undefined')
   : {auth:{getSession:async()=>({data:{session:null}}),onAuthStateChange:()=>({data:{subscription:{unsubscribe:()=>{}}}}),signInWithPassword:async()=>({error:{message:'offline'}}),signOut:async()=>{},refreshSession:async()=>({data:{},error:true}),resetPasswordForEmail:async()=>({error:null})}};
 
 
+// Preview mode stubs — disabled in production build
+const _previewMode = false;
+const PREVIEW_MODE_ENABLED = false;
+// Storage-key constants kept in prod so migrateLegacyLocalStorage runs without
+// throwing a ReferenceError (it's a no-op walk through localStorage either way,
+// but a clean run is preferable to a swallowed warning every page load).
+const PREVIEW_STORAGE_KEY = 'retrade_preview_mode';
+const LEGACY_PREVIEW_STORAGE_KEYS = ['general_preview_mode'];
+function enablePreviewMode(){}
+function disablePreviewMode(){}
 
 // ── AUTH ─────────────────────────────────────────────────────────────────────
+
 
 const _EYE_OPEN = `<path d='M1 8s3-5 7-5 7 5 7 5-3 5-7 5-7-5-7-5z' stroke='currentColor' stroke-width='1.5' fill='none'/><circle cx='8' cy='8' r='2' stroke='currentColor' stroke-width='1.5' fill='none'/>`;
 const _EYE_SLASH = `<path d='M13.4 13.4C12.1 14.4 10.1 15 8 15c-4 0-7-5-7-5a12.4 12.4 0 013.6-3.6' stroke='currentColor' stroke-width='1.5' fill='none' stroke-linecap='round'/><path d='M2.6 2.6l10.8 10.8' stroke='currentColor' stroke-width='1.5' fill='none' stroke-linecap='round'/><path d='M6.5 3.3A7.2 7.2 0 018 3c4 0 7 5 7 5a12.4 12.4 0 01-1.6 2.3' stroke='currentColor' stroke-width='1.5' fill='none' stroke-linecap='round'/><path d='M10.7 10.7A3 3 0 015.3 5.3' stroke='currentColor' stroke-width='1.5' fill='none' stroke-linecap='round'/>`;
@@ -1745,7 +1752,6 @@ function toggleAuthPass(){
     svg.innerHTML = _EYE_OPEN;  // now hidden — show open eye icon
   }
 }
-
 
 async function doSignIn(){
   const email = document.getElementById('auth-email').value.trim();
@@ -1969,6 +1975,7 @@ function _rowToItem(row, parts, returns){
       _relistedAt:    r.relisted_at || null,
       _relistCondition: r.relist_condition || null,
       _salePriceAtReturn: r.sale_price_at_return!=null ? Number(r.sale_price_at_return) : undefined,
+      _dateSoldAtReturn:  r.date_sold_at_return || null,
     })),
   };
   return item;
@@ -2072,6 +2079,53 @@ async function loadFromSupabase(){
   // Guarantee all expected month arrays exist, even if user has no data yet.
   // Without this, DB[m].push(...) crashes for brand-new users.
   _ensureDBShape();
+  // One-shot backfill for the _dateSoldAtReturn snapshot field. Existing return
+  // entries pre-dating this column have it undefined; refund-rate attribution
+  // falls back to i.dateSold for those, but full-returned items have dateSold
+  // wiped — so without backfill, they leak out of period buckets entirely.
+  // Idempotent: only writes when at least one entry was missing the field.
+  await _backfillDateSoldAtReturn();
+}
+
+// ── BACKFILL: _dateSoldAtReturn ──────────────────────────────────────────────
+// Fills the snapshot on legacy return entries created before the column existed.
+// Strategy per item:
+//   1. If r._dateSoldAtReturn already set → skip
+//   2. Else if i.dateSold present → use that (most cases)
+//   3. Else (full return wiped dateSold) → use the FULL return's loggedAt as
+//      last-resort approximation. The original sale was at-or-before the return
+//      logged date; for backdating purposes loggedAt is the best available proxy.
+// Only persists if something changed, so subsequent loads are zero-write.
+async function _backfillDateSoldAtReturn(){
+  let dirty=0;
+  allDBKeys().forEach(function(k){
+    if(k==='trips'||k==='expenses'||k==='_userOwned'||k==='_taxYear')return;
+    (DB[k]||[]).forEach(function(i){
+      const rh=i.returnHistory||[];
+      if(rh.length===0)return;
+      const fullEntry=rh.find(r=>r.type==='full_seller'||r.type==='full_ebay');
+      const fallbackForFullReturn=fullEntry?(fullEntry.loggedAt||null):null;
+      rh.forEach(function(r){
+        if(r._dateSoldAtReturn)return; // already set, skip
+        const filled=i.dateSold||fallbackForFullReturn||null;
+        if(filled){
+          r._dateSoldAtReturn=filled;
+          dirty++;
+        }
+      });
+    });
+  });
+  if(dirty>0){
+    console.log('[backfill] Filled _dateSoldAtReturn on '+dirty+' return entries');
+    try{
+      // Re-save every item that has returnHistory so the column gets pushed up
+      // for ALL of them in a single sync. saveDB's debounced diff engine will
+      // batch this into one Supabase round trip.
+      await saveDB();
+    }catch(e){
+      console.warn('[backfill] save failed — values are correct in memory but not persisted:',e);
+    }
+  }
 }
 
 // ── SAVE ITEM TO SUPABASE ────────────────────────────────────────────────────
@@ -2112,6 +2166,7 @@ async function saveItemToSupabase(m, i){
       relisted_at:   r._relistedAt || null,
       relist_condition: r._relistCondition || null,
       sale_price_at_return: r._salePriceAtReturn!=null ? Number(r._salePriceAtReturn) : null,
+      date_sold_at_return:  r._dateSoldAtReturn || null,
     }));
     const {error: retErr} = await _sbCall(()=>_sb.from('item_returns').insert(retRows));
     if(retErr) throw new Error('Save returns failed: ' + retErr.message);
@@ -4609,7 +4664,8 @@ function renderSummary(){
     if(isFY){
       const keys=_fyKeys(SUMMARY_PERIOD==='current_fy'?_currentFYStart():_currentFYStart()-1);
       keys.forEach(k=>{
-        const ms=calcMonthStats(k);
+        // Session B: FY bars and the snapshot panel both use sale-attribution.
+        const ms=calcMonthStatsBySale(k);
         chartLabels.push(MONTH_NAMES[keyCode(k)].slice(0,3));
         chartRev.push(ms.totalRev);
         chartProfit.push(Math.max(0,ms.realisedProfit));
@@ -4658,7 +4714,7 @@ function renderSummary(){
             <div class="kcard b clickable" onclick="showFilteredItems('revenue')"><div class="klabel">Total revenue</div><div class="kval">${fmt(stats.totalRev||0)}</div><div class="ksub">${stats.soldCount||0} sold in view</div></div>
             <div class="kcard g clickable" onclick="showFilteredItems('realised')"><div class="klabel">Net profit</div><div class="kval">${fmt(stats.realisedProfit||0)}</div><div class="ksub">${(stats.soldCount||0)>0&&(stats.totalRev||0)>0?((stats.realisedProfit/stats.totalRev)*100).toFixed(0)+'% margin':'No margin yet'}</div></div>
             <div class="kcard clickable" onclick="showROIItems()"><div class="klabel">Avg ROI</div><div class="kval">${Number(stats.avgROI||0).toFixed(1)}%</div><div class="ksub">Sold items only</div></div>
-            <div class="kcard r clickable" onclick="showReturnedItems()"><div class="klabel">Refund rate</div><div class="kval">${Number(stats.refundMoneyRate||0).toFixed(1)}%</div><div class="ksub">${fmt(stats.refundMoneyTotal||0)} of ${fmt(stats.refundMoneyDenom||0)} · ${stats.totalAffected||0} event${(stats.totalAffected||0)!==1?'s':''}</div></div>
+            <div class="kcard r clickable" onclick="showReturnedItems()"><div class="klabel">Refund rate</div><div class="kval">${Number(stats.refundItemRate||0).toFixed(1)}%</div><div class="ksub">${stats.fullRefundCount||0} full · ${stats.partialOnlyCount||0} partial</div></div>
           </div>
           <div class="chart-wrap summary-chart">
             <div class="chart-title">Activity overview<div class="chart-legend" id="summary-chart-legend"><span class="chart-legend-dot"></span>Revenue<span class="chart-legend-dot" style="margin-left:10px"></span>Profit</div></div>
@@ -4791,15 +4847,23 @@ function renderSummary(){
 }
 
 // ── BAR CHART SNAPSHOT PANEL ──────────────────────────────────────────────
-// monthKey e.g. "2025-04" — for FY monthly bars
+// monthKey e.g. "APR-26" — for FY monthly bars
 function showMonthSnapshot(monthKey){
-  const ms = calcMonthStats(monthKey);
-  const items = (DB[monthKey]||[]).filter(i=>(i.item||'').trim().toUpperCase()!=='MONTH END');
-  const sold  = items.filter(i=>(i.dateSold||i.resaleSalePrice)&&!i.isReturned);
-  const listed= items.filter(i=>!i.isReturned&&!i.dateSold&&!i.resaleSalePrice);
-  const returned=items.filter(i=>i.isReturned);
+  // Session B: panel uses sale-attribution to match the rest of Monthly.
+  const ms = calcMonthStatsBySale(monthKey);
+  const events = getSaleEventsInMonth(monthKey);
+  const sold = events.filter(e=>!e.isReturned);
+  const returned = events.filter(e=>e.isReturned);
+  // Active stock for THIS listing month — items in DB[monthKey] that are still live.
+  const listed = (DB[monthKey]||[]).filter(i=>(i.item||'').trim().toUpperCase()!=='MONTH END' &&
+                                              !i.dateSold && !i.isReturned && !i.resaleSalePrice);
+  const stockValue = listed.reduce((s,i)=>s+(i.salePrice||0),0);
   const marginPct = ms.totalRev>0 ? (ms.realisedProfit/ms.totalRev*100).toFixed(1) : null;
   const profColor = ms.realisedProfit>=0?'var(--green)':'var(--red)';
+  const totalRefundEvents = ms.refundedItemCount||0;
+  const refundLabel = ms.refundDenom===0 ? '—'
+    : totalRefundEvents===0 ? '0%'
+    : ms.refundItemRate.toFixed(0)+'%';
 
   const kpis = `
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px">
@@ -4816,23 +4880,35 @@ function showMonthSnapshot(monthKey){
       <div style="background:var(--surface2);border-radius:10px;padding:12px 14px">
         <div style="font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:4px">Sold</div>
         <div style="font-size:22px;font-weight:700;font-family:'Inter',sans-serif;letter-spacing:-0.04em;color:var(--text)">${ms.soldCount}</div>
-        <div style="font-size:11px;color:var(--muted);margin-top:2px">items</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:2px">sale${ms.soldCount!==1?'s':''}${ms.returnedCount>0?' · '+ms.returnedCount+' returned':''}</div>
       </div>
       <div style="background:var(--surface2);border-radius:10px;padding:12px 14px">
-        <div style="font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:4px">Active Stock</div>
-        <div style="font-size:22px;font-weight:700;font-family:'Inter',sans-serif;letter-spacing:-0.04em;color:var(--accent)">${ms.listedCount}</div>
-        <div style="font-size:11px;color:var(--muted);margin-top:2px">${fmt(ms.stockValue)} listed</div>
+        <div style="font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:4px">Refund rate</div>
+        <div style="font-size:22px;font-weight:700;font-family:'Inter',sans-serif;letter-spacing:-0.04em;color:${totalRefundEvents>0?'var(--warn)':'var(--text)'}">${refundLabel}</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:2px">${ms.refundDenom===0?'No sales':(ms.fullRefundCount||0)+' full · '+(ms.partialOnlyCount||0)+' partial'}</div>
       </div>
     </div>`;
 
-  const renderItem = (i,showProfit=true) => {
-    const profit = calcGrossProfit(i);
-    const roi = calcROI(i);
-    const profColor = (profit||0)>=0?'var(--green)':'var(--red)';
-    return `<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);cursor:pointer" onclick="openItemDetail('${i.month||monthKey}','${i.id}')">
+  // Render a sale event row (compact)
+  const renderEvent = (e) => {
+    const i=e.item;
+    const profColor = (e.profit||0)>=0?'var(--green)':'var(--red)';
+    const lineage = e.sale==='2'?'Resold':'Sold';
+    return `<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);cursor:pointer" onclick="openItemDetail('${e.month}','${i.id}')">
       <div style="flex:1;min-width:0">
         <div style="font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(i.item)}</div>
-        ${showProfit&&profit!==null?`<div style="font-size:11px;color:${profColor};margin-top:2px;font-weight:600">${fmt(profit)}${roi!==null?` <span style="color:var(--muted);font-weight:400">· ${roi.toFixed(1)}% ROI</span>`:''}</div>`:''}
+        <div style="font-size:11px;color:${profColor};margin-top:2px;font-weight:600">${fmt(e.profit||0)}${e.roi!==null?` <span style="color:var(--muted);font-weight:400">· ${e.roi.toFixed(1)}% ROI</span>`:''}<span style="color:var(--muted);font-weight:400"> · ${lineage} ${e.saleDate||''}</span></div>
+      </div>
+      <div style="font-size:13px;font-weight:600;font-family:'Space Mono',monospace;color:var(--text);flex-shrink:0">${fmt(e.salePrice)}</div>
+    </div>`;
+  };
+
+  // Render a listed-stock row (no sale yet)
+  const renderListed = (i) => {
+    return `<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);cursor:pointer" onclick="openItemDetail('${monthKey}','${i.id}')">
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(i.item)}</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:2px">Listed ${i.dateListed||'—'}</div>
       </div>
       <div style="font-size:13px;font-weight:600;font-family:'Space Mono',monospace;color:var(--text);flex-shrink:0">${fmt(i.salePrice)}</div>
     </div>`;
@@ -4841,15 +4917,15 @@ function showMonthSnapshot(monthKey){
   let itemsHTML = '';
   if(sold.length){
     itemsHTML += `<div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.1em;margin:14px 0 6px">Sold (${sold.length})</div>`;
-    itemsHTML += sold.map(i=>renderItem(i,true)).join('');
+    itemsHTML += sold.map(renderEvent).join('');
   }
   if(listed.length){
-    itemsHTML += `<div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.1em;margin:14px 0 6px">Active Stock (${listed.length})</div>`;
-    itemsHTML += listed.map(i=>renderItem(i,false)).join('');
+    itemsHTML += `<div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.1em;margin:14px 0 6px">Listed in ${MONTH_NAMES[keyCode(monthKey)]} · still active (${listed.length}) · ${fmt(stockValue)}</div>`;
+    itemsHTML += listed.map(renderListed).join('');
   }
   if(returned.length){
     itemsHTML += `<div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.1em;margin:14px 0 6px">Returned (${returned.length})</div>`;
-    itemsHTML += returned.map(i=>renderItem(i,false)).join('');
+    itemsHTML += returned.map(renderEvent).join('');
   }
 
   const navBtn = `<button onclick="closePanel();goToMonth('${monthKey}')" style="width:100%;padding:11px;background:transparent;border:1px solid var(--border);border-radius:8px;color:var(--text-secondary);font-family:'Inter',sans-serif;font-size:13px;font-weight:500;cursor:pointer;margin-top:14px;transition:all 0.15s" onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--text-secondary)'">Open full month view →</button>`;
@@ -4916,8 +4992,10 @@ function showRangeSnapshot(label, fromDate, toDate){
 
 function goToMonth(m){
   SELECTED_MONTH=m;
-  MONTH_FILTER='listed';
-  MONTH_SORT='date-listed';
+  // Session B: Monthly is now sale-history first. Default to "sold" filter,
+  // sorted by sale date descending.
+  MONTH_FILTER='sold';
+  MONTH_SORT='date-sold';
   SELECTED_ITEMS.clear();
   MONTHLY_VIEW='detail';
   const cur=document.querySelector('.page.on');
@@ -5024,14 +5102,13 @@ function renderMonthlyGrid(){
 
     let fyProfit=0,fySold=0,fyROISum=0,fyROICount=0;
     months.forEach(function(k){
-      const ms=calcMonthStats(k);
+      // Session B: FY rollups attribute by sale date, not listing month.
+      const ms=calcMonthStatsBySale(k);
       fyProfit+=ms.realisedProfit;
       fySold+=ms.soldCount;
-      (DB[k]||[]).forEach(function(i){
-        if((i.dateSold||i.resaleSalePrice)&&!i.isReturned){
-          const roi=calcROI(i);
-          if(roi!==null){fyROISum+=roi;fyROICount++;}
-        }
+      // Roll up ROI from this month's sale events (not from items in DB[k]).
+      getSaleEventsInMonth(k).forEach(function(ev){
+        if(!ev.isReturned&&ev.roi!==null){fyROISum+=ev.roi;fyROICount++;}
       });
     });
     const fyAvgROI=fyROICount>0?(fyROISum/fyROICount):null;
@@ -5048,13 +5125,16 @@ function renderMonthlyGrid(){
       // Past FYs: show most-recent month first (MAR→APR). Current FY: chronological (APR→now).
       const displayMonths=isCurrentFY?months:[...months].reverse();
       const cards=displayMonths.map(function(k){
-        const ms=calcMonthStats(k);
-        const hasItems=(DB[k]||[]).length>0;
-        const hasSales=ms.soldCount>0||ms.listedCount>0;
+        // Session B: card profit and sold count come from sale-attribution,
+        // but listedCount stays as listing-month inventory (kept in the bySale
+        // helper for this exact use).
+        const ms=calcMonthStatsBySale(k);
+        const hasItems=(DB[k]||[]).length>0||ms.soldCount>0||ms.eventCount>0;
+        const hasActivity=ms.soldCount>0||ms.listedCount>0||ms.eventCount>0;
         const isCurrent=k===curMonthKey;
-        // Truly empty: no items at all AND not current month
+        // Truly empty: no items at all AND no sale events AND not current month
         const trulyEmpty=!hasItems&&!isCurrent;
-        // Has items but 0 sold
+        // Has activity but 0 net sold (could still have returned events)
         const hasListedOnly=hasItems&&ms.soldCount===0;
         const borderStyle=isCurrent?'border-color:var(--accent);':'';
         let cardContent;
@@ -5135,43 +5215,41 @@ document.addEventListener('click',function(e){
 
 function setMonthFilter(f){
   MONTH_FILTER=f;
-  if(f==='sold')MONTH_SORT='date-sold';
-  else if(f==='listed'||f==='all')MONTH_SORT='date-listed';
+  // Session B: all monthly views are sale-history; default sort is date-sold.
+  if(MONTH_SORT==='date-listed')MONTH_SORT='date-sold';
   renderMonth();
 }
 function setMonthSort(s){MONTH_SORT=s;renderMonth();}
 
 function renderMonth(){
   const m=SELECTED_MONTH;
-  const allItems=(DB[m]||[]);
-  const stats=calcMonthStats(m);
+  // Session B: Monthly = sales-history view. KPIs and items list are driven by
+  // sale-event attribution (dateSold / resaleDateSold), NOT by listing month.
+  const stats=calcMonthStatsBySale(m);
+  const events=getSaleEventsInMonth(m);
 
-  // Counts for chips
-  const cAll=allItems.length;
-  const cListed=allItems.filter(i=>!i.dateSold&&!i.isReturned&&!i.resaleSalePrice).length;
-  const cSold=allItems.filter(i=>(i.dateSold||i.resaleSalePrice)&&!i.isReturned).length;
-  const cReturned=allItems.filter(i=>i.isReturned).length;
+  // Counts for chips — sale events landing in this month.
+  const cSold=events.filter(e=>!e.isReturned).length;
+  const cReturned=events.filter(e=>e.isReturned).length;
+  const cAll=events.length;
 
-  // Apply filter
-  let items=allItems;
-  if(MONTH_FILTER==='listed')items=allItems.filter(i=>!i.dateSold&&!i.isReturned&&!i.resaleSalePrice);
-  else if(MONTH_FILTER==='sold')items=allItems.filter(i=>(i.dateSold||i.resaleSalePrice)&&!i.isReturned);
-  else if(MONTH_FILTER==='returned')items=allItems.filter(i=>i.isReturned);
+  // Filter
+  let visible=events;
+  if(MONTH_FILTER==='sold')visible=events.filter(e=>!e.isReturned);
+  else if(MONTH_FILTER==='returned')visible=events.filter(e=>e.isReturned);
+  // 'all' = everything
 
-  // Apply sort
-  const today=new Date().toISOString().split('T')[0];
-  items=[...items].sort((a,b)=>{
-    if(MONTH_SORT==='profit'){
-      const pa=calcGrossProfit(a)||0, pb=calcGrossProfit(b)||0;
-      return pb-pa;
-    }
+  // Sort
+  visible=[...visible].sort((a,b)=>{
+    if(MONTH_SORT==='profit')return (b.profit||0)-(a.profit||0);
     if(MONTH_SORT==='price')return (b.salePrice||0)-(a.salePrice||0);
-    if(MONTH_SORT==='date-sold'){
-      const da=a.dateSold||'0', db=b.dateSold||'0';
-      return db<da?-1:db>da?1:0;
+    if(MONTH_SORT==='roi'){
+      // null ROI sinks to bottom
+      const ra=a.roi==null?-Infinity:a.roi, rb=b.roi==null?-Infinity:b.roi;
+      return rb-ra;
     }
-    // default: date-listed desc
-    const da=a.dateListed||'0', db=b.dateListed||'0';
+    // default: date-sold desc
+    const da=a.saleDate||'0', db=b.saleDate||'0';
     return db<da?-1:db>da?1:0;
   });
 
@@ -5181,6 +5259,16 @@ function renderMonth(){
     :_monthOrigin==='p-summary'
       ?`goToTab('summary',document.querySelector('[data-tab="summary"]'))`
       :`goToTab('${(_monthOrigin||'p-summary').replace('p-','')}',document.querySelector('[data-tab="${(_monthOrigin||'p-summary').replace('p-','')}"]'))`;
+
+  // Refund rate display — items-based, sale-month attributed.
+  // Sub-text shows 'N full · N partial' breakdown rather than 'X of Y sold'
+  // (which would duplicate the sold count from the Revenue card).
+  const totalRefundEvents=stats.refundedItemCount||0;
+  const refundLabel=stats.refundDenom===0?'—'
+    :totalRefundEvents===0?'0%'
+    :stats.refundItemRate.toFixed(0)+'%';
+  const refundSub=stats.refundDenom===0?'No sales'
+    :(stats.fullRefundCount||0)+' full · '+(stats.partialOnlyCount||0)+' partial';
 
   const html=`
     <div class="page-header">
@@ -5204,10 +5292,11 @@ function renderMonth(){
                 const isCur=fy===curFY;
                 out+='<div class="month-picker-fy-header">FY '+_getFYLabel(fy)+(isCur?' · Current':'')+'</div>';
                 keys.forEach(k=>{
-                  const ms=calcMonthStats(k);
-                  const hasSales=ms.soldCount>0||ms.listedCount>0;
-                  const sub=hasSales
-                    ?'<span class="month-picker-option-sub">'+ms.soldCount+' sold · '+ms.listedCount+' listed</span>'
+                  // Session B: dropdown sub-text uses sale-attribution.
+                  const ms=calcMonthStatsBySale(k);
+                  const hasActivity=ms.soldCount>0||ms.listedCount>0;
+                  const sub=hasActivity
+                    ?'<span class="month-picker-option-sub">'+ms.soldCount+' sold · '+ms.listedCount+' active</span>'
                     :'<span class="month-picker-option-sub" style="opacity:0.4">empty</span>';
                   out+='<div class="month-picker-option'+(k===m?' active':'')+'" onclick="pickMonth(\''+k+'\')">' 
                     +MONTH_NAMES[keyCode(k)]+sub+'</div>';
@@ -5221,74 +5310,69 @@ function renderMonth(){
     </div>
 
     <div class="kgrid kgrid-4">
-      <div class="kcard">
+      <div class="kcard b">
         <div class="klabel">Revenue</div>
         <div class="kval">${fmt(stats.totalRev)}</div>
-        <div class="ksub">${stats.soldCount} item${stats.soldCount!==1?'s':''} sold</div>
-      </div>
-      <div class="kcard b">
-        <div class="klabel">Potential Revenue</div>
-        <div class="kval">${fmt(stats.stockValue)}</div>
-        <div class="ksub">${stats.listedCount} still listed</div>
+        <div class="ksub">${stats.soldCount} sale${stats.soldCount!==1?'s':''}${stats.returnedCount>0?' · '+stats.returnedCount+' returned':''}</div>
       </div>
       <div class="kcard g">
         <div class="klabel">Realised P&amp;L</div>
         <div class="kval">${fmt(stats.realisedProfit)}</div>
-        <div class="ksub">${stats.soldCount>0?(stats.realisedProfit/stats.totalRev*100).toFixed(0)+'% margin':'—'}</div>
+        <div class="ksub">${stats.totalRev>0?(stats.realisedProfit/stats.totalRev*100).toFixed(0)+'% margin':'—'}</div>
+      </div>
+      <div class="kcard">
+        <div class="klabel">Avg ROI</div>
+        <div class="kval">${stats.avgROI!==null?stats.avgROI.toFixed(1)+'%':'—'}</div>
+        <div class="ksub">${stats.avgDays!==null?stats.avgDays+'d avg to sell':stats.soldCount===0?'No sales':'—'}</div>
       </div>
       <div class="kcard p">
-        <div class="klabel">Potential Profit</div>
-        <div class="kval">${fmt(stats.unrealisedProfit)}</div>
-        <div class="ksub">${stats.listedCount} still listed</div>
+        <div class="klabel">Refund rate</div>
+        <div class="kval">${refundLabel}</div>
+        <div class="ksub">${refundSub}</div>
       </div>
     </div>
-
-
 
     <div class="filter-row" style="gap:8px;">
       <div class="filter-chips">
-        <button class="chip ${MONTH_FILTER==='listed'?'active':''}" onclick="setMonthFilter('listed')">Listed <span class="chip-count">${cListed}</span></button>
-        <button class="chip ${MONTH_FILTER==='all'?'active':''}" onclick="setMonthFilter('all')">All <span class="chip-count">${cAll}</span></button>
         <button class="chip ${MONTH_FILTER==='sold'?'active':''}" onclick="setMonthFilter('sold')">Sold <span class="chip-count">${cSold}</span></button>
+        <button class="chip ${MONTH_FILTER==='all'?'active':''}" onclick="setMonthFilter('all')">All <span class="chip-count">${cAll}</span></button>
         ${cReturned>0?`<button class="chip ${MONTH_FILTER==='returned'?'active':''}" onclick="setMonthFilter('returned')">Returned <span class="chip-count">${cReturned}</span></button>`:''}
       </div>
       <select class="sort-select filter-chips-select" onchange="setMonthFilter(this.value)" style="flex-shrink:0;">
-        <option value="listed" ${MONTH_FILTER==='listed'?'selected':''}>Listed (${cListed})</option>
-        <option value="all" ${MONTH_FILTER==='all'?'selected':''}>All (${cAll})</option>
         <option value="sold" ${MONTH_FILTER==='sold'?'selected':''}>Sold (${cSold})</option>
+        <option value="all" ${MONTH_FILTER==='all'?'selected':''}>All (${cAll})</option>
         ${cReturned>0?`<option value="returned" ${MONTH_FILTER==='returned'?'selected':''}>Returned (${cReturned})</option>`:''}
       </select>
       <select class="sort-select" onchange="setMonthSort(this.value)" style="margin-left:auto;flex-shrink:0;">
-        <option value="date-listed" ${MONTH_SORT==='date-listed'?'selected':''}>Date listed</option>
         <option value="date-sold" ${MONTH_SORT==='date-sold'?'selected':''}>Date sold</option>
         <option value="profit" ${MONTH_SORT==='profit'?'selected':''}>Profit</option>
         <option value="price" ${MONTH_SORT==='price'?'selected':''}>Price</option>
+        <option value="roi" ${MONTH_SORT==='roi'?'selected':''}>ROI</option>
       </select>
     </div>
 
-    ${allItems.length===0?`
+    ${cAll===0?`
       <div class="empty-state">
         <div class="empty-state-icon"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg></div>
-        <div class="empty-state-text">No items for ${m} yet</div>
-        <div class="empty-state-sub">Tap the + button to add your first item</div>
+        <div class="empty-state-text">No sales in ${keyName(m)}</div>
+        <div class="empty-state-sub">${stats.listedCount>0?stats.listedCount+' item'+(stats.listedCount!==1?'s':'')+' listed in this month — view in <span style="color:var(--accent);cursor:pointer;font-weight:600" onclick="goToTab(\'stock\',document.querySelector(\'[data-tab=stock]\'))">Stock</span>':'Switch month or add new sales'}</div>
       </div>
-    `:items.length===0?`
+    `:visible.length===0?`
       <div class="empty-state">
         <div class="empty-state-icon"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></div>
-        <div class="empty-state-text">No ${MONTH_FILTER} items</div>
+        <div class="empty-state-text">No ${MONTH_FILTER} sales</div>
         <div class="empty-state-sub"><span style="color:var(--accent);cursor:pointer;font-weight:600" onclick="setMonthFilter('all')">Show all ${cAll}</span></div>
       </div>
     `:`
       <div class="list-toolbar">
         ${SELECTION_MODE?`
-          <button class="sel-check" onclick="${SELECTED_ITEMS.size===items.length?'SELECTED_ITEMS.clear();renderMonth()':'selectAllMonth()'}">
-            <span class="sel-check-box ${SELECTED_ITEMS.size===items.length?'all':SELECTED_ITEMS.size>0?'some':''}">
-              ${SELECTED_ITEMS.size===items.length?'\u2713':SELECTED_ITEMS.size>0?'\u2212':''}
+          <button class="sel-check" onclick="${SELECTED_ITEMS.size===visible.length?'SELECTED_ITEMS.clear();renderMonth()':'selectAllMonth()'}">
+            <span class="sel-check-box ${SELECTED_ITEMS.size===visible.length?'all':SELECTED_ITEMS.size>0?'some':''}">
+              ${SELECTED_ITEMS.size===visible.length?'\u2713':SELECTED_ITEMS.size>0?'\u2212':''}
             </span>
             <span style="color:${SELECTED_ITEMS.size>0?'var(--text)':'var(--text-secondary)'}">${SELECTED_ITEMS.size>0?SELECTED_ITEMS.size+' selected':'Select all'}</span>
           </button>
           ${SELECTED_ITEMS.size>0?`
-            <button class="btn btn-s" style="padding:5px 10px;font-size:12px;display:inline-flex;align-items:center;gap:5px;color:var(--green)" onclick="bulkAction('sold')"><svg width="13" height="13" viewBox="0 0 15 15" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M8.5 1.5h4a1 1 0 011 1v4a.5.5 0 01-.15.35l-6 6a1 1 0 01-1.41 0l-4-4a1 1 0 010-1.41l6-6A.5.5 0 018.5 1.5z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/><circle cx="11" cy="4" r="0.8" fill="currentColor"/></svg> Mark Sold</button>
             <button class="btn btn-s danger" style="padding:5px 10px;font-size:12px;display:inline-flex;align-items:center;gap:5px" onclick="bulkAction('delete')"><svg width="13" height="13" viewBox="0 0 15 15" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M5.5 1h4M1 3.5h13M2.5 3.5l1 9a1 1 0 001 .9h6a1 1 0 001-.9l1-9" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M6 6.5v4M9 6.5v4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg> Delete</button>
           `:''}
           <button class="sel-exit" onclick="toggleSelectionMode()">\u2715 Done</button>
@@ -5297,11 +5381,97 @@ function renderMonth(){
         `}
       </div>
       <div class="item-table">
-        ${items.map(i=>renderItemRow(m,i)).join('')}
+        ${visible.map(e=>renderSaleEventRow(e)).join('')}
       </div>
     `}
   `;
   document.getElementById('p-monthly').innerHTML=html;
+}
+
+// Render a single sale-event row for the Monthly sale-history list.
+// Visually consistent with renderItemRow but tells a sale-lineage story:
+//   - Sale 1 (standard):  "Listed {dateListed} · Sold {dateSold} · {Nd} to sell"
+//   - Sale 1 (returned):  "Listed {dateListed} · Sold {dateSold} · returned"
+//   - Sale 2 (resale):    "Relisted {_relistedAt} · Resold {resaleDateSold} · {Nd}"
+function renderSaleEventRow(ev){
+  const i=ev.item;
+  const m=ev.month;
+  const selected=SELECTED_ITEMS.has(i.id);
+  const status=ev.isReturned?'returned':ev.sale==='2'?'resold':'sold';
+  const profit=ev.profit;
+  const roi=ev.roi;
+
+  // Build meta lineage
+  const metaParts=[];
+  if(ev.sale==='1'){
+    if(i.dateListed)metaParts.push('Listed '+i.dateListed);
+    if(ev.saleDate)metaParts.push('Sold '+ev.saleDate);
+    if(ev.isReturned)metaParts.push('returned');
+    else if(ev.daysToSell!==null)metaParts.push(ev.daysToSell+'d to sell');
+  } else { // sale === '2'
+    const fullReturn=(i.returnHistory||[]).find(r=>r.type==='full_seller'||r.type==='full_ebay');
+    const relistDate=fullReturn&&fullReturn._relistedAt?fullReturn._relistedAt:null;
+    if(relistDate)metaParts.push('Relisted '+relistDate);
+    else if(i.dateListed)metaParts.push('Listed '+i.dateListed);
+    if(ev.saleDate)metaParts.push('Resold '+ev.saleDate);
+    if(ev.daysToSell!==null)metaParts.push(ev.daysToSell+'d avg');
+  }
+  if(i.gid)metaParts.push(i.gid);
+  const metaStr=metaParts.join(' · ');
+
+  // Right column — price + profit/ROI
+  let profitEl='';
+  const cls=(profit||0)>=0?'pos':'neg';
+  if(ev.isReturned){
+    profitEl='<div class="item-row-profit '+cls+'">net '+fmt(profit||0)+'</div>';
+  } else {
+    profitEl='<div class="item-row-profit '+cls+'">'+fmt(profit||0)+'</div>';
+    if(roi!==null)profitEl+='<div class="item-row-roi">'+roi.toFixed(1)+'% ROI</div>';
+  }
+
+  const leftSlot=SELECTION_MODE
+    ?'<label class="item-checkbox-left" onclick="event.stopPropagation()"><input type="checkbox" '+(selected?'checked':'')+' onchange="toggleSelect(\''+i.id+'\')" style="width:16px;height:16px;accent-color:var(--accent);cursor:pointer;margin-right:4px"></label>'
+    :'<div class="status-dot '+status+'"></div>';
+
+  const rowClick=SELECTION_MODE
+    ?'onclick="toggleSelect(\''+i.id+'\')"'
+    :'onclick="openItemPage(\''+m+'\',\''+i.id+'\')"';
+
+  // Sale-event badge — prefix with sale number for clarity when item appears twice
+  const badgeText=ev.sale==='2'?'resold':status;
+
+  // Display price = the sale event's price (sale1 price for sale1, resale for sale2)
+  const displayPrice=ev.salePrice||0;
+
+  const actionsHTML='<div class="ddwrap" id="dd-'+i.id+'-s'+ev.sale+'">'+
+    '<button class="ddbtn" onclick="event.stopPropagation();toggleDD(\'dd-'+i.id+'-s'+ev.sale+'\')" title="Actions">⋮</button>'+
+    '<div class="ddmenu">'+
+      '<button onclick="event.stopPropagation();openItemPage(\''+m+'\',\''+i.id+'\')">📄 Full page</button>'+
+      '<button onclick="event.stopPropagation();editItem(\''+m+'\',\''+i.id+'\')">✏️ Edit</button>'+
+      (!ev.isReturned?'<button onclick="event.stopPropagation();openReturn(\''+m+'\',\''+i.id+'\')">↩️ Log Return</button>':'')+
+      '<button onclick="event.stopPropagation();duplicateItem(\''+m+'\',\''+i.id+'\')">📋 Duplicate</button>'+
+      '<button class="danger" onclick="event.stopPropagation();deleteItem(\''+m+'\',\''+i.id+'\')">🗑️ Delete</button>'+
+    '</div></div>';
+
+  return'<div class="item-row'+(selected?' selected':'')+'" '+rowClick+'>'+
+    '<div class="item-main">'+
+      '<div class="item-row-inner">'+
+        leftSlot+
+        '<div class="item-row-body">'+
+          '<div class="item-row-name">'+esc(i.item)+'</div>'+
+          '<div class="item-row-meta">'+
+            '<span class="item-badge '+status+'">'+badgeText+'</span>'+
+            (metaStr?'<span class="item-row-meta-sep">·</span><span>'+metaStr+'</span>':'')+
+          '</div>'+
+        '</div>'+
+        '<div class="item-row-right">'+
+          '<div class="item-row-price">'+fmt(displayPrice)+'</div>'+
+          profitEl+
+        '</div>'+
+        actionsHTML+
+      '</div>'+
+    '</div>'+
+  '</div>';
 }
 
 function renderItemRow(m,i){
@@ -5522,14 +5692,14 @@ function toggleSelectionMode(){
 
 function selectAllMonth(){
   // Select all items visible in current filter
-  const allItems=(DB[SELECTED_MONTH]||[]);
-  let items=allItems;
-  if(MONTH_FILTER==='listed')items=allItems.filter(i=>!i.dateSold&&!i.isReturned&&!i.resaleSalePrice);
-  else if(MONTH_FILTER==='sold')items=allItems.filter(i=>(i.dateSold||i.resaleSalePrice)&&!i.isReturned);
-  else if(MONTH_FILTER==='returned')items=allItems.filter(i=>i.isReturned);
-  const allSelected=items.length>0&&items.every(i=>SELECTED_ITEMS.has(i.id));
-  if(allSelected){items.forEach(i=>SELECTED_ITEMS.delete(i.id));}
-  else{items.forEach(i=>SELECTED_ITEMS.add(i.id));}
+  // Session B: filter set is now sold | all | returned, driven by sale events.
+  const events=getSaleEventsInMonth(SELECTED_MONTH);
+  let visible=events;
+  if(MONTH_FILTER==='sold')visible=events.filter(e=>!e.isReturned);
+  else if(MONTH_FILTER==='returned')visible=events.filter(e=>e.isReturned);
+  const allSelected=visible.length>0&&visible.every(e=>SELECTED_ITEMS.has(e.item.id));
+  if(allSelected){visible.forEach(e=>SELECTED_ITEMS.delete(e.item.id));}
+  else{visible.forEach(e=>SELECTED_ITEMS.add(e.item.id));}
   renderMonth();
 }
 
@@ -5563,6 +5733,7 @@ async function bulkAction(action){
 // STOCK PAGE
 function setStockSort(s){STOCK_SORT=s;renderStock();}
 function setStockFilter(f){STOCK_FILTER=f;renderStock();}
+function toggleStockGrouped(){STOCK_GROUPED=!STOCK_GROUPED;renderStock();}
 
 function toggleStockSelection(){
   STOCK_SELECTION_MODE=!STOCK_SELECTION_MODE;
@@ -5630,15 +5801,54 @@ function renderStockRow(m,i){
 function renderStock(){
   const today=new Date().toISOString().split('T')[0];
   let allListed=[];
-  allDBKeys().forEach(k=>(DB[k]||[]).forEach(i=>{ if(!i.dateSold&&!i.isReturned&&!i.resaleSalePrice)allListed.push({...i,month:k}); }));
+  allDBKeys().forEach(k=>(DB[k]||[]).forEach(i=>{ if(!i.dateSold&&!i.isReturned&&!i.resaleSalePrice&&((i.item||'').trim().toUpperCase()!=='MONTH END'))allListed.push({...i,month:k}); }));
   const cAll=allListed.length;
   const cStale=allListed.filter(i=>daysBetween(i.dateListed,today)>=30).length;
   let items=allListed;
   if(STOCK_FILTER==='stale')items=allListed.filter(i=>daysBetween(i.dateListed,today)>=30);
-  items=[...items].sort((a,b)=>{ if(STOCK_SORT==='profit')return(calcGrossProfit(b)||0)-(calcGrossProfit(a)||0); if(STOCK_SORT==='price')return(b.salePrice||0)-(a.salePrice||0); return daysBetween(a.dateListed,today)<daysBetween(b.dateListed,today)?1:-1; });
+  // Sort comparator (used both flat and within groups)
+  const sortCmp=(a,b)=>{
+    if(STOCK_SORT==='profit')return(calcGrossProfit(b)||0)-(calcGrossProfit(a)||0);
+    if(STOCK_SORT==='price')return(b.salePrice||0)-(a.salePrice||0);
+    return daysBetween(a.dateListed,today)<daysBetween(b.dateListed,today)?1:-1;
+  };
+  items=[...items].sort(sortCmp);
   const totalValue=allListed.reduce((s,i)=>s+(i.salePrice||0),0);
   const potentialProfit=allListed.reduce((s,i)=>s+(calcGrossProfit(i)||0),0);
   const avgAsking=allListed.length?totalValue/allListed.length:0;
+  const stalePct=cAll>0?Math.round(cStale/cAll*100):0;
+
+  // Build listing-month groups when grouped mode is on. Iterate FY keys in
+  // chronological-newest-first order so users see latest stock first.
+  let groupedHTML='';
+  if(STOCK_GROUPED){
+    // Use the same FY ordering as Monthly grid (newest FY first, within FY: most recent month first).
+    const monthOrder=allDBKeys();
+    const monthSet=new Set(items.map(i=>i.month));
+    const orderedKeys=monthOrder.filter(k=>monthSet.has(k));
+    // Sort orderedKeys by listing date descending (most recent month first)
+    orderedKeys.sort((a,b)=>{
+      const ya=keyYear(a), yb=keyYear(b);
+      if(ya!==yb)return yb-ya;
+      const ma=MONTHS.indexOf(keyCode(a)), mb=MONTHS.indexOf(keyCode(b));
+      return mb-ma;
+    });
+    orderedKeys.forEach(k=>{
+      const groupItems=items.filter(i=>i.month===k).sort(sortCmp);
+      if(groupItems.length===0)return;
+      const groupValue=groupItems.reduce((s,i)=>s+(i.salePrice||0),0);
+      const groupStale=groupItems.filter(i=>daysBetween(i.dateListed,today)>=30).length;
+      groupedHTML+='<div class="stock-group" style="margin-bottom:18px;">'
+        +'<div class="stock-group-header" style="display:flex;align-items:baseline;justify-content:space-between;padding:10px 12px;background:var(--surface2);border-radius:8px 8px 0 0;border:1px solid var(--border);border-bottom:none;font-size:12px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.05em;">'
+        +'<span>'+keyName(k)+' · <span style="color:var(--text)">'+groupItems.length+' active</span> · '+fmt(groupValue)+' asking</span>'
+        +(groupStale>0?'<span style="color:var(--warn);font-size:11px;text-transform:none;letter-spacing:0;">'+groupStale+' stale</span>':'')
+        +'</div>'
+        +'<div class="item-table" style="border-radius:0 0 8px 8px;border:1px solid var(--border);border-top:none;">'
+        +groupItems.map(i=>renderStockRow(i.month,i)).join('')
+        +'</div></div>';
+    });
+  }
+
   const html=`
     <div class="page-header">
       <div>
@@ -5647,15 +5857,17 @@ function renderStock(){
         <div class="page-subtitle">Inventory view built for quick scanning, pricing confidence, and proactive cleanup.</div>
       </div>
     </div>
-    <div class="kgrid kgrid-3 kgrid-1col">
+    <div class="kgrid kgrid-4">
       <div class="kcard b"><div class="klabel">Live stock value</div><div class="kval">${fmt(totalValue)}</div><div class="ksub">Current asking total</div></div>
       <div class="kcard g"><div class="klabel">Estimated profit</div><div class="kval">${fmt(potentialProfit)}</div><div class="ksub">If every item sells</div></div>
       <div class="kcard"><div class="klabel">Average ask</div><div class="kval">${fmt(avgAsking)}</div><div class="ksub">Per active item</div></div>
+      <div class="kcard p"><div class="klabel">Stale 30d+</div><div class="kval" style="${cStale>0?'color:var(--warn)':''}">${cStale}</div><div class="ksub">${cAll>0?stalePct+'% of stock':'—'}</div></div>
     </div>
     ${cAll===0?`<div class="empty-state"><div class="empty-state-text">No active listings</div><div class="empty-state-sub">Add stock to start building your live inventory command view.</div></div>`:`
-      <div class="filter-row stock-filter-row" style="margin-bottom:14px;">
+      <div class="filter-row stock-filter-row" style="margin-bottom:14px;gap:8px;flex-wrap:wrap;">
         <select class="sort-select" onchange="setStockFilter(this.value)"><option value="all" ${STOCK_FILTER==='all'?'selected':''}>All live stock (${cAll})</option>${cStale>0?`<option value="stale" ${STOCK_FILTER==='stale'?'selected':''}>Stale 30d+ (${cStale})</option>`:''}</select>
         <select class="sort-select" onchange="setStockSort(this.value)"><option value="days" ${STOCK_SORT==='days'?'selected':''}>Oldest first</option><option value="profit" ${STOCK_SORT==='profit'?'selected':''}>Best est. profit</option><option value="price" ${STOCK_SORT==='price'?'selected':''}>Highest ask</option></select>
+        <button class="btn btn-s${STOCK_GROUPED?' active':''}" style="padding:7px 12px;font-size:12px;${STOCK_GROUPED?'background:var(--accent);color:#000;border-color:var(--accent);':''}" onclick="toggleStockGrouped()" title="Group items by their listing month">${STOCK_GROUPED?'✓ Grouped':'Group by month'}</button>
       </div>
       <div class="list-toolbar">
         ${STOCK_SELECTION_MODE?`
@@ -5676,7 +5888,9 @@ function renderStock(){
           <button class="select-toggle" onclick="toggleStockSelection()">Select</button>
         `}
       </div>
-      <div class="item-table">${(()=>{window.__stockItems=items;return items.map(i=>renderStockRow(i.month,i)).join('');})()}</div>`}`;
+      ${STOCK_GROUPED
+        ?`${(()=>{window.__stockItems=items;return groupedHTML;})()}`
+        :`<div class="item-table">${(()=>{window.__stockItems=items;return items.map(i=>renderStockRow(i.month,i)).join('');})()}</div>`}`}`;
   document.getElementById('p-stock').innerHTML=html;
 }
 
@@ -7156,7 +7370,8 @@ function saveReturn(m,id){
     refundAmount:refundAmount,
     returnPostage:returnPostage,
     notes:notes,
-    _salePriceAtReturn:i.salePrice||0  // snapshot: used to get correct BPF refund in calcGrossProfit
+    _salePriceAtReturn:i.salePrice||0,  // snapshot: used to get correct BPF refund in calcGrossProfit
+    _dateSoldAtReturn:i.dateSold||null  // snapshot: original sale date for refund-rate period attribution after full return wipes dateSold
   };
 
   if(!i.returnHistory)i.returnHistory=[];
@@ -7286,19 +7501,23 @@ function showReturnedItems(){
   const items=[];
   allDBKeys().forEach(function(k){
     (DB[k]||[]).forEach(function(i){
-      if((i.returnHistory||[]).length===0)return;
-      // Period filter: use the most recent return's loggedAt
-      const lastReturn=i.returnHistory[i.returnHistory.length-1];
-      if(!_inSummaryPeriod(lastReturn.loggedAt||lastReturn.date||''))return;
-      items.push(Object.assign({},i,{month:k}));
+      const rh=i.returnHistory||[];
+      if(rh.length===0)return;
+      // Period filter: use the ORIGINAL SALE DATE (with snapshot fallback for
+      // full returns that wiped i.dateSold). Matches the headline KPI.
+      const fullEntry=rh.find(r=>r.type==='full_seller'||r.type==='full_ebay');
+      const partialEntry=rh.find(r=>r.type==='partial_seller'||r.type==='partial_ebay');
+      const refundSaleDate=(fullEntry&&fullEntry._dateSoldAtReturn)
+                         ||(partialEntry&&partialEntry._dateSoldAtReturn)
+                         ||i.dateSold||null;
+      if(!_inSummaryPeriod(refundSaleDate||''))return;
+      items.push(Object.assign({},i,{month:k,_refundSaleDate:refundSaleDate}));
     });
   });
 
-  // Sort newest return first
+  // Sort newest sale-date first
   items.sort(function(a,b){
-    const aD=(a.returnHistory[a.returnHistory.length-1].loggedAt||a.returnHistory[a.returnHistory.length-1].date||'');
-    const bD=(b.returnHistory[b.returnHistory.length-1].loggedAt||b.returnHistory[b.returnHistory.length-1].date||'');
-    return bD.localeCompare(aD);
+    return (b._refundSaleDate||'').localeCompare(a._refundSaleDate||'');
   });
 
   const fullyReturned=items.filter(function(i){
@@ -7338,7 +7557,7 @@ function showReturnedItems(){
       +'<span>Sale: <strong>'+fmt(i.salePrice)+'</strong></span>'
       +(profit!==null?'<span>Net P&L: <strong style="color:'+(profit>=0?'var(--green)':'var(--red)')+'">'+fmt(profit)+'</strong></span>':'')
       +(i.gid?'<span style="color:var(--muted);font-family:monospace">'+esc(i.gid)+'</span>':'')
-      +'<span style="color:var(--muted)">'+i.month+' · '+lastRet.loggedAt+'</span>'
+      +'<span style="color:var(--muted)">Sold '+(i._refundSaleDate||'—')+' · returned '+(lastRet.loggedAt||'—')+'</span>'
       +'</div>'
       +'</div>';
   }
@@ -7346,7 +7565,7 @@ function showReturnedItems(){
   // Two sections: full returns, then partials
   let rows='';
   if(fullyReturned.length>0){
-    rows+='<div style="font-size:11px;font-weight:700;color:var(--red);text-transform:uppercase;letter-spacing:.08em;margin:0 0 8px">Full returns — affect return rate</div>';
+    rows+='<div style="font-size:11px;font-weight:700;color:var(--red);text-transform:uppercase;letter-spacing:.08em;margin:0 0 8px">Full returns — affect refund rate</div>';
     rows+=fullyReturned.map(buildRow).join('');
   }
   if(partialOnly.length>0){
@@ -7354,12 +7573,13 @@ function showReturnedItems(){
     rows+=partialOnly.map(buildRow).join('');
   }
 
-  // Period revenue denominator — sum calcItemRevenue across sold items whose
-  // sale date falls in the current Summary period. Uses the same scope as
-  // _inSummaryPeriod so the % lines up with the KPI card's period filter.
-  // NEW7: returned items with a dateSold now count (gross revenue model) —
-  // this is what makes "refund % of revenue" meaningful: the sale happened,
-  // the refund is a separate event tracked against it.
+  // Period stats — pull from the same engine the headline KPI uses so the
+  // numbers reconcile. soldCount + fullRefundCount = the items-rate denom.
+  const _stats=calcSummaryStats();
+  const itemsRate=_stats.refundItemRate||0;
+  const refundedItemCount=_stats.refundedItemCount||0;
+  const refundDenom=_stats.refundDenom||0;
+  // Period revenue denominator for the £/% line (gross sale revenue in period).
   let _periodRevenue=0;
   allDBKeys().forEach(function(k){
     (DB[k]||[]).forEach(function(i){
@@ -7371,21 +7591,29 @@ function showReturnedItems(){
   });
   const _refundPctRev=_periodRevenue>0?(totalRefundedAll/_periodRevenue*100):0;
 
+  // Summary block: items rate is the HEADLINE; £ paid out + % of revenue is secondary.
   const summary='<div style="margin-bottom:16px;background:var(--surface2);border-radius:10px;padding:14px">'
     +'<div style="display:flex;align-items:baseline;gap:10px;margin-bottom:4px">'
-    +'<div class="stat-num" style="color:var(--red)">'+fmt(totalRefundedAll)+'</div>'
-    +'<div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;font-weight:600">Total paid out</div>'
+    +'<div class="stat-num" style="color:var(--red)">'+itemsRate.toFixed(1)+'%</div>'
+    +'<div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;font-weight:600">Refund rate · items</div>'
     +'</div>'
-    +'<div style="font-size:13px;color:var(--text-secondary);margin-bottom:12px"><strong style="color:var(--text);font-weight:600">'+items.length+' item'+(items.length!==1?'s':'')+'</strong> \u00b7 '+fullyReturned.length+' full return'+(fullyReturned.length!==1?'s':'')+' \u00b7 '+partialOnly.length+' partial'+(partialOnly.length!==1?'s':'')+'</div>'
-    +'<div style="display:flex;align-items:center;justify-content:space-between;padding-top:10px;border-top:1px solid var(--border);font-size:12px;color:var(--muted)">'
-    +'<span>% of period revenue</span>'
-    +'<span style="color:var(--text);font-weight:600">'+_refundPctRev.toFixed(1)+'% <span style="color:var(--muted);font-weight:400">of '+fmt(_periodRevenue)+'</span></span>'
+    +'<div style="font-size:13px;color:var(--text-secondary);margin-bottom:12px">'
+      +'<strong style="color:var(--text);font-weight:600">'+refundedItemCount+' of '+refundDenom+'</strong> sold '
+      +'\u00b7 '+fullyReturned.length+' full \u00b7 '+partialOnly.length+' partial'
+    +'</div>'
+    +'<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-top:1px solid var(--border);font-size:12px;color:var(--muted)">'
+      +'<span>Total paid out</span>'
+      +'<span style="color:var(--red);font-weight:600">'+fmt(totalRefundedAll)+'</span>'
+    +'</div>'
+    +'<div style="display:flex;align-items:center;justify-content:space-between;font-size:12px;color:var(--muted)">'
+      +'<span>% of period revenue</span>'
+      +'<span style="color:var(--text);font-weight:600">'+_refundPctRev.toFixed(1)+'% <span style="color:var(--muted);font-weight:400">of '+fmt(_periodRevenue)+'</span></span>'
     +'</div>'
     +'</div>';
 
   const content=items.length>0
     ? summary+rows
-    : '<div style="padding:30px;text-align:center;color:var(--muted)">No returns in this period</div>';
+    : '<div style="padding:30px;text-align:center;color:var(--muted)">No refunds in this period</div>';
 
   openPanel('Refunds — '+items.length+' item'+(items.length!==1?'s':''),content);
 }
@@ -7655,6 +7883,17 @@ function calcYearlyStats(period){
   }
   let totalRev=0,realisedProfit=0,unrealisedProfit=0,stockValue=0;
   let soldCount=0,listedCount=0,totalItems=0,returnCount=0;
+  // Refund-rate fields (single-pass, sale-date attribution):
+  //   fullRefundCount     — items in period whose original sale was refunded in full
+  //   partialOnlyCount    — items in period with partial refund(s) but no full
+  //   refundedItemCount   — fullRefundCount + partialOnlyCount (any refund event)
+  //   refundedSalesItemCount — items with any refund (same as refundedItemCount; alias kept for clarity)
+  //   refundItemRate      — refundedItemCount / soldCount × 100  (HEADLINE)
+  // Period attribution rule: refund attaches to the ORIGINAL SALE month, not the
+  // return loggedAt. Falls back via r._dateSoldAtReturn (snapshot taken at return
+  // time) → i.dateSold (only set if no full return has wiped it). This ensures
+  // backdated returns don't shift the refund into the wrong period.
+  let fullRefundCount=0,partialOnlyCount=0;
   let soldItems=[],stale=[];
   let saleTransactions=[];
   allDBKeys().forEach(k=>{
@@ -7665,15 +7904,33 @@ function calcYearlyStats(period){
       totalItems++;
       if(soldInRange&&(i.dateSold||i.resaleSalePrice)&&!i.isReturned&&i.condition!=='spares')saleTransactions.push(i.salePrice||0);
       if(soldInRange&&i.resaleSalePrice&&i.condition!=='spares')saleTransactions.push(i.resaleSalePrice||0);
-      // Return counting: use the last return's loggedAt for period check — dateSold may be null on returned items
-      const _lastRetEntry=(i.returnHistory&&i.returnHistory.length)?i.returnHistory[i.returnHistory.length-1]:null;
-      const lastReturnDate=_lastRetEntry?(_lastRetEntry.loggedAt||_lastRetEntry.date||null):null;
-      const returnInRange=inRange(lastReturnDate);
-      const hadFullReturn=(i.returnHistory||[]).some(r=>r.type==='full_seller'||r.type==='full_ebay');
-      const hadAnyReturn=(i.returnHistory||[]).length>0;
-      // Count full returns and partial-only returns separately for the rate
-      if(returnInRange&&hadFullReturn){
-        returnCount++;
+      // Refund counting: bucket by original sale date, not loggedAt.
+      const rh=i.returnHistory||[];
+      const hadFullReturn=rh.some(r=>r.type==='full_seller'||r.type==='full_ebay');
+      const hadPartial=rh.some(r=>r.type==='partial_seller'||r.type==='partial_ebay');
+      if(hadFullReturn||hadPartial){
+        // Find the original sale date for this refund event. For full returns,
+        // dateSold may be null (wiped on full return) so fall back to the
+        // snapshot stored on the return entry.
+        const fullEntry=rh.find(r=>r.type==='full_seller'||r.type==='full_ebay');
+        const partialEntry=rh.find(r=>r.type==='partial_seller'||r.type==='partial_ebay');
+        // Prefer the full-return snapshot; if no full return, partial entry's
+        // snapshot (if present) or the live dateSold.
+        const refundSaleDate=(fullEntry&&fullEntry._dateSoldAtReturn)
+                           ||(partialEntry&&partialEntry._dateSoldAtReturn)
+                           ||i.dateSold||null;
+        if(inRange(refundSaleDate)){
+          if(hadFullReturn)fullRefundCount++;
+          else if(hadPartial)partialOnlyCount++;
+        }
+      }
+      // Legacy returnCount kept (full returns only, sale-date attributed) so
+      // downstream consumers that read `returnCount` keep working. Replaces
+      // the older loggedAt-based count.
+      if(hadFullReturn){
+        const fullEntry=rh.find(r=>r.type==='full_seller'||r.type==='full_ebay');
+        const refundSaleDate=(fullEntry&&fullEntry._dateSoldAtReturn)||i.dateSold||null;
+        if(inRange(refundSaleDate))returnCount++;
       }
       if(soldInRange&&(i.dateSold||i.resaleSalePrice)){
         // NEW7: gross revenue + profit include fully-returned items (the sale
@@ -7781,35 +8038,36 @@ function calcYearlyStats(period){
     avgDays:v.sold?Math.round(v.daysSum/v.sold):null,
     fast:v.fast,avgS:v.avgS,slow:v.slow,stale:v.stale
   })).sort((a,b)=>(a.avgDays===null?999:a.avgDays)-(b.avgDays===null?999:b.avgDays));
-  const returnRate=(soldCount+returnCount)>0?returnCount/(soldCount+returnCount)*100:0;
-  // Partial refund stats — use return loggedAt for period check
-  let partialRefundCount=0;
-  allDBKeys().forEach(k=>{(DB[k]||[]).forEach(i=>{
-    const _lastRetPREntry=(i.returnHistory&&i.returnHistory.length)?i.returnHistory[i.returnHistory.length-1]:null;
-    const lastRetPR=_lastRetPREntry?(_lastRetPREntry.loggedAt||_lastRetPREntry.date||null):null;
-    const hadFull=(i.returnHistory||[]).some(r=>r.type==='full_seller'||r.type==='full_ebay');
-    // Only count as partial-only if no full return (full returns already counted above)
-    if(!hadFull&&inRange(lastRetPR)&&(i.returnHistory||[]).some(r=>r.type==='partial_seller'||r.type==='partial_ebay'))partialRefundCount++;
-  });});
-  // Combined refund rate includes both full returns and partial-only items
-  const totalAffected=returnCount+partialRefundCount;
-  const partialRefundRate=(soldCount+returnCount)>0?partialRefundCount/(soldCount+returnCount)*100:0;
+  // Items-based refund rate (HEADLINE). Single-pass counts above.
+  const refundedItemCount=fullRefundCount+partialOnlyCount;
+  const refundedSalesItemCount=refundedItemCount; // alias
+  // Denominator = NET sold + full-returns (i.e. all sale events in period that
+  // either completed or were fully reversed). Partial-refunded items live
+  // inside soldCount already (they were not flagged isReturned).
+  const refundDenom=soldCount+fullRefundCount;
+  const refundItemRate=refundDenom>0?(refundedItemCount/refundDenom*100):0;
+  // Legacy aliases — kept so any consumers reading these old field names keep
+  // working without errors. Rates are now items-based and sale-date attributed.
+  const returnRate=refundDenom>0?(fullRefundCount/refundDenom*100):0;
+  const partialRefundCount=partialOnlyCount;
+  const partialRefundRate=refundDenom>0?(partialOnlyCount/refundDenom*100):0;
+  const totalAffected=refundedItemCount;
 
-  // BUG-01: Monetary refund rate — matches the Refund Breakdown panel scope.
-  // Panel walks items with returnHistory and filters by lastReturn.loggedAt
-  // against _inSummaryPeriod; sums all refundAmounts. Denominator is gross
-  // period revenue (calcItemRevenue across sold items whose sale date sits
-  // in the period — same as NEW7 _periodRevenue at L7219+). The card uses
-  // this monetary figure so headline = panel figure.
+  // Money-based refund rate — kept as SECONDARY metric for click-through panel
+  // ("£X paid out · Y% of revenue"). Now sale-date attributed (was loggedAt).
   let _refundMoneyTotal=0, _refundMoneyDenom=0;
   allDBKeys().forEach(function(k){
     (DB[k]||[]).forEach(function(i){
       if((i.item||'').trim().toUpperCase()==='MONTH END')return;
-      // Refund numerator: items whose most recent return event sits in period
-      if((i.returnHistory||[]).length>0){
-        const lastRet=i.returnHistory[i.returnHistory.length-1];
-        if(inRange(lastRet.loggedAt||lastRet.date||'')){
-          _refundMoneyTotal+=(i.returnHistory||[]).reduce(function(s,r){return s+(r.refundAmount||0);},0);
+      const rh=i.returnHistory||[];
+      if(rh.length>0){
+        const fullEntry=rh.find(r=>r.type==='full_seller'||r.type==='full_ebay');
+        const partialEntry=rh.find(r=>r.type==='partial_seller'||r.type==='partial_ebay');
+        const refundSaleDate=(fullEntry&&fullEntry._dateSoldAtReturn)
+                           ||(partialEntry&&partialEntry._dateSoldAtReturn)
+                           ||i.dateSold||null;
+        if(inRange(refundSaleDate)){
+          _refundMoneyTotal+=rh.reduce(function(s,r){return s+(r.refundAmount||0);},0);
         }
       }
       // Revenue denominator: items with a sale date in period (gross)
@@ -7820,7 +8078,15 @@ function calcYearlyStats(period){
   const refundMoneyRate=_refundMoneyDenom>0?(_refundMoneyTotal/_refundMoneyDenom*100):0;
 
   const totalStaleCount=byCat.reduce((s,c)=>s+(c.stale||0),0);
-  return{totalRev,realisedProfit,unrealisedProfit,stockValue,soldCount,listedCount,totalItems,returnCount,returnRate,partialRefundCount,partialRefundRate,totalAffected,refundMoneyRate,refundMoneyTotal:_refundMoneyTotal,refundMoneyDenom:_refundMoneyDenom,avgROI,avgSale,avgProfit,avgCostPrice,sellThrough,sellThrough14,sold14Count,eligible14Count:eligible14.length,avgDays,stale,byCat,totalStaleCount};
+  return{totalRev,realisedProfit,unrealisedProfit,stockValue,soldCount,listedCount,totalItems,
+    // Refund-rate fields (Session B refund KPI revamp):
+    fullRefundCount,partialOnlyCount,refundedItemCount,refundedSalesItemCount,
+    refundItemRate,refundDenom,
+    // Legacy aliases (now derived from the new single-pass counts):
+    returnCount,returnRate,partialRefundCount,partialRefundRate,totalAffected,
+    refundMoneyRate,refundMoneyTotal:_refundMoneyTotal,refundMoneyDenom:_refundMoneyDenom,
+    avgROI,avgSale,avgProfit,avgCostPrice,sellThrough,sellThrough14,sold14Count,
+    eligible14Count:eligible14.length,avgDays,stale,byCat,totalStaleCount};
 }
 
 // ── Summary aliases ──────────────────────────────────────────────────────────
@@ -7852,6 +8118,176 @@ function calcMonthStats(m){
   });
   const avgDays=soldCount?Math.round(daysSum/soldCount):null;
   return{totalRev,realisedProfit,unrealisedProfit,stockValue,soldCount,listedCount,avgDays};
+}
+
+// ── SESSION B: Sale-attribution monthly engine ────────────────────────────
+// Convert a YYYY-MM-DD date string to its month key, e.g. '2026-04-23' → 'APR-26'.
+// Returns null for empty/invalid input. Used to bucket sale events by sale month
+// (rather than the listing-month bucket the item lives in inside DB).
+function _monthKeyFromDate(ds){
+  if(!ds)return null;
+  // Tolerate both 'YYYY-MM-DD' (ISO) and dates with time. Avoid Date() parse drift.
+  const parts=String(ds).slice(0,10).split('-');
+  if(parts.length<3)return null;
+  const yr=parseInt(parts[0],10);
+  const mo=parseInt(parts[1],10);
+  if(!yr||!mo||mo<1||mo>12)return null;
+  return MONTHS[mo-1]+'-'+String(yr).slice(-2);
+}
+
+// Build a list of sale events that landed in month `m` (sale1 + sale2, attributed
+// by dateSold / resaleDateSold respectively). Each entry is a SALE EVENT — an item
+// with both an original sale and a resale in different months will produce two
+// entries, one per month.
+//
+// Returns array of: {item, month (DB key the item lives in), sale ('1' or '2'),
+//                    saleDate, salePrice, profit, roi, daysToSell, isReturned}
+//
+// `sale1` profit/revenue uses the item's original-sale-only state — for items
+// that have been relisted, this means reconstructing the original sale via the
+// snapshot stored on the full_return entry (see _origSalePrice convention).
+// `sale2` uses calcGrossProfit on the full item (which already includes the
+// relist accounting).
+function getSaleEventsInMonth(m){
+  const out=[];
+  allDBKeys().forEach(function(k){
+    (DB[k]||[]).forEach(function(i){
+      if((i.item||'').trim().toUpperCase()==='MONTH END')return;
+      // Sale 1 — original sale
+      if(i.dateSold&&_monthKeyFromDate(i.dateSold)===m){
+        // If this item was relisted, sale1 needs the original-sale snapshot.
+        const fullReturn=(i.returnHistory||[]).find(function(r){return r.type==='full_seller'||r.type==='full_ebay';});
+        const isRelisted=!!fullReturn&&!!i.resaleSalePrice;
+        if(isRelisted){
+          // Reconstruct sale1 as a standalone item using the snapshot.
+          const sale1Price=fullReturn._salePriceAtReturn||fullReturn.refundAmount||i.salePrice||0;
+          const sale1Item=Object.assign({},i,{
+            salePrice:sale1Price,
+            dateSold:i.dateSold,
+            resaleSalePrice:null,
+            resaleDateSold:null,
+            resalePromoPercent:null,
+            resaleShippingCost:null,
+            resalePackagingCost:null,
+            isReturned:true,            // it was returned (then relisted)
+            returnHistory:[fullReturn]  // the full-return entry only
+          });
+          out.push({
+            item:i, month:k, sale:'1',
+            saleDate:i.dateSold,
+            salePrice:sale1Price,
+            profit:calcGrossProfit(sale1Item),
+            roi:null,                   // ROI semantically belongs to the resale outcome
+            daysToSell:i.dateListed?daysBetween(i.dateListed,i.dateSold):null,
+            isReturned:true             // sale1 ended in a return
+          });
+        } else if(!i.isReturned){
+          // Standard single sale (not relisted, not currently returned)
+          out.push({
+            item:i, month:k, sale:'1',
+            saleDate:i.dateSold,
+            salePrice:i.salePrice||0,
+            profit:calcGrossProfit(i),
+            roi:calcROI(i),
+            daysToSell:calcDaysToSell(i),
+            isReturned:false
+          });
+        } else {
+          // Currently flagged as returned (not yet relisted) — sale1 happened, was reversed.
+          out.push({
+            item:i, month:k, sale:'1',
+            saleDate:i.dateSold,
+            salePrice:i.salePrice||0,
+            profit:calcGrossProfit(i)||0,
+            roi:null,
+            daysToSell:i.dateListed?daysBetween(i.dateListed,i.dateSold):null,
+            isReturned:true
+          });
+        }
+      }
+      // Sale 2 — resale event
+      if(i.resaleSalePrice&&i.resaleDateSold&&_monthKeyFromDate(i.resaleDateSold)===m){
+        out.push({
+          item:i, month:k, sale:'2',
+          saleDate:i.resaleDateSold,
+          salePrice:i.resaleSalePrice||0,
+          profit:calcGrossProfit(i),         // full-lifecycle profit attributed to the resale event
+          roi:calcROI(i),
+          daysToSell:calcDaysToSell(i),
+          isReturned:false                   // resale events are net-positive sales
+        });
+      }
+    });
+  });
+  return out;
+}
+
+// Sale-attributed month stats — drives the new Monthly KPIs.
+//   totalRev          Sum of sale-event revenue (sale1 prices + sale2 prices) landing in m
+//   realisedProfit    Sum of sale-event profits (sale1 sentinel-priced via snapshot; sale2 full lifecycle)
+//   soldCount         Count of NET sale events in m (excludes sale1 events that ended in return)
+//   eventCount        Count of ALL sale events in m (includes returned sale1's)
+//   returnedCount     Count of sale events in m that ended in a return
+//   avgROI            Average ROI across non-returned sale events
+//   avgDays           Average days-to-sell across non-returned sale events
+//   refundCount       Count of return events whose original sale (dateSoldAtReturn fallback) was in m
+//   partialCount      Count of partial refund events whose original sale was in m
+//   refundItemRate    refundCount / soldCount * 100 — items rate
+//   refundedSalesRev  Sum of revenue from sale events in m that had any refund
+function calcMonthStatsBySale(m){
+  const events=getSaleEventsInMonth(m);
+  let totalRev=0,realisedProfit=0,soldCount=0,eventCount=0,returnedCount=0;
+  let roiSum=0,roiCount=0,daysSum=0,daysCount=0;
+  events.forEach(function(e){
+    eventCount++;
+    totalRev+=e.salePrice||0;
+    realisedProfit+=e.profit||0;
+    if(e.isReturned){
+      returnedCount++;
+    } else {
+      soldCount++;
+      if(e.roi!==null){roiSum+=e.roi;roiCount++;}
+      if(e.daysToSell!==null){daysSum+=e.daysToSell;daysCount++;}
+    }
+  });
+  // Refund rate: returns whose original sale month (dateSoldAtReturn fallback,
+  // Refund counting — per item, attributed to the ORIGINAL sale month using
+  // the _dateSoldAtReturn snapshot (with i.dateSold fallback). Matches the
+  // single-pass convention used in calcYearlyStats / showReturnedItems.
+  //   fullRefundCount  — items in m with at least one full return
+  //   partialOnlyCount — items in m with partial refund(s) and no full return
+  let fullRefundCount=0,partialOnlyCount=0;
+  allDBKeys().forEach(function(k){
+    (DB[k]||[]).forEach(function(i){
+      const rh=i.returnHistory||[];
+      if(rh.length===0)return;
+      const fullEntry=rh.find(r=>r.type==='full_seller'||r.type==='full_ebay');
+      const partialEntry=rh.find(r=>r.type==='partial_seller'||r.type==='partial_ebay');
+      const saleDate=(fullEntry&&fullEntry._dateSoldAtReturn)
+                   ||(partialEntry&&partialEntry._dateSoldAtReturn)
+                   ||i.dateSold||null;
+      if(_monthKeyFromDate(saleDate)!==m)return;
+      if(fullEntry)fullRefundCount++;
+      else if(partialEntry)partialOnlyCount++;
+    });
+  });
+  const refundedItemCount=fullRefundCount+partialOnlyCount;
+  // Denom = net sold + full returns = "items sold in this month" (partials
+  // are inside soldCount because they did not flip isReturned).
+  const refundDenom=soldCount+fullRefundCount;
+  const refundItemRate=refundDenom>0?(refundedItemCount/refundDenom*100):0;
+  // Legacy aliases kept for any callers reading the old field names.
+  const refundCount=fullRefundCount;
+  const partialCount=partialOnlyCount;
+  const avgROI=roiCount>0?(roiSum/roiCount):null;
+  const avgDays=daysCount>0?Math.round(daysSum/daysCount):null;
+  return {totalRev:+totalRev.toFixed(2),realisedProfit:+realisedProfit.toFixed(2),
+          soldCount,eventCount,returnedCount,avgROI,avgDays,
+          fullRefundCount,partialOnlyCount,refundedItemCount,refundDenom,refundItemRate,
+          refundCount,partialCount,  // legacy aliases
+          // Active stock for this listing month (kept so the grid card can show
+          // "X sold · Y active" without a second call):
+          listedCount:(DB[m]||[]).filter(function(i){return !i.dateSold&&!i.isReturned&&!i.resaleSalePrice&&((i.item||'').trim().toUpperCase()!=='MONTH END');}).length};
 }
 
 // eBay UK BPF: iterative solve matches spreadsheet values exactly
@@ -8470,7 +8906,8 @@ initTheme();
 //   notes TEXT,
 //   relisted_at DATE,
 //   relist_condition TEXT,
-//   sale_price_at_return NUMERIC(10,2) DEFAULT NULL  -- ALTER TABLE item_returns ADD COLUMN IF NOT EXISTS sale_price_at_return NUMERIC(10,2);
+//   sale_price_at_return NUMERIC(10,2) DEFAULT NULL,  -- ALTER TABLE item_returns ADD COLUMN IF NOT EXISTS sale_price_at_return NUMERIC(10,2);
+//   date_sold_at_return DATE DEFAULT NULL              -- ALTER TABLE item_returns ADD COLUMN IF NOT EXISTS date_sold_at_return DATE;
 // );
 //
 // -- Mileage trips
