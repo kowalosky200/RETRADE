@@ -1383,7 +1383,6 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
       style="width:100%;padding:12px;background:var(--accent);color:#000;border:none;border-radius:8px;font-weight:700;font-size:15px;cursor:pointer;transition:background 0.15s;">
       Sign In
     </button>
-
     <button onclick="showForgotPassword()"
       style="width:100%;padding:10px;background:none;border:none;color:var(--text-secondary);font-size:13px;cursor:pointer;margin-top:8px;text-decoration:underline;text-underline-offset:3px;">
       Forgot password?
@@ -1724,19 +1723,18 @@ const _sb = (typeof supabase !== 'undefined')
   : {auth:{getSession:async()=>({data:{session:null}}),onAuthStateChange:()=>({data:{subscription:{unsubscribe:()=>{}}}}),signInWithPassword:async()=>({error:{message:'offline'}}),signOut:async()=>{},refreshSession:async()=>({data:{},error:true}),resetPasswordForEmail:async()=>({error:null})}};
 
 
-// Preview mode stubs — disabled in production build
-const _previewMode = false;
+let _previewMode = false;
+const PREVIEW_STORAGE_KEY='retrade_preview_mode';
+const LEGACY_PREVIEW_STORAGE_KEYS=['general_preview_mode'];
+
+// Prod stubs — preview mode disabled in production build
 const PREVIEW_MODE_ENABLED = false;
-// Storage-key constants kept in prod so migrateLegacyLocalStorage runs without
-// throwing a ReferenceError (it's a no-op walk through localStorage either way,
-// but a clean run is preferable to a swallowed warning every page load).
-const PREVIEW_STORAGE_KEY = 'retrade_preview_mode';
-const LEGACY_PREVIEW_STORAGE_KEYS = ['general_preview_mode'];
-function enablePreviewMode(){}
-function disablePreviewMode(){}
+function _buildPreviewDB(){ return {}; }
+function enablePreviewMode(){ }
+function disablePreviewMode(){ localStorage.removeItem(PREVIEW_STORAGE_KEY); }
+
 
 // ── AUTH ─────────────────────────────────────────────────────────────────────
-
 
 const _EYE_OPEN = `<path d='M1 8s3-5 7-5 7 5 7 5-3 5-7 5-7-5-7-5z' stroke='currentColor' stroke-width='1.5' fill='none'/><circle cx='8' cy='8' r='2' stroke='currentColor' stroke-width='1.5' fill='none'/>`;
 const _EYE_SLASH = `<path d='M13.4 13.4C12.1 14.4 10.1 15 8 15c-4 0-7-5-7-5a12.4 12.4 0 013.6-3.6' stroke='currentColor' stroke-width='1.5' fill='none' stroke-linecap='round'/><path d='M2.6 2.6l10.8 10.8' stroke='currentColor' stroke-width='1.5' fill='none' stroke-linecap='round'/><path d='M6.5 3.3A7.2 7.2 0 018 3c4 0 7 5 7 5a12.4 12.4 0 01-1.6 2.3' stroke='currentColor' stroke-width='1.5' fill='none' stroke-linecap='round'/><path d='M10.7 10.7A3 3 0 015.3 5.3' stroke='currentColor' stroke-width='1.5' fill='none' stroke-linecap='round'/>`;
@@ -2481,8 +2479,8 @@ function openItemPageFromPanel(m,id){
   const panel=document.getElementById('slide-panel');
   const pageOn=document.querySelector('.page.on');
   _savedPanelState={
-    title:document.getElementById('panel-title').textContent,
-    content:document.getElementById('panel-content').innerHTML,
+    m:m,
+    id:id,
     scrollTop:panel.scrollTop||0,
     pageId:pageOn?pageOn.id:'p-summary',
     stack:PANEL_STACK.slice()
@@ -2521,20 +2519,12 @@ function exitItemPage(){
     if(pageId==='p-monthly')renderMonth();
     else if(pageId==='p-stock')renderStock();
     else if(pageId==='p-summary')renderSummary();
-    // Reopen the panel with saved state
-    document.getElementById('panel-title').textContent=_savedPanelState.title;
-    document.getElementById('panel-content').innerHTML=_savedPanelState.content;
-    document.getElementById('panel-overlay').classList.add('on');
-    const panel=document.getElementById('slide-panel');
-    panel.classList.remove('dragging');
-    panel.style.transition='';
-    panel.style.transform='';
-    panel.classList.add('on');
-    panel.scrollTop=_savedPanelState.scrollTop||0;
-    lockBodyScroll();
+    // Re-render the item detail panel live so any changes made on the item page are reflected
+    const _restoreM=_savedPanelState.m;
+    const _restoreId=_savedPanelState.id;
     PANEL_STACK=_savedPanelState.stack||[];
-    updatePanelNav();
     _savedPanelState=null;
+    openItemDetail(_restoreM,_restoreId,true);
     return;
   }
   document.getElementById(origin).classList.add('on');
@@ -3213,7 +3203,7 @@ function selectSearchResult(idx){
   closeSearchDropdown();
   document.getElementById('global-search').value='';
   document.querySelector('.search-clear').classList.remove('show');
-  openItemPage(item.month,item.id);
+  openItemPage(item.month,item.id,'p-search');
 }
 
 function handleSearchKey(e){
@@ -3441,7 +3431,8 @@ function updatePanelNav(){
 }
 function openPanel(title,content,pushHistory,_meta){
   const panel=document.getElementById('slide-panel');
-  if(pushHistory && document.getElementById('slide-panel').classList.contains('on')){
+  const wasAlreadyOpen=panel.classList.contains('on');
+  if(pushHistory && wasAlreadyOpen){
     PANEL_STACK.push({
       title:document.getElementById('panel-title').textContent,
       content:document.getElementById('panel-content').innerHTML,
@@ -3463,7 +3454,9 @@ function openPanel(title,content,pushHistory,_meta){
   panel.style.transform='';
   panel.classList.add('on');
   panel.scrollTop=0;
-  lockBodyScroll();
+  // Only lock if the panel wasn't already open — prevents double-locking when
+  // content is replaced in-place (e.g. openReturn called while item detail is showing)
+  if(!wasAlreadyOpen) lockBodyScroll();
   updatePanelNav();
 }
 function closePanel(){
@@ -5433,9 +5426,10 @@ function renderSaleEventRow(ev){
     ?'<label class="item-checkbox-left" onclick="event.stopPropagation()"><input type="checkbox" '+(selected?'checked':'')+' onchange="toggleSelect(\''+i.id+'\')" style="width:16px;height:16px;accent-color:var(--accent);cursor:pointer;margin-right:4px"></label>'
     :'<div class="status-dot '+status+'"></div>';
 
+  // Row click — capture active page at click time so ← Back returns to correct page
   const rowClick=SELECTION_MODE
     ?'onclick="toggleSelect(\''+i.id+'\')"'
-    :'onclick="openItemPage(\''+m+'\',\''+i.id+'\')"';
+    :'onclick="openItemPage(\''+m+'\',\''+i.id+'\',document.querySelector(\'.page.on\').id)"';
 
   // Sale-event badge — prefix with sale number for clarity when item appears twice
   const badgeText=ev.sale==='2'?'resold':status;
@@ -5446,7 +5440,7 @@ function renderSaleEventRow(ev){
   const actionsHTML='<div class="ddwrap" id="dd-'+i.id+'-s'+ev.sale+'">'+
     '<button class="ddbtn" onclick="event.stopPropagation();toggleDD(\'dd-'+i.id+'-s'+ev.sale+'\')" title="Actions">⋮</button>'+
     '<div class="ddmenu">'+
-      '<button onclick="event.stopPropagation();openItemPage(\''+m+'\',\''+i.id+'\')">📄 Full page</button>'+
+      '<button onclick="event.stopPropagation();openItemPage(\''+m+'\',\''+i.id+'\',document.querySelector(\'.page.on\').id)">📄 Full page</button>'+
       '<button onclick="event.stopPropagation();editItem(\''+m+'\',\''+i.id+'\')">✏️ Edit</button>'+
       (!ev.isReturned?'<button onclick="event.stopPropagation();openReturn(\''+m+'\',\''+i.id+'\')">↩️ Log Return</button>':'')+
       '<button onclick="event.stopPropagation();duplicateItem(\''+m+'\',\''+i.id+'\')">📋 Duplicate</button>'+
@@ -5525,12 +5519,12 @@ function renderItemRow(m,i){
   // Row click
   const rowClick=SELECTION_MODE
     ?'onclick="toggleSelect(\''+i.id+'\')"'
-    :'onclick="openItemPage(\''+m+'\',\''+i.id+'\')"';
+    :'onclick="openItemPage(\''+m+'\',\''+i.id+'\',document.querySelector(\'.page.on\').id)"';
 
   const actionsHTML='<div class="ddwrap" id="dd-'+i.id+'">'+
     '<button class="ddbtn" onclick="event.stopPropagation();toggleDD(\'dd-'+i.id+'\')" title="Actions">⋮</button>'+
     '<div class="ddmenu">'+
-      '<button onclick="event.stopPropagation();openItemPage(\''+m+'\',\''+i.id+'\')">📄 Full page</button>'+
+      '<button onclick="event.stopPropagation();openItemPage(\''+m+'\',\''+i.id+'\',document.querySelector(\'.page.on\').id)">📄 Full page</button>'+
       '<button onclick="event.stopPropagation();editItem(\''+m+'\',\''+i.id+'\')">✏️ Edit</button>'+
       (!i.dateSold&&!i.resaleSalePrice?'<button onclick="event.stopPropagation();markSold(\''+m+'\',\''+i.id+'\')"><svg width="14" height="14" viewBox="0 0 15 15" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M8.5 1.5h4a1 1 0 011 1v4a.5.5 0 01-.15.35l-6 6a1 1 0 01-1.41 0l-4-4a1 1 0 010-1.41l6-6A.5.5 0 018.5 1.5z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/><circle cx="11" cy="4" r="0.8" fill="currentColor"/></svg> Mark Sold</button>':'')+
       ((i.dateSold||i.resaleSalePrice)&&!i.isReturned?'<button onclick="event.stopPropagation();openReturn(\''+m+'\',\''+i.id+'\')">↩️ Log Return</button>':'')+
@@ -7073,7 +7067,9 @@ function confirmSold(){
 
 function closeModal(){
   document.getElementById('sold-modal').style.display='none';
-  unlockBodyScroll();
+  // Only unlock if the slide-panel isn't also open — if it is, the panel
+  // owns the lock and will release it when it closes.
+  if(!document.getElementById('slide-panel').classList.contains('on')) unlockBodyScroll();
   MODAL_CALLBACK=null;
 }
 
@@ -7086,7 +7082,9 @@ function confirmResale(){
 
 function closeResaleModal(){
   document.getElementById('resale-modal').style.display='none';
-  unlockBodyScroll();
+  // Only unlock if the slide-panel isn't also open — if it is, the panel
+  // owns the lock and will release it when it closes.
+  if(!document.getElementById('slide-panel').classList.contains('on')) unlockBodyScroll();
   MODAL_CALLBACK=null;
 }
 
@@ -7390,9 +7388,17 @@ function saveReturn(m,id){
   }
   saveDB();
   toast('Return logged');
+  const _activePage=document.querySelector('.page.on');
+  const _activeId=_activePage?_activePage.id:'p-summary';
   closePanel();
-  // Always navigate to the item page so user can see the updated P&L/timeline
-  openItemPage(m,id,document.querySelector('.page.on')?document.querySelector('.page.on').id:'p-summary');
+  if(_activeId==='p-item'){
+    // Already on the item page — re-render in place after panel slides out.
+    // Do NOT call openItemPage('p-item') or exitItemPage()'s back button breaks.
+    setTimeout(function(){ renderItemPage(m,id); }, 340);
+  } else {
+    // Coming from a list page — navigate to item page after panel clears.
+    setTimeout(function(){ openItemPage(m,id,_activeId); }, 340);
+  }
 }
 
 
@@ -7899,7 +7905,16 @@ function calcYearlyStats(period){
   allDBKeys().forEach(k=>{
     (DB[k]||[]).forEach(i=>{
       if((i.item||"").trim().toUpperCase()==="MONTH END")return;
-      const saleDate=i.resaleSalePrice?i.resaleDateSold:i.dateSold;
+      // Full returns wipe dateSold — use _dateSoldAtReturn snapshot so the sale
+      // still counts in the correct period for revenue and sold-count purposes.
+      // _retSaleDate: original sale date for items whose dateSold was wiped.
+      // Applies to BOTH currently-returned items AND items that were returned+resold
+      // (isReturned=false but returnHistory has a full return entry and dateSold is null).
+      const _retSaleDate=(!i.dateSold)?(function(){
+        const fe=(i.returnHistory||[]).find(r=>r.type==='full_seller'||r.type==='full_ebay');
+        return fe&&fe._dateSoldAtReturn||null;
+      })():null;
+      const saleDate=i.resaleSalePrice?i.resaleDateSold:(i.dateSold||_retSaleDate);
       const soldInRange=inRange(saleDate);
       totalItems++;
       if(soldInRange&&(i.dateSold||i.resaleSalePrice)&&!i.isReturned&&i.condition!=='spares')saleTransactions.push(i.salePrice||0);
@@ -7932,11 +7947,9 @@ function calcYearlyStats(period){
         const refundSaleDate=(fullEntry&&fullEntry._dateSoldAtReturn)||i.dateSold||null;
         if(inRange(refundSaleDate))returnCount++;
       }
-      if(soldInRange&&(i.dateSold||i.resaleSalePrice)){
-        // NEW7: gross revenue + profit include fully-returned items (the sale
-        // happened, calcGrossProfit charges the refund as a cost). soldCount
-        // stays as NET completed sales — returned items don't count as a unit
-        // sold for avg/sell-through purposes.
+      // Revenue + profit: attributed to the date the final resolved sale happened.
+      // calcItemRevenue() handles the rules: returned+not-resold=0, returned+resold=resalePrice only.
+      if(soldInRange){
         totalRev+=calcItemRevenue(i);
         if(!i.isReturned){
           soldCount++;
@@ -7944,8 +7957,7 @@ function calcYearlyStats(period){
           realisedProfit+=prof;
           soldItems.push({...i,profit:prof});
         }else{
-          // Returned item — still contributes to realisedProfit (as a net loss
-          // via refund cost), but not to soldCount / avg metrics.
+          // Returned, not yet resold — 0 revenue but profit (loss) still counts.
           realisedProfit+=calcGrossProfit(i)||0;
         }
       }else if(!i.isReturned&&!i.resaleSalePrice){
@@ -8099,8 +8111,19 @@ function calcMonthStats(m){
   let soldCount=0,listedCount=0,daysSum=0;
   (DB[m]||[]).forEach(i=>{
     if((i.item||"").trim().toUpperCase()==="MONTH END")return;
-    if(i.dateSold||i.resaleSalePrice){
-      // NEW7: gross revenue + profit include returned items; soldCount stays net.
+    // Full returns wipe dateSold — reconstruct it from snapshot so returned items
+    // still appear in revenue for the month their sale actually happened.
+    // _iRetSaleDate: original dateSold for items returned+resold (dateSold wiped,
+    // isReturned may be false if already relisted and sold again).
+    const _iRetSaleDate=(!i.dateSold)?(function(){
+      const fe=(i.returnHistory||[]).find(r=>r.type==='full_seller'||r.type==='full_ebay');
+      return fe&&fe._dateSoldAtReturn||null;
+    })():null;
+    // saleDate: for resold items use resaleDateSold (revenue attributed to when it resolved).
+    // For returned+not-resold use _dateSoldAtReturn snapshot (so loss still hits the right month).
+    const _iSaleDate=i.resaleSalePrice?i.resaleDateSold:(i.dateSold||_iRetSaleDate);
+    const _iHadSale=_iSaleDate&&_monthKeyFromDate(_iSaleDate)===m;
+    if(_iHadSale){
       totalRev+=calcItemRevenue(i);
       if(!i.isReturned){
         soldCount++;
@@ -8154,7 +8177,15 @@ function getSaleEventsInMonth(m){
     (DB[k]||[]).forEach(function(i){
       if((i.item||'').trim().toUpperCase()==='MONTH END')return;
       // Sale 1 — original sale
-      if(i.dateSold&&_monthKeyFromDate(i.dateSold)===m){
+      // Full returns wipe i.dateSold — use _dateSoldAtReturn snapshot to keep the
+      // sale attributed to the correct month for revenue and refund-rate purposes.
+      // _sale1Date: use _dateSoldAtReturn for any item whose dateSold was wiped
+      // (covers both currently-returned items AND returned+resold items).
+      const _sale1Date=i.dateSold||((!i.dateSold)?(function(){
+        const fe=(i.returnHistory||[]).find(r=>r.type==='full_seller'||r.type==='full_ebay');
+        return fe&&fe._dateSoldAtReturn||null;
+      })():null);
+      if(_sale1Date&&_monthKeyFromDate(_sale1Date)===m){
         // If this item was relisted, sale1 needs the original-sale snapshot.
         const fullReturn=(i.returnHistory||[]).find(function(r){return r.type==='full_seller'||r.type==='full_ebay';});
         const isRelisted=!!fullReturn&&!!i.resaleSalePrice;
@@ -8196,7 +8227,7 @@ function getSaleEventsInMonth(m){
           // Currently flagged as returned (not yet relisted) — sale1 happened, was reversed.
           out.push({
             item:i, month:k, sale:'1',
-            saleDate:i.dateSold,
+            saleDate:_sale1Date,
             salePrice:i.salePrice||0,
             profit:calcGrossProfit(i)||0,
             roi:null,
@@ -8240,7 +8271,9 @@ function calcMonthStatsBySale(m){
   let roiSum=0,roiCount=0,daysSum=0,daysCount=0;
   events.forEach(function(e){
     eventCount++;
-    totalRev+=e.salePrice||0;
+    // For sale1 events that ended in a return+resale, revenue = 0 (counted on sale2).
+    const _evRev=(e.isReturned&&e.sale==='1'&&e.item.resaleSalePrice)?0:(e.salePrice||0);
+    totalRev+=_evRev;
     realisedProfit+=e.profit||0;
     if(e.isReturned){
       returnedCount++;
@@ -8308,18 +8341,20 @@ function calcEbayBPF(salePrice){
 function calcPartsCost(i){
   return (i.parts||[]).reduce(function(s,p){return s+(p.cost||0);},0);
 }
-// Revenue for an item, net of refunds.
-// - Full returns (isReturned=true, not yet relisted): revenue = 0 (sale fully reversed)
-// - Partial refunds (any type): revenue = salePrice − partial refunds
-// - Resold items: add resale sale price on top
-// Used by all Revenue KPIs and rollups so totals match cash-in reality.
+// Revenue for an item — reflects cash actually kept, not gross flow:
+//   Fully returned, not yet relisted  → 0      (sale reversed, money went back)
+//   Returned then resold              → resaleSalePrice only (original sale doesn't count)
+//   Partial refund (any type)         → salePrice gross (partial doesn't reverse the sale)
+//   Normal sold                       → salePrice
+// Profit is calculated separately via calcGrossProfit which handles all fee/cost logic.
 function calcItemRevenue(i){
   if(!i.salePrice)return 0;
-  // Gross revenue — raw sale amounts (salePrice + resaleSalePrice).
-  // NEW7 (Apr 20): switched from net-of-refunds to pure gross. Returns
-  // and partial refunds surface through the Refund Rate KPI drill-down
-  // and flow through calcGrossProfit as costs — they do NOT reduce
-  // revenue here. Matches SA103 Box 15 (HMRC gross income) by design.
+  // Returned and not yet resold — revenue = 0
+  if(i.isReturned)return 0;
+  // Returned then resold — only the resale price counts as revenue
+  const _wasReturnedThenResold=i.resaleSalePrice&&(i.returnHistory||[]).some(r=>r.type==='full_seller'||r.type==='full_ebay');
+  if(_wasReturnedThenResold)return+(i.resaleSalePrice||0).toFixed(2);
+  // Normal sold (including partial refunds — partial doesn't reverse the sale)
   return+((i.salePrice||0)+(i.resaleSalePrice||0)).toFixed(2);
 }
 function calcGrossProfit(i){
