@@ -101,6 +101,21 @@ nav:not(#bottom-nav){position:sticky;top:0;z-index:200;background:var(--surface)
 .user-menu-item.danger{color:var(--red);}
 .user-menu-item.danger:hover{background:var(--red-dim);}
 .user-menu-divider{height:1px;background:var(--border);margin:4px 8px;}
+/* Session D1.6 — Country submenu inside the profile dropdown.
+   Renders flag · label · (active check) per country, with disabled state
+   for coming-soon entries. The flag in the user-menu trigger sits between
+   the avatar and the chevron. */
+.user-menu-flag{width:18px;height:18px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;box-shadow:0 0 0 1px var(--border);}
+.user-menu-section-label{font-family:var(--font-display);font-size:9px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:0.12em;padding:8px 14px 4px;}
+.user-menu-country-sub{display:flex;flex-direction:column;}
+.user-menu-country-item{width:100%;padding:8px 14px;background:none;border:none;text-align:left;cursor:pointer;font-size:13px;font-weight:500;color:var(--text-secondary);transition:all 0.15s;border-radius:8px;display:flex;align-items:center;gap:10px;}
+.user-menu-country-item:hover:not(:disabled){background:var(--surface2);color:var(--text);}
+.user-menu-country-item.active{color:var(--text);}
+.user-menu-country-item.coming-soon{opacity:0.5;cursor:not-allowed;}
+.user-menu-country-item .cf{display:flex;align-items:center;justify-content:center;box-shadow:0 0 0 1px var(--border);border-radius:50%;}
+.user-menu-country-item .cl{flex:1;}
+.user-menu-country-item .cc{color:var(--accent);flex-shrink:0;}
+.user-menu-country-item .cs-tag{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--muted);background:var(--surface2);padding:2px 6px;border-radius:6px;}
 /* Sync indicator */
 #sync-indicator{display:none;align-items:center;gap:6px;font-size:12px;font-weight:500;color:var(--text-secondary);white-space:nowrap;flex-shrink:0;}
 /* Mobile search icon btn — hidden on desktop */
@@ -352,10 +367,51 @@ nav:not(#bottom-nav){position:sticky;top:0;z-index:200;background:var(--surface)
 /* FORMS */
 .fg{margin-bottom:16px;}
 .fg label{display:block;font-family:var(--font-display);font-size:10px;font-weight:800;color:var(--muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:0.1em;}
+/* Session D1.5 — keep paired inputs in .form-grid-2 rows aligned even when
+   one label wraps to two lines (e.g. "Postage Charged to Buyer" in the Edit
+   form pairs with shorter labels). The label reserves space for two lines
+   either way; single-line labels just show whitespace below, but inputs
+   stay perfectly aligned. */
+.form-grid-2 .fg label{min-height:1.4em;display:flex;align-items:flex-end;}
 .fg input,.fg select,.fg textarea{width:100%;padding:10px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-size:14px;font-family:var(--font-body);transition:all 0.15s;}
 .fg input:focus,.fg select:focus,.fg textarea:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-dim);}
 .fg textarea{resize:vertical;min-height:80px;}
 .fg select{cursor:pointer;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%236b7280' d='M6 9L1 4h10z'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center;}
+/* Session D1 — Platform pill row in Quick Add / Edit forms.
+   Compact horizontal scroll on mobile, full row on desktop. Live platforms
+   are interactive; coming-soon platforms render disabled with a subtle look. */
+.qa-platform-row{display:flex;flex-wrap:wrap;gap:6px;}
+.qa-platform-pill{flex:0 0 auto;padding:7px 12px;border-radius:8px;border:1px solid var(--border);background:var(--surface2);color:var(--text-secondary);font-family:var(--font-body);font-size:12px;font-weight:600;cursor:pointer;transition:all 0.15s;letter-spacing:0;}
+.qa-platform-pill:hover{border-color:var(--accent);color:var(--text);}
+.qa-platform-pill.active{background:var(--accent);color:#000;border-color:var(--accent);}
+/* D1.6 — coming-soon pills are now CLICKABLE (preview mode) but visually
+   muted so the live default (eBay) reads as the recommended choice. When
+   selected, the pill goes muted-active rather than full accent. */
+.qa-platform-pill.coming-soon{opacity:0.7;}
+.qa-platform-pill.coming-soon::after{content:'·soon';font-size:9px;font-weight:500;margin-left:4px;opacity:0.7;}
+.qa-platform-pill.coming-soon.active{background:color-mix(in srgb,var(--accent) 30%, var(--surface2) 70%);color:var(--text);border-color:color-mix(in srgb,var(--accent) 60%, transparent);}
+
+/* Session D1.6 — Quick Add price input helper (small clarifying line shown
+   under the Cost/Sale row when the platform's pricing pattern needs it,
+   e.g. "Buyer pays this + Vinted Buyer Protection on top"). */
+.qa-price-helper{font-size:11px;color:var(--text-secondary);font-style:italic;margin:-8px 0 14px;padding:0 2px;line-height:1.4;}
+
+/* Session D1.6 — Coming Soon banner above the locked Add button.
+   Three columns: clock icon · explanatory text · CTA back to eBay. */
+.qa-coming-soon-banner{display:flex;align-items:center;gap:12px;margin-top:18px;padding:12px 14px;background:color-mix(in srgb,var(--warn) 10%, var(--surface2) 90%);border:1px solid color-mix(in srgb,var(--warn) 35%, var(--border) 65%);border-radius:10px;}
+.qa-cs-icon{flex-shrink:0;color:var(--warn);}
+.qa-cs-text{flex:1;display:flex;flex-direction:column;gap:2px;font-size:12px;line-height:1.4;}
+.qa-cs-text strong{font-size:13px;font-weight:700;color:var(--text);}
+.qa-cs-text span{color:var(--text-secondary);}
+.qa-cs-cta{flex-shrink:0;padding:6px 12px;background:var(--accent);color:#000;border:none;border-radius:8px;font-family:var(--font-body);font-size:12px;font-weight:700;cursor:pointer;transition:all 0.15s;}
+.qa-cs-cta:hover{filter:brightness(1.1);transform:translateY(-1px);}
+@media(max-width:600px){.qa-coming-soon-banner{flex-wrap:wrap;}.qa-cs-text{flex:1 1 100%;order:1;}.qa-cs-icon{order:0;}.qa-cs-cta{order:2;width:100%;padding:9px;}}
+
+/* Session D1.6 — Locked submit button when a non-live platform is selected. */
+.btn.btn-p.locked,.btn.btn-p:disabled{opacity:0.45;cursor:not-allowed;filter:saturate(0.6);}
+.btn.btn-p.locked:hover,.btn.btn-p:disabled:hover{transform:none;}
+[data-theme="dark"] .qa-platform-pill.active{color:#0a0a0a;}
+@media(max-width:600px){.qa-platform-row{overflow-x:auto;flex-wrap:nowrap;-webkit-overflow-scrolling:touch;padding-bottom:2px;}.qa-platform-pill{font-size:11px;padding:6px 10px;}}
 /* Global input UX: touch-action:manipulation removes 300ms tap delay so
    keyboard fires immediately on mobile tap. user-select:text ensures
    tapping an input selects it. Applied to ALL inputs sitewide. */
@@ -1202,6 +1258,7 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
       <div class="user-menu" id="user-menu">
         <button class="user-menu-btn" onclick="event.stopPropagation();toggleUserMenu()" id="user-menu-btn">
           <div class="user-avatar" id="user-avatar">R</div>
+          <div id="user-menu-flag" class="user-menu-flag" aria-hidden="true"></div>
           <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 4l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
         </button>
         <div class="user-menu-dropdown" id="user-menu-dropdown">
@@ -1209,6 +1266,9 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
             <span id="user-menu-theme-label">Light mode</span>
           </button>
+          <div class="user-menu-divider"></div>
+          <div class="user-menu-section-label">Country</div>
+          <div id="user-menu-country-sub" class="user-menu-country-sub"></div>
           <div class="user-menu-divider"></div>
           <button class="user-menu-item danger" id="user-menu-signout" onclick="closeUserMenu();doSignOut()">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
@@ -1338,9 +1398,16 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
       <label>Date Sold</label>
       <input type="date" id="modal-date" autocomplete="off">
     </div>
+    <div class="fg" id="modal-platform-row" style="margin-bottom:12px">
+      <label>Sold On</label>
+      <select id="modal-platform" onchange="onMarkSoldPlatformChange()" autocomplete="off">
+        ${Object.values(PLATFORMS).map(p=>`<option value="${p.id}" ${!p.live?'disabled':''}>${p.label}${!p.live?' — coming soon':''}</option>`).join('')}
+      </select>
+    </div>
     <div class="fg" id="modal-price-row" style="margin-bottom:16px">
-      <label>Sale Price (£)</label>
+      <label id="modal-price-label">Sale Price (£)</label>
       <input type="number" id="modal-price" step="0.01" placeholder="0.00" autocomplete="off">
+      <div id="modal-price-helper" class="qa-price-helper" style="display:none;margin-top:4px;margin-bottom:0;"></div>
     </div>
     <div style="display:flex;gap:10px">
       <button class="btn btn-success" onclick="confirmSold()" style="flex:1">Confirm</button>
@@ -1481,6 +1548,16 @@ function currentMonthKey(){
   return MONTHS[now.getMonth()]+'-'+String(now.getFullYear()).slice(-2);
 }
 
+// Session D1.5 — derive a DB month key from any YYYY-MM-DD date string.
+// Used by Quick Add to drop the redundant Month dropdown — date is the
+// source of truth, the month bucket is derived. Falls back to current
+// month if the input is empty or malformed (Quick Add must always land
+// somewhere). The lower-level _monthKeyFromDate (defined later in the
+// file) returns null on bad input — fine for analytics, wrong for forms.
+function monthKeyFromDate(iso){
+  return _monthKeyFromDate(iso)||currentMonthKey();
+}
+
 // Strip year suffix → base code: 'APR-26' → 'APR'
 function keyCode(k){ return (k||'').split('-')[0]; }
 // Strip to 2-digit year: 'APR-26' → '26', then full year
@@ -1581,6 +1658,197 @@ const EXPENSE_CATEGORIES=[
   'Vehicle Maintenance','Insurance','Bank/Payment Fees','Other'
 ];
 
+// ─────────────────────────────────────────────────────────────────────────────
+// SESSION D1 — Multi-platform support (Option B: default at create, actual at Mark Sold)
+// ─────────────────────────────────────────────────────────────────────────────
+// Architecture: items carry two optional fields:
+//   i.defaultPlatform  → set at creation (Quick Add / Add Item). Used for fee
+//                        ESTIMATES while listed. eBay if unset (back-compat).
+//   i.soldOnPlatform   → set at Mark Sold (Session D2). Source of truth for
+//                        ACTUAL realised fees. Falls back to defaultPlatform.
+//
+// Fee dispatcher: calcPlatformBPF(item, price) routes to the right primitive
+// based on _itemPlatform(item). calcEbayBPF(price) remains the pure eBay
+// number→number primitive — unchanged, all existing callers safe.
+//
+// Adding a new platform later = write the primitive + add one switch case.
+//
+// ─── D1.6 — Country scaffolding + platform pricing patterns ───────────────────
+// COUNTRY drives which country's fee rules apply. Today: hard-coded UK.
+// Future: stored in user profile, changed via Settings, drives different fee
+// formulas (e.g. eBay UK BPF differs from eBay US final value fee schedule).
+//
+// Each platform also declares a PRICING PATTERN that drives form UI:
+//   'buyer_pays'      → seller enters what the BUYER PAYS; fees come out of
+//                       that number. Example: eBay UK private (BPF embedded).
+//   'seller_receives' → seller enters what THEY RECEIVE; buyer pays extra
+//                       (BPF + postage label) on top. Example: Vinted.
+//   'listed_plus_fee' → seller enters the LISTED PRICE; platform takes a %
+//                       seller fee out of that. Example: Depop, Amazon.
+const COUNTRIES={
+  uk: { id:'uk', label:'United Kingdom', short:'UK', live:true,  flag:'gb' },
+  us: { id:'us', label:'United States',  short:'US', live:false, flag:'us' }
+};
+const DEFAULT_COUNTRY='uk';
+let COUNTRY=DEFAULT_COUNTRY; // mutable; future: hydrated from user profile
+
+// Session D1.6 — Inline SVG flag icons clipped into a circle. UK + US only
+// for now; adding a country = drop in a third case. Size param controls the
+// circle diameter. Designed to look clean against both light and dark UI.
+function _flagSVG(countryId, size){
+  size = size || 20;
+  const id = 'flagclip-'+countryId+'-'+size+'-'+Math.floor(Math.random()*1e6);
+  if(countryId==='uk'){
+    return `<svg width="${size}" height="${size}" viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg" style="display:block;border-radius:50%;overflow:hidden">
+      <defs><clipPath id="${id}"><circle cx="30" cy="30" r="30"/></clipPath></defs>
+      <g clip-path="url(#${id})">
+        <rect width="60" height="60" fill="#012169"/>
+        <path d="M0,0 L60,60 M60,0 L0,60" stroke="#fff" stroke-width="12"/>
+        <path d="M0,0 L60,60 M60,0 L0,60" stroke="#C8102E" stroke-width="4"/>
+        <path d="M30,0 V60 M0,30 H60" stroke="#fff" stroke-width="20"/>
+        <path d="M30,0 V60 M0,30 H60" stroke="#C8102E" stroke-width="8"/>
+      </g>
+    </svg>`;
+  }
+  if(countryId==='us'){
+    return `<svg width="${size}" height="${size}" viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg" style="display:block;border-radius:50%;overflow:hidden">
+      <defs><clipPath id="${id}"><circle cx="30" cy="30" r="30"/></clipPath></defs>
+      <g clip-path="url(#${id})">
+        <rect width="60" height="60" fill="#fff"/>
+        ${[0,1,2,3,4,5,6].map(n=>`<rect y="${n*60/13*2}" width="60" height="${60/13}" fill="#B22234"/>`).join('')}
+        <rect width="24" height="${60/13*7}" fill="#3C3B6E"/>
+      </g>
+    </svg>`;
+  }
+  return `<div style="width:${size}px;height:${size}px;border-radius:50%;background:var(--surface2);"></div>`;
+}
+
+// Session D1.6 — Country setter. Called from the profile dropdown country
+// submenu. Persists to localStorage for next session; future: writes to
+// user profile in Supabase. Re-renders the user-menu trigger flag.
+function setCountry(countryId){
+  if(!COUNTRIES[countryId]||!COUNTRIES[countryId].live)return;
+  COUNTRY=countryId;
+  try{ localStorage.setItem('retrade_country',countryId); }catch(e){}
+  // Refresh the flag icon in the menu trigger
+  const flagEl=document.getElementById('user-menu-flag');
+  if(flagEl)flagEl.innerHTML=_flagSVG(COUNTRIES[countryId].flag,18);
+  // Refresh the country submenu's active state
+  refreshCountrySubmenu();
+  // Toast for clarity
+  if(typeof toast==='function')toast('Country set to '+COUNTRIES[countryId].label);
+}
+
+function refreshCountrySubmenu(){
+  const sub=document.getElementById('user-menu-country-sub');
+  if(!sub)return;
+  sub.querySelectorAll('[data-country]').forEach(el=>{
+    el.classList.toggle('active',el.dataset.country===COUNTRY);
+  });
+}
+const PLATFORMS={
+  ebay:      { id:'ebay',      label:'eBay UK',              short:'eBay',   live:true,  pattern:'buyer_pays',      country:'uk' },
+  vinted:    { id:'vinted',    label:'Vinted',               short:'Vinted', live:false, pattern:'seller_receives', country:'uk' },
+  depop:     { id:'depop',     label:'Depop',                short:'Depop',  live:false, pattern:'listed_plus_fee', country:'uk' },
+  fb:        { id:'fb',        label:'Facebook Marketplace', short:'FB',     live:false, pattern:'seller_receives', country:'uk' },
+  amazon_uk: { id:'amazon_uk', label:'Amazon UK (used)',     short:'Amazon', live:false, pattern:'listed_plus_fee', country:'uk' }
+};
+const DEFAULT_PLATFORM='ebay';
+
+// Source of truth: which platform's fee formula applies to this item right now.
+// Sold/returned items use soldOnPlatform if set (D2 will set it); otherwise
+// fall back to defaultPlatform; otherwise eBay (back-compat for pre-D1 data).
+function _itemPlatform(i){
+  if(!i)return DEFAULT_PLATFORM;
+  if(i.soldOnPlatform&&PLATFORMS[i.soldOnPlatform])return i.soldOnPlatform;
+  if(i.defaultPlatform&&PLATFORMS[i.defaultPlatform])return i.defaultPlatform;
+  return DEFAULT_PLATFORM;
+}
+
+// Convenience: human-readable platform label for an item (used in receipts, UI).
+function _platformLabel(i){
+  const p=PLATFORMS[_itemPlatform(i)];
+  return p?p.label:'eBay UK';
+}
+function _platformShort(i){
+  const p=PLATFORMS[_itemPlatform(i)];
+  return p?p.short:'eBay';
+}
+
+// Session D1.5 — Platform-aware fee label for the BPF preview block.
+// Returns the short fee name (e.g. "BPF" for eBay, "Vinted fee" for Vinted)
+// and the buyer-facing pricing language (e.g. "Buyer pays" vs "Listed at")
+// so the preview header can adapt without rewriting the layout per platform.
+function _platformFeeLabel(i){
+  const p=_itemPlatform(i);
+  switch(p){
+    case 'ebay':      return { feeLabel:'BPF',         priceLabel:'Buyer pays' };
+    case 'vinted':    return { feeLabel:'Vinted fee',  priceLabel:'You set'    };
+    case 'depop':     return { feeLabel:'Depop fee',   priceLabel:'Listed at'  };
+    case 'fb':        return { feeLabel:'FB fee',      priceLabel:'You set'    };
+    case 'amazon_uk': return { feeLabel:'Amazon fee',  priceLabel:'Listed at'  };
+    default:          return { feeLabel:'Fee',         priceLabel:'Sale price' };
+  }
+}
+
+// Session D1.6 — Pricing pattern for an item's platform. Drives form UI:
+// which input label to show, what the BPF preview says, and how submit
+// validation should behave. Returns one of 'buyer_pays' / 'seller_receives' /
+// 'listed_plus_fee'. Falls back to 'buyer_pays' for unknown platforms.
+function _platformPattern(i){
+  const p=PLATFORMS[_itemPlatform(i)];
+  return p&&p.pattern?p.pattern:'buyer_pays';
+}
+
+// Session D1.6 — Pricing copy block driven by pattern. Used by the price
+// input label and the BPF preview to keep wording consistent across the form.
+// Each pattern returns:
+//   inputLabel     → label for the price input (e.g. "Sale Price (£)")
+//   inputHelper    → small hint shown under the input (or empty)
+//   feeNoun        → the fee's user-facing name ("BPF", "Vinted fee", etc.)
+//   priceLabel     → preview "what's this number" text ("Buyer pays")
+//   feeBearer      → who actually pays the fee: 'seller' | 'buyer' | 'split'
+function _platformPricingCopy(i){
+  const p=_itemPlatform(i);
+  const pattern=_platformPattern(i);
+  const fee=_platformFeeLabel(i);
+  switch(pattern){
+    case 'seller_receives':
+      // Vinted/FB pattern — buyer pays extra on top, seller receives the listed
+      // amount in full. Vinted's BPF is BUYER-paid (not deducted from seller).
+      return {
+        inputLabel:'Your Asking Price (£)',
+        inputHelper: p==='vinted'
+          ? 'Buyer pays this + Vinted Buyer Protection on top'
+          : 'Buyer pays this; no platform fee deducted',
+        feeNoun:fee.feeLabel,
+        priceLabel:'You receive',
+        feeBearer:'buyer'
+      };
+    case 'listed_plus_fee':
+      // Depop/Amazon — seller fee comes out of the listed price.
+      return {
+        inputLabel:'Listed Price (£)',
+        inputHelper: p==='depop'
+          ? 'Depop takes 10% + payment processing'
+          : 'Amazon takes a referral fee + closing fee',
+        feeNoun:fee.feeLabel,
+        priceLabel:'Listed at',
+        feeBearer:'seller'
+      };
+    case 'buyer_pays':
+    default:
+      // eBay UK private — buyer-pays is the listed price, BPF is embedded.
+      return {
+        inputLabel:'Sale Price (£)',
+        inputHelper:'',
+        feeNoun:fee.feeLabel,
+        priceLabel:'Buyer pays',
+        feeBearer:'buyer'
+      };
+  }
+}
+
 let DB={};
 let SELECTED_MONTH=currentMonthKey(); // e.g. 'APR-26'
 let SELECTED_ITEMS=new Set();
@@ -1673,6 +1941,18 @@ function initTheme(){
   document.documentElement.setAttribute('data-theme',saved);
   updateThemeIcon(saved);
 }
+
+// Session D1.6 — Hydrate the COUNTRY constant from localStorage and paint the
+// flag in the user-menu trigger. Called once on init alongside initTheme.
+// Future: replace localStorage with a Supabase user-profile read.
+function initCountry(){
+  try{
+    const saved=localStorage.getItem('retrade_country');
+    if(saved&&COUNTRIES[saved]&&COUNTRIES[saved].live)COUNTRY=saved;
+  }catch(e){}
+  const flagEl=document.getElementById('user-menu-flag');
+  if(flagEl)flagEl.innerHTML=_flagSVG(COUNTRIES[COUNTRY].flag,18);
+}
 function toggleTheme(){
   const current=document.documentElement.getAttribute('data-theme')||'light';
   const next=current==='light'?'dark':'light';
@@ -1712,7 +1992,31 @@ function toggleMoreSheet(){
 function toggleUserMenu(){
   const menu=document.getElementById('user-menu');
   if(!menu)return;
+  // Session D1.6 — render country submenu on open so the active state is fresh
+  // and any future country additions are reflected without a hard reload.
+  renderCountrySubmenu();
   menu.classList.toggle('open');
+}
+
+// Session D1.6 — Build the country submenu inside the user-menu dropdown.
+// Live countries are interactive; coming-soon countries render disabled with
+// a soft label so users see the future direction without being able to pick.
+function renderCountrySubmenu(){
+  const sub=document.getElementById('user-menu-country-sub');
+  if(!sub)return;
+  sub.innerHTML=Object.values(COUNTRIES).map(c=>{
+    const isActive=c.id===COUNTRY;
+    const cls='user-menu-country-item'+(isActive?' active':'')+(!c.live?' coming-soon':'');
+    const onclick=c.live?`setCountry('${c.id}');closeUserMenu()`:'';
+    const dis=!c.live?'disabled':'';
+    const tag=!c.live?'<span class="cs-tag">Coming soon</span>':'';
+    return `<button type="button" class="${cls}" data-country="${c.id}" ${dis} onclick="${onclick}">
+      <span class="cf">${_flagSVG(c.flag,18)}</span>
+      <span class="cl">${c.label}</span>
+      ${tag}
+      ${isActive?'<svg class="cc" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>':''}
+    </button>`;
+  }).join('');
 }
 function closeUserMenu(){
   const menu=document.getElementById('user-menu');
@@ -3855,9 +4159,25 @@ function openQuickAdd(){
   const html=`
     <div class="panel-section">New item</div>
     ${formHTML()}
-    <button class="btn btn-p" style="width:100%;margin-top:20px" onclick="submitQuickAdd()">Add Item</button>
+    <div id="qa-coming-soon-banner" class="qa-coming-soon-banner" style="display:none">
+      <div class="qa-cs-icon">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+      </div>
+      <div class="qa-cs-text">
+        <strong id="qa-cs-title">Coming soon</strong>
+        <span id="qa-cs-detail">Tracking for this platform isn't ready yet.</span>
+      </div>
+      <button type="button" class="qa-cs-cta" onclick="qaSetPlatform('ebay')">Use eBay instead</button>
+    </div>
+    <button class="btn btn-p" id="qa-submit-btn" style="width:100%;margin-top:20px" onclick="submitQuickAdd()">Add Item</button>
   `;
   openPanel('Quick Add',html);
+  // Session D1.6 — initialise price label + submit state for the default
+  // platform (eBay). This is a no-op cosmetically since eBay is the default,
+  // but ensures the helper text + button state are consistent if the user's
+  // future default ever changes.
+  if(typeof _refreshQuickAddPriceCopy==='function')_refreshQuickAddPriceCopy();
+  if(typeof _refreshQuickAddSubmitState==='function')_refreshQuickAddSubmitState();
   // Focus the item name field immediately — must be synchronous within the
   // tap gesture chain for mobile keyboard to fire reliably.
   const qaItem=document.getElementById('qa-item');
@@ -3865,7 +4185,18 @@ function openQuickAdd(){
 }
 
 function submitQuickAdd(){
-  const m=document.getElementById('qa-month').value;
+  // Session D1.5 — month bucket derived from the Date Listed input.
+  // Previously a separate Month dropdown duplicated this information.
+  const _qaDate=(document.getElementById('qa-date').value||new Date().toISOString().split('T')[0]);
+  const m=monthKeyFromDate(_qaDate);
+  // Session D1.6 — defensive gate: if a non-live platform was selected (via
+  // preview mode), block submission server-side too. The button is disabled
+  // by _refreshQuickAddSubmitState but a determined user could re-enable it.
+  const _qaPlat=document.getElementById('qa-platform')?.value||DEFAULT_PLATFORM;
+  if(!PLATFORMS[_qaPlat]||!PLATFORMS[_qaPlat].live){
+    toast((PLATFORMS[_qaPlat]?.label||'This platform')+' tracking is coming soon — pick eBay to add this item','error');
+    return;
+  }
   // Validation gate — require an item name and a positive cost before persisting.
   // Prevents "Untitled" ghost rows from empty submits.
   const rawName=(document.getElementById('qa-item').value||'').trim();
@@ -3904,7 +4235,7 @@ function submitQuickAdd(){
   const item={
     id:'qa_'+Date.now(),
     gid:'R-'+String(getNextGID()).padStart(4,'0'),
-    dateListed:document.getElementById('qa-date').value||new Date().toISOString().split('T')[0],
+    dateListed:_qaDate,
     item:rawName,
     source:document.getElementById('qa-source').value||'',
     category:document.getElementById('qa-category').value||'',
@@ -3914,6 +4245,7 @@ function submitQuickAdd(){
     postage,shippingCost,packagingCost,
     _postageMode,_sdRateIdx,_sdBuyerPays,
     promoPercent:(parseFloat(document.getElementById('qa-promo').value)||0)/100,
+    defaultPlatform:(document.getElementById('qa-platform')?.value)||DEFAULT_PLATFORM,
     dateSold:null,grossProfit:null,isReturned:false
   };
   item.category=item.category||autoCategory(item.item);
@@ -3941,18 +4273,25 @@ function getNextGID(){
 function formHTML(){
   return`
     <div class="fg">
-      <label>Month</label>
-      <select id="qa-month">
-        ${allDBKeys().map(k=>`<option value="${k}" ${k===SELECTED_MONTH?'selected':''}>${keyName(k)}</option>`).join('')}
-      </select>
-    </div>
-    <div class="fg">
       <label>Date Listed</label>
       <input type="date" id="qa-date" value="${new Date().toISOString().split('T')[0]}">
     </div>
     <div class="fg">
       <label>Item Name</label>
       <input type="text" id="qa-item" placeholder="e.g. Vintage watch">
+    </div>
+    <div class="fg">
+      <label>Listed on</label>
+      <div class="qa-platform-row" id="qa-platform-row">
+        ${Object.values(PLATFORMS).map(p=>`
+          <button type="button"
+            class="qa-platform-pill${p.id===DEFAULT_PLATFORM?' active':''}${!p.live?' coming-soon':''}"
+            data-platform="${p.id}"
+            ${!p.live?`title="${p.short} tracking coming soon — preview only"`:''}
+            onclick="qaSetPlatform('${p.id}')">${p.short}</button>
+        `).join('')}
+      </div>
+      <input type="hidden" id="qa-platform" value="${DEFAULT_PLATFORM}">
     </div>
     <div class="fg">
       <label>Source</label>
@@ -3978,17 +4317,18 @@ function formHTML(){
         <input type="number" id="qa-cost" step="0.01" min="0" placeholder="0.00" oninput="updateBPFPreview()">
       </div>
       <div class="fg">
-        <label>Listed Price — what buyer pays (£)</label>
+        <label id="qa-price-label">Sale Price (£)</label>
         <input type="number" id="qa-price" step="0.01" min="0" placeholder="0.00" oninput="updateBPFPreview();updateSDDropdown()">
       </div>
     </div>
+    <div id="qa-price-helper" class="qa-price-helper" style="display:none"></div>
     <div id="bpf-preview" class="bpf-info" style="display:none">
       <div class="bpf-preview-inner" style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
         <div>
           <div style="font-size:11px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px">Fee breakdown</div>
           <div class="bpf-breakdown">
-            <span>Buyer pays: <strong id="bpf-listed">£0.00</strong></span>
-            <span style="color:var(--red)">− BPF: <strong id="bpf-fee">£0.00</strong></span>
+            <span><span id="bpf-listed-label">Buyer pays: </span><strong id="bpf-listed">£0.00</strong></span>
+            <span style="color:var(--red)"><span id="bpf-fee-label">− BPF: </span><strong id="bpf-fee">£0.00</strong></span>
             <span style="color:var(--green)">= You receive: <strong id="bpf-total">£0.00</strong></span>
           </div>
         </div>
@@ -4049,6 +4389,77 @@ function formHTML(){
   `;
 }
 
+// Session D1 — Quick Add platform selector handler.
+// Sets the active pill (visual) and the hidden #qa-platform value (persisted).
+// Disabled (coming-soon) pills can't be activated via onclick because they're
+// `disabled`, but defensively reject them here too.
+// Session D1 → D1.6 — Quick Add platform selector handler.
+// D1: only live platforms could be selected; non-live were `disabled`.
+// D1.6: ALL platforms are now selectable so users can preview the form
+// adaptation and see what's coming. Submission is gated separately by
+// _refreshQuickAddSubmitState — non-live platforms lock the Add button
+// and show a Coming Soon banner with a CTA back to eBay.
+function qaSetPlatform(platformId){
+  if(!PLATFORMS[platformId])return;
+  const hidden=document.getElementById('qa-platform');
+  if(hidden)hidden.value=platformId;
+  const row=document.getElementById('qa-platform-row');
+  if(row){
+    row.querySelectorAll('.qa-platform-pill').forEach(b=>{
+      b.classList.toggle('active',b.dataset.platform===platformId);
+    });
+  }
+  // D1.6 — adapt the price label, helper text and lock-state to the platform
+  _refreshQuickAddPriceCopy();
+  _refreshQuickAddSubmitState();
+  // Recompute the preview so fee labels + numbers update live.
+  if(typeof updateBPFPreview==='function')updateBPFPreview();
+}
+
+// Session D1.6 — Refresh price input label + helper text from the active
+// platform's pricing pattern. Pure DOM update; does not change values.
+function _refreshQuickAddPriceCopy(){
+  const platformId=document.getElementById('qa-platform')?.value||DEFAULT_PLATFORM;
+  const stub={defaultPlatform:platformId};
+  const copy=_platformPricingCopy(stub);
+  const lbl=document.getElementById('qa-price-label');
+  if(lbl)lbl.textContent=copy.inputLabel;
+  const helper=document.getElementById('qa-price-helper');
+  if(helper){
+    if(copy.inputHelper){
+      helper.textContent=copy.inputHelper;
+      helper.style.display='';
+    }else{
+      helper.style.display='none';
+    }
+  }
+}
+
+// Session D1.6 — Lock the Add button and show the Coming Soon banner
+// when the user has selected a non-live platform. CTA bounces them
+// back to eBay so they can actually create the item.
+function _refreshQuickAddSubmitState(){
+  const platformId=document.getElementById('qa-platform')?.value||DEFAULT_PLATFORM;
+  const platform=PLATFORMS[platformId];
+  const isLive=platform&&platform.live;
+  const btn=document.getElementById('qa-submit-btn');
+  const banner=document.getElementById('qa-coming-soon-banner');
+  const csTitle=document.getElementById('qa-cs-title');
+  const csDetail=document.getElementById('qa-cs-detail');
+  if(btn){
+    btn.disabled=!isLive;
+    btn.classList.toggle('locked',!isLive);
+    btn.textContent=isLive?'Add Item':'Add Item — locked';
+  }
+  if(banner){
+    banner.style.display=isLive?'none':'flex';
+    if(!isLive&&csTitle&&csDetail&&platform){
+      csTitle.textContent=platform.label+' tracking coming soon';
+      csDetail.textContent='We\'re still building the fee model for '+platform.short+'. Items can\'t be tracked here yet.';
+    }
+  }
+}
+
 function qaSetDeliveryMode(mode){
   const simpleBtn=document.getElementById('qa-mode-simple');
   const customBtn=document.getElementById('qa-mode-custom');
@@ -4098,11 +4509,25 @@ function updateBPFPreview(){
   const price=parseFloat(document.getElementById('qa-price').value)||0;
   const preview=document.getElementById('bpf-preview');
   if(price<=0){preview.style.display='none';return;}
-  const bpf=calcBuyerProtectionFee(price);
+  // Session D1.5 — route fee calc and labels through the platform dispatcher
+  // so the preview adapts when the user changes the Listed-on pill. Falls
+  // back to eBay if the platform field hasn't been mounted yet.
+  const _qaPlatform=document.getElementById('qa-platform')?.value||DEFAULT_PLATFORM;
+  const _qaItem={defaultPlatform:_qaPlatform};
+  const bpf=calcPlatformBPF(_qaItem,price);
+  const lbl=_platformFeeLabel(_qaItem);
   const net=price-bpf;
-  document.getElementById('bpf-listed').textContent=fmt(price);
-  document.getElementById('bpf-fee').textContent=fmt(bpf);
-  document.getElementById('bpf-total').textContent=fmt(net);
+  // Update the preview's three text slots; also refresh the fee/price labels.
+  const listedEl=document.getElementById('bpf-listed');
+  const feeEl=document.getElementById('bpf-fee');
+  const totalEl=document.getElementById('bpf-total');
+  const listedLabelEl=document.getElementById('bpf-listed-label');
+  const feeLabelEl=document.getElementById('bpf-fee-label');
+  if(listedLabelEl)listedLabelEl.textContent=lbl.priceLabel+': ';
+  if(feeLabelEl)feeLabelEl.textContent='− '+lbl.feeLabel+': ';
+  listedEl.textContent=fmt(price);
+  feeEl.textContent=fmt(bpf);
+  totalEl.textContent=fmt(net);
   preview.style.display='block';
   const cost=parseFloat(document.getElementById('qa-cost').value)||0;
   // Read postage from whichever mode is active
@@ -7311,11 +7736,11 @@ function editItem(m,id){
     </div>
     <div class="form-grid-2" style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
       <div class="fg">
-        <label>Cost Price</label>
+        <label>Cost Price (£)</label>
         <input type="number" id="edit-cost" step="0.01" value="${item.costPrice}">
       </div>
       <div class="fg">
-        <label>Listed Price — what buyer pays (£)</label>
+        <label>Sale Price (£)</label>
         <input type="number" id="edit-price" step="0.01" value="${item.salePrice}">
       </div>
     </div>
@@ -7451,6 +7876,12 @@ function markSold(m,id){
     MODAL_CALLBACK=function(date,price){
       item.dateSold=date;
       if(price&&price>0)item.salePrice=+price.toFixed(2);
+      // Session D2 — capture which platform the sale actually closed on.
+      // Defaults to the item's defaultPlatform; user can change at Mark Sold.
+      const _soldPlat=document.getElementById('modal-platform')?.value;
+      if(_soldPlat&&PLATFORMS[_soldPlat]&&PLATFORMS[_soldPlat].live){
+        item.soldOnPlatform=_soldPlat;
+      }
       item.isReturned=false;
       item.grossProfit=calcGrossProfit(item);
       saveDB();
@@ -7464,8 +7895,44 @@ function markSold(m,id){
     document.getElementById('modal-date').value=today;
     document.getElementById('modal-price').value=(item.salePrice||'').toString();
     document.getElementById('modal-price-row').style.display='block';
+    // Session D2 — pre-select the item's defaultPlatform in the modal dropdown
+    // and seed the price label/helper to match. If the user later changes the
+    // platform, onMarkSoldPlatformChange() re-renders the labels and helper.
+    const platSel=document.getElementById('modal-platform');
+    if(platSel){
+      const initialPlat=(item.soldOnPlatform&&PLATFORMS[item.soldOnPlatform]&&PLATFORMS[item.soldOnPlatform].live)
+        ? item.soldOnPlatform
+        : (item.defaultPlatform&&PLATFORMS[item.defaultPlatform]&&PLATFORMS[item.defaultPlatform].live ? item.defaultPlatform : DEFAULT_PLATFORM);
+      platSel.value=initialPlat;
+      onMarkSoldPlatformChange();
+    }
     document.getElementById('sold-modal').style.display='flex';
     lockBodyScroll();
+  }
+}
+
+// Session D2 — Mark Sold platform-change handler. Updates the price input's
+// label and helper text to match the newly selected platform's pricing
+// pattern (e.g. switching from eBay to Vinted changes "Sale Price (£)" to
+// "Your Asking Price (£)" with a helper explaining the buyer pays extra
+// on top). The numeric value isn't auto-converted — the user must re-enter
+// it because the meaning of "20" differs across platforms.
+function onMarkSoldPlatformChange(){
+  const sel=document.getElementById('modal-platform');
+  if(!sel)return;
+  const platformId=sel.value;
+  const stub={defaultPlatform:platformId};
+  const copy=_platformPricingCopy(stub);
+  const lbl=document.getElementById('modal-price-label');
+  if(lbl)lbl.textContent=copy.inputLabel;
+  const helper=document.getElementById('modal-price-helper');
+  if(helper){
+    if(copy.inputHelper){
+      helper.textContent=copy.inputHelper;
+      helper.style.display='';
+    }else{
+      helper.style.display='none';
+    }
   }
 }
 
@@ -8736,6 +9203,7 @@ function calcMonthStatsBySale(m){
 }
 
 // eBay UK BPF: iterative solve matches spreadsheet values exactly
+// Pure number→number primitive. DO NOT change — financial rule.
 function calcEbayBPF(salePrice){
   if(!salePrice||salePrice<=0)return 0;
   function feeOnNet(net){
@@ -8748,6 +9216,51 @@ function calcEbayBPF(salePrice){
   let net=salePrice;
   for(let j=0;j<10;j++)net=salePrice-feeOnNet(net);
   return+feeOnNet(net).toFixed(2);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Platform fee stubs (Session D1 — Lean scope)
+// Each takes (item, salePrice) and returns the platform's selling fee.
+// Currently all non-eBay stubs delegate to calcEbayBPF as a safe placeholder
+// until each platform's real fee structure is researched against actual sales.
+// Replacing a stub with a real formula is a one-function change; the dispatcher
+// and all callers continue to work unchanged.
+// ─────────────────────────────────────────────────────────────────────────────
+function calcVintedBPF(item,salePrice){
+  // TODO: implement Vinted fee model when first real Vinted sale is logged.
+  // Note: Vinted's "Buyer Protection Fee" is buyer-paid; seller fee is largely
+  // £0 today, but verify against an actual settlement before shipping.
+  return calcEbayBPF(salePrice);
+}
+function calcDepopBPF(item,salePrice){
+  // TODO: implement Depop fee model when first real Depop sale is logged.
+  // Historical reference: 10% selling fee + payment processing — verify current.
+  return calcEbayBPF(salePrice);
+}
+function calcFbBPF(item,salePrice){
+  // TODO: implement FB Marketplace fee model. Local pickup typically £0;
+  // FB Shipping has its own fee schedule — verify against real settlement.
+  return calcEbayBPF(salePrice);
+}
+function calcAmazonUKBPF(item,salePrice){
+  // TODO: implement Amazon UK (used) referral fees — category-dependent.
+  return calcEbayBPF(salePrice);
+}
+
+// Dispatcher: routes to the right platform fee primitive based on the item.
+// All NEW code paths should use this. Existing calcEbayBPF callers remain
+// valid (they operate on items that resolve to eBay either explicitly or by
+// fallback), so this is additive — not a breaking refactor.
+function calcPlatformBPF(item,salePrice){
+  const p=_itemPlatform(item);
+  switch(p){
+    case 'ebay':      return calcEbayBPF(salePrice);
+    case 'vinted':    return calcVintedBPF(item,salePrice);
+    case 'depop':     return calcDepopBPF(item,salePrice);
+    case 'fb':        return calcFbBPF(item,salePrice);
+    case 'amazon_uk': return calcAmazonUKBPF(item,salePrice);
+    default:          return calcEbayBPF(salePrice);
+  }
 }
 
 function calcPartsCost(i){
@@ -9159,6 +9672,7 @@ function refreshPanelParts(m,id){
 }
 
 initTheme();
+initCountry();
 
 
 
