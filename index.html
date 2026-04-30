@@ -106,13 +106,27 @@ nav:not(#bottom-nav){position:sticky;top:0;z-index:200;background:var(--surface)
    for coming-soon entries. The flag in the user-menu trigger sits between
    the avatar and the chevron. */
 .user-menu-flag{width:18px;height:18px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;box-shadow:0 0 0 1px var(--border);}
-.user-menu-section-label{font-family:var(--font-display);font-size:9px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:0.12em;padding:8px 14px 4px;}
+/* Session E1 — Country trigger row inside the user menu (replaces inline list) */
+.user-menu-country-trigger{cursor:pointer;}
+.user-menu-country-trigger-flag{width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;box-shadow:0 0 0 1px var(--border);overflow:hidden;}
+.user-menu-country-trigger-flag svg{display:block;}
+/* Session E1 — Country panel pops out to the LEFT of the user-menu dropdown.
+   Mirrors the dropdown styling so they read as one connected surface. */
+.country-panel{display:none;position:absolute;top:calc(100% + 8px);right:calc(100% + 8px);min-width:220px;background:var(--surface);border:1px solid var(--border);border-radius:12px;box-shadow:0 8px 32px var(--shadow-md);z-index:301;overflow:hidden;padding:4px;}
+.user-menu.country-open .country-panel{display:block;}
+.country-panel-header{display:flex;align-items:center;gap:8px;padding:8px 10px 6px;font-family:var(--font-display);font-size:11px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:0.1em;}
+.country-panel-back{width:24px;height:24px;display:flex;align-items:center;justify-content:center;border:none;background:transparent;border-radius:6px;cursor:pointer;color:var(--text-secondary);transition:all 0.15s;flex-shrink:0;}
+.country-panel-back:hover{background:var(--surface2);color:var(--text);}
+/* Mobile: country panel doesn't have room to pop left, fallback to bottom sheet style */
+@media(max-width:600px){
+  .country-panel{right:0;top:calc(100% + 8px);min-width:200px;}
+}
 .user-menu-country-sub{display:flex;flex-direction:column;}
 .user-menu-country-item{width:100%;padding:8px 14px;background:none;border:none;text-align:left;cursor:pointer;font-size:13px;font-weight:500;color:var(--text-secondary);transition:all 0.15s;border-radius:8px;display:flex;align-items:center;gap:10px;}
 .user-menu-country-item:hover:not(:disabled){background:var(--surface2);color:var(--text);}
 .user-menu-country-item.active{color:var(--text);}
 .user-menu-country-item.coming-soon{opacity:0.5;cursor:not-allowed;}
-.user-menu-country-item .cf{display:flex;align-items:center;justify-content:center;box-shadow:0 0 0 1px var(--border);border-radius:50%;}
+.user-menu-country-item .cf{display:flex;align-items:center;justify-content:center;box-shadow:0 0 0 1px var(--border);border-radius:50%;overflow:hidden;}
 .user-menu-country-item .cl{flex:1;}
 .user-menu-country-item .cc{color:var(--accent);flex-shrink:0;}
 .user-menu-country-item .cs-tag{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--muted);background:var(--surface2);padding:2px 6px;border-radius:6px;}
@@ -280,14 +294,8 @@ nav:not(#bottom-nav){position:sticky;top:0;z-index:200;background:var(--surface)
 .insight-val{font-family:"Inter",system-ui,sans-serif;font-size:19px;font-weight:700;letter-spacing:-0.03em;}
 .insight-sub{font-size:11px;color:var(--text-secondary);margin-top:3px;}
 
-/* ALERTS */
-.stale-alert{background:var(--accent-dim);border:1px solid rgba(240,168,48,0.25);border-radius:var(--radius);padding:14px 16px;margin-bottom:16px;display:flex;align-items:center;gap:12px;cursor:pointer;transition:border-color 0.15s;}
-.stale-alert:hover{border-color:var(--accent);}
-.stale-dot{width:8px;height:8px;border-radius:50%;background:var(--warn);flex-shrink:0;animation:pulse 2s infinite;}
-@keyframes pulse{0%,100%{opacity:1;}50%{opacity:0.4;}}
+/* ALERTS — kept slot for future banners */
 @keyframes spin{from{transform:rotate(0deg);}to{transform:rotate(360deg);}}
-.stale-text{font-family:var(--font-display);font-size:13px;font-weight:700;color:var(--warn);letter-spacing:0.01em;}
-.stale-items{font-size:12px;color:var(--text-secondary);margin-top:3px;}
 
 /* SECTION LABEL */
 .sl{display:inline-flex;align-items:center;width:auto;font-family:var(--font-display);font-size:10px;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;color:var(--muted);background:transparent;border:none;border-radius:0;padding:0;margin:20px 0 12px;box-sizing:border-box;gap:8px;}
@@ -610,8 +618,9 @@ input,select,textarea{touch-action:manipulation;user-select:text;-webkit-user-se
 .filter-chips{display:flex;gap:0;flex-wrap:nowrap;margin-bottom:0;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:3px;width:fit-content;}
 .filter-chips-select{display:none;}
 .chip{padding:7px 14px;border-radius:7px;border:none;background:transparent;color:var(--text-secondary);font-family:var(--font-body);font-size:12px;font-weight:500;letter-spacing:0;text-transform:none;cursor:pointer;transition:all 0.15s;white-space:nowrap;display:flex;align-items:center;gap:5px;}
-.chip:hover{color:var(--text);}
+.chip:hover:not(:disabled){color:var(--text);}
 .chip.active{background:var(--surface);color:var(--text);box-shadow:0 1px 4px var(--shadow);}
+.chip.chip-empty,.chip:disabled{opacity:0.4;cursor:not-allowed;}
 [data-theme="light"] .chip.active{background:#fdf9f3;}
 .chip .chip-count{font-size:10px;color:var(--muted);font-weight:600;}
 .chip.active .chip-count{color:var(--text-secondary);}
@@ -1108,8 +1117,7 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
 #p-summary .item-table,
 #p-summary .section-card,
 #p-summary .bulk-bar,
-#p-summary .filter-chips,
-#p-summary .stale-alert{
+#p-summary .filter-chips{
   display:inherit!important;
   visibility:visible!important;
   opacity:1!important;
@@ -1124,8 +1132,7 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
 #p-summary .insight-card,
 #p-summary .chart-wrap,
 #p-summary .item-row,
-#p-summary .section-card,
-#p-summary .stale-alert{
+#p-summary .section-card{
   visibility:visible!important;
   opacity:1!important;
 }
@@ -1267,13 +1274,29 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
             <span id="user-menu-theme-label">Light mode</span>
           </button>
           <div class="user-menu-divider"></div>
-          <div class="user-menu-section-label">Country</div>
-          <div id="user-menu-country-sub" class="user-menu-country-sub"></div>
+          <button class="user-menu-item user-menu-country-trigger" onclick="event.stopPropagation();toggleCountryPanel()" id="user-menu-country-trigger">
+            <span id="user-menu-country-trigger-flag" class="user-menu-country-trigger-flag" aria-hidden="true"></span>
+            <span style="flex:1;text-align:left;display:flex;flex-direction:column;gap:1px;">
+              <span style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;font-weight:700;">Country</span>
+              <span id="user-menu-country-trigger-label" style="font-size:13px;color:var(--text);font-weight:500;">United Kingdom</span>
+            </span>
+            <svg width="11" height="11" viewBox="0 0 12 12" fill="none" style="color:var(--muted);"><path d="M4 2l4 4-4 4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
           <div class="user-menu-divider"></div>
           <button class="user-menu-item danger" id="user-menu-signout" onclick="closeUserMenu();doSignOut()">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
             Sign out
           </button>
+        </div>
+        <!-- Session E1: country panel pops out to the LEFT of the user menu when triggered -->
+        <div class="country-panel" id="country-panel" onclick="event.stopPropagation()">
+          <div class="country-panel-header">
+            <button class="country-panel-back" onclick="event.stopPropagation();closeCountryPanel()" aria-label="Back to menu">
+              <svg width="14" height="14" viewBox="0 0 12 12" fill="none"><path d="M8 2L4 6l4 4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+            <span>Select country</span>
+          </div>
+          <div id="user-menu-country-sub" class="user-menu-country-sub"></div>
         </div>
       </div>
     </div>
@@ -1476,6 +1499,10 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
       style="width:100%;padding:12px;background:var(--accent);color:#000;border:none;border-radius:8px;font-weight:700;font-size:15px;cursor:pointer;transition:background 0.15s;">
       Sign In
     </button>
+    <button onclick="startPreviewMode()" id="preview-btn"
+      style="width:100%;padding:12px;background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:8px;font-weight:700;font-size:15px;cursor:pointer;transition:background 0.15s;margin-top:10px;">
+      Developer preview
+    </button>
 
     <button onclick="showForgotPassword()"
       style="width:100%;padding:10px;background:none;border:none;color:var(--text-secondary);font-size:13px;cursor:pointer;margin-top:8px;text-decoration:underline;text-underline-offset:3px;">
@@ -1523,8 +1550,6 @@ const MONTH_NAMES={JAN:'January',FEB:'February',MAR:'March',APR:'April',MAY:'May
 // ── Year-aware DB key helpers ────────────────────────────────────────────────
 // DB keys are now 'MMM-YY' e.g. 'APR-25', 'JAN-26'. These helpers keep all
 // lookups consistent and allow full Apr–Mar tax year grouping on Calendar.
-
-function _fy(yr){ return yr; } // FY label: year the April starts (e.g. 2025 → FY 2025-26)
 
 // Current FY start year (Apr-based UK tax year)
 function _currentFYStart(){
@@ -1686,7 +1711,7 @@ const EXPENSE_CATEGORIES=[
 //   'listed_plus_fee' → seller enters the LISTED PRICE; platform takes a %
 //                       seller fee out of that. Example: Depop, Amazon.
 const COUNTRIES={
-  uk: { id:'uk', label:'United Kingdom', short:'UK', live:true,  flag:'gb' },
+  uk: { id:'uk', label:'United Kingdom', short:'UK', live:true,  flag:'uk' },
   us: { id:'us', label:'United States',  short:'US', live:false, flag:'us' }
 };
 const DEFAULT_COUNTRY='uk';
@@ -1723,17 +1748,19 @@ function _flagSVG(countryId, size){
   return `<div style="width:${size}px;height:${size}px;border-radius:50%;background:var(--surface2);"></div>`;
 }
 
-// Session D1.6 — Country setter. Called from the profile dropdown country
-// submenu. Persists to localStorage for next session; future: writes to
-// user profile in Supabase. Re-renders the user-menu trigger flag.
+// Session D1.6 — Country setter. Called from the country picker panel.
+// Persists to localStorage for next session; future: writes to user profile
+// in Supabase. Re-renders the user-menu trigger flag + country trigger row.
 function setCountry(countryId){
   if(!COUNTRIES[countryId]||!COUNTRIES[countryId].live)return;
   COUNTRY=countryId;
   try{ localStorage.setItem('retrade_country',countryId); }catch(e){}
-  // Refresh the flag icon in the menu trigger
+  // Refresh the small flag in the user-menu trigger button
   const flagEl=document.getElementById('user-menu-flag');
   if(flagEl)flagEl.innerHTML=_flagSVG(COUNTRIES[countryId].flag,18);
-  // Refresh the country submenu's active state
+  // Refresh the trigger row inside the dropdown (label + flag)
+  refreshCountryTrigger();
+  // Refresh the country submenu's active state (in the left-popping panel)
   refreshCountrySubmenu();
   // Toast for clarity
   if(typeof toast==='function')toast('Country set to '+COUNTRIES[countryId].label);
@@ -1763,16 +1790,6 @@ function _itemPlatform(i){
   if(i.soldOnPlatform&&PLATFORMS[i.soldOnPlatform])return i.soldOnPlatform;
   if(i.defaultPlatform&&PLATFORMS[i.defaultPlatform])return i.defaultPlatform;
   return DEFAULT_PLATFORM;
-}
-
-// Convenience: human-readable platform label for an item (used in receipts, UI).
-function _platformLabel(i){
-  const p=PLATFORMS[_itemPlatform(i)];
-  return p?p.label:'eBay UK';
-}
-function _platformShort(i){
-  const p=PLATFORMS[_itemPlatform(i)];
-  return p?p.short:'eBay';
 }
 
 // Session D1.5 — Platform-aware fee label for the BPF preview block.
@@ -1856,8 +1873,8 @@ let MODAL_CALLBACK=null;
 let MONTH_FILTER='all';
 let MONTH_SORT='date-sold';
 let SELECTION_MODE=false;
-let STOCK_SORT='profit';          // stock sort: days | profit | price
-let STOCK_FILTER='all';           // stock filter: all | stale
+let STOCK_SORT='profit';          // stock sort: profit | roi | price | days-desc | days-asc
+let STOCK_FILTER='all';           // stock filter: all | fresh | maturing | slow | stale
 let STOCK_GROUPED=false;          // Session B: false=flat list, true=group by listing month
 let STOCK_SELECTION_MODE=false;   // stock page checkbox mode
 let STOCK_SELECTED=new Set();     // stock page selection
@@ -1952,6 +1969,9 @@ function initCountry(){
   }catch(e){}
   const flagEl=document.getElementById('user-menu-flag');
   if(flagEl)flagEl.innerHTML=_flagSVG(COUNTRIES[COUNTRY].flag,18);
+  // Session E1 — also seed the trigger row inside the menu so it shows the
+  // right country label + mini flag from the very first open.
+  refreshCountryTrigger();
 }
 function toggleTheme(){
   const current=document.documentElement.getAttribute('data-theme')||'light';
@@ -1992,13 +2012,40 @@ function toggleMoreSheet(){
 function toggleUserMenu(){
   const menu=document.getElementById('user-menu');
   if(!menu)return;
-  // Session D1.6 — render country submenu on open so the active state is fresh
-  // and any future country additions are reflected without a hard reload.
+  // Session E1 — close country panel when toggling main menu so we never
+  // leave it dangling without its parent dropdown.
+  menu.classList.remove('country-open');
+  // Refresh trigger row (label + small flag) and the panel list itself, so
+  // active states stay current without a hard reload.
+  refreshCountryTrigger();
   renderCountrySubmenu();
   menu.classList.toggle('open');
 }
 
-// Session D1.6 — Build the country submenu inside the user-menu dropdown.
+// Session E1 — Country panel toggle (pops out to the LEFT of the user menu).
+function toggleCountryPanel(){
+  const menu=document.getElementById('user-menu');
+  if(!menu)return;
+  // Re-render the list each time so the active state is fresh.
+  renderCountrySubmenu();
+  menu.classList.toggle('country-open');
+}
+function closeCountryPanel(){
+  const menu=document.getElementById('user-menu');
+  if(menu)menu.classList.remove('country-open');
+}
+
+// Session E1 — Updates the trigger row inside the user-menu dropdown that
+// reflects the currently selected country (mini flag + label).
+function refreshCountryTrigger(){
+  const flagEl=document.getElementById('user-menu-country-trigger-flag');
+  const labelEl=document.getElementById('user-menu-country-trigger-label');
+  const c=COUNTRIES[COUNTRY];
+  if(flagEl&&c)flagEl.innerHTML=_flagSVG(c.flag,22);
+  if(labelEl&&c)labelEl.textContent=c.label;
+}
+
+// Session D1.6 — Build the country submenu (now in the left-popping panel).
 // Live countries are interactive; coming-soon countries render disabled with
 // a soft label so users see the future direction without being able to pick.
 function renderCountrySubmenu(){
@@ -2007,7 +2054,7 @@ function renderCountrySubmenu(){
   sub.innerHTML=Object.values(COUNTRIES).map(c=>{
     const isActive=c.id===COUNTRY;
     const cls='user-menu-country-item'+(isActive?' active':'')+(!c.live?' coming-soon':'');
-    const onclick=c.live?`setCountry('${c.id}');closeUserMenu()`:'';
+    const onclick=c.live?`setCountry('${c.id}');closeCountryPanel();closeUserMenu()`:'';
     const dis=!c.live?'disabled':'';
     const tag=!c.live?'<span class="cs-tag">Coming soon</span>':'';
     return `<button type="button" class="${cls}" data-country="${c.id}" ${dis} onclick="${onclick}">
@@ -2020,7 +2067,7 @@ function renderCountrySubmenu(){
 }
 function closeUserMenu(){
   const menu=document.getElementById('user-menu');
-  if(menu)menu.classList.remove('open');
+  if(menu){menu.classList.remove('open');menu.classList.remove('country-open');}
 }
 // Close user menu on outside click
 document.addEventListener('click',(e)=>{
@@ -4576,83 +4623,6 @@ function autoCategory(name){
   return'Other';
 }
 
-function showStaleItems(){
-  const staleItems=[];
-  const today=new Date().toISOString().split('T')[0];
-  const range=_periodDateRange(SUMMARY_PERIOD);
-  allDBKeys().forEach(k=>{(DB[k]||[]).forEach(i=>{
-    if((i.item||'').trim().toUpperCase()==='MONTH END')return;
-    if(!i.isReturned&&!i.dateSold&&!i.resaleSalePrice){
-      const days=daysBetween(i.dateListed,today);
-      // Only include items listed within the selected period window
-      if(days>=90&&i.dateListed&&i.dateListed>=range.from&&i.dateListed<=range.to)
-        staleItems.push({...i,month:k,_daysListed:days});
-    }
-  });});
-  staleItems.sort((a,b)=>b._daysListed-a._daysListed);
-  if(!staleItems.length){openPanel('Stale Items','<div style="padding:30px;text-align:center;color:var(--muted)">No stale items — everything is moving!</div>');return;}
-  const rows=staleItems.map(i=>{
-    const dColor=i._daysListed>=60?'var(--red)':i._daysListed>=45?'var(--warn)':'var(--text-secondary)';
-    const profit=calcGrossProfit(i);
-    return'<div style="padding:10px;background:var(--surface2);border-radius:8px;margin-bottom:8px;cursor:pointer;border-left:3px solid var(--warn)" onclick="openItemDetail(\''+i.month+'\',\''+i.id+'\')">'  
-      +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">'
-      +'<div style="flex:1;font-weight:600;font-size:14px">'+esc(i.item)+'</div>'
-      +'<div style="font-size:13px;font-weight:700;color:'+dColor+'">'+i._daysListed+'d</div>'
-      +'</div>'
-      +'<div style="display:flex;gap:12px;font-size:12px;color:var(--text-secondary)">'
-      +'<span>Listed: <strong>'+fmt(i.salePrice)+'</strong></span>'
-      +(profit!==null?'<span>Potential profit: <strong style="color:var(--accent)">'+fmt(profit)+'</strong></span>':'')
-      +(i.category?'<span>'+esc(i.category)+'</span>':'')
-      +'</div>'
-      +'</div>';
-  }).join('');
-  const summary='<div style="margin-bottom:16px;display:flex;align-items:center;gap:12px;background:var(--surface2);border-radius:10px;padding:14px">'
-    +'<div class="stat-num" style="color:var(--warn)">'+staleItems.length+'</div>'
-    +'<div><div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px">Stale Items</div>'
-    +'<div style="font-size:13px;color:var(--text-secondary)">Listed 90+ days without selling</div></div>'
-    +'</div>';
-  openPanel('Stale Items — '+staleItems.length+' item'+(staleItems.length!==1?'s':''),summary+rows);
-}
-
-function toggleSellThroughBar(card,byCat){
-  const bd=card.querySelector('.st-breakdown');
-  const chevron=card.querySelector('.st-chevron');
-  if(bd.style.display==='none'){
-    bd.style.display='block';
-    if(chevron)chevron.style.transform='rotate(180deg)';
-    const legend=`<div style="display:flex;gap:14px;margin-top:14px;padding-top:12px;border-top:1px solid var(--border);font-size:11px;">
-      <span style="display:flex;align-items:center;gap:4px;color:var(--green)"><span style="width:7px;height:7px;border-radius:50%;background:var(--green);display:inline-block"></span>Fast ≤14d</span>
-      <span style="display:flex;align-items:center;gap:4px;color:var(--warn)"><span style="width:7px;height:7px;border-radius:50%;background:var(--warn);display:inline-block"></span>Average 15–30d</span>
-      <span style="display:flex;align-items:center;gap:4px;color:var(--red)"><span style="width:7px;height:7px;border-radius:50%;background:var(--red);display:inline-block"></span>Slow 30d+</span>
-    </div>`;
-    if(!byCat||!byCat.length){bd.innerHTML='<div style="font-size:12px;color:var(--muted)">No category data yet</div>'+legend;return;}
-    const catRows=byCat.map(c=>{
-      let speedLabel='',speedColor='var(--muted)';
-      if(c.avgDays===null){speedLabel='no sales yet';speedColor='var(--muted)';}
-      else if(c.avgDays<=14){speedLabel='fast';speedColor='var(--green)';}
-      else if(c.avgDays<=30){speedLabel='average';speedColor='var(--warn)';}
-      else{speedLabel='slow';speedColor='var(--red)';}
-      const avgDaysStr=c.avgDays!==null?c.avgDays+'d avg':'—';
-      const staleStr=c.stale>0?`<span style="font-size:10px;background:var(--accent-dim);color:var(--warn);border-radius:4px;padding:1px 5px;margin-left:4px">${c.stale} stale</span>`:'';
-      const pip=`<span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${speedColor};flex-shrink:0"></span>`;
-      return`<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;font-size:12px;cursor:pointer;border-radius:6px;padding:5px 4px;transition:background 0.15s" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background=''" onclick="event.stopPropagation();showCategoryItems(${JSON.stringify(c.cat).replace(/"/g,'&quot;')})">
-        <div style="width:130px;color:var(--text-secondary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:500" title="${esc(c.cat)}">${esc(c.cat)}</div>
-        <div style="flex:1;display:flex;align-items:center;gap:6px">
-          ${pip}
-          <span style="color:${speedColor};font-weight:600">${avgDaysStr}</span>
-          <span style="color:var(--muted)">${speedLabel}</span>
-          ${staleStr}
-        </div>
-        <div style="color:var(--muted);font-size:11px;white-space:nowrap">${c.sold}/${c.total} sold ›</div>
-      </div>`;
-    }).join('');
-    bd.innerHTML=catRows+legend;
-  }else{
-    bd.style.display='none';
-    if(chevron)chevron.style.transform='rotate(0deg)';
-  }
-}
-
 function showCategoryItems(cat,_fromBack){
   let items=[];
   allDBKeys().forEach(k=>{(DB[k]||[]).forEach(i=>{
@@ -4821,8 +4791,6 @@ function showListedInPeriodItems(){
   openPanel('Listed in Period — '+periodLabel,summary+rows);
 }
 
-function showAvgCostItems(){showAvgBuyBreakdown();}
-
 function _snapshotSoldItems(){
   const range=_periodDateRange(SUMMARY_PERIOD);
   let items=[];
@@ -4935,40 +4903,6 @@ function showAvgProfitBreakdown(){
     </div>`;
   }).join('');
   openPanel('Average Profit — Breakdown',header+rows);
-}
-
-function showAllItemsPanel(defaultFilter){_renderAllItemsPanel(defaultFilter||'sold');}
-function _renderAllItemsPanel(filter){
-  let soldItems=[],activeItems=[];
-  allDBKeys().forEach(k=>{(DB[k]||[]).forEach(i=>{
-    if((i.item||'').trim().toUpperCase()==='MONTH END')return;
-    if((i.dateSold||i.resaleSalePrice)&&!i.isReturned)soldItems.push({...i,month:k});
-    else if(!i.isReturned&&!i.resaleSalePrice)activeItems.push({...i,month:k});
-  });});
-  const items=filter==='sold'?soldItems:activeItems;
-  const html=`
-    <div style="display:flex;gap:8px;margin-bottom:16px">
-      <button style="flex:1;padding:10px;border-radius:8px;border:2px solid ${filter==='sold'?'var(--accent)':'var(--border)'};background:${filter==='sold'?'var(--accent)':'var(--surface2)'};color:${filter==='sold'?'#000':'var(--text)'};font-weight:600;cursor:pointer;font-size:13px" onclick="_renderAllItemsPanel('sold')">Sold (${soldItems.length})</button>
-      <button style="flex:1;padding:10px;border-radius:8px;border:2px solid ${filter==='active'?'var(--accent)':'var(--border)'};background:${filter==='active'?'var(--accent)':'var(--surface2)'};color:${filter==='active'?'#000':'var(--text)'};font-weight:600;cursor:pointer;font-size:13px" onclick="_renderAllItemsPanel('active')">Active (${activeItems.length})</button>
-    </div>
-    <div style="margin-bottom:12px;font-size:13px;color:var(--muted)">${items.length} items</div>
-    ${items.map(i=>{
-      const prof=(i.dateSold||i.resaleSalePrice)&&!i.isReturned?calcGrossProfit(i):null;
-      const roi=calcROI(i);
-      return`<div style="padding:10px;background:var(--surface2);border-radius:8px;margin-bottom:8px;cursor:pointer" onclick="openItemDetail('${i.month}','${i.id}')">
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
-          <div style="flex:1;font-weight:600;font-size:14px">${esc(i.item)}</div>
-          <div class="item-badge ${i.dateSold?'sold':'listed'}">${i.month}</div>
-        </div>
-        <div style="display:flex;gap:12px;font-size:12px;color:var(--text-secondary);flex-wrap:wrap">
-          <span>${fmt(i.salePrice)}</span>
-          ${prof!==null?`<span style="color:var(--green);font-weight:600">${fmt(prof)}</span>`:''}
-          ${roi!==null?`<span style="color:var(--muted)">ROI ${roi.toFixed(1)}%</span>`:''}
-          ${i.category?`<span>📁 ${esc(i.category)}</span>`:''}
-        </div>
-      </div>`;
-    }).join('')}`;
-  openPanel('All Items',html);
 }
 
 function showFilteredItems(filter){
@@ -5370,7 +5304,10 @@ function renderSummary(){
       }
     }));
     sold.sort((a,b)=>(b.profit||0)-(a.profit||0));
-    const top=sold.slice(0,8);
+    // Session E1 — Top 10 (was 8). Velocity card matches height in desktop
+    // _matchVelocityHeight(); on small periods with <10 sales we just show
+    // however many exist.
+    const top=sold.slice(0,10);
     function addDays(ds,n){const d=new Date(ds);d.setDate(d.getDate()+n);return d.toISOString().split('T')[0];}
     function fmtShort(ds){const d=new Date(ds);return (d.getMonth()+1)+'/'+d.getDate();}
     const isDaily=SUMMARY_PERIOD==='7d';
@@ -5559,8 +5496,23 @@ function renderSummary(){
           more.style.display=anyHidden?'block':'none';
         });
       }
-      // Wait for chart + stale banner to render before first measure
+      // Wait for chart + top flips to render before first measure
       setTimeout(run,180);
+      // Session E1 — re-run on window resize (debounced) so the height match
+      // and category collapse stay aligned when the user resizes between
+      // narrow (≤980) and desktop, or just resizes the viewport.
+      if(!window._velResizeBound){
+        window._velResizeBound=true;
+        let _vrt=null;
+        window.addEventListener('resize',()=>{
+          if(_vrt)clearTimeout(_vrt);
+          _vrt=setTimeout(()=>{
+            if(window.innerWidth>980 && document.getElementById('p-summary')?.classList.contains('on')){
+              run();
+            }
+          },120);
+        });
+      }
     })();
     // Mobile chart summary
     (function(){
@@ -5776,32 +5728,6 @@ const _fyCollapsed={};
 function _getFYLabel(fyStart){
   // fyStart = year the FY begins (e.g. 2025 for 2025-26)
   return fyStart+'–'+(fyStart+1);
-}
-
-function _getMonthFY(m){
-  // m = e.g. 'APR' (MONTHS array uses 3-letter codes, no year suffix).
-  // UK tax year runs Apr–Mar. MONTHS covers one calendar year Jan–Dec.
-  // We split them across two tax years:
-  //   Jan, Feb, Mar → tail end of the PREVIOUS tax year (FY started Apr year-1)
-  //   Apr–Dec       → start of the CURRENT tax year (FY started Apr this year)
-  // Example (today = Apr 2026):
-  //   APR–DEC → FY 2026 (tax year 2026-27)  ← future months not yet reached
-  //   JAN–MAR → FY 2025 (tax year 2025-26)  ← already passed
-  const mo=['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'].indexOf(m);
-  const now=new Date();
-  const yr=now.getFullYear();
-  const curMo=now.getMonth(); // 0=Jan
-  // fyBase = the year the current tax year STARTED (i.e. the April)
-  const fyBase=curMo<3?yr-1:yr;
-  // Apr(3)–Dec(11) belong to fyBase; Jan(0)–Mar(2) belong to fyBase-1
-  return mo>=3?fyBase:fyBase-1;
-}
-
-function _getCurrentFY(){
-  const now=new Date();
-  const m=now.getMonth(); // 0=Jan
-  const y=now.getFullYear();
-  return m>=3?y:y-1; // April=3
 }
 
 function toggleFYSection(fyStart){
@@ -6028,7 +5954,13 @@ function renderMonth(){
           <div class="month-picker-backdrop" onclick="toggleMonthPicker()"></div>
           <div class="month-picker-dropdown" id="month-picker-list">
             ${(()=>{
+              // Session E1 — only show months that have ANY activity (sold,
+              // listed, or returned events). Always include the currently
+              // selected month (so users see where they are) and the live
+              // current calendar month (so they can jump there even if empty).
+              // Empty FYs collapse out entirely.
               const curFY=_currentFYStart();
+              const liveMonthKey=currentMonthKey();
               const fySet=new Set();
               allDBKeys().forEach(k=>{const code=keyCode(k);const yr=keyYear(k);const mo=MONTHS.indexOf(code);const fy=mo>=3?yr:yr-1;fySet.add(fy);});
               const fyYears=Array.from(fySet).sort((a,b)=>b-a);
@@ -6036,19 +5968,26 @@ function renderMonth(){
               fyYears.forEach(fy=>{
                 const keys=_fyKeys(fy);
                 const isCur=fy===curFY;
-                out+='<div class="month-picker-fy-header">FY '+_getFYLabel(fy)+(isCur?' · Current':'')+'</div>';
-                keys.forEach(k=>{
-                  // Session B: dropdown sub-text uses sale-attribution.
+                // Pre-filter the keys for this FY so we can skip empty FYs.
+                const visibleEntries=keys.map(k=>{
                   const ms=calcMonthStatsBySale(k);
-                  const hasActivity=ms.soldCount>0||ms.listedCount>0;
+                  const hasActivity=ms.soldCount>0||ms.listedCount>0||ms.eventCount>0;
+                  const isActiveSel=k===m;        // currently viewing this month
+                  const isLiveMonth=k===liveMonthKey;
+                  if(!hasActivity&&!isActiveSel&&!isLiveMonth)return null;
+                  return {k,ms,hasActivity,isLiveMonth};
+                }).filter(Boolean);
+                if(visibleEntries.length===0)return; // skip empty FYs
+                out+='<div class="month-picker-fy-header">FY '+_getFYLabel(fy)+(isCur?' · Current':'')+'</div>';
+                visibleEntries.forEach(({k,ms,hasActivity,isLiveMonth})=>{
                   const sub=hasActivity
                     ?'<span class="month-picker-option-sub">'+ms.soldCount+' sold · '+ms.listedCount+' active</span>'
-                    :'<span class="month-picker-option-sub" style="opacity:0.4">empty</span>';
-                  out+='<div class="month-picker-option'+(k===m?' active':'')+'" onclick="pickMonth(\''+k+'\')">' 
+                    :'<span class="month-picker-option-sub" style="opacity:0.4">'+(isLiveMonth?'this month':'no activity')+'</span>';
+                  out+='<div class="month-picker-option'+(k===m?' active':'')+'" onclick="pickMonth(\''+k+'\')">'
                     +MONTH_NAMES[keyCode(k)]+sub+'</div>';
                 });
               });
-              return out;
+              return out||'<div style="padding:20px;text-align:center;color:var(--muted);font-size:12px">No months yet</div>';
             })()}
           </div>
         </div>
@@ -6082,12 +6021,12 @@ function renderMonth(){
       <div class="filter-chips">
         <button class="chip ${MONTH_FILTER==='all'?'active':''}" onclick="setMonthFilter('all')">All <span class="chip-count">${cAll}</span></button>
         <button class="chip ${MONTH_FILTER==='sold'?'active':''}" onclick="setMonthFilter('sold')">Sold <span class="chip-count">${cSold}</span></button>
-        ${cReturned>0?`<button class="chip ${MONTH_FILTER==='returned'?'active':''}" onclick="setMonthFilter('returned')">Returned <span class="chip-count">${cReturned}</span></button>`:''}
+        <button class="chip ${MONTH_FILTER==='returned'?'active':''}${cReturned===0?' chip-empty':''}" ${cReturned===0?'disabled':''} onclick="${cReturned>0?`setMonthFilter('returned')`:''}">Returned <span class="chip-count">${cReturned}</span></button>
       </div>
       <select class="sort-select filter-chips-select" onchange="setMonthFilter(this.value)" style="flex-shrink:0;">
         <option value="all" ${MONTH_FILTER==='all'?'selected':''}>All (${cAll})</option>
         <option value="sold" ${MONTH_FILTER==='sold'?'selected':''}>Sold (${cSold})</option>
-        ${cReturned>0?`<option value="returned" ${MONTH_FILTER==='returned'?'selected':''}>Returned (${cReturned})</option>`:''}
+        <option value="returned" ${MONTH_FILTER==='returned'?'selected':''} ${cReturned===0?'disabled':''}>Returned (${cReturned})</option>
       </select>
       <select class="sort-select" onchange="setMonthSort(this.value)" style="margin-left:auto;flex-shrink:0;">
         <option value="date-sold" ${MONTH_SORT==='date-sold'?'selected':''}>Date sold</option>
@@ -6576,10 +6515,27 @@ function renderStock(){
   else if(STOCK_FILTER==='slow')items=allListed.filter(i=>{const d=daysBetween(i.dateListed,today);return d>60&&d<90;});
   else if(STOCK_FILTER==='maturing')items=allListed.filter(i=>{const d=daysBetween(i.dateListed,today);return d>30&&d<=60;});
   else if(STOCK_FILTER==='fresh')items=allListed.filter(i=>daysBetween(i.dateListed,today)<=30);
-  // Sort comparator (used both flat and within groups)
+  // Session E1 — Sort comparator with expanded options:
+  //   profit     → highest estimated profit £ first (default)
+  //   roi        → highest ROI % first (capital efficiency)
+  //   price      → highest ask price first
+  //   days-desc  → oldest first (was 'days' pre-E1; legacy still routed here)
+  //   days-asc   → newest first
   const sortCmp=(a,b)=>{
     if(STOCK_SORT==='profit')return(calcGrossProfit(b)||0)-(calcGrossProfit(a)||0);
+    if(STOCK_SORT==='roi'){
+      // For ROI, compute on-the-fly using profit / invested. Active stock
+      // has no salePrice/dateSold yet — but calcROI works on est. profit
+      // when we substitute salePrice. We use: est profit / total invested.
+      const investA=(a.costPrice||0)+(a.shippingCost||0)+(a.packagingCost||0)+calcPartsCost(a);
+      const investB=(b.costPrice||0)+(b.shippingCost||0)+(b.packagingCost||0)+calcPartsCost(b);
+      const roiA=investA>0?((calcGrossProfit(a)||0)/investA)*100:-Infinity;
+      const roiB=investB>0?((calcGrossProfit(b)||0)/investB)*100:-Infinity;
+      return roiB-roiA;
+    }
     if(STOCK_SORT==='price')return(b.salePrice||0)-(a.salePrice||0);
+    if(STOCK_SORT==='days-asc')return daysBetween(a.dateListed,today)>daysBetween(b.dateListed,today)?1:-1;
+    // 'days-desc' or legacy 'days' → oldest first
     return daysBetween(a.dateListed,today)<daysBetween(b.dateListed,today)?1:-1;
   };
   items=[...items].sort(sortCmp);
@@ -6666,8 +6622,9 @@ function renderStock(){
     </div>
     ${cAll===0?`<div class="empty-state"><div class="empty-state-text">No active listings</div><div class="empty-state-sub">Add stock to start building your live inventory command view.</div></div>`:`
       ${(()=>{
-        // Aging bar: shows distribution at a glance, click to filter.
-        // Uses subtle weights — only colours the buckets where attention matters.
+        // Aging bar: visual distribution at a glance. Buckets are clickable
+        // (same as the chip pills below) but we no longer render duplicate
+        // legend buttons — chips replace them.
         const segs=[
           {key:'fresh',  label:'Fresh',    sub:'0–30d',  count:ageBuckets.fresh,    val:ageBucketsValue.fresh,    col:'var(--green)',cls:'fresh'},
           {key:'maturing',label:'Maturing',sub:'31–60d', count:ageBuckets.maturing, val:ageBucketsValue.maturing, col:'var(--text-secondary)',cls:'maturing'},
@@ -6681,24 +6638,41 @@ function renderStock(){
           const isActive=STOCK_FILTER===s.key;
           return `<div class="age-bar-seg ${s.cls}${isActive?' active':''}" style="width:${pct}%;background:${s.col};" title="${s.label} (${s.sub}): ${s.count} item${s.count!==1?'s':''} · ${fmt(s.val)}" onclick="setStockFilter('${s.key}')"></div>`;
         }).join('');
-        const legend=segs.map(s=>{
-          if(s.count===0)return '';
-          const isActive=STOCK_FILTER===s.key;
-          return `<button class="age-legend-btn${isActive?' active':''}" onclick="setStockFilter('${s.key}')">
-            <span class="age-legend-dot" style="background:${s.col};"></span>
-            <span class="age-legend-label">${s.label}</span>
-            <span class="age-legend-count">${s.count}</span>
-          </button>`;
-        }).join('');
         return `<div class="age-bar-wrap">
           <div class="age-bar">${barSegs}</div>
-          <div class="age-legend">${legend}</div>
         </div>`;
       })()}
-      <div class="filter-row stock-filter-row" style="margin-bottom:14px;gap:8px;flex-wrap:wrap;">
-        <select class="sort-select" onchange="setStockFilter(this.value)"><option value="all" ${STOCK_FILTER==='all'?'selected':''}>All stock (${cAll})</option>${ageBuckets.fresh>0?`<option value="fresh" ${STOCK_FILTER==='fresh'?'selected':''}>Fresh 0–30d (${ageBuckets.fresh})</option>`:''}${cMaturing>0?`<option value="maturing" ${STOCK_FILTER==='maturing'?'selected':''}>Maturing 31–60d (${cMaturing})</option>`:''}${cSlow>0?`<option value="slow" ${STOCK_FILTER==='slow'?'selected':''}>Slow 61–90d (${cSlow})</option>`:''}${cStale>0?`<option value="stale" ${STOCK_FILTER==='stale'?'selected':''}>Stale 90d+ (${cStale})</option>`:''}</select>
-        <select class="sort-select" onchange="setStockSort(this.value)"><option value="days" ${STOCK_SORT==='days'?'selected':''}>Oldest first</option><option value="profit" ${STOCK_SORT==='profit'?'selected':''}>Best est. profit</option><option value="price" ${STOCK_SORT==='price'?'selected':''}>Highest ask</option></select>
-      </div>
+      ${(()=>{
+        // Session E1 — Filter chips + sort, single inline row matching monthly page.
+        // Empty buckets render as disabled chips (greyed out, count visible)
+        // so the user keeps a stable layout and understands distribution.
+        const buckets=[
+          {key:'all',     label:'All',      count:cAll},
+          {key:'fresh',   label:'Fresh',    count:ageBuckets.fresh},
+          {key:'maturing',label:'Maturing', count:cMaturing},
+          {key:'slow',    label:'Slow',     count:cSlow},
+          {key:'stale',   label:'Stale',    count:cStale}
+        ];
+        const chips=buckets.map(b=>{
+          const isActive=STOCK_FILTER===b.key;
+          const isEmpty=b.count===0&&b.key!=='all';
+          const cls='chip'+(isActive?' active':'')+(isEmpty?' chip-empty':'');
+          const handler=isEmpty?'':`setStockFilter('${b.key}')`;
+          return `<button class="${cls}" ${isEmpty?'disabled':''} onclick="${handler}">${b.label} <span class="chip-count">${b.count}</span></button>`;
+        }).join('');
+        const sortOpts=[
+          {v:'profit',   label:'Highest est. profit'},
+          {v:'roi',      label:'Highest ROI %'},
+          {v:'price',    label:'Highest ask price'},
+          {v:'days-desc',label:'Oldest first'},
+          {v:'days-asc', label:'Newest first'}
+        ];
+        const sortHTML=sortOpts.map(o=>`<option value="${o.v}" ${STOCK_SORT===o.v?'selected':''}>${o.label}</option>`).join('');
+        return `<div class="filter-row stock-filter-row" style="margin-bottom:14px;gap:8px;flex-wrap:wrap;align-items:center;">
+          <div class="filter-chips">${chips}</div>
+          <select class="sort-select" onchange="setStockSort(this.value)" style="margin-left:auto;flex-shrink:0;">${sortHTML}</select>
+        </div>`;
+      })()}
       <div class="list-toolbar">
         ${STOCK_SELECTION_MODE?`
           <button class="sel-check" onclick="${STOCK_SELECTED.size===items.length?'STOCK_SELECTED.clear();renderStock()':'selectAllStockVisible()'}">
@@ -8830,13 +8804,20 @@ function calcYearlyStats(period){
       // calcItemRevenue() handles the rules: returned+not-resold=0, returned+resold=resalePrice only.
       if(soldInRange){
         totalRev+=calcItemRevenue(i);
-        if(!i.isReturned){
+        // BUGFIX (Session E1): relisted-but-not-yet-resold items have
+        // !i.isReturned but their original sale was reversed. They must NOT
+        // count as NET sold (they belong only in fullRefundCount). Without
+        // this guard, denom = soldCount + fullRefundCount double-counts them.
+        const _isRelistedAwaiting = !i.isReturned && !i.dateSold && !i.resaleSalePrice
+          && (i.returnHistory||[]).some(r=>r.type==='full_seller'||r.type==='full_ebay');
+        if(!i.isReturned && !_isRelistedAwaiting){
           soldCount++;
           const prof=calcGrossProfit(i);
           realisedProfit+=prof;
           soldItems.push({...i,profit:prof});
         }else{
-          // Returned, not yet resold — 0 revenue but profit (loss) still counts.
+          // Returned (not yet resold) OR relisted-awaiting-resale —
+          // 0 revenue but profit (loss/cost) still counts toward the period.
           realisedProfit+=calcGrossProfit(i)||0;
         }
       }else if(!i.isReturned&&!i.resaleSalePrice){
@@ -8961,7 +8942,10 @@ function calcYearlyStats(period){
           _refundMoneyTotal+=rh.reduce(function(s,r){return s+(r.refundAmount||0);},0);
         }
       }
-      // Revenue denominator: items with a sale date in period (gross)
+      // Revenue denominator: items with a sale date in period (gross).
+      // Note: calcItemRevenue returns 0 for fully-returned-not-yet-resold AND
+      // relisted-awaiting-resale items, so this naturally excludes reversed
+      // sales from the % of revenue denominator (correct accounting).
       const sd=i.resaleSalePrice?i.resaleDateSold:i.dateSold;
       if(sd&&inRange(sd)) _refundMoneyDenom+=calcItemRevenue(i);
     });
@@ -8984,43 +8968,6 @@ function calcYearlyStats(period){
 function calcSummaryStats(){ return calcYearlyStats(SUMMARY_PERIOD); }
 function getSummaryDateRange(){ return _periodDateRange(SUMMARY_PERIOD); }
 function allItems(){ const r=[]; allDBKeys().forEach(function(k){ if(k==='trips'||k==='expenses'||k==='_userOwned'||k==='_taxYear')return; (DB[k]||[]).forEach(function(i){ r.push(i); }); }); return r; }
-
-function calcMonthStats(m){
-  let totalRev=0,realisedProfit=0,unrealisedProfit=0,stockValue=0;
-  let soldCount=0,listedCount=0,daysSum=0;
-  (DB[m]||[]).forEach(i=>{
-    if((i.item||"").trim().toUpperCase()==="MONTH END")return;
-    // Full returns wipe dateSold — reconstruct it from snapshot so returned items
-    // still appear in revenue for the month their sale actually happened.
-    // _iRetSaleDate: original dateSold for items returned+resold (dateSold wiped,
-    // isReturned may be false if already relisted and sold again).
-    const _iRetSaleDate=(!i.dateSold)?(function(){
-      const fe=(i.returnHistory||[]).find(r=>r.type==='full_seller'||r.type==='full_ebay');
-      return fe&&fe._dateSoldAtReturn||null;
-    })():null;
-    // saleDate: for resold items use resaleDateSold (revenue attributed to when it resolved).
-    // For returned+not-resold use _dateSoldAtReturn snapshot (so loss still hits the right month).
-    const _iSaleDate=i.resaleSalePrice?i.resaleDateSold:(i.dateSold||_iRetSaleDate);
-    const _iHadSale=_iSaleDate&&_monthKeyFromDate(_iSaleDate)===m;
-    if(_iHadSale){
-      totalRev+=calcItemRevenue(i);
-      if(!i.isReturned){
-        soldCount++;
-        realisedProfit+=calcGrossProfit(i);
-        const _d=calcDaysToSell(i);
-        if(_d!==null)daysSum+=_d;
-      }else{
-        realisedProfit+=calcGrossProfit(i)||0;
-      }
-    }else if(!i.isReturned&&!i.resaleSalePrice){
-      listedCount++;
-      stockValue+=i.salePrice||0;
-      unrealisedProfit+=calcGrossProfit(i)||0;
-    }
-  });
-  const avgDays=soldCount?Math.round(daysSum/soldCount):null;
-  return{totalRev,realisedProfit,unrealisedProfit,stockValue,soldCount,listedCount,avgDays};
-}
 
 // ── SESSION B: Sale-attribution monthly engine ────────────────────────────
 // Convert a YYYY-MM-DD date string to its month key, e.g. '2026-04-23' → 'APR-26'.
@@ -9267,18 +9214,23 @@ function calcPartsCost(i){
   return (i.parts||[]).reduce(function(s,p){return s+(p.cost||0);},0);
 }
 // Revenue for an item — reflects cash actually kept, not gross flow:
-//   Fully returned, not yet relisted  → 0      (sale reversed, money went back)
-//   Returned then resold              → resaleSalePrice only (original sale doesn't count)
-//   Partial refund (any type)         → salePrice gross (partial doesn't reverse the sale)
-//   Normal sold                       → salePrice
+//   Fully returned, not yet relisted    → 0      (sale reversed, money went back)
+//   Fully returned, relisted, no resale → 0      (original sale reversed, sale 2 hasn't happened)
+//   Returned then resold                → resaleSalePrice only (original sale doesn't count)
+//   Partial refund (any type)           → salePrice gross (partial doesn't reverse the sale)
+//   Normal sold                         → salePrice
 // Profit is calculated separately via calcGrossProfit which handles all fee/cost logic.
 function calcItemRevenue(i){
   if(!i.salePrice)return 0;
   // Returned and not yet resold — revenue = 0
   if(i.isReturned)return 0;
   // Returned then resold — only the resale price counts as revenue
-  const _wasReturnedThenResold=i.resaleSalePrice&&(i.returnHistory||[]).some(r=>r.type==='full_seller'||r.type==='full_ebay');
+  const _hadFullReturn=(i.returnHistory||[]).some(r=>r.type==='full_seller'||r.type==='full_ebay');
+  const _wasReturnedThenResold=i.resaleSalePrice&&_hadFullReturn;
   if(_wasReturnedThenResold)return+(i.resaleSalePrice||0).toFixed(2);
+  // BUGFIX (Session E1): fully-returned-then-relisted-but-not-yet-resold —
+  // original sale was reversed; sale 2 hasn't happened. Revenue = 0.
+  if(_hadFullReturn&&!i.resaleSalePrice)return 0;
   // Normal sold (including partial refunds — partial doesn't reverse the sale)
   return+((i.salePrice||0)+(i.resaleSalePrice||0)).toFixed(2);
 }
@@ -9532,14 +9484,6 @@ function ipSaveNum(m,id,field,val){
   const i=(DB[m]||[]).find(x=>x.id===id);
   if(!i)return;
   i[field]=parseFloat(val)||0;
-  if(i.dateSold||i.isReturned||i.resaleSalePrice)i.grossProfit=calcGrossProfit(i);
-  saveDB();
-  const s=_getSecStates();renderItemPage(m,id);_applySecStates(s);
-}
-function ipSavePromo(m,id,val){
-  const i=(DB[m]||[]).find(x=>x.id===id);
-  if(!i)return;
-  i.promoPercent=(parseFloat(val)||0)/100;
   if(i.dateSold||i.isReturned||i.resaleSalePrice)i.grossProfit=calcGrossProfit(i);
   saveDB();
   const s=_getSecStates();renderItemPage(m,id);_applySecStates(s);
