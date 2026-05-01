@@ -110,16 +110,55 @@ nav:not(#bottom-nav){position:sticky;top:0;z-index:200;background:var(--surface)
 .user-menu-country-trigger{cursor:pointer;}
 .user-menu-country-trigger-flag{width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;box-shadow:0 0 0 1px var(--border);overflow:hidden;}
 .user-menu-country-trigger-flag svg{display:block;}
-/* Session E1 — Country panel pops out to the LEFT of the user-menu dropdown.
-   Mirrors the dropdown styling so they read as one connected surface. */
-.country-panel{display:none;position:absolute;top:calc(100% + 8px);right:calc(100% + 8px);min-width:220px;background:var(--surface);border:1px solid var(--border);border-radius:12px;box-shadow:0 8px 32px var(--shadow-md);z-index:301;overflow:hidden;padding:4px;}
-.user-menu.country-open .country-panel{display:block;}
+/* Session E2 — Country panel.
+   Desktop: slide-out to the LEFT of the user menu, flush against its left edge.
+            Hidden by default (translated off + opacity 0); slides in with motion.
+   Mobile : SAME panel reused as in-place swap inside the dropdown box.
+            Tap Country → main menu fades out, country list fades in, back arrow returns. */
+.country-panel{
+  position:absolute;
+  top:calc(100% + 8px);
+  /* Positioned to sit flush against the LEFT edge of the user-menu-dropdown,
+     not overlapping the trigger button. Dropdown is min-width:200px, anchored
+     right:0 of .user-menu, so its left edge is 200px from .user-menu's right.
+     8px gap between the two panels. */
+  right:calc(200px + 8px);
+  min-width:240px;
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:12px;
+  box-shadow:0 8px 32px var(--shadow-md);
+  z-index:301;
+  overflow:hidden;
+  padding:4px;
+  /* Hidden + slid-out state */
+  opacity:0;
+  pointer-events:none;
+  transform:translateX(8px);
+  transition:opacity .18s ease, transform .22s cubic-bezier(0.34,1.32,0.64,1);
+}
+.user-menu.country-open .country-panel{
+  opacity:1;
+  pointer-events:auto;
+  transform:translateX(0);
+}
 .country-panel-header{display:flex;align-items:center;gap:8px;padding:8px 10px 6px;font-family:var(--font-display);font-size:11px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:0.1em;}
 .country-panel-back{width:24px;height:24px;display:flex;align-items:center;justify-content:center;border:none;background:transparent;border-radius:6px;cursor:pointer;color:var(--text-secondary);transition:all 0.15s;flex-shrink:0;}
 .country-panel-back:hover{background:var(--surface2);color:var(--text);}
-/* Mobile: country panel doesn't have room to pop left, fallback to bottom sheet style */
+
+/* Mobile: country panel becomes the SAME container as the user-menu-dropdown.
+   When .country-open is set on .user-menu, the main dropdown items are hidden
+   and the country panel slides in to replace them in the same visual box. */
 @media(max-width:600px){
-  .country-panel{right:0;top:calc(100% + 8px);min-width:200px;}
+  .country-panel{
+    /* Reposition to same place as user-menu-dropdown */
+    top:calc(100% + 8px);
+    right:0;
+    min-width:200px;
+    transform:translateX(8px);
+  }
+  /* Hide the main dropdown items when country-open — country panel takes its place */
+  .user-menu.country-open .user-menu-dropdown{display:none;}
 }
 .user-menu-country-sub{display:flex;flex-direction:column;}
 .user-menu-country-item{width:100%;padding:8px 14px;background:none;border:none;text-align:left;cursor:pointer;font-size:13px;font-weight:500;color:var(--text-secondary);transition:all 0.15s;border-radius:8px;display:flex;align-items:center;gap:10px;}
@@ -371,6 +410,8 @@ nav:not(#bottom-nav){position:sticky;top:0;z-index:200;background:var(--surface)
 .status-dot.sold{background:var(--green);}
 .status-dot.returned{background:var(--red);opacity:0.7;}
 .status-dot.relisted{background:var(--purple);opacity:0.9;}
+.status-dot.resold{background:var(--purple);}
+.status-dot.spares{background:var(--warn);opacity:0.85;}
 
 /* FORMS */
 .fg{margin-bottom:16px;}
@@ -573,10 +614,11 @@ input,select,textarea{touch-action:manipulation;user-select:text;-webkit-user-se
 .month-picker-chevron{font-size:14px;color:var(--muted);transition:transform 0.2s;}
 .month-picker-wrap.open .month-picker-chevron{transform:rotate(180deg);}
 .month-picker-wrap.open .month-picker-title{color:var(--accent);}
-/* Dropdown: fixed overlay with max-height + scroll so all months are reachable */
-.month-picker-dropdown{display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:var(--surface);border:1px solid var(--border);border-radius:14px;box-shadow:0 12px 48px var(--shadow-md);z-index:600;overflow-y:auto;width:280px;max-height:70vh;}
-.month-picker-wrap.open .month-picker-dropdown{display:block;}
-/* Backdrop to close on outside tap */
+/* Dropdown: anchored below trigger, slides in. Backdrop sits behind it. */
+.month-picker-dropdown{display:none;position:absolute;top:calc(100% + 8px);left:0;background:var(--surface);border:1px solid var(--border);border-radius:14px;box-shadow:0 12px 48px var(--shadow-md);z-index:600;overflow-y:auto;width:280px;max-height:70vh;opacity:0;transform:translateY(-6px);transition:opacity .14s ease,transform .14s cubic-bezier(0.34,1.32,0.64,1);}
+.month-picker-wrap.open .month-picker-dropdown{display:block;opacity:1;transform:translateY(0);}
+@media(max-width:600px){.month-picker-dropdown{width:calc(100vw - 32px);left:auto;right:auto;}}
+/* Backdrop closes on outside tap */
 .month-picker-backdrop{display:none;position:fixed;inset:0;z-index:599;}
 .month-picker-wrap.open .month-picker-backdrop{display:block;}
 .month-picker-option{font-family:var(--font-body);padding:12px 18px;font-size:13px;font-weight:500;color:var(--text-secondary);cursor:pointer;transition:all 0.12s;display:flex;align-items:center;justify-content:space-between;gap:16px;border-bottom:1px solid var(--border);}
@@ -617,10 +659,39 @@ input,select,textarea{touch-action:manipulation;user-select:text;-webkit-user-se
 /* FILTER CHIPS — segmented toggle style */
 .filter-chips{display:flex;gap:0;flex-wrap:nowrap;margin-bottom:0;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:3px;width:fit-content;}
 .filter-chips-select{display:none;}
+/* Custom mobile filter dropdown — used in place of native select so we can
+   show coloured dots next to options. Same sizing/feel as the month picker.
+   Visible only on mobile (rule below in @media). */
+.filter-pill-dd{position:relative;display:none;}
+.filter-pill-dd-btn{display:flex;align-items:center;gap:8px;padding:9px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;font-family:var(--font-body);font-size:13px;font-weight:600;color:var(--text);cursor:pointer;width:100%;justify-content:space-between;transition:all .15s;}
+.filter-pill-dd-btn:hover{border-color:var(--accent);}
+.filter-pill-dd-btn .fpdd-label{display:flex;align-items:center;gap:8px;}
+.filter-pill-dd-btn .fpdd-chev{font-size:11px;color:var(--muted);transition:transform .2s;}
+.filter-pill-dd.open .fpdd-chev{transform:rotate(180deg);}
+.filter-pill-dd-menu{display:none;position:absolute;top:calc(100% + 6px);left:0;right:0;background:var(--surface);border:1px solid var(--border);border-radius:10px;box-shadow:0 8px 32px var(--shadow-md);z-index:550;overflow:hidden;padding:4px;opacity:0;transform:translateY(-6px);transition:opacity .14s ease,transform .14s cubic-bezier(0.34,1.32,0.64,1);}
+.filter-pill-dd.open .filter-pill-dd-menu{display:block;opacity:1;transform:translateY(0);}
+.filter-pill-dd-backdrop{display:none;position:fixed;inset:0;z-index:549;}
+.filter-pill-dd.open .filter-pill-dd-backdrop{display:block;}
+.filter-pill-dd-opt{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:7px;cursor:pointer;font-size:13px;color:var(--text-secondary);transition:all .12s;border:none;background:none;width:100%;text-align:left;}
+.filter-pill-dd-opt:hover{background:var(--surface2);color:var(--text);}
+.filter-pill-dd-opt:disabled,.filter-pill-dd-opt-empty{opacity:0.4;cursor:not-allowed;}
+.filter-pill-dd-opt:disabled:hover,.filter-pill-dd-opt-empty:hover{background:none;}
+.filter-pill-dd-opt.active{background:var(--accent-dim);color:var(--accent);font-weight:700;}
+.filter-pill-dd-opt-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0;}
+.filter-pill-dd-opt-count{margin-left:auto;font-size:11px;color:var(--muted);font-weight:600;}
+.filter-pill-dd-opt.active .filter-pill-dd-opt-count{color:var(--accent);}
 .chip{padding:7px 14px;border-radius:7px;border:none;background:transparent;color:var(--text-secondary);font-family:var(--font-body);font-size:12px;font-weight:500;letter-spacing:0;text-transform:none;cursor:pointer;transition:all 0.15s;white-space:nowrap;display:flex;align-items:center;gap:5px;}
 .chip:hover:not(:disabled){color:var(--text);}
 .chip.active{background:var(--surface);color:var(--text);box-shadow:0 1px 4px var(--shadow);}
 .chip.chip-empty,.chip:disabled{opacity:0.4;cursor:not-allowed;}
+/* Coloured dot prefix on category chips — visual scan cue */
+.chip-all,.chip-sold,.chip-returned,.chip-fresh,.chip-maturing,.chip-slow,.chip-stale{gap:6px;}
+.chip-all::before,.chip-sold::before,.chip-returned::before,.chip-fresh::before,.chip-maturing::before,.chip-slow::before,.chip-stale::before{content:'';display:inline-block;width:7px;height:7px;border-radius:50%;flex-shrink:0;}
+.chip-all::before{background:var(--muted);}
+.chip-sold::before, .chip-fresh::before{background:var(--green);}
+.chip-returned::before, .chip-stale::before{background:var(--red);}
+.chip-maturing::before{background:var(--text-secondary);}
+.chip-slow::before{background:#f5a623;}
 [data-theme="light"] .chip.active{background:#fdf9f3;}
 .chip .chip-count{font-size:10px;color:var(--muted);font-weight:600;}
 .chip.active .chip-count{color:var(--text-secondary);}
@@ -1062,9 +1133,14 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
   .mval{font-size:18px!important;margin-bottom:0!important;}
   .msub{font-size:11px;margin-top:2px!important;}
   .mname{font-size:11px;margin-bottom:2px!important;}
-.filter-chips{display:none!important;}.filter-chips-select{display:block!important;}
+.filter-chips{display:none!important;}.filter-pill-dd{display:block!important;}
+/* Filter pill + sort select share equal width on mobile (flex:1 each).
+   The 8px gap from .filter-row gives natural breathing room between them. */
+.filter-row .filter-pill-dd{flex:1 1 0;min-width:0;}
+.filter-row > .sort-select{flex:1 1 0!important;min-width:0!important;margin-left:0!important;}
 .stock-filter-row{flex-wrap:wrap!important;gap:8px!important;}
-.stock-filter-row .sort-select{flex:1 1 140px;min-width:140px;margin-left:0!important;}}
+.stock-filter-row .filter-pill-dd{flex:1 1 0;min-width:0;}
+.stock-filter-row .sort-select{flex:1 1 0!important;min-width:0!important;margin-left:0!important;}}
 
 /* Aging bar — stock page distribution viz */
 .age-bar-wrap{margin-bottom:16px;}
@@ -1265,7 +1341,6 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
       <div class="user-menu" id="user-menu">
         <button class="user-menu-btn" onclick="event.stopPropagation();toggleUserMenu()" id="user-menu-btn">
           <div class="user-avatar" id="user-avatar">R</div>
-          <div id="user-menu-flag" class="user-menu-flag" aria-hidden="true"></div>
           <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 4l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
         </button>
         <div class="user-menu-dropdown" id="user-menu-dropdown">
@@ -1340,7 +1415,7 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
     </span>
     <input type="search" id="global-search-mobile" name="app-search-mobile" placeholder="Search items…"
            autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-form-type="other"
-           oninput="if(this.value.trim())handleSearch(this.value,true)"
+           oninput="if(this.value.trim())showSearchDropdown(this.value);else closeSearchDropdown();"
            onkeydown="if(event.key==='Enter'&&this.value.trim()){event.preventDefault();handleSearch(this.value,true);}">
     <button class="search-clear" id="search-clear-mobile" onclick="clearMobileSearch()">×</button>
   </div>
@@ -1348,30 +1423,52 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
 
 <!-- MORE SHEET — hamburger menu, slides up from bottom nav -->
 <div id="more-sheet-overlay" onclick="closeMoreSheet()" style="display:none;position:fixed;inset:0;z-index:300;background:var(--overlay);backdrop-filter:blur(2px);"></div>
-<div id="more-sheet" style="display:none;position:fixed;bottom:60px;left:0;right:0;z-index:301;background:var(--surface);border-top:1px solid var(--border);border-radius:20px 20px 0 0;padding:8px 0 16px;box-shadow:0 -8px 40px var(--shadow-md);">
+<div id="more-sheet" style="display:none;position:fixed;bottom:60px;left:0;right:0;z-index:301;background:var(--surface);border-top:1px solid var(--border);border-radius:20px 20px 0 0;padding:8px 0 16px;box-shadow:0 -8px 40px var(--shadow-md);overflow:hidden;">
   <div style="width:36px;height:4px;background:var(--border2);border-radius:2px;margin:0 auto 16px;"></div>
-  <button onclick="closeMoreSheet();goToTab('expenses',document.querySelector('[data-tab=\'expenses\']'))" class="more-sheet-row" data-sheet-tab="expenses">
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 2h14a1 1 0 0 1 1 1v18l-2.5-1.5L15 21l-2.5-1.5L10 21l-2.5-1.5L5 21V3a1 1 0 0 1 0-1z"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="12" y2="16"/></svg>
-    <span>Expenses</span>
-  </button>
-  <button onclick="closeMoreSheet();goToTab('tax',document.querySelector('[data-tab=\'tax\']'))" class="more-sheet-row" data-sheet-tab="tax">
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="15" x2="15" y2="9"/><circle cx="9.5" cy="9.5" r="1" fill="currentColor" stroke="none"/><circle cx="14.5" cy="14.5" r="1" fill="currentColor" stroke="none"/></svg>
-    <span>Tax / SA103</span>
-  </button>
-  <button onclick="closeMoreSheet();goToTab('data',document.querySelector('[data-tab=\'data\']'))" class="more-sheet-row" data-sheet-tab="data">
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v4c0 1.66 4 3 9 3s9-1.34 9-3V5"/><path d="M3 9v5c0 1.66 4 3 9 3s9-1.34 9-3V9"/><path d="M3 14v5c0 1.66 4 3 9 3s9-1.34 9-3v-5"/></svg>
-    <span>Data</span>
-  </button>
-  <div style="height:1px;background:var(--border);margin:6px 16px;"></div>
-  <button onclick="closeMoreSheet();toggleTheme()" class="more-sheet-row" id="more-sheet-theme">
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
-    <span id="more-sheet-theme-label">Light mode</span>
-  </button>
-  <div style="height:1px;background:var(--border);margin:6px 16px;"></div>
-  <button onclick="closeMoreSheet();doSignOut()" class="more-sheet-row more-sheet-danger">
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
-    <span>Sign out</span>
-  </button>
+  <!-- MAIN sheet contents — page nav + country trigger + theme + sign out -->
+  <div id="more-sheet-main" class="more-sheet-pane">
+    <button onclick="closeMoreSheet();goToTab('expenses',document.querySelector('[data-tab=\'expenses\']'))" class="more-sheet-row" data-sheet-tab="expenses">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 2h14a1 1 0 0 1 1 1v18l-2.5-1.5L15 21l-2.5-1.5L10 21l-2.5-1.5L5 21V3a1 1 0 0 1 0-1z"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="12" y2="16"/></svg>
+      <span>Expenses</span>
+    </button>
+    <button onclick="closeMoreSheet();goToTab('tax',document.querySelector('[data-tab=\'tax\']'))" class="more-sheet-row" data-sheet-tab="tax">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="15" x2="15" y2="9"/><circle cx="9.5" cy="9.5" r="1" fill="currentColor" stroke="none"/><circle cx="14.5" cy="14.5" r="1" fill="currentColor" stroke="none"/></svg>
+      <span>Tax / SA103</span>
+    </button>
+    <button onclick="closeMoreSheet();goToTab('data',document.querySelector('[data-tab=\'data\']'))" class="more-sheet-row" data-sheet-tab="data">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v4c0 1.66 4 3 9 3s9-1.34 9-3V5"/><path d="M3 9v5c0 1.66 4 3 9 3s9-1.34 9-3V9"/><path d="M3 14v5c0 1.66 4 3 9 3s9-1.34 9-3v-5"/></svg>
+      <span>Data</span>
+    </button>
+    <div style="height:1px;background:var(--border);margin:6px 16px;"></div>
+    <button onclick="moreSheetShowCountry()" class="more-sheet-row" id="more-sheet-country-trigger">
+      <span id="more-sheet-country-flag" style="width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;box-shadow:0 0 0 1px var(--border);overflow:hidden;"></span>
+      <span style="flex:1;display:flex;flex-direction:column;gap:1px;">
+        <span style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;font-weight:700;">Country</span>
+        <span id="more-sheet-country-label" style="font-size:14px;color:var(--text);font-weight:600;">United Kingdom</span>
+      </span>
+      <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style="color:var(--muted);"><path d="M4 2l4 4-4 4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
+    <div style="height:1px;background:var(--border);margin:6px 16px;"></div>
+    <button onclick="closeMoreSheet();toggleTheme()" class="more-sheet-row" id="more-sheet-theme">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+      <span id="more-sheet-theme-label">Light mode</span>
+    </button>
+    <div style="height:1px;background:var(--border);margin:6px 16px;"></div>
+    <button onclick="closeMoreSheet();doSignOut()" class="more-sheet-row more-sheet-danger">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+      <span>Sign out</span>
+    </button>
+  </div>
+  <!-- COUNTRY sheet contents — header with back arrow + country list. Hidden by default. -->
+  <div id="more-sheet-country" class="more-sheet-pane" style="display:none;">
+    <div style="display:flex;align-items:center;gap:10px;padding:6px 16px 10px;">
+      <button onclick="moreSheetShowMain()" style="width:32px;height:32px;display:flex;align-items:center;justify-content:center;border:none;background:var(--surface2);border-radius:8px;cursor:pointer;color:var(--text-secondary);flex-shrink:0;" aria-label="Back to menu">
+        <svg width="14" height="14" viewBox="0 0 12 12" fill="none"><path d="M8 2L4 6l4 4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <span style="font-family:var(--font-display);font-size:13px;font-weight:800;color:var(--text);text-transform:uppercase;letter-spacing:0.08em;">Select country</span>
+    </div>
+    <div id="more-sheet-country-list"></div>
+  </div>
 </div>
 
 <button id="fab" class="fab" onclick="openQuickAdd()" title="Quick add item" style="display:none;">+</button>
@@ -1424,7 +1521,7 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
     <div class="fg" id="modal-platform-row" style="margin-bottom:12px">
       <label>Sold On</label>
       <select id="modal-platform" onchange="onMarkSoldPlatformChange()" autocomplete="off">
-        ${Object.values(PLATFORMS).map(p=>`<option value="${p.id}" ${!p.live?'disabled':''}>${p.label}${!p.live?' — coming soon':''}</option>`).join('')}
+        <!-- Options populated at modal-open time by populateMarkSoldPlatformOptions() -->
       </select>
     </div>
     <div class="fg" id="modal-price-row" style="margin-bottom:16px">
@@ -1762,6 +1859,8 @@ function setCountry(countryId){
   refreshCountryTrigger();
   // Refresh the country submenu's active state (in the left-popping panel)
   refreshCountrySubmenu();
+  // Refresh the more-sheet (mobile) country trigger row
+  if(typeof refreshMoreSheetCountryTrigger==='function')refreshMoreSheetCountryTrigger();
   // Toast for clarity
   if(typeof toast==='function')toast('Country set to '+COUNTRIES[countryId].label);
 }
@@ -1972,6 +2071,8 @@ function initCountry(){
   // Session E1 — also seed the trigger row inside the menu so it shows the
   // right country label + mini flag from the very first open.
   refreshCountryTrigger();
+  // E2 — seed the more-sheet (mobile) country row too
+  if(typeof refreshMoreSheetCountryTrigger==='function')refreshMoreSheetCountryTrigger();
 }
 function toggleTheme(){
   const current=document.documentElement.getAttribute('data-theme')||'light';
@@ -2086,6 +2187,48 @@ function closeMoreSheet(){
   document.getElementById('more-sheet').style.display='none';
   document.getElementById('more-sheet-overlay').style.display='none';
   document.getElementById('bnt-more').classList.remove('on');
+  // Reset the sheet back to its main pane so next open starts clean
+  moreSheetShowMain();
+}
+
+// ── More-sheet: country pane swap (mobile equivalent of desktop country panel)
+function moreSheetShowCountry(){
+  // Populate the country list with the current selection highlighted
+  const list=document.getElementById('more-sheet-country-list');
+  if(list&&typeof COUNTRIES==='object'&&typeof _flagSVG==='function'){
+    const html=Object.keys(COUNTRIES).map(function(cid){
+      const c=COUNTRIES[cid];
+      const isActive=cid===COUNTRY;
+      const isLive=!!c.live;
+      const onclick=isLive?`setCountry('${cid}');moreSheetShowMain();closeMoreSheet();`:'';
+      return '<button class="more-sheet-row" '+(isLive?'':'disabled')+' onclick="'+onclick+'" style="'+(isLive?'':'opacity:0.4;')+'">'
+        +'<span style="width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;box-shadow:0 0 0 1px var(--border);overflow:hidden;">'+_flagSVG(c.flag,22)+'</span>'
+        +'<span style="flex:1;'+(isActive?'color:var(--accent);font-weight:700;':'')+'">'+c.label+(isLive?'':' <span style="font-size:11px;color:var(--muted);font-weight:500;">(coming soon)</span>')+'</span>'
+        +(isActive?'<span style="color:var(--accent);font-size:14px;">✓</span>':'')
+      +'</button>';
+    }).join('');
+    list.innerHTML=html;
+  }
+  document.getElementById('more-sheet-main').style.display='none';
+  document.getElementById('more-sheet-country').style.display='block';
+}
+function moreSheetShowMain(){
+  const main=document.getElementById('more-sheet-main');
+  const cty=document.getElementById('more-sheet-country');
+  if(main)main.style.display='block';
+  if(cty)cty.style.display='none';
+}
+
+// Sync the country trigger row inside the more-sheet (flag + label).
+// Called after country changes and on load.
+function refreshMoreSheetCountryTrigger(){
+  if(typeof COUNTRIES!=='object'||typeof _flagSVG!=='function')return;
+  const c=COUNTRIES[COUNTRY];
+  if(!c)return;
+  const flagEl=document.getElementById('more-sheet-country-flag');
+  const labelEl=document.getElementById('more-sheet-country-label');
+  if(flagEl)flagEl.innerHTML=_flagSVG(c.flag,22);
+  if(labelEl)labelEl.textContent=c.label;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -2367,6 +2510,7 @@ function startPreviewMode(){
     history.replaceState({}, '', url.toString());
   }catch(e){ /* sandboxed iframe — ignore */ }
   document.getElementById('auth-overlay').style.display = 'none';
+  if(typeof _neutralizeAuthInputs==='function')_neutralizeAuthInputs();
   if(window.innerWidth > 600){
     document.getElementById('nav').style.display = '';
     document.getElementById('bottom-nav').style.display = 'none';
@@ -2480,6 +2624,7 @@ async function doSignOut(){
     document.getElementById('main-content').style.display = 'none';
     const _fabPreview = document.getElementById('fab');
     if(_fabPreview) _fabPreview.style.display = 'none';
+    if(typeof _restoreAuthInputs==='function')_restoreAuthInputs();
     document.getElementById('auth-overlay').style.display = 'flex';
     return;
   }
@@ -2509,6 +2654,7 @@ async function doSignOut(){
   document.getElementById('main-content').style.display = 'none';
   const _fab2 = document.getElementById('fab');
   if(_fab2) _fab2.style.display = 'none';
+  if(typeof _restoreAuthInputs==='function')_restoreAuthInputs();
   document.getElementById('auth-overlay').style.display = 'flex';
   await _sb.auth.signOut();
 }
@@ -3906,7 +4052,16 @@ function toggleNavSearch(){
     if(backdrop)backdrop.style.display='block';
     if(bntSearch)bntSearch.classList.add('on');
     const inp=document.getElementById('global-search-mobile');
-    if(inp)inp.focus();
+    // iOS Safari: focus must run within the current user-gesture frame to raise
+    // the keyboard. Calling .focus() directly inside the event handler works,
+    // but only if the element is already visible/laid-out. The .open class
+    // change above is synchronous so the next paint will have it visible —
+    // requestAnimationFrame keeps us inside the gesture window while letting
+    // layout settle. Click() trick: forcibly tapping the input element on iOS.
+    if(inp){
+      inp.focus();
+      requestAnimationFrame(()=>{ inp.focus(); inp.click&&inp.click(); });
+    }
   }
 }
 function clearMobileSearch(){
@@ -5879,6 +6034,23 @@ function pickMonth(m){
   SELECTED_MONTH=m;MONTH_FILTER='all';SELECTION_MODE=false;SELECTED_ITEMS.clear();
   renderMonth();
 }
+// Generic open/close for the mobile filter pill dropdowns. The element is
+// identified by its DOM id; toggling adds/removes the .open class and the CSS
+// handles the visibility + slide-in transition.
+function toggleFilterPill(id){
+  const el=document.getElementById(id);
+  if(!el)return;
+  const wasOpen=el.classList.contains('open');
+  // Close any other open filter pills first so we never have two at once.
+  document.querySelectorAll('.filter-pill-dd.open').forEach(other=>{
+    if(other!==el)other.classList.remove('open');
+  });
+  el.classList.toggle('open',!wasOpen);
+}
+function closeFilterPill(id){
+  const el=document.getElementById(id);
+  if(el)el.classList.remove('open');
+}
 // Close picker on outside click
 document.addEventListener('click',function(e){
   const el=document.getElementById('month-picker');
@@ -5941,6 +6113,9 @@ function renderMonth(){
     :stats.refundItemRate.toFixed(0)+'%';
   const refundSub=stats.refundDenom===0?'No sales'
     :(stats.fullRefundCount||0)+' full · '+(stats.partialOnlyCount||0)+' partial';
+
+  // Auto-reset stale filter: if no returns this period but filter is sold/returned, drop to 'all'
+  if(cReturned===0&&(MONTH_FILTER==='sold'||MONTH_FILTER==='returned'))MONTH_FILTER='all';
 
   const html=`
     <div class="page-header">
@@ -6019,15 +6194,30 @@ function renderMonth(){
 
     <div class="filter-row" style="gap:8px;">
       <div class="filter-chips">
-        <button class="chip ${MONTH_FILTER==='all'?'active':''}" onclick="setMonthFilter('all')">All <span class="chip-count">${cAll}</span></button>
-        <button class="chip ${MONTH_FILTER==='sold'?'active':''}" onclick="setMonthFilter('sold')">Sold <span class="chip-count">${cSold}</span></button>
-        <button class="chip ${MONTH_FILTER==='returned'?'active':''}${cReturned===0?' chip-empty':''}" ${cReturned===0?'disabled':''} onclick="${cReturned>0?`setMonthFilter('returned')`:''}">Returned <span class="chip-count">${cReturned}</span></button>
+        <button class="chip chip-all ${MONTH_FILTER==='all'?'active':''}" onclick="setMonthFilter('all')">All <span class="chip-count">${cAll}</span></button>
+        ${cReturned>0?`<button class="chip chip-sold ${MONTH_FILTER==='sold'?'active':''}" onclick="setMonthFilter('sold')">Sold <span class="chip-count">${cSold}</span></button>`:''}
+        ${cReturned>0?`<button class="chip chip-returned ${MONTH_FILTER==='returned'?'active':''}" onclick="setMonthFilter('returned')">Returned <span class="chip-count">${cReturned}</span></button>`:''}
       </div>
-      <select class="sort-select filter-chips-select" onchange="setMonthFilter(this.value)" style="flex-shrink:0;">
-        <option value="all" ${MONTH_FILTER==='all'?'selected':''}>All (${cAll})</option>
-        <option value="sold" ${MONTH_FILTER==='sold'?'selected':''}>Sold (${cSold})</option>
-        <option value="returned" ${MONTH_FILTER==='returned'?'selected':''} ${cReturned===0?'disabled':''}>Returned (${cReturned})</option>
-      </select>
+      ${(()=>{
+        // Mobile-only custom dropdown (replaces the native select). Coloured
+        // dot per option matches the desktop chip pills' colour scheme.
+        const opts=[{k:'all',l:'All',c:cAll,dot:'var(--muted)'}];
+        if(cReturned>0){
+          opts.push({k:'sold',l:'Sold',c:cSold,dot:'var(--green)'});
+          opts.push({k:'returned',l:'Returned',c:cReturned,dot:'var(--red)'});
+        }
+        const cur=opts.find(o=>o.k===MONTH_FILTER)||opts[0];
+        const optsHTML=opts.map(o=>`<button class="filter-pill-dd-opt${o.k===MONTH_FILTER?' active':''}" onclick="setMonthFilter('${o.k}');closeFilterPill('mfp-filter')"><span class="filter-pill-dd-opt-dot" style="background:${o.dot}"></span>${o.l}<span class="filter-pill-dd-opt-count">${o.c}</span></button>`).join('');
+        return `
+          <div class="filter-pill-dd" id="mfp-filter">
+            <div class="filter-pill-dd-backdrop" onclick="closeFilterPill('mfp-filter')"></div>
+            <button class="filter-pill-dd-btn" onclick="event.stopPropagation();toggleFilterPill('mfp-filter')">
+              <span class="fpdd-label"><span class="filter-pill-dd-opt-dot" style="background:${cur.dot}"></span>${cur.l} (${cur.c})</span>
+              <span class="fpdd-chev">▾</span>
+            </button>
+            <div class="filter-pill-dd-menu" onclick="event.stopPropagation()">${optsHTML}</div>
+          </div>`;
+      })()}
       <select class="sort-select" onchange="setMonthSort(this.value)" style="margin-left:auto;flex-shrink:0;">
         <option value="date-sold" ${MONTH_SORT==='date-sold'?'selected':''}>Date sold</option>
         <option value="profit" ${MONTH_SORT==='profit'?'selected':''}>Profit</option>
@@ -6213,7 +6403,11 @@ function renderItemRow(m,i){
     profitEl='<div class="item-row-profit '+cls+'">'+fmt(profit)+'</div>';
     if(roi!==null)profitEl+='<div class="item-row-roi">'+roi.toFixed(1)+'% ROI</div>';
   }else if(!i.dateSold&&!i.isReturned&&!i.resaleSalePrice&&profit!==null){
-    profitEl='<div class="item-row-profit est">est. profit '+fmt(profit)+'</div>';
+    // Active items: show "est. profit" using lifetime semantics — for normal
+    // listings this equals calcGrossProfit, but for relisted-after-return items
+    // it includes the hypothetical sale-2 so the headline is "lifetime P&L if sold".
+    const estP=calcEstProfit(i);
+    profitEl='<div class="item-row-profit est">est. profit '+fmt(estP)+'</div>';
   }else if(i.isReturned){
     const cls=profit>=0?'pos':'neg';
     profitEl='<div class="item-row-profit '+cls+'">net '+fmt(profit)+'</div>';
@@ -6522,15 +6716,15 @@ function renderStock(){
   //   days-desc  → oldest first (was 'days' pre-E1; legacy still routed here)
   //   days-asc   → newest first
   const sortCmp=(a,b)=>{
-    if(STOCK_SORT==='profit')return(calcGrossProfit(b)||0)-(calcGrossProfit(a)||0);
+    if(STOCK_SORT==='profit')return(calcEstProfit(b)||0)-(calcEstProfit(a)||0);
     if(STOCK_SORT==='roi'){
       // For ROI, compute on-the-fly using profit / invested. Active stock
       // has no salePrice/dateSold yet — but calcROI works on est. profit
       // when we substitute salePrice. We use: est profit / total invested.
       const investA=(a.costPrice||0)+(a.shippingCost||0)+(a.packagingCost||0)+calcPartsCost(a);
       const investB=(b.costPrice||0)+(b.shippingCost||0)+(b.packagingCost||0)+calcPartsCost(b);
-      const roiA=investA>0?((calcGrossProfit(a)||0)/investA)*100:-Infinity;
-      const roiB=investB>0?((calcGrossProfit(b)||0)/investB)*100:-Infinity;
+      const roiA=investA>0?((calcEstProfit(a)||0)/investA)*100:-Infinity;
+      const roiB=investB>0?((calcEstProfit(b)||0)/investB)*100:-Infinity;
       return roiB-roiA;
     }
     if(STOCK_SORT==='price')return(b.salePrice||0)-(a.salePrice||0);
@@ -6540,7 +6734,10 @@ function renderStock(){
   };
   items=[...items].sort(sortCmp);
   const totalValue=allListed.reduce((s,i)=>s+(i.salePrice||0),0);
-  const potentialProfit=allListed.reduce((s,i)=>s+(calcGrossProfit(i)||0),0);
+  // Use calcEstProfit so relisted-after-return items contribute their lifetime
+  // P&L (loss-so-far + hypothetical sale-2) rather than just the loss-so-far,
+  // matching the per-row "est. profit" display.
+  const potentialProfit=allListed.reduce((s,i)=>s+(calcEstProfit(i)||0),0);
   const avgAsking=allListed.length?totalValue/allListed.length:0;
 
   // Build listing-month groups when grouped mode is on. Iterate FY keys in
@@ -6647,18 +6844,28 @@ function renderStock(){
         // Empty buckets render as disabled chips (greyed out, count visible)
         // so the user keeps a stable layout and understands distribution.
         const buckets=[
-          {key:'all',     label:'All',      count:cAll},
-          {key:'fresh',   label:'Fresh',    count:ageBuckets.fresh},
-          {key:'maturing',label:'Maturing', count:cMaturing},
-          {key:'slow',    label:'Slow',     count:cSlow},
-          {key:'stale',   label:'Stale',    count:cStale}
+          {key:'all',     label:'All',      count:cAll,                dot:'var(--muted)'},
+          {key:'fresh',   label:'Fresh',    count:ageBuckets.fresh,    dot:'var(--green)'},
+          {key:'maturing',label:'Maturing', count:cMaturing,           dot:'var(--text-secondary)'},
+          {key:'slow',    label:'Slow',     count:cSlow,               dot:'#f5a623'},
+          {key:'stale',   label:'Stale',    count:cStale,              dot:'var(--red)'}
         ];
         const chips=buckets.map(b=>{
           const isActive=STOCK_FILTER===b.key;
           const isEmpty=b.count===0&&b.key!=='all';
-          const cls='chip'+(isActive?' active':'')+(isEmpty?' chip-empty':'');
+          const cls='chip chip-'+b.key+(isActive?' active':'')+(isEmpty?' chip-empty':'');
           const handler=isEmpty?'':`setStockFilter('${b.key}')`;
           return `<button class="${cls}" ${isEmpty?'disabled':''} onclick="${handler}">${b.label} <span class="chip-count">${b.count}</span></button>`;
+        }).join('');
+        // Mobile-only custom dropdown — coloured dot per option matches chip
+        // colour scheme. Empty buckets shown but greyed/disabled.
+        const cur=buckets.find(b=>b.key===STOCK_FILTER)||buckets[0];
+        const ddOpts=buckets.map(b=>{
+          const isActive=STOCK_FILTER===b.key;
+          const isEmpty=b.count===0&&b.key!=='all';
+          const cls='filter-pill-dd-opt'+(isActive?' active':'')+(isEmpty?' filter-pill-dd-opt-empty':'');
+          const handler=isEmpty?'':`setStockFilter('${b.key}');closeFilterPill('sfp-filter')`;
+          return `<button class="${cls}" ${isEmpty?'disabled':''} onclick="${handler}"><span class="filter-pill-dd-opt-dot" style="background:${b.dot}"></span>${b.label}<span class="filter-pill-dd-opt-count">${b.count}</span></button>`;
         }).join('');
         const sortOpts=[
           {v:'profit',   label:'Highest est. profit'},
@@ -6670,6 +6877,14 @@ function renderStock(){
         const sortHTML=sortOpts.map(o=>`<option value="${o.v}" ${STOCK_SORT===o.v?'selected':''}>${o.label}</option>`).join('');
         return `<div class="filter-row stock-filter-row" style="margin-bottom:14px;gap:8px;flex-wrap:wrap;align-items:center;">
           <div class="filter-chips">${chips}</div>
+          <div class="filter-pill-dd" id="sfp-filter">
+            <div class="filter-pill-dd-backdrop" onclick="closeFilterPill('sfp-filter')"></div>
+            <button class="filter-pill-dd-btn" onclick="event.stopPropagation();toggleFilterPill('sfp-filter')">
+              <span class="fpdd-label"><span class="filter-pill-dd-opt-dot" style="background:${cur.dot}"></span>${cur.label} (${cur.count})</span>
+              <span class="fpdd-chev">▾</span>
+            </button>
+            <div class="filter-pill-dd-menu" onclick="event.stopPropagation()">${ddOpts}</div>
+          </div>
           <select class="sort-select" onchange="setStockSort(this.value)" style="margin-left:auto;flex-shrink:0;">${sortHTML}</select>
         </div>`;
       })()}
@@ -7874,6 +8089,11 @@ function markSold(m,id){
     // platform, onMarkSoldPlatformChange() re-renders the labels and helper.
     const platSel=document.getElementById('modal-platform');
     if(platSel){
+      // Populate options now (moved here from static HTML where the template
+      // literal wasn't being evaluated, leaving a single garbage option).
+      platSel.innerHTML=Object.values(PLATFORMS).map(p=>
+        '<option value="'+p.id+'"'+(!p.live?' disabled':'')+'>'+p.label+(!p.live?' — coming soon':'')+'</option>'
+      ).join('');
       const initialPlat=(item.soldOnPlatform&&PLATFORMS[item.soldOnPlatform]&&PLATFORMS[item.soldOnPlatform].live)
         ? item.soldOnPlatform
         : (item.defaultPlatform&&PLATFORMS[item.defaultPlatform]&&PLATFORMS[item.defaultPlatform].live ? item.defaultPlatform : DEFAULT_PLATFORM);
@@ -9290,6 +9510,42 @@ function calcGrossProfit(i){
   return+profit.toFixed(2);
 }
 
+// Session E2 — Stock-list "estimated profit" semantics.
+// For most active items this equals calcGrossProfit. For relisted-after-return
+// items (no dateSold yet, full return logged), the gross profit is dominated by
+// the loss-so-far from the failed first sale and isn't useful as an "estimate"
+// — so we instead return the LIFETIME P&L if the relist sells at the current
+// ask price. Mirrors the relist projection on the item detail page so the
+// stock row "est. profit" matches that page's "Lifetime P&L if sold" line.
+function calcEstProfit(i){
+  if(!i.salePrice)return null;
+  const base=calcGrossProfit(i);
+  if(base===null)return null;
+  const _wasRelisted = !i.isReturned && !i.dateSold && !i.resaleSalePrice &&
+    (i.returnHistory||[]).some(r=>r.type==='full_seller'||r.type==='full_ebay');
+  if(!_wasRelisted)return base;
+  // base is the loss-so-far MINUS hypothetical sale-2 costs (relist shipping,
+  // packaging, promo) that calcGrossProfit subtracts even with rev=0. Compute
+  // the hypothetical sale-2 NET profit (revenue minus those same costs) and
+  // add it on. The relist costs cancel out, leaving:
+  //   est = costPrice-sunk + returnPostages + (relistRev - relistFees)
+  const rlBPF=calcEbayBPF(i.salePrice||0);
+  const rlGrossInc=(i.salePrice||0)-rlBPF;
+  const rlPromoCost=rlGrossInc*(i.promoPercent||0)*1.20;
+  const rlRev=(i.salePrice||0)+(i.postage||0)-rlBPF;
+  const rlCost=(i.shippingCost||0)+(i.packagingCost||0)+rlPromoCost;
+  const rlProfit=rlRev-rlCost;
+  // base already deducted (rlShipping+rlPackaging+rlPromoCost) from cost, so to
+  // arrive at lifetime we add (rlRev - rlBPF + rlShipping + rlPackaging + rlPromo)
+  // — which equals (rlSalePrice + rlPostage). But conceptually clearer:
+  // base = -(sunkCost + relistCosts + returnPostage)
+  // lifetime = -(sunkCost + returnPostage) + (rlSalePrice + rlPostage - rlBPF - rlShipping - rlPackaging - rlPromo)
+  //         = base + relistCosts + (rlSalePrice + rlPostage - rlBPF - rlShipping - rlPackaging - rlPromo)
+  //         = base + (rlSalePrice + rlPostage - rlBPF) — the relistCosts cancel
+  // So:
+  return +(base+(i.salePrice||0)+(i.postage||0)-rlBPF).toFixed(2);
+}
+
 function calcROI(i){
   if(!i.dateSold&&!i.isReturned&&!i.resaleSalePrice)return null;
   // ROI denominator = capital actually outlaid to acquire and prep the item.
@@ -9624,6 +9880,26 @@ initCountry();
 // Show auth overlay while we check session. If already signed in, boot straight
 // into the app. If not, show the sign-in form.
 
+// ── CHROME PASSWORD-MANAGER SUPPRESSION ──────────────────────────────────────
+// Chrome scans the entire DOM for credential forms (type=password + email-like
+// field nearby) and offers autofill on ANY input that even loosely matches the
+// pattern. Hiding the auth overlay with display:none doesn't help — Chrome
+// still indexes hidden inputs. Swapping type/autocomplete off the inputs once
+// signed in removes the credential signal so the rest of the app's text/number
+// inputs don't trigger autofill or the "save password" toast.
+function _neutralizeAuthInputs(){
+  const e = document.getElementById('auth-email');
+  const p = document.getElementById('auth-pass');
+  if(e){ e.type='text'; e.removeAttribute('autocomplete'); e.value=''; }
+  if(p){ p.type='text'; p.removeAttribute('autocomplete'); p.value=''; }
+}
+function _restoreAuthInputs(){
+  const e = document.getElementById('auth-email');
+  const p = document.getElementById('auth-pass');
+  if(e){ e.type='email';    e.setAttribute('autocomplete','email'); }
+  if(p){ p.type='password'; p.setAttribute('autocomplete','current-password'); }
+}
+
 (async function boot(){
   const overlay = document.getElementById('auth-overlay');
 
@@ -9631,6 +9907,10 @@ initCountry();
 
   function showApp(){
     overlay.style.display = 'none';
+    // Neutralize auth inputs so Chrome's password manager doesn't detect them
+    // as a sign-in form anywhere in the app. Changing type away from
+    // password/email and stripping the autocomplete hints removes the signal.
+    _neutralizeAuthInputs();
     // Top nav — desktop only; bottom nav — mobile only
     if(window.innerWidth > 600){
       document.getElementById('nav').style.display = '';
@@ -9648,6 +9928,9 @@ initCountry();
   }
 
   function showLogin(){
+    // Restore auth inputs (they may have been neutralized after a previous
+    // successful sign-in and a subsequent sign-out).
+    _restoreAuthInputs();
     document.getElementById('nav').style.display = 'none';
     document.getElementById('bottom-nav').style.display = 'none';
     document.getElementById('main-content').style.display = 'none';
