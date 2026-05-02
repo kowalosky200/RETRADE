@@ -6650,10 +6650,14 @@ function selectAllStockVisible(){
     if(!i.dateSold&&!i.isReturned&&!i.resaleSalePrice)allListed.push({...i,month:k});
   }));
   let items=allListed;
-  if(STOCK_FILTER==='stale')items=allListed.filter(i=>daysBetween(i.dateListed,today)>=90);
-  else if(STOCK_FILTER==='slow')items=allListed.filter(i=>{const d=daysBetween(i.dateListed,today);return d>60&&d<90;});
-  else if(STOCK_FILTER==='maturing')items=allListed.filter(i=>{const d=daysBetween(i.dateListed,today);return d>30&&d<=60;});
-  else if(STOCK_FILTER==='fresh')items=allListed.filter(i=>daysBetween(i.dateListed,today)<=30);
+  // E3 P2 #10 — Guard against items missing dateListed. Without dateListed,
+  // daysBetween returns ~20,000 (epoch fallthrough) and the item incorrectly
+  // lands in 'stale'. Treat missing date as 'no time-bucket' — item still
+  // shows under 'all' but is excluded from fresh/maturing/slow/stale.
+  if(STOCK_FILTER==='stale')items=allListed.filter(i=>i.dateListed&&daysBetween(i.dateListed,today)>=90);
+  else if(STOCK_FILTER==='slow')items=allListed.filter(i=>{if(!i.dateListed)return false;const d=daysBetween(i.dateListed,today);return d>60&&d<90;});
+  else if(STOCK_FILTER==='maturing')items=allListed.filter(i=>{if(!i.dateListed)return false;const d=daysBetween(i.dateListed,today);return d>30&&d<=60;});
+  else if(STOCK_FILTER==='fresh')items=allListed.filter(i=>i.dateListed&&daysBetween(i.dateListed,today)<=30);
   selectAllStock(items);
 }
 
@@ -6703,12 +6707,13 @@ function renderStock(){
   let allListed=[];
   allDBKeys().forEach(k=>(DB[k]||[]).forEach(i=>{ if(!i.dateSold&&!i.isReturned&&!i.resaleSalePrice&&((i.item||'').trim().toUpperCase()!=='MONTH END'))allListed.push({...i,month:k}); }));
   const cAll=allListed.length;
-  const cStale=allListed.filter(i=>daysBetween(i.dateListed,today)>=90).length;
+  const cStale=allListed.filter(i=>i.dateListed&&daysBetween(i.dateListed,today)>=90).length;
   let items=allListed;
-  if(STOCK_FILTER==='stale')items=allListed.filter(i=>daysBetween(i.dateListed,today)>=90);
-  else if(STOCK_FILTER==='slow')items=allListed.filter(i=>{const d=daysBetween(i.dateListed,today);return d>60&&d<90;});
-  else if(STOCK_FILTER==='maturing')items=allListed.filter(i=>{const d=daysBetween(i.dateListed,today);return d>30&&d<=60;});
-  else if(STOCK_FILTER==='fresh')items=allListed.filter(i=>daysBetween(i.dateListed,today)<=30);
+  // E3 P2 #10 — guard against missing dateListed (see selectAllStockVisible).
+  if(STOCK_FILTER==='stale')items=allListed.filter(i=>i.dateListed&&daysBetween(i.dateListed,today)>=90);
+  else if(STOCK_FILTER==='slow')items=allListed.filter(i=>{if(!i.dateListed)return false;const d=daysBetween(i.dateListed,today);return d>60&&d<90;});
+  else if(STOCK_FILTER==='maturing')items=allListed.filter(i=>{if(!i.dateListed)return false;const d=daysBetween(i.dateListed,today);return d>30&&d<=60;});
+  else if(STOCK_FILTER==='fresh')items=allListed.filter(i=>i.dateListed&&daysBetween(i.dateListed,today)<=30);
   // Session E1 — Sort comparator with expanded options:
   //   profit     → highest estimated profit £ first (default)
   //   roi        → highest ROI % first (capital efficiency)
@@ -6759,8 +6764,11 @@ function renderStock(){
       const groupItems=items.filter(i=>i.month===k).sort(sortCmp);
       if(groupItems.length===0)return;
       const groupValue=groupItems.reduce((s,i)=>s+(i.salePrice||0),0);
-      const groupProfit=groupItems.reduce((s,i)=>s+(calcGrossProfit(i)||0),0);
-      const groupStale=groupItems.filter(i=>daysBetween(i.dateListed,today)>=90).length;
+      // E3 — use calcEstProfit not calcGrossProfit so grouped stock totals
+      // match the row-level "est. profit" semantics (lifetime-if-sold for
+      // relisted items, ordinary gross for everything else).
+      const groupProfit=groupItems.reduce((s,i)=>s+(calcEstProfit(i)||0),0);
+      const groupStale=groupItems.filter(i=>i.dateListed&&daysBetween(i.dateListed,today)>=90).length;
       groupedHTML+='<div class="stock-group" style="margin-bottom:18px;">'
         +'<div class="stock-group-header" style="padding:10px 12px;background:var(--surface2);border-radius:8px 8px 0 0;border:1px solid var(--border);border-bottom:none;">'
         +'<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">'
@@ -7630,6 +7638,10 @@ function importDB(e){
       toast("Couldn't read file — invalid JSON",'err');
     }
   };
+  // E3 P2 #9 — Handle low-level FileReader failures (permission denied, file
+  // deleted mid-read, etc.). Without this the UI silently does nothing and
+  // the user is left wondering whether the import worked.
+  reader.onerror=function(){toast("Couldn't read file — try again",'err');};
   reader.readAsText(file);
 }
 
@@ -7979,6 +7991,8 @@ function saveEdit(m,id){
   if(cur==='p-monthly')renderMonth();
   else if(cur==='p-stock')renderStock();
   else if(cur==='p-item')renderItemPage(m,id);
+  // E3 P1 #5 — Summary re-render on edit-via-panel (KPIs went stale until tab nav).
+  else if(cur==='p-summary')renderSummary();
   // Re-open detail panel so user stays in context
   openItemDetail(m,id,true);
 }
@@ -8044,6 +8058,11 @@ function markSold(m,id){
       item.resaleDateSold=date;
       item.resaleSalePrice=price||item.salePrice||0;
       item.resaleShippingCost=item.shippingCost||0;
+      // E3 P1 #3 — Carry sale 2 packaging cost from i.packagingCost into
+      // the resale-specific field so calcGrossProfit's resale block can
+      // subtract it. confirmRelist now updates i.packagingCost to the user-
+      // specified sale 2 value, so this captures the right number.
+      item.resalePackagingCost=item.packagingCost||0;
       item.resalePromoPercent=item.promoPercent||0;
       item.isReturned=false;
       item.grossProfit=calcGrossProfit(item);
@@ -8132,8 +8151,16 @@ function onMarkSoldPlatformChange(){
 
 function confirmSold(){
   const date=document.getElementById('modal-date').value;
-  const price=parseFloat(document.getElementById('modal-price').value)||0;
-  if(date&&MODAL_CALLBACK){MODAL_CALLBACK(date,price);}
+  const priceRaw=document.getElementById('modal-price').value;
+  // E3 P1 #4 — Validate sale price input. Previously empty/zero fell through
+  // via ||0 which silently used the listed asking price. We now require a
+  // positive price (or an explicit confirmation that listed price applies)
+  // and a date. An empty price is treated as "use listed asking" only when
+  // there's a listed asking to fall back to and we toast to make it explicit.
+  if(!date){toast('Please pick a sale date','err');return;}
+  const price=parseFloat(priceRaw)||0;
+  if(priceRaw!==''&&price<=0){toast('Sale price must be greater than 0','err');return;}
+  if(MODAL_CALLBACK){MODAL_CALLBACK(date,price);}
   closeModal();
 }
 
@@ -8179,6 +8206,9 @@ async function deleteItem(m,id){
     if(cur==='p-monthly')renderMonth();
     else if(cur==='p-stock')renderStock();
     else if(cur==='p-item')exitItemPage();
+    // E3 P1 #5 — Summary previously not re-rendered on delete/edit via panel.
+    // KPIs went stale until tab nav. Add explicit summary refresh.
+    else if(cur==='p-summary')renderSummary();
   }
 }
 
@@ -8278,6 +8308,12 @@ function openRelist(m,id){
         <input type="number" id="relist-promo" step="0.1" min="0" max="100" value="${((i.promoPercent||0)*100).toFixed(1)}" placeholder="0">
       </div>
 
+      <div class="fg" style="margin-bottom:20px">
+        <label>Packaging cost (£)</label>
+        <input type="number" id="relist-packaging" step="0.01" min="0" value="${(i.packagingCost||0).toFixed(2)}" placeholder="0.00">
+        <div style="font-size:11px;color:var(--muted);margin-top:4px">Cost of mailer / box used for the relist.</div>
+      </div>
+
       <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:8px">Postage</div>
       <div style="display:flex;gap:6px;margin-bottom:10px">
         <button id="relist-post-simple" onclick="
@@ -8340,8 +8376,34 @@ function confirmRelist(m,id){
   if(!i)return;
   const price=parseFloat(document.getElementById('relist-price').value)||i.salePrice||0;
   const promoInput=parseFloat(document.getElementById('relist-promo').value)||0;
+  // E3 P1 #3 — Capture sale 2 packaging from the relist modal so it isn't
+  // silently inherited from sale 1. The input pre-fills with i.packagingCost
+  // (the sale 1 value) so the user can adjust if they used a different
+  // mailer for the relist. Empty / NaN falls back to sale 1's value.
+  const _pkgRaw=document.getElementById('relist-packaging');
+  const newPackaging=_pkgRaw&&_pkgRaw.value!==''?(parseFloat(_pkgRaw.value)||0):(i.packagingCost||0);
   const condition=window._relistCondition||'working';
   const postMode=window._relistPostMode||'simple';
+  // E3 P0 #1 — Snapshot sale 1 economics into the latest returnHistory entry
+  // BEFORE we overwrite shipping/postage/sdRate/promo with relist values.
+  // Without this, the original sale's costs are destroyed and calcGrossProfit
+  // ends up double-counting relist shipping (once as i.shippingCost, once as
+  // resaleShippingCost) when the resale completes. _shippingCostAtRelist is
+  // the marker name — calcGrossProfit reads these on the resold-after-return
+  // path. Items that were relisted before this fix don't have the snapshot;
+  // they fall back to the live (now-overwritten) values, so older relisted
+  // items are still slightly wrong but new relists from this point are correct.
+  if(i.returnHistory&&i.returnHistory.length){
+    const _lastEntry=i.returnHistory[i.returnHistory.length-1];
+    if(_lastEntry&&(_lastEntry.type==='full_seller'||_lastEntry.type==='full_ebay')){
+      if(_lastEntry._shippingCostAtRelist===undefined)_lastEntry._shippingCostAtRelist=i.shippingCost||0;
+      if(_lastEntry._postageAtRelist===undefined)_lastEntry._postageAtRelist=i.postage||0;
+      if(_lastEntry._packagingCostAtRelist===undefined)_lastEntry._packagingCostAtRelist=i.packagingCost||0;
+      if(_lastEntry._promoPercentAtRelist===undefined)_lastEntry._promoPercentAtRelist=i.promoPercent||0;
+      if(_lastEntry._sdRateIdxAtRelist===undefined)_lastEntry._sdRateIdxAtRelist=(i._sdRateIdx!=null?i._sdRateIdx:1);
+      if(_lastEntry._sdBuyerPaysAtRelist===undefined)_lastEntry._sdBuyerPaysAtRelist=!!i._sdBuyerPays;
+    }
+  }
   // Apply postage settings
   i._postageMode=postMode;
   if(postMode==='simple'){
@@ -8361,6 +8423,7 @@ function confirmRelist(m,id){
   i.dateSold=null;
   i.salePrice=price;
   i.promoPercent=promoInput/100;
+  i.packagingCost=newPackaging;
   i.condition=condition==='working'?undefined:'spares';
   i.grossProfit=null;
   // Log relist in returnHistory for audit trail
@@ -8536,12 +8599,30 @@ function revertToActive(m,id){
 function undoSale(m,id){
   const i=(DB[m]||[]).find(x=>x.id===id);
   if(!i)return;
-  i.dateSold=null;
-  i.isReturned=false;
-  i.returnHistory=[];
-  saveDB();
-  renderItemPage(m,id);
-  toast('Sale undone — item back to Listed');
+  // E3 P0 #2 — undoSale historically wiped returnHistory[] silently which
+  // destroyed refund records without warning. We now preserve history by
+  // default; if the item has refund entries we surface a confirm so the user
+  // knows the sale-undo happens but refund records stay attached. The user
+  // can still delete individual entries via the item page if they really
+  // want them gone.
+  const hasHistory=Array.isArray(i.returnHistory)&&i.returnHistory.length>0;
+  function _doUndo(){
+    i.dateSold=null;
+    i.isReturned=false;
+    // Preserve returnHistory so refund records aren't silently destroyed.
+    saveDB();
+    renderItemPage(m,id);
+    toast(hasHistory?'Sale undone — refund history kept':'Sale undone — item back to Listed');
+  }
+  if(hasHistory){
+    showConfirm(
+      'Undo sale?',
+      'This item has '+i.returnHistory.length+' refund record'+(i.returnHistory.length!==1?'s':'')+'. The sale will be reverted but the refund history will be preserved on the item.',
+      _doUndo
+    );
+  } else {
+    _doUndo();
+  }
 }
 
 function undoResale(m,id){
@@ -8550,6 +8631,10 @@ function undoResale(m,id){
   delete i.resaleSalePrice;
   delete i.resaleDateSold;
   delete i.resaleShippingCost;
+  // E3 P1 #6 — clean orphan resale fields so toggling resale state
+  // doesn't leave stale data attached.
+  delete i.resalePromoPercent;
+  delete i.resalePackagingCost;
   i.isReturned=true;
   i.grossProfit=calcGrossProfit(i);
   saveDB();
@@ -9378,6 +9463,11 @@ function calcEbayBPF(salePrice){
     f+=0.07*Math.min(net,20);
     if(net>20)f+=0.04*Math.min(net-20,280);
     if(net>300)f+=0.02*Math.min(net-300,3700);
+    // E3 P2 #7 — Extend high-value tier so BPF doesn't plateau past £4k.
+    // eBay's published private-seller schedule treats the band above £4,000
+    // at ~0.5%. This is rare in real reseller use but matters for high-end
+    // items (retro consoles, premium electronics, designer pieces).
+    if(net>4000)f+=0.005*(net-4000);
     return f;
   }
   let net=salePrice;
@@ -9462,10 +9552,25 @@ function calcGrossProfit(i){
   //   Full returns are handled separately below (fee fully refunded on relist path)
   const partialSellerRefund=(i.returnHistory||[]).filter(r=>r.type==='partial_seller')
     .reduce((s,r)=>s+(r.refundAmount||0),0);
-  const effectiveSaleForFees=Math.max(0,i.salePrice-partialSellerRefund);
+  // E3 P0 #1 — Resolve sale 1 economics. For items that were relisted then
+  // resold, confirmRelist overwrites i.shippingCost/postage/packaging/promo
+  // with sale 2 values. The pre-relist snapshot is stored on the latest full-
+  // return entry (_*AtRelist fields). When present, prefer the snapshot for
+  // sale 1 cost/fee calculations. Older items without snapshot fall back to
+  // current values (slightly wrong but no worse than before).
+  const _hasResale=!!i.resaleSalePrice;
+  const _fullReturnEntry=(i.returnHistory||[]).slice().reverse().find(r=>r.type==='full_seller'||r.type==='full_ebay');
+  const _snap=(_hasResale&&_fullReturnEntry)?_fullReturnEntry:null;
+  const _s1SalePrice=_snap?(_fullReturnEntry._salePriceAtReturn||i.salePrice||0):(i.salePrice||0);
+  const _s1Postage=(_snap&&_fullReturnEntry._postageAtRelist!==undefined)?_fullReturnEntry._postageAtRelist:(i.postage||0);
+  const _s1Shipping=(_snap&&_fullReturnEntry._shippingCostAtRelist!==undefined)?_fullReturnEntry._shippingCostAtRelist:(i.shippingCost||0);
+  const _s1Packaging=(_snap&&_fullReturnEntry._packagingCostAtRelist!==undefined)?_fullReturnEntry._packagingCostAtRelist:(i.packagingCost||0);
+  const _s1Promo=(_snap&&_fullReturnEntry._promoPercentAtRelist!==undefined)?_fullReturnEntry._promoPercentAtRelist:(i.promoPercent||0);
+  const _baseSale=_snap?_s1SalePrice:i.salePrice;
+  const effectiveSaleForFees=Math.max(0,_baseSale-partialSellerRefund);
   const bpf=calcEbayBPF(effectiveSaleForFees);
   const grossInc=effectiveSaleForFees-bpf;
-  const promoCost=grossInc*(i.promoPercent||0)*1.20;
+  const promoCost=grossInc*_s1Promo*1.20;
   // Determine if this item has been relisted after a full return
   // (isReturned=false but returnHistory has a full return entry, and no dateSold / resaleSalePrice)
   // Full returns only: eBay refunds BPF back to seller (transaction fully reversed)
@@ -9477,7 +9582,7 @@ function calcGrossProfit(i){
   // Partial-ebay refunds still count as cost (seller eats the refund AND the fee).
   const partialEbayRefund=(i.returnHistory||[]).filter(r=>r.type==='partial_ebay')
     .reduce((s,r)=>s+(r.refundAmount||0),0);
-  const rev=_wasRelisted ? 0 : effectiveSaleForFees+(i.postage||0)-bpf-partialEbayRefund;
+  const rev=_wasRelisted ? 0 : effectiveSaleForFees+_s1Postage-bpf-partialEbayRefund;
   const returnCost=(i.returnHistory||[]).reduce(function(s,r){
     const fullReturn=(r.type==='full_seller'||r.type==='full_ebay');
     if(fullReturn){
@@ -9497,14 +9602,14 @@ function calcGrossProfit(i){
     return s+(r.returnPostage||0);
   },0);
   const partsCost=calcPartsCost(i);
-  const cost=(i.costPrice||0)+(i.shippingCost||0)+(i.packagingCost||0)+promoCost+returnCost+partsCost;
+  const cost=(i.costPrice||0)+_s1Shipping+_s1Packaging+promoCost+returnCost+partsCost;
   let profit=rev-cost;
   // Second sale (resold after return)
   if(i.resaleSalePrice){
     const rBPF=calcEbayBPF(i.resaleSalePrice);
     const rGrossInc=i.resaleSalePrice-rBPF;
     const rPromoCost=rGrossInc*(i.resalePromoPercent||0)*1.20;
-    const rRev=i.resaleSalePrice-rBPF-(i.resaleShippingCost||0)-rPromoCost;
+    const rRev=i.resaleSalePrice-rBPF-(i.resaleShippingCost||0)-(i.resalePackagingCost||0)-rPromoCost;
     profit+=rRev;
   }
   return+profit.toFixed(2);
@@ -9562,8 +9667,16 @@ function calcROI(i){
 }
 
 function daysBetween(d1,d2){
+  // E3 P2 #10 — Null/empty inputs previously yielded ~20,000 days
+  // (Unix epoch fallthrough), bucketing null-dateListed items into
+  // 'stale'. Return -1 sentinel; filter call sites should guard on
+  // i.dateListed before calling rather than relying on the sentinel,
+  // because no single sentinel value can be excluded from all bucket
+  // ranges simultaneously (fresh=<=30 includes -1, stale=>=90 doesn't).
+  if(!d1||!d2)return -1;
   const a=new Date(d1);
   const b=new Date(d2);
+  if(isNaN(a)||isNaN(b))return -1;
   const diff=Math.abs(b-a);
   return Math.floor(diff/(1000*60*60*24));
 }
@@ -9694,7 +9807,15 @@ function _recalcRelist(currentPL,salePrice,bpf,shipping,packaging,postage){
 
 function fmt(n){
   if(n===null||n===undefined)return'£0.00';
-  return'£'+Number(n).toFixed(2);
+  // E3 P2 #8 — Add thousands separator so large values render as
+  // £1,234.56 not £1234.56. Negative values keep minus prefix
+  // before the £ sign for readability ("-£1,234.56").
+  const num=Number(n);
+  if(!isFinite(num))return'£0.00';
+  const abs=Math.abs(num).toFixed(2);
+  const parts=abs.split('.');
+  parts[0]=parts[0].replace(/\B(?=(\d{3})+(?!\d))/g,',');
+  return(num<0?'-£':'£')+parts.join('.');
 }
 
 function fmtDate(ds){
