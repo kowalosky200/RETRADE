@@ -1137,10 +1137,19 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
 /* Filter pill + sort select share equal width on mobile (flex:1 each).
    The 8px gap from .filter-row gives natural breathing room between them. */
 .filter-row .filter-pill-dd{flex:1 1 0;min-width:0;}
-.filter-row > .sort-select{flex:1 1 0!important;min-width:0!important;margin-left:0!important;}
-.stock-filter-row{flex-wrap:wrap!important;gap:8px!important;}
-.stock-filter-row .filter-pill-dd{flex:1 1 0;min-width:0;}
-.stock-filter-row .sort-select{flex:1 1 0!important;min-width:0!important;margin-left:0!important;}}
+.filter-row > .sort-select{flex:1 1 0!important;min-width:0!important;margin-left:0!important;}}
+
+/* E4 — Stock filter row has 5 chips (All/Fresh/Maturing/Slow/Stale) plus a
+   sort dropdown, so it needs an earlier swap to dropdown than the 480px
+   global breakpoint above. At ~708px the chips start overflowing alongside
+   the sort select. The rule below collapses them into the existing
+   filter-pill-dd component while keeping the sort select on the same row. */
+@media(max-width:708px){
+  .stock-filter-row .filter-chips{display:none!important;}
+  .stock-filter-row .filter-pill-dd{display:block!important;flex:1 1 0;min-width:0;}
+  .stock-filter-row .sort-select{flex:1 1 0!important;min-width:0!important;margin-left:0!important;}
+  .stock-filter-row{flex-wrap:nowrap!important;}
+}
 
 /* Aging bar — stock page distribution viz */
 .age-bar-wrap{margin-bottom:16px;}
@@ -3841,6 +3850,44 @@ function renderItemPage(m,id){
   const pnlOpen=!i.resaleSalePrice;
   const pnlTitle=i.resaleSalePrice?'Sale 1 P&amp;L':'P&amp;L Receipt';
   html+=sec(pnlTitle,pb,pnlOpen,fmt(sale1Net),sale1Net>=0?'var(--green)':'var(--red)','ip-section-pnl');
+
+  // E4 P2 — Sale 1 details editor. Only relevant when the item has been
+  // relisted (i.e. its sale 1 economics may differ from current i.* values
+  // because confirmRelist overwrote them). Surfaces 4 editable fields that
+  // write through applyRelistSnapshot so calcGrossProfit reads the user-
+  // confirmed sale 1 values on the resold-after-return path. Closed by
+  // default — shows a status badge so user can see at a glance whether the
+  // snapshot is captured or falling back to live values.
+  const _s1FullReturn=(i.returnHistory||[]).slice().reverse().find(function(r){return (r.type==='full_seller'||r.type==='full_ebay')&&r._relistedAt;});
+  if(_s1FullReturn){
+    const _s1HasSnap=_s1FullReturn._shippingCostAtRelist!==undefined;
+    const _s1Ship=(_s1FullReturn._shippingCostAtRelist!==undefined)?_s1FullReturn._shippingCostAtRelist:(i.shippingCost||0);
+    const _s1Post=(_s1FullReturn._postageAtRelist!==undefined)?_s1FullReturn._postageAtRelist:(i.postage||0);
+    const _s1Pkg=(_s1FullReturn._packagingCostAtRelist!==undefined)?_s1FullReturn._packagingCostAtRelist:(i.packagingCost||0);
+    const _s1PromoDec=(_s1FullReturn._promoPercentAtRelist!==undefined)?_s1FullReturn._promoPercentAtRelist:(i.promoPercent||0);
+    const _s1PromoPct=(_s1PromoDec*100).toFixed(_s1PromoDec*100===Math.round(_s1PromoDec*100)?0:1);
+    const _s1FieldStyle='width:100%;padding:8px 10px;background:var(--surface);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;font-family:inherit;box-sizing:border-box';
+    const _s1Body=
+      '<div style="font-size:12px;color:var(--text-secondary);margin:4px 0 12px">'+
+        (_s1HasSnap?
+          '<span style="color:var(--green)">✓ Sale 1 values captured.</span> Edit if you spot a mistake.':
+          '<span style="color:var(--warn)">⚠ No sale 1 snapshot.</span> These fields show <em>current</em> values — likely sale 2 (relist) values. Enter the real sale 1 values to fix lifetime P&L.'
+        )+
+      '</div>'+
+      '<div class="ip-details-grid">'+
+        '<div class="ip-row"><div class="ip-label">Sale 1 shipping (£)</div>'+
+          '<input class="ip-field" type="number" step="0.01" min="0" value="'+(+_s1Ship).toFixed(2)+'" onchange="ipSaveSale1(\''+m+'\',\''+i.id+'\',\'shipping\',this.value)" onkeydown="if(event.key===\'Enter\')this.blur()" style="'+_s1FieldStyle+'"></div>'+
+        '<div class="ip-row"><div class="ip-label">Sale 1 postage charged (£)</div>'+
+          '<input class="ip-field" type="number" step="0.01" min="0" value="'+(+_s1Post).toFixed(2)+'" onchange="ipSaveSale1(\''+m+'\',\''+i.id+'\',\'postage\',this.value)" onkeydown="if(event.key===\'Enter\')this.blur()" style="'+_s1FieldStyle+'"></div>'+
+        '<div class="ip-row"><div class="ip-label">Sale 1 packaging (£)</div>'+
+          '<input class="ip-field" type="number" step="0.01" min="0" value="'+(+_s1Pkg).toFixed(2)+'" onchange="ipSaveSale1(\''+m+'\',\''+i.id+'\',\'packaging\',this.value)" onkeydown="if(event.key===\'Enter\')this.blur()" style="'+_s1FieldStyle+'"></div>'+
+        '<div class="ip-row"><div class="ip-label">Sale 1 promo (%)</div>'+
+          '<input class="ip-field" type="number" step="0.1" min="0" max="20" value="'+_s1PromoPct+'" onchange="ipSaveSale1(\''+m+'\',\''+i.id+'\',\'promoPercent\',this.value)" onkeydown="if(event.key===\'Enter\')this.blur()" style="'+_s1FieldStyle+'"></div>'+
+      '</div>';
+    const _s1Badge=_s1HasSnap?'Captured':'Live fallback';
+    const _s1BadgeColor=_s1HasSnap?'var(--green)':'var(--warn)';
+    html+=sec('Sale 1 details',_s1Body,false,_s1Badge,_s1BadgeColor);
+  }
 
   // Sale 2
   if(resaleHTML)html+=resaleHTML;
@@ -7459,6 +7506,13 @@ function renderData(){
       <button class="btn btn-p" onclick="document.getElementById('import-excel').click()">📊 Import Excel File</button>
     </div>
 
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px;margin-bottom:24px">
+      <h3 style="font-weight:600;margin-bottom:12px">Relist data audit</h3>
+      <p style="color:var(--text-secondary);margin-bottom:16px;font-size:14px">Finds items relisted before the lifetime-P&amp;L fix where sale 1 shipping / packaging / promo are no longer recoverable from the system. Run the audit, fill in any sale 1 values you remember, save to correct lifetime profit on those items.</p>
+      <button class="btn btn-p" onclick="renderRelistAudit()">🔍 Run audit</button>
+      <div id="relist-audit-out" style="margin-top:16px"></div>
+    </div>
+
     <div class="sl" style="margin-top:8px">Danger Zone</div>
     <div class="section-card danger">
       <div class="section-card-title">Clear All Data</div>
@@ -7467,6 +7521,90 @@ function renderData(){
     </div>
   `;
   document.getElementById('p-data').innerHTML=html;
+}
+
+// E4 P2 — Render the orphan audit results into the Data tab.
+function renderRelistAudit(){
+  const out=document.getElementById('relist-audit-out');
+  if(!out)return;
+  const audit=auditRelistOrphans();
+  const totalOrphans=audit.resold.length+audit.pending.length;
+  if(!totalOrphans){
+    out.innerHTML='<div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:16px;color:var(--text-secondary);font-size:14px">'+
+      '<strong style="color:var(--text)">✓ All clean.</strong> No relisted items missing sale 1 snapshot data. '+
+      (audit.healthy?audit.healthy+' relisted item'+(audit.healthy!==1?'s':'')+' verified.':'No relisted items in your data.')+
+      '</div>';
+    return;
+  }
+  function renderRow(row,bucket){
+    const i=row.item;
+    const e=row.entry;
+    // Pre-fill from current item values where possible. These are the relist
+    // (sale 2) values — user must overwrite with sale 1 if they differ.
+    const curShip=(i.shippingCost||0).toFixed(2);
+    const curPost=(i.postage||0).toFixed(2);
+    const curPkg=(i.packagingCost||0).toFixed(2);
+    const curPromo=((i.promoPercent||0)*100).toFixed(0);
+    const inputStyle='width:80px;padding:6px 8px;background:var(--surface);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;font-family:inherit';
+    return '<div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:10px" data-orphan-row="'+row.m+'|'+row.id+'">'+
+      '<div style="display:flex;justify-content:space-between;align-items:start;gap:12px;margin-bottom:10px;flex-wrap:wrap">'+
+        '<div>'+
+          '<div style="font-weight:600;font-size:14px">'+esc(row.name)+'</div>'+
+          '<div style="font-size:12px;color:var(--text-secondary);margin-top:2px">'+row.m+' · relisted '+esc(row._relistedAt)+
+          (bucket==='resold'?' · sale 2 sold '+esc(i.resaleDateSold||'?'):'')+
+          '</div>'+
+        '</div>'+
+        '<button class="btn btn-s" style="padding:4px 10px;font-size:12px" onclick="openItemDetail(\''+row.m+'\',\''+row.id+'\')">Open item</button>'+
+      '</div>'+
+      '<div style="display:flex;flex-wrap:wrap;gap:14px;align-items:end;font-size:12px;color:var(--text-secondary)">'+
+        '<label style="display:flex;flex-direction:column;gap:3px">Sale 1 shipping (£)<input type="number" step="0.01" min="0" data-orphan-field="shipping" value="'+curShip+'" style="'+inputStyle+'"></label>'+
+        '<label style="display:flex;flex-direction:column;gap:3px">Sale 1 postage (£)<input type="number" step="0.01" min="0" data-orphan-field="postage" value="'+curPost+'" style="'+inputStyle+'"></label>'+
+        '<label style="display:flex;flex-direction:column;gap:3px">Sale 1 packaging (£)<input type="number" step="0.01" min="0" data-orphan-field="packaging" value="'+curPkg+'" style="'+inputStyle+'"></label>'+
+        '<label style="display:flex;flex-direction:column;gap:3px">Sale 1 promo (%)<input type="number" step="1" min="0" max="20" data-orphan-field="promoPercent" value="'+curPromo+'" style="'+inputStyle+'"></label>'+
+      '</div>'+
+      (bucket==='resold'?'<div style="margin-top:8px;font-size:11px;color:var(--text-secondary)">Current lifetime profit: <strong style="color:var(--text)">'+fmt(calcGrossProfit(i))+'</strong> — will recalc on save.</div>':'')+
+    '</div>';
+  }
+  let html='';
+  if(audit.resold.length){
+    html+='<div style="margin-bottom:8px;font-weight:600;font-size:13px;color:var(--warn)">⚠ Resold orphans ('+audit.resold.length+') — lifetime P&L currently wrong</div>';
+    html+=audit.resold.map(function(r){return renderRow(r,'resold');}).join('');
+  }
+  if(audit.pending.length){
+    html+='<div style="margin:'+(audit.resold.length?'16px':'0')+' 0 8px;font-weight:600;font-size:13px;color:var(--accent)">Pending relists ('+audit.pending.length+') — fix before next sale</div>';
+    html+=audit.pending.map(function(r){return renderRow(r,'pending');}).join('');
+  }
+  if(audit.healthy){
+    html+='<div style="margin-top:12px;font-size:12px;color:var(--text-secondary)">Plus '+audit.healthy+' relisted item'+(audit.healthy!==1?'s':'')+' already healthy.</div>';
+  }
+  html+='<div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap">'+
+    '<button class="btn btn-p" onclick="saveRelistAuditEdits()">💾 Save all snapshots</button>'+
+    '<button class="btn btn-s" onclick="renderRelistAudit()">↻ Re-run audit</button>'+
+  '</div>';
+  out.innerHTML=html;
+}
+
+// E4 P2 — Read every orphan row's inputs, write snapshots, persist, re-render.
+function saveRelistAuditEdits(){
+  const rows=document.querySelectorAll('[data-orphan-row]');
+  let written=0;
+  rows.forEach(function(rowEl){
+    const parts=rowEl.getAttribute('data-orphan-row').split('|');
+    const m=parts[0],id=parts[1];
+    const values={};
+    rowEl.querySelectorAll('[data-orphan-field]').forEach(function(input){
+      const f=input.getAttribute('data-orphan-field');
+      const v=parseFloat(input.value);
+      if(isNaN(v))return;
+      if(f==='promoPercent')values[f]=v/100;
+      else values[f]=v;
+    });
+    if(applyRelistSnapshot(m,id,values))written++;
+  });
+  if(!written){toast('Nothing to save','err');return;}
+  saveDB();
+  toast('Saved '+written+' snapshot'+(written!==1?'s':''));
+  renderRelistAudit();
 }
 
 function exportDB(){
@@ -9666,6 +9804,52 @@ function calcROI(i){
   return+((calcGrossProfit(i)/totalInvested)*100).toFixed(1);
 }
 
+// E4 P2 — Relist snapshot audit / backfill.
+// Identifies items that were relisted before the E3 P0 #1 snapshot fix landed,
+// so calcGrossProfit can't reconstruct sale 1 economics. Two classes:
+//   resold       — has resaleSalePrice; lifetime P&L is currently wrong
+//   pending      — _relistedAt set, no resaleSalePrice yet; will become wrong
+//                  when sale 2 logs unless backfilled first
+// Returns { resold:[...], pending:[...], healthy:N } where each item is
+// { m, id, name, _relistedAt, missing:[...], item:<liveRef>, entry:<liveRef> }.
+// missing[] lists which _*AtRelist fields are absent. The audit is read-only
+// and can be re-run any time.
+function auditRelistOrphans(){
+  const result={resold:[],pending:[],healthy:0};
+  const SNAPSHOT_FIELDS=['_shippingCostAtRelist','_postageAtRelist','_packagingCostAtRelist','_promoPercentAtRelist','_sdRateIdxAtRelist','_sdBuyerPaysAtRelist'];
+  allDBKeys().forEach(function(m){
+    (DB[m]||[]).forEach(function(item){
+      const fullReturn=(item.returnHistory||[]).slice().reverse().find(function(r){return r.type==='full_seller'||r.type==='full_ebay';});
+      if(!fullReturn||!fullReturn._relistedAt)return; // never relisted -> not in scope
+      const missing=SNAPSHOT_FIELDS.filter(function(f){return fullReturn[f]===undefined;});
+      if(!missing.length){result.healthy++;return;}
+      const row={m:m,id:item.id,name:item.item||'(unnamed)',_relistedAt:fullReturn._relistedAt,missing:missing,item:item,entry:fullReturn};
+      if(item.resaleSalePrice)result.resold.push(row);
+      else result.pending.push(row);
+    });
+  });
+  return result;
+}
+
+// Writes the user-supplied sale 1 economics directly onto the full-return entry,
+// closing the orphan. Live calcGrossProfit picks them up on next render.
+// Values: {shipping, postage, packaging, promoPercent (decimal), sdRateIdx, sdBuyerPays}
+function applyRelistSnapshot(m,id,values){
+  const item=(DB[m]||[]).find(function(x){return x.id===id;});
+  if(!item)return false;
+  const entry=(item.returnHistory||[]).slice().reverse().find(function(r){return r.type==='full_seller'||r.type==='full_ebay';});
+  if(!entry)return false;
+  if(values.shipping!==undefined)entry._shippingCostAtRelist=+values.shipping||0;
+  if(values.postage!==undefined)entry._postageAtRelist=+values.postage||0;
+  if(values.packaging!==undefined)entry._packagingCostAtRelist=+values.packaging||0;
+  if(values.promoPercent!==undefined)entry._promoPercentAtRelist=+values.promoPercent||0;
+  if(values.sdRateIdx!==undefined)entry._sdRateIdxAtRelist=+values.sdRateIdx;
+  if(values.sdBuyerPays!==undefined)entry._sdBuyerPaysAtRelist=!!values.sdBuyerPays;
+  // Resold items cache grossProfit on the item — refresh it
+  if(item.resaleSalePrice)item.grossProfit=calcGrossProfit(item);
+  return true;
+}
+
 function daysBetween(d1,d2){
   // E3 P2 #10 — Null/empty inputs previously yielded ~20,000 days
   // (Unix epoch fallthrough), bucketing null-dateListed items into
@@ -9862,6 +10046,28 @@ function ipSaveNum(m,id,field,val){
   if(!i)return;
   i[field]=parseFloat(val)||0;
   if(i.dateSold||i.isReturned||i.resaleSalePrice)i.grossProfit=calcGrossProfit(i);
+  saveDB();
+  const s=_getSecStates();renderItemPage(m,id);_applySecStates(s);
+}
+
+// E4 P2 — Inline sale 1 snapshot edit. Mirrors ipSaveNum pattern but writes
+// to the full-return entry's _*AtRelist fields via applyRelistSnapshot rather
+// than to the live i.* fields. Used by the "Sale 1 details" expander on the
+// item page. field is one of: shipping, postage, packaging, promoPercent.
+function ipSaveSale1(m,id,field,val){
+  const i=(DB[m]||[]).find(x=>x.id===id);
+  if(!i)return;
+  const v=parseFloat(val);
+  if(isNaN(v))return;
+  // promoPercent comes in as % (e.g. 5 means 5%) — applyRelistSnapshot
+  // expects a decimal (0.05) for that field, raw £ for the others.
+  const values={};
+  if(field==='shipping')values.shipping=v;
+  else if(field==='postage')values.postage=v;
+  else if(field==='packaging')values.packaging=v;
+  else if(field==='promoPercent')values.promoPercent=v/100;
+  else return;
+  if(!applyRelistSnapshot(m,id,values))return;
   saveDB();
   const s=_getSecStates();renderItemPage(m,id);_applySecStates(s);
 }
