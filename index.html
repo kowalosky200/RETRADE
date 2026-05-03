@@ -232,6 +232,7 @@ nav:not(#bottom-nav){position:sticky;top:0;z-index:200;background:var(--surface)
   nav:not(#bottom-nav){display:none!important;}
   body{padding-bottom:60px;}
   .fab{bottom:72px!important;}
+  .fab-dial{bottom:72px!important;}
 }
 /* MORE SHEET */
 .more-sheet-row{display:flex;align-items:center;gap:16px;width:100%;padding:14px 22px;background:none;border:none;text-align:left;cursor:pointer;font-size:15px;font-weight:500;color:var(--text);-webkit-tap-highlight-color:transparent;transition:background 0.12s;}
@@ -385,6 +386,11 @@ nav:not(#bottom-nav){position:sticky;top:0;z-index:200;background:var(--surface)
 .item-badge.resold{background:rgba(167,139,250,0.15);color:var(--purple);}
 .item-badge.relisted{background:rgba(167,139,250,0.2);color:var(--purple);}
 .item-badge.spares{background:var(--accent-dim);color:var(--warn);}
+.plat-badge{font-size:10px;padding:2px 6px;border-radius:5px;font-weight:600;letter-spacing:0.3px;background:var(--surface2);border:1px solid var(--border2);color:var(--text-secondary);white-space:nowrap;}
+.plat-badge.vinted{background:rgba(9,166,135,0.12);border-color:rgba(9,166,135,0.3);color:#09a687;}
+.plat-badge.depop{background:rgba(255,70,70,0.1);border-color:rgba(255,70,70,0.25);color:#e03030;}
+.plat-badge.fb{background:rgba(24,119,242,0.1);border-color:rgba(24,119,242,0.25);color:#1877f2;}
+.plat-badge.amazon_uk{background:rgba(255,153,0,0.12);border-color:rgba(255,153,0,0.3);color:#c45a00;}
 .item-meta{display:flex;gap:16px;flex-wrap:wrap;font-size:13px;color:var(--text-secondary);}
 .item-meta-item{display:flex;align-items:center;gap:6px;}
 .item-actions{display:flex;align-items:center;gap:8px;flex-shrink:0;}
@@ -565,12 +571,26 @@ input,select,textarea{touch-action:manipulation;user-select:text;-webkit-user-se
 .stat-mini-val{font-size:16px;font-weight:700;}
 .info-box{background:rgba(96,165,250,0.1);border:1px solid rgba(96,165,250,0.2);border-radius:8px;padding:12px 14px;font-size:13px;color:var(--blue);margin-bottom:14px;line-height:1.6;}
 .info-box strong{font-weight:600;}
-.expense-item{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;gap:12px;transition:border-color 0.15s;box-shadow:0 1px 3px var(--shadow);}
-.expense-item:hover{border-color:var(--border2);}
+.exp-month-group{margin-bottom:8px;border:1px solid var(--border);border-radius:12px;overflow:hidden;background:var(--surface);}
+.exp-month-header{display:flex;justify-content:space-between;align-items:center;padding:12px 16px;cursor:pointer;background:var(--surface2);transition:background 0.15s;user-select:none;}
+.exp-month-header:hover{background:color-mix(in srgb,var(--border) 40%,var(--surface2) 60%);}
+.exp-month-toggle{font-size:12px;color:var(--muted);transition:transform 0.2s;display:inline-block;}
+.exp-month-group.collapsed .exp-month-toggle{transform:rotate(-90deg);}
+.exp-month-body{padding:0 6px 6px;}
+.exp-month-group.collapsed .exp-month-body{display:none;}
+.expense-item{background:var(--surface);border-bottom:1px solid var(--border);padding:11px 12px;display:flex;align-items:center;gap:10px;transition:background 0.12s;cursor:default;}
+.expense-item:last-child{border-bottom:none;}
+.expense-item:hover{background:var(--surface2);}
+.expense-item.clickable{cursor:pointer;}
+.exp-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+.exp-dot.trip{background:var(--accent);}
+.exp-dot.expense{background:var(--green);}
 .expense-main{flex:1;min-width:0;}
-.expense-label{font-weight:600;font-size:14px;margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-.expense-meta{font-size:12px;color:var(--text-secondary);}
-.expense-amount{font-size:17px;font-weight:800;font-family:var(--font-body);color:var(--text);white-space:nowrap;letter-spacing:-0.02em;}
+.expense-label{font-weight:600;font-size:14px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.3;}
+.expense-meta{font-size:12px;color:var(--muted);margin-top:2px;display:flex;align-items:center;gap:5px;flex-wrap:wrap;}
+.expense-right{display:flex;flex-direction:column;align-items:flex-end;gap:2px;flex-shrink:0;min-width:64px;}
+.expense-amount{font-size:14px;font-weight:700;font-family:var(--font-body);color:var(--text);white-space:nowrap;letter-spacing:-0.02em;font-variant-numeric:tabular-nums;}
+.expense-actions{display:flex;align-items:center;gap:6px;flex-shrink:0;}
 ::-webkit-scrollbar{width:10px;height:10px;}
 ::-webkit-scrollbar-track{background:var(--bg);}
 ::-webkit-scrollbar-thumb{background:var(--border2);border-radius:5px;}
@@ -662,8 +682,8 @@ input,select,textarea{touch-action:manipulation;user-select:text;-webkit-user-se
 /* Custom mobile filter dropdown — used in place of native select so we can
    show coloured dots next to options. Same sizing/feel as the month picker.
    Visible only on mobile (rule below in @media). */
-.filter-pill-dd{position:relative;display:none;}
-.filter-pill-dd-btn{display:flex;align-items:center;gap:8px;padding:9px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;font-family:var(--font-body);font-size:13px;font-weight:600;color:var(--text);cursor:pointer;width:100%;justify-content:space-between;transition:all .15s;}
+.filter-pill-dd{position:relative;display:none;flex:1 1 0;min-width:0;}
+.filter-pill-dd-btn{display:flex;align-items:center;gap:8px;padding:0 14px;height:38px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;font-family:var(--font-body);font-size:13px;font-weight:600;color:var(--text);cursor:pointer;width:100%;justify-content:space-between;transition:all .15s;box-sizing:border-box;}
 .filter-pill-dd-btn:hover{border-color:var(--accent);}
 .filter-pill-dd-btn .fpdd-label{display:flex;align-items:center;gap:8px;}
 .filter-pill-dd-btn .fpdd-chev{font-size:11px;color:var(--muted);transition:transform .2s;}
@@ -727,7 +747,7 @@ input,select,textarea{touch-action:manipulation;user-select:text;-webkit-user-se
 .sel-exit:hover{color:var(--text);background:var(--surface2);}
 
 /* SORT SELECT in header */
-.sort-select{padding:6px 10px;background:var(--surface);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;cursor:pointer;font-family:inherit;font-weight:500;appearance:auto;width:auto;}
+.sort-select{padding:0 10px;height:38px;background:var(--surface);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;cursor:pointer;font-family:inherit;font-weight:500;appearance:auto;width:auto;box-sizing:border-box;}
 .sort-select:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-dim);}
 
 /* PARTS / EXPENSES ON ITEM */
@@ -756,7 +776,9 @@ input,select,textarea{touch-action:manipulation;user-select:text;-webkit-user-se
    ═══════════════════════════════════════════════════════ */
 
 /* Top bar */
-.ip-topbar{display:flex;align-items:flex-start;gap:12px;margin-bottom:16px;flex-wrap:wrap;}
+.ip-topbar{display:flex;flex-direction:column;gap:8px;margin-bottom:16px;}
+.ip-topbar-row1{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+.ip-topbar-row2{display:flex;align-items:flex-start;gap:8px;}
 .ip-back{flex-shrink:0;}
 .ip-title-wrap{flex:1;min-width:0;}
 .ip-title{font-family:var(--font-display);font-size:19px;font-weight:700;line-height:1.3;word-break:break-word;margin-bottom:6px;cursor:pointer;border-radius:6px;padding:2px 4px;margin-left:-4px;transition:background 0.15s;}
@@ -871,7 +893,7 @@ input,select,textarea{touch-action:manipulation;user-select:text;-webkit-user-se
    Pairs stay logical: [Sale Price][Buy Price] / [Promo %][Net Profit] */
 @media(max-width:680px){
   /* Top bar */
-  .ip-topbar{flex-direction:column;gap:10px;}
+  .ip-topbar-row1{flex-wrap:wrap;}
   .ip-title{font-size:18px;}
   .ip-actions{width:100%;justify-content:flex-start;}
   .ip-act-danger{margin-left:auto;} /* push delete to far right */
@@ -925,8 +947,22 @@ input,select,textarea{touch-action:manipulation;user-select:text;-webkit-user-se
 #auth-screen-login,#auth-screen-reset{background:#1a1a24!important;border-color:#2e2e3e!important;}
 
 /* FAB — double ring on hover (target motif) */
-.fab{position:fixed;bottom:24px;right:24px;z-index:300;width:52px;height:52px;border-radius:50%;background:var(--accent);color:#000;border:none;cursor:pointer;font-size:24px;font-weight:700;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 20px var(--shadow-md),0 0 0 0 var(--accent-dim);transition:all 0.2s;}
-.fab:hover{transform:scale(1.08);background:var(--accent-hover);box-shadow:0 4px 20px var(--shadow-md),0 0 0 6px var(--accent-dim);}
+.fab-dial{position:fixed;bottom:24px;right:24px;z-index:300;display:flex;flex-direction:column;align-items:flex-end;gap:10px;pointer-events:none;}
+.fab-dial.open .fab-dial-item{opacity:1;transform:translateY(0);pointer-events:auto;}
+.fab-dial-item{display:flex;align-items:center;gap:10px;opacity:0;transform:translateY(12px);transition:opacity 0.18s,transform 0.18s;pointer-events:none;}
+.fab-dial-item:nth-child(2){transition-delay:0.04s;}
+.fab-dial-item:nth-child(3){transition-delay:0.08s;}
+.fab-dial-label{font-size:12px;font-weight:600;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:5px 10px;color:var(--text);white-space:nowrap;box-shadow:0 2px 8px var(--shadow);}
+.fab-dial-btn{width:44px;height:44px;border-radius:50%;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 3px 12px var(--shadow-md);transition:transform 0.15s;background:var(--surface);color:var(--text-secondary);}
+.fab-dial-btn:hover{transform:scale(1.1);}
+.fab-dial-btn.trip{color:var(--accent);border:1.5px solid var(--accent-dim);}
+.fab-dial-btn.expense{color:var(--green);border:1.5px solid var(--green-dim);}
+.fab-main{position:relative;width:52px;height:52px;border-radius:50%;background:var(--accent);color:#000;border:none;cursor:pointer;font-size:24px;font-weight:700;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 20px var(--shadow-md);transition:transform 0.2s,background 0.2s;pointer-events:auto;flex-shrink:0;}
+.fab-main:hover{transform:scale(1.08);background:var(--accent-hover);}
+.fab-main .fab-icon{display:block;transition:transform 0.22s;}
+.fab-dial.open .fab-main .fab-icon{transform:rotate(45deg);}
+.fab-dial-backdrop{display:none;position:fixed;inset:0;z-index:298;}
+.fab-dial.open .fab-dial-backdrop{display:block;}
 
 .brand{cursor:pointer;}
 
@@ -1072,7 +1108,7 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
 .ip-field,.ip-field-select,.ip-field-date{font-size:15px;}
 #auth-screen-login,#auth-screen-reset{max-width:420px;border-radius:28px;padding:42px 36px!important;box-shadow:0 22px 60px rgba(0,0,0,.18);} 
 #auth-screen-login > div:first-child + div + div span{letter-spacing:.16em!important;}
-#auth-btn,#preview-btn{height:48px;border-radius:16px;}
+#auth-btn,
 .summary-shell{display:grid;grid-template-columns:minmax(0,1.84fr) minmax(0,.92fr);gap:18px;align-items:start;}
 .summary-main{display:flex;flex-direction:column;gap:18px;min-height:100%;min-width:0;}
 .summary-side{display:grid;grid-template-rows:auto auto auto;gap:18px;}
@@ -1147,6 +1183,7 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
 @media(max-width:708px){
   .stock-filter-row .filter-chips{display:none!important;}
   .stock-filter-row .filter-pill-dd{display:block!important;flex:1 1 0;min-width:0;}
+  .stock-filter-row .sort-select{flex:1 1 0!important;min-width:0!important;}
   .stock-filter-row .sort-select{flex:1 1 0!important;min-width:0!important;margin-left:0!important;}
   .stock-filter-row{flex-wrap:nowrap!important;}
 }
@@ -1480,7 +1517,20 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
   </div>
 </div>
 
-<button id="fab" class="fab" onclick="openQuickAdd()" title="Quick add item" style="display:none;">+</button>
+<div id="fab-dial" class="fab-dial" style="display:none">
+  <div class="fab-dial-backdrop" onclick="closeFabDial()"></div>
+  <div class="fab-dial-item" id="fab-trip-item">
+    <span class="fab-dial-label">Add Trip</span>
+    <button class="fab-dial-btn trip" onclick="closeFabDial();addTrip()" title="Add sourcing trip"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 17H3a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2h11l4 4v4a2 2 0 0 1-2 2h-1"/><path d="M14 17a2 2 0 1 0 4 0 2 2 0 0 0-4 0"/><path d="M5 17a2 2 0 1 0 4 0 2 2 0 0 0-4 0"/><line x1="3" y1="9" x2="14" y2="9"/></svg></button>
+  </div>
+  <div class="fab-dial-item" id="fab-expense-item">
+    <span class="fab-dial-label">Add Expense</span>
+    <button class="fab-dial-btn expense" onclick="closeFabDial();addExpense()" title="Add expense"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16l3-2 2 2 3-2 3 2 2-2 3 2V4a2 2 0 0 0-2-2z"/><line x1="9" y1="9" x2="15" y2="9"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="12" y2="17"/></svg></button>
+  </div>
+  <button class="fab-main" onclick="onFabClick()" title="Add">
+    <span class="fab-icon">+</span>
+  </button>
+</div>
 
 <div class="panel-overlay" id="panel-overlay" onclick="closePanel()"></div>
 <div class="slide-panel" id="slide-panel">
@@ -1604,10 +1654,6 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
     <button onclick="doSignIn()" id="auth-btn"
       style="width:100%;padding:12px;background:var(--accent);color:#000;border:none;border-radius:8px;font-weight:700;font-size:15px;cursor:pointer;transition:background 0.15s;">
       Sign In
-    </button>
-    <button onclick="startPreviewMode()" id="preview-btn"
-      style="width:100%;padding:12px;background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:8px;font-weight:700;font-size:15px;cursor:pointer;transition:background 0.15s;margin-top:10px;">
-      Developer preview
     </button>
 
     <button onclick="showForgotPassword()"
@@ -1883,10 +1929,10 @@ function refreshCountrySubmenu(){
 }
 const PLATFORMS={
   ebay:      { id:'ebay',      label:'eBay UK',              short:'eBay',   live:true,  pattern:'buyer_pays',      country:'uk' },
-  vinted:    { id:'vinted',    label:'Vinted',               short:'Vinted', live:false, pattern:'seller_receives', country:'uk' },
-  depop:     { id:'depop',     label:'Depop',                short:'Depop',  live:false, pattern:'listed_plus_fee', country:'uk' },
-  fb:        { id:'fb',        label:'Facebook Marketplace', short:'FB',     live:false, pattern:'seller_receives', country:'uk' },
-  amazon_uk: { id:'amazon_uk', label:'Amazon UK (used)',     short:'Amazon', live:false, pattern:'listed_plus_fee', country:'uk' }
+  vinted:    { id:'vinted',    label:'Vinted',               short:'Vinted', live:true,  pattern:'seller_receives', country:'uk' },
+  depop:     { id:'depop',     label:'Depop',                short:'Depop',  live:true,  pattern:'listed_plus_fee', country:'uk' },
+  fb:        { id:'fb',        label:'Facebook Marketplace', short:'FB',     live:true,  pattern:'seller_receives', country:'uk' },
+  amazon_uk: { id:'amazon_uk', label:'Amazon UK (used)',     short:'Amazon', live:true,  pattern:'listed_plus_fee', country:'uk' }
 };
 const DEFAULT_PLATFORM='ebay';
 
@@ -2257,242 +2303,15 @@ let _previewMode = false;
 const _previewParam = new URLSearchParams(window.location.search).get('preview');
 const PREVIEW_STORAGE_KEY='retrade_preview_mode';
 const LEGACY_PREVIEW_STORAGE_KEYS=['general_preview_mode'];
-const _previewStored = localStorage.getItem(PREVIEW_STORAGE_KEY) === '1' || LEGACY_PREVIEW_STORAGE_KEYS.some(function(k){ return localStorage.getItem(k) === '1'; });
-const PREVIEW_MODE_ENABLED = false;
+const PREVIEW_MODE_ENABLED=false;
+const _previewStored=false;
+// do NOT redeclare _previewMode here
 
-function _buildPreviewDB(){
-  const MONTHS_=['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
-  const now = new Date();
-  // Build month keys for current + 4 previous months
-  function mkey(offset){
-    const d = new Date(now.getFullYear(), now.getMonth() - offset, 1);
-    return MONTHS_[d.getMonth()] + '-' + String(d.getFullYear()).slice(-2);
-  }
-  function mdate(monthOffset, day){
-    const d = new Date(now.getFullYear(), now.getMonth() - monthOffset, day);
-    return d.toISOString().split('T')[0];
-  }
-  const m0=mkey(0), m1=mkey(1), m2=mkey(2), m3=mkey(3), m4=mkey(4), m5=mkey(5);
 
-  const item = (id,num,name,cost,sale,listedOff,soldOff,cat,key,bpp,pkg,promo,parts,returns,notes,resale,resaleDate)=>({
-    id:'pv-'+id, gid:'R-'+String(num).padStart(4,'0'),
-    item:name, costPrice:cost, salePrice:sale??null,
-    dateListed:listedOff, dateSold:soldOff??null,
-    category:cat, postageMode:'sdp', postageKey:key,
-    buyerPaysPostage:bpp??false, packagingCost:pkg, promoPercent:promo??0,
-    parts:parts??[], returnHistory:returns??[], isReturned:false,
-    resaleSalePrice:resale??null, resaleDateSold:resaleDate??null,
-    _wasRelisted:false, notes:notes??''
-  });
 
-  const SP='small_parcel_2kg', LP='large_parcel', LL='large_letter', ML='medium_letter';
+function enablePreviewMode(){_previewMode=true;}
 
-  return {
-    _userOwned: false,
-
-    // ── CURRENT MONTH ──────────────────────────────────────────────────────
-    [m0]: [
-      item('c1',1,'Sony WH-1000XM5 Headphones',88,159.99,mdate(0,3),mdate(0,10),'Audio',SP,false,1.20,0.05),
-      item('c2',2,'iPhone 12 64GB Unlocked',195,289.00,mdate(0,2),mdate(0,9),'Phones',SP,false,1.00,0.03),
-      item('c3',3,'Nintendo DS Lite + Charger',18,34.99,mdate(0,4),mdate(0,11),'Gaming',LL,false,0.60,0),
-      item('c4',4,'Logitech MX Master 3 Mouse',32,64.99,mdate(0,5),mdate(0,12),'Computing',LL,false,0.75,0.05),
-      item('c5',5,'Garmin Forerunner 245',62,119.00,mdate(0,1),mdate(0,8),'Wearables',SP,false,1.10,0),
-      // Recent sales — last 7 days
-      item('c6r',6,'Canon EOS 1300D Body',75,138.00,mdate(0,18),mdate(0,23),'Camera',SP,false,1.20,0.03),
-      item('c7r',7,'Xbox 360 S Console 250GB',28,52.00,mdate(0,19),mdate(0,24),'Gaming',SP,false,1.80,0),
-      item('c14',85,'Seagate 2TB External HDD',22,44.99,mdate(0,20),mdate(0,25),'Computing',SP,false,0.80,0),
-      item('c15',86,'Philips Hue Bridge v2',18,34.00,mdate(0,21),mdate(0,26),'Smart Home',LL,false,0.50,0),
-      item('c16',87,'Corsair K70 Mechanical Keyboard',45,89.99,mdate(0,22),mdate(0,27),'Computing',SP,false,1.20,0.03),
-      item('c17',88,'Samsung T7 500GB SSD',28,54.99,mdate(0,23),mdate(0,28),'Computing',LL,false,0.50,0),
-      // Full return — buyer claimed not as described, shows in refund rate
-      {id:'pv-c8',gid:'R-0008',item:'Bose SoundLink Mini II',costPrice:45,salePrice:89.99,
-       dateListed:mdate(0,3),dateSold:null,category:'Audio',postageMode:'sdp',postageKey:SP,
-       buyerPaysPostage:false,packagingCost:0.90,promoPercent:0.05,parts:[],
-       returnHistory:[{loggedAt:mdate(0,17),type:'full_seller',refundAmount:89.99,returnPostage:3.20,
-         notes:'Buyer claimed not as described',_salePriceAtReturn:89.99,_dateSoldAtReturn:mdate(0,14)}],
-       isReturned:true,resaleSalePrice:null,resaleDateSold:null,notes:''},
-      // Active unsold — recent listings
-      item('c9',9,'iPad Mini 4 WiFi 128GB',110,179.99,mdate(0,18),null,'Tablets',SP,false,1.00,0),
-      item('c10',10,'GBA SP AGS-101 + Pokémon Emerald',55,109.99,mdate(0,19),null,'Gaming',LL,false,0.60,0,[{desc:'Replacement battery',cost:4.99,date:mdate(0,19)}]),
-      item('c11',11,'Olympus OM-D E-M10 Body',85,164.99,mdate(0,20),null,'Camera',SP,false,1.20,0),
-      item('c12',12,'Kindle Paperwhite 11th Gen',35,64.99,mdate(0,21),null,'Electronics',LL,false,0.50,0),
-    ],
-
-    // ── 1 MONTH AGO ────────────────────────────────────────────────────────
-    [m1]: [
-      item('b1',14,'PlayStation 4 Slim 500GB',98,169.99,mdate(1,2),mdate(1,12),'Gaming',SP,false,1.80,0.05),
-      item('b2',15,'MacBook Air 2017 i5',155,285.00,mdate(1,4),mdate(1,18),'Computing',LP,false,2.50,0.03),
-      item('b3',16,'Kindle Paperwhite Gen 10',28,54.99,mdate(1,5),mdate(1,14),'Electronics',LL,false,0.50,0),
-      item('b4',17,'Sony A6000 Camera Body',105,189.00,mdate(1,3),mdate(1,16),'Camera',SP,false,1.20,0.05),
-      item('b5',18,'GBC Pokemon Yellow Cart',12,29.99,mdate(1,6),mdate(1,11),'Gaming',ML,false,0.40,0),
-      item('b6',19,'Dyson V7 Cordless Hoover',85,159.99,mdate(1,1),mdate(1,9),'Appliances',LP,false,2.80,0.05),
-      item('b7',20,'Apple Watch Series 3 38mm',42,79.00,mdate(1,7),mdate(1,19),'Wearables',SP,false,1.00,0.03),
-      // Partial refund — eBay stepped in, seller eats fee
-      {id:'pv-b8',gid:'R-0021',item:'Razer Kraken Headset',costPrice:22,salePrice:44.99,
-       dateListed:mdate(1,8),dateSold:mdate(1,20),category:'Audio',postageMode:'sdp',postageKey:SP,
-       buyerPaysPostage:false,packagingCost:0.90,promoPercent:0,parts:[],
-       returnHistory:[{loggedAt:mdate(1,26),type:'partial_ebay',refundAmount:12.00,returnPostage:0,
-         notes:'Buyer said mic crackly — eBay partial refund',_salePriceAtReturn:44.99,_dateSoldAtReturn:mdate(1,20)}],
-       isReturned:false,resaleSalePrice:null,resaleDateSold:null,notes:''},
-      item('b9',22,'Samsung Galaxy Tab A 10.1 2019',65,119.99,mdate(1,9),null,'Tablets',SP,false,1.00,0),
-      item('b10',23,'JBL Flip 5 Speaker',30,58.99,mdate(1,10),mdate(1,22),'Audio',SP,false,0.80,0),
-      item('b11',24,'Nintendo Switch Lite Yellow',95,155.00,mdate(1,12),mdate(1,24),'Gaming',SP,false,1.20,0.03),
-      item('b12',25,'Xbox One Controller',18,34.00,mdate(1,14),mdate(1,25),'Gaming',LL,false,0.60,0),
-      // Full return then relisted — appears in BOTH sale months on Monthly
-      {id:'pv-b13',gid:'R-0026',item:'Sennheiser HD 280 Pro',costPrice:28,salePrice:52.00,
-       dateListed:mdate(1,1),dateSold:null,category:'Audio',postageMode:'sdp',postageKey:SP,
-       buyerPaysPostage:false,packagingCost:0.90,promoPercent:0,parts:[],
-       returnHistory:[{loggedAt:mdate(1,22),type:'full_seller',refundAmount:52.00,returnPostage:2.95,
-         notes:'Changed mind',_salePriceAtReturn:52.00,_dateSoldAtReturn:mdate(1,18)}],
-       isReturned:true,resaleSalePrice:null,resaleDateSold:null,notes:'Relisting at same price'},
-      item('b14',27,'Anker Soundcore 2 Speaker',16,32.99,mdate(1,15),mdate(1,27),'Audio',SP,false,0.70,0),
-      item('b15',28,'Fitbit Inspire 2',20,39.99,mdate(1,16),mdate(1,28),'Wearables',LL,false,0.50,0.03),
-    ],
-
-    // ── 2 MONTHS AGO ───────────────────────────────────────────────────────
-    [m2]: [
-      item('a1',29,'iPhone 11 128GB Black',175,259.99,mdate(2,3),mdate(2,10),'Phones',SP,false,1.00,0.05),
-      item('a2',30,'Canon 18-55mm IS II Lens',35,69.99,mdate(2,5),mdate(2,14),'Camera',SP,false,1.10,0),
-      item('a3',31,'PS2 Slim + 2 Controllers',38,72.00,mdate(2,2),mdate(2,8),'Gaming',SP,false,1.80,0),
-      item('a4',32,'Fitbit Charge 4',25,49.00,mdate(2,6),mdate(2,15),'Wearables',LL,false,0.50,0.03),
-      item('a5',33,'Nikon D3200 18-55mm Kit',110,199.00,mdate(2,4),mdate(2,13),'Camera',SP,false,1.20,0.05),
-      item('a6',34,'Dell Latitude E7470 i5',120,225.00,mdate(2,7),mdate(2,18),'Computing',LP,false,2.50,0.03),
-      item('a7',35,'GBA SP + Pokemon Fire Red',68,119.00,mdate(2,8),mdate(2,19),'Gaming',SP,false,0.80,0),
-      item('a8',36,'Anker PowerCore 26800',20,38.99,mdate(2,9),mdate(2,20),'Electronics',LL,false,0.40,0),
-      // Partial refund — seller agreed, eBay refunds fee difference
-      {id:'pv-a9',gid:'R-0037',item:'Sennheiser HD 599',costPrice:55,salePrice:105.00,
-       dateListed:mdate(2,10),dateSold:mdate(2,22),category:'Audio',postageMode:'sdp',postageKey:SP,
-       buyerPaysPostage:false,packagingCost:0.90,promoPercent:0.05,parts:[],
-       returnHistory:[{loggedAt:mdate(2,28),type:'partial_seller',refundAmount:15.00,returnPostage:0,
-         notes:'Ear pad worn more than photos showed',_salePriceAtReturn:105.00,_dateSoldAtReturn:mdate(2,22)}],
-       isReturned:false,resaleSalePrice:null,resaleDateSold:null,notes:''},
-      item('a10',38,'Sony PSP 3000 + Case',28,54.99,mdate(2,11),mdate(2,24),'Gaming',SP,false,0.80,0),
-      item('a11',39,'Ring Video Doorbell 3',48,89.99,mdate(2,1),mdate(2,7),'Smart Home',SP,false,1.00,0.05),
-      // Returned and then RESOLD — tests full relist lifecycle
-      {id:'pv-a12',gid:'R-0040',item:'Logitech C920 Webcam',costPrice:22,salePrice:44.99,
-       dateListed:mdate(2,12),dateSold:null,category:'Computing',postageMode:'sdp',postageKey:SP,
-       buyerPaysPostage:false,packagingCost:0.70,promoPercent:0,parts:[{desc:'USB cable replacement',cost:2.99,date:mdate(2,12)}],
-       returnHistory:[{loggedAt:mdate(2,25),type:'full_seller',refundAmount:44.99,returnPostage:2.95,
-         notes:'Claimed faulty',_salePriceAtReturn:44.99,_dateSoldAtReturn:mdate(2,20)}],
-       isReturned:false,resaleSalePrice:47.00,resaleDateSold:mdate(1,8),notes:'Tested fine — relisted and resold'},
-      item('a13',41,'Nespresso Vertuo Next',30,58.99,mdate(2,14),mdate(2,25),'Appliances',SP,false,1.20,0),
-      item('a14',42,'Jabra Evolve 20 Headset',24,45.00,mdate(2,15),mdate(2,26),'Audio',SP,false,0.80,0),
-      item('a15',43,'Philips Hue Starter Kit',35,68.99,mdate(2,16),mdate(2,27),'Smart Home',SP,false,1.00,0.05),
-    ],
-
-    // ── 3 MONTHS AGO ───────────────────────────────────────────────────────
-    [m3]: [
-      item('9a',44,'iPhone XR 64GB Coral',140,209.99,mdate(3,4),mdate(3,13),'Phones',SP,false,1.00,0.05),
-      item('9b',45,'Nintendo 3DS XL Blue',55,95.00,mdate(3,6),mdate(3,15),'Gaming',SP,false,0.80,0.03),
-      item('9c',46,'Samsung Galaxy S10 128GB',115,185.00,mdate(3,2),mdate(3,9),'Phones',SP,false,1.00,0.05),
-      item('9d',47,'Dyson AM07 Tower Fan',60,115.99,mdate(3,5),mdate(3,16),'Appliances',LP,false,2.80,0),
-      item('9e',48,'HP EliteBook 840 G3 i5',105,199.00,mdate(3,7),mdate(3,20),'Computing',LP,false,2.50,0.03),
-      item('9f',49,'GBC Gameboy Color Purple',24,47.99,mdate(3,8),mdate(3,18),'Gaming',ML,false,0.40,0),
-      item('9g',50,'Canon 50mm f1.8 STM Lens',42,79.99,mdate(3,9),mdate(3,21),'Camera',SP,false,1.10,0.03),
-      item('9h',51,'Jawbone Jambox Speaker',15,28.99,mdate(3,10),mdate(3,22),'Audio',LL,false,0.50,0),
-      item('9i',52,'Xbox 360 Games Bundle x8',14,29.99,mdate(3,11),mdate(3,23),'Gaming',SP,false,1.20,0),
-      item('9j',53,'Kodak Mini 2 Printer',22,39.99,mdate(3,12),mdate(3,24),'Electronics',SP,false,0.90,0),
-      item('9k',54,'Sonos Play:1 Speaker',48,94.99,mdate(3,3),mdate(3,11),'Audio',SP,false,1.00,0.05),
-      item('9l',55,'Surface Pro 4 i5 256GB',165,299.00,mdate(3,1),mdate(3,8),'Computing',LP,false,2.50,0.05),
-      // Full return from 3 months ago — backdated, tests period attribution
-      {id:'pv-9m',gid:'R-0056',item:'Sony WF-1000XM3 Earbuds',costPrice:48,salePrice:88.00,
-       dateListed:mdate(3,5),dateSold:null,category:'Audio',postageMode:'sdp',postageKey:LL,
-       buyerPaysPostage:false,packagingCost:0.70,promoPercent:0.03,parts:[],
-       returnHistory:[{loggedAt:mdate(3,28),type:'full_ebay',refundAmount:88.00,returnPostage:0,
-         notes:'eBay stepped in — item not received claim',_salePriceAtReturn:88.00,_dateSoldAtReturn:mdate(3,18)}],
-       isReturned:true,resaleSalePrice:null,resaleDateSold:null,notes:''},
-      item('9n',57,'Beats Solo3 Wireless',52,98.00,mdate(3,14),mdate(3,24),'Audio',SP,false,1.00,0.05),
-      item('9o',58,'DJI Osmo Mobile 3',35,65.99,mdate(3,15),mdate(3,25),'Camera',LL,false,0.60,0),
-      // ── STALE items — listed in m3, never sold, 90d+ old ──────────────────
-      item('9p',89,'Wii U Console 32GB + Gamepad',55,89.99,mdate(3,2),null,'Gaming',LP,false,2.50,0),
-      item('9q',90,'Epson Workforce WF-2830 Printer',20,44.99,mdate(3,4),null,'Electronics',LP,false,2.80,0),
-    ],
-
-    // ── 4 MONTHS AGO ───────────────────────────────────────────────────────
-    [m4]: [
-      item('8a',59,'iPhone SE 2020 64GB',110,169.99,mdate(4,3),mdate(4,10),'Phones',SP,false,1.00,0.05),
-      item('8b',60,'Nintendo Switch OLED White',195,279.00,mdate(4,5),mdate(4,14),'Gaming',SP,false,1.20,0.03),
-      item('8c',61,'Nikon D5300 + 18-55mm',130,235.00,mdate(4,4),mdate(4,12),'Camera',SP,false,1.20,0.05),
-      item('8d',62,'Sony Xperia 5 II',125,195.00,mdate(4,6),mdate(4,16),'Phones',SP,false,1.00,0),
-      item('8e',63,'Plantronics Voyager 5200',18,34.99,mdate(4,7),mdate(4,17),'Audio',LL,false,0.50,0),
-      item('8f',64,'Lenovo ThinkPad T470 i5',138,249.00,mdate(4,8),mdate(4,19),'Computing',LP,false,2.50,0.03),
-      item('8g',65,'GBA Pokemon Emerald Cart',35,67.99,mdate(4,9),mdate(4,20),'Gaming',ML,false,0.40,0),
-      item('8h',66,'Oculus Quest 2 128GB',155,239.00,mdate(4,2),mdate(4,9),'Gaming',SP,false,1.80,0.05),
-      item('8i',67,'Canon EOS M50 Body',145,265.00,mdate(4,10),mdate(4,22),'Camera',SP,false,1.20,0.05),
-      item('8j',68,'Sony SRS-XB33 Speaker',35,64.99,mdate(4,11),mdate(4,23),'Audio',SP,false,0.90,0),
-      item('8k',69,'Samsung Galaxy Watch Active2',45,84.99,mdate(4,12),mdate(4,24),'Wearables',SP,false,1.00,0.03),
-      item('8l',70,'Raspberry Pi 4 4GB Kit',38,72.00,mdate(4,13),mdate(4,25),'Computing',SP,false,0.80,0),
-      item('8m',71,'Oral-B Smart 6 Electric Toothbrush',18,34.99,mdate(4,14),mdate(4,26),'Appliances',LL,false,0.50,0),
-      item('8n',72,'Google Nest Mini 2nd Gen',15,28.00,mdate(4,15),mdate(4,27),'Smart Home',LL,false,0.40,0),
-      // ── STALE item — listed 4 months ago, never sold ───────────────────────
-      item('8o',91,'BlackBerry Passport Unlocked',35,59.99,mdate(4,5),null,'Phones',SP,false,1.00,0),
-    ],
-
-    // ── 5 MONTHS AGO ───────────────────────────────────────────────────────
-    [m5]: [
-      item('7a',73,'iPhone X 64GB Space Grey',120,185.00,mdate(5,3),mdate(5,12),'Phones',SP,false,1.00,0.05),
-      item('7b',74,'PS3 Slim 160GB + Games',42,79.99,mdate(5,4),mdate(5,14),'Gaming',SP,false,1.80,0),
-      item('7c',75,'Canon EOS 700D + 18-55mm',95,179.00,mdate(5,5),mdate(5,16),'Camera',SP,false,1.20,0.03),
-      item('7d',76,'Dell XPS 13 9370 i5',245,389.00,mdate(5,1),mdate(5,9),'Computing',LP,false,2.50,0.05),
-      item('7e',77,'Garmin Edge 530 GPS',75,138.99,mdate(5,6),mdate(5,17),'Wearables',SP,false,1.00,0),
-      item('7f',78,'Bose QuietComfort 35 II',82,154.00,mdate(5,7),mdate(5,18),'Audio',SP,false,1.20,0.05),
-      item('7g',79,'Nintendo 64 + Controller',32,62.99,mdate(5,8),mdate(5,20),'Gaming',SP,false,1.80,0),
-      item('7h',80,'Samsung Galaxy S9 64GB',75,129.99,mdate(5,9),mdate(5,21),'Phones',SP,false,1.00,0.03),
-      item('7i',81,'Olympus Pen E-PL8',88,162.00,mdate(5,10),mdate(5,22),'Camera',SP,false,1.20,0),
-      item('7j',82,'Anker USB-C Hub 7-in-1',18,34.99,mdate(5,11),mdate(5,23),'Computing',LL,false,0.50,0),
-      item('7k',83,'JBL Charge 4 Speaker',38,72.99,mdate(5,12),mdate(5,24),'Audio',SP,false,0.90,0),
-      item('7l',84,'Xiaomi Mi Band 5',12,24.99,mdate(5,13),mdate(5,25),'Wearables',LL,false,0.40,0),
-    ],
-
-    expenses:[
-      {id:'pv-ex1', label:'Packaging supplies (bubble wrap, boxes)', amount:18.40, date:mdate(0,5), category:'Supplies', notes:''},
-      {id:'pv-ex2', label:'Packing tape x4 rolls', amount:7.99, date:mdate(0,12), category:'Supplies', notes:''},
-      {id:'pv-ex3', label:'eBay promoted listings fee', amount:14.22, date:mdate(1,28), category:'Fees', notes:'Monthly promoted'},
-      {id:'pv-ex4', label:'Packaging supplies', amount:15.60, date:mdate(1,8), category:'Supplies', notes:''},
-      {id:'pv-ex5', label:'Car boot entry x2', amount:5.00, date:mdate(1,6), category:'Sourcing', notes:'Weekend boot sale'},
-      {id:'pv-ex6', label:'eBay promoted listings fee', amount:11.85, date:mdate(2,28), category:'Fees', notes:''},
-      {id:'pv-ex7', label:'Jiffy bags x50', amount:9.99, date:mdate(2,4), category:'Supplies', notes:''},
-      {id:'pv-ex8', label:'Car boot entry x3', amount:7.50, date:mdate(2,9), category:'Sourcing', notes:''},
-      {id:'pv-ex9', label:'eBay promoted listings fee', amount:18.40, date:mdate(3,28), category:'Fees', notes:''},
-      {id:'pv-ex10', label:'Packaging supplies', amount:22.10, date:mdate(3,5), category:'Supplies', notes:''},
-      {id:'pv-ex11', label:'eBay promoted listings fee', amount:9.75, date:mdate(4,28), category:'Fees', notes:''},
-      {id:'pv-ex12', label:'Bubble wrap roll x2', amount:12.50, date:mdate(4,3), category:'Supplies', notes:''},
-      {id:'pv-ex13', label:'eBay promoted listings fee', amount:16.30, date:mdate(5,28), category:'Fees', notes:''},
-      {id:'pv-ex14', label:'Jiffy bags + boxes', amount:13.80, date:mdate(5,5), category:'Supplies', notes:''},
-      {id:'pv-ex15', label:'Car boot entry x2', amount:5.00, date:mdate(5,12), category:'Sourcing', notes:''},
-    ],
-
-    trips:[
-      {id:'pv-tr1', date:mdate(0,4), mileage:8, purpose:'Post office run', notes:''},
-      {id:'pv-tr2', date:mdate(0,11), mileage:22, purpose:'Car boot sourcing — Basingstoke', notes:'Picked up PS4 + 3DS'},
-      {id:'pv-tr3', date:mdate(1,5), mileage:9, purpose:'Post office run', notes:''},
-      {id:'pv-tr4', date:mdate(1,12), mileage:18, purpose:'Charity shop run x3 stops', notes:''},
-      {id:'pv-tr5', date:mdate(1,22), mileage:26, purpose:'Car boot — Newbury', notes:'Good haul'},
-      {id:'pv-tr6', date:mdate(2,6), mileage:11, purpose:'Post office + drop-off', notes:''},
-      {id:'pv-tr7', date:mdate(2,14), mileage:20, purpose:'Car boot sourcing', notes:''},
-      {id:'pv-tr8', date:mdate(3,4), mileage:8, purpose:'Post office run', notes:''},
-      {id:'pv-tr9', date:mdate(3,18), mileage:24, purpose:'Car boot — Winchester', notes:''},
-      {id:'pv-tr10', date:mdate(4,7), mileage:12, purpose:'Post office + charity shops', notes:''},
-      {id:'pv-tr11', date:mdate(5,5), mileage:9, purpose:'Post office run', notes:''},
-      {id:'pv-tr12', date:mdate(5,18), mileage:28, purpose:'Car boot — Alton', notes:'Best haul yet'},
-    ]
-  };
-}
-
-function enablePreviewMode(){
-  _previewMode = true;
-  _currentUserId = 'preview-user';
-  localStorage.setItem(PREVIEW_STORAGE_KEY,'1');
-  LEGACY_PREVIEW_STORAGE_KEYS.forEach(function(k){ if(k!==PREVIEW_STORAGE_KEY) localStorage.removeItem(k); });
-  DB = _buildPreviewDB();
-  _dbSnapshot = _dbFingerprint();
-}
-
-function disablePreviewMode(){
-  _previewMode = false;
-  localStorage.removeItem(PREVIEW_STORAGE_KEY);
-  LEGACY_PREVIEW_STORAGE_KEYS.forEach(function(k){ if(k!==PREVIEW_STORAGE_KEY) localStorage.removeItem(k); });
-}
+function disablePreviewMode(){_previewMode=false;}
 
 // ── AUTH ─────────────────────────────────────────────────────────────────────
 
@@ -2511,27 +2330,7 @@ function toggleAuthPass(){
   }
 }
 
-function startPreviewMode(){
-  enablePreviewMode();
-  try{
-    const url = new URL(window.location.href);
-    url.searchParams.set('preview','1');
-    history.replaceState({}, '', url.toString());
-  }catch(e){ /* sandboxed iframe — ignore */ }
-  document.getElementById('auth-overlay').style.display = 'none';
-  if(typeof _neutralizeAuthInputs==='function')_neutralizeAuthInputs();
-  if(window.innerWidth > 600){
-    document.getElementById('nav').style.display = '';
-    document.getElementById('bottom-nav').style.display = 'none';
-  } else {
-    document.getElementById('nav').style.display = 'none';
-    document.getElementById('bottom-nav').style.display = 'flex';
-  }
-  document.getElementById('main-content').style.display = '';
-  document.getElementById('fab').style.display = '';
-  const av=document.getElementById('user-avatar'); if(av) av.textContent='P';
-  requestAnimationFrame(()=>goToTab('summary'));
-}
+function startPreviewMode(){}
 
 async function doSignIn(){
   const email = document.getElementById('auth-email').value.trim();
@@ -2631,7 +2430,7 @@ async function doSignOut(){
     document.getElementById('nav').style.display = 'none';
     document.getElementById('bottom-nav').style.display = 'none';
     document.getElementById('main-content').style.display = 'none';
-    const _fabPreview = document.getElementById('fab');
+    const _fabPreview = document.getElementById('fab-dial');
     if(_fabPreview) _fabPreview.style.display = 'none';
     if(typeof _restoreAuthInputs==='function')_restoreAuthInputs();
     document.getElementById('auth-overlay').style.display = 'flex';
@@ -2661,7 +2460,7 @@ async function doSignOut(){
   document.getElementById('nav').style.display = 'none';
   document.getElementById('bottom-nav').style.display = 'none';
   document.getElementById('main-content').style.display = 'none';
-  const _fab2 = document.getElementById('fab');
+  const _fab2 = document.getElementById('fab-dial');
   if(_fab2) _fab2.style.display = 'none';
   if(typeof _restoreAuthInputs==='function')_restoreAuthInputs();
   document.getElementById('auth-overlay').style.display = 'flex';
@@ -2903,7 +2702,6 @@ async function _backfillDateSoldAtReturn(){
     });
   });
   if(dirty>0){
-    console.log('[backfill] Filled _dateSoldAtReturn on '+dirty+' return entries');
     try{
       // Re-save every item that has returnHistory so the column gets pushed up
       // for ALL of them in a single sync. saveDB's debounced diff engine will
@@ -3216,6 +3014,12 @@ function refreshActivePage(){
 // BUYER PROTECTION FEE (Tiered eBay UK formula)
 // calcBuyerProtectionFee: now uses unified iterative calcEbayBPF
 function calcBuyerProtectionFee(p){return calcEbayBPF(p);}
+function platBadgeHTML(i){
+  const p=_itemPlatform(i);
+  if(!p||p==='ebay')return '';
+  const label=PLATFORMS[p]?PLATFORMS[p].short:p;
+  return '<span class="plat-badge '+p+'">'+label+'</span>';
+}
 
 // NAVIGATION
 function goToTab(name,sourceEl){
@@ -3542,13 +3346,19 @@ function renderItemPage(m,id){
         return last._salePriceAtReturn||last.refundAmount||i.salePrice||0;
       })()
     : (i.salePrice||0);
-  const bpf=calcEbayBPF(_origSalePrice);
+  const bpf=calcPlatformBPF(i,_origSalePrice);
   const grossInc=_origSalePrice-bpf;
   const promoCost=grossInc*(i.promoPercent||0)*1.20;
   const profit=calcGrossProfit(i);
   const roi=calcROI(i);
   const status=i.isReturned?'returned':i.resaleSalePrice?'resold':i.dateSold?'sold':i.condition==='spares'?'spares':'active';
   const hasReturn=(i.returnHistory||[]).length>0;
+  const _plat=_itemPlatform(i);
+  const _showPostage=(_plat!=='vinted');
+  const _showSimpleDelivery=(_plat==='ebay');
+  const _showFee=(_plat!=='vinted'&&_plat!=='fb');
+  const _feeLabel=_plat==='ebay'?'eBay BPF':_plat==='depop'?'Depop fee':_plat==='amazon_uk'?'Amazon fee':'Platform fee';
+  const _promoLabel=_plat==='ebay'?'Promo %':'Boost %';
   const totalRefunded=(i.returnHistory||[]).reduce((s,r)=>s+(r.refundAmount||0),0);
   const totalReturnPostage=(i.returnHistory||[]).reduce((s,r)=>s+(r.returnPostage||0),0);
   const postageMode=i._postageMode||(i.shippingCost>0?'custom':'simple');
@@ -3566,7 +3376,7 @@ function renderItemPage(m,id){
       const last=fe[fe.length-1];
       return last._salePriceAtReturn||last.refundAmount||i.salePrice||0;
     })();
-    const _tlBPF=calcEbayBPF(_tlOrigSalePrice);
+    const _tlBPF=calcPlatformBPF(i,_tlOrigSalePrice);
     timeline.push({date:sd,badge:'sale',label:'Sold',detail:'Sale price: '+fmt(_tlOrigSalePrice)+' → Received: '+fmt(_tlOrigSalePrice-_tlBPF)+' after BPF'});
   }
   (i.returnHistory||[]).forEach(function(r,rtnIdx){
@@ -3583,7 +3393,7 @@ function renderItemPage(m,id){
     }
   });
   if(i.resaleSalePrice){
-    const rBPF2=calcEbayBPF(i.resaleSalePrice);
+    const rBPF2=calcPlatformBPF(i,i.resaleSalePrice);
     timeline.push({date:i.resaleDateSold||'',badge:'resale',label:'Re-sold',detail:'Sale price: '+fmt(i.resaleSalePrice)+' → Received: '+fmt(i.resaleSalePrice-rBPF2)+' after BPF'});
   }
   const typeOrder={listed:0,sale:1,'return-full':2,'return-partial':2,relist:3,resale:4};
@@ -3624,7 +3434,7 @@ function renderItemPage(m,id){
   // Effective fee values under partial_seller refunds — used for receipt credit lines.
   const _psTotal=(i.returnHistory||[]).filter(function(r){return r.type==='partial_seller';}).reduce(function(s,r){return s+(r.refundAmount||0);},0);
   const _effSale=Math.max(0,_origSalePrice-_psTotal);
-  const _effBPF=calcEbayBPF(_effSale);
+  const _effBPF=calcPlatformBPF(i,_effSale);
   const _effPromo=(_effSale-_effBPF)*(i.promoPercent||0)*1.20;
   const _bpfCredit=+(bpf-_effBPF).toFixed(2);
   const _promoCredit=+(promoCost-_effPromo).toFixed(2);
@@ -3634,11 +3444,12 @@ function renderItemPage(m,id){
   let pb='';
   pb+=rcp(_wasRelistedDetect?'Sale price (original)':'Sale price',fmt(_origSalePrice),'var(--green)');
   if(_wasRelistedDetect)pb+=rcp('↳ Relisted at',fmt(i.salePrice||0),'var(--muted)',true);
-  if((i.postage||0)>0)pb+=rcp('+ Buyer postage','+'+fmt(i.postage),'var(--green)');
-  pb+=rcp('eBay BPF','−'+fmt(bpf),'var(--red)');
+  if(_plat==='vinted')pb+=rcp('Buyer pays postage','(buyer covered)','var(--muted)');
+  else if((i.postage||0)>0)pb+=rcp('+ Buyer postage','+'+fmt(i.postage),'var(--green)');
+  if(_showFee)pb+=rcp(_feeLabel,'−'+fmt(bpf),'var(--red)');
   if((i.shippingCost||0)>0)pb+=rcp('Shipping cost','−'+fmt(i.shippingCost),'var(--red)');
   if((i.packagingCost||0)>0)pb+=rcp('Packaging','−'+fmt(i.packagingCost),'var(--red)');
-  if(i.promoPercent)pb+=rcp('Promo fee ('+((i.promoPercent*100).toFixed(0))+'% +VAT)','−'+fmt(promoCost),'var(--red)');
+  if(i.promoPercent)pb+=rcp((_plat==='ebay'?'Promo fee ('+((i.promoPercent*100).toFixed(0))+'% +VAT)':'Boost fee ('+((i.promoPercent*100).toFixed(0))+'%)'),'−'+fmt(promoCost),'var(--red)');
   pb+=rcp('Item cost','−'+fmt(i.costPrice||0),'var(--red)');
   if(partsCost>0){
     const pts=i.parts||[];
@@ -3654,14 +3465,14 @@ function renderItemPage(m,id){
       const fullReturn=(r.type==='full_seller'||r.type==='full_ebay');
       const lbl3={full_seller:'Full refund — you handled',full_ebay:'Full refund — eBay involved',partial_seller:'Partial refund — you handled',partial_ebay:'Partial refund — eBay decided'}[r.type]||r.type;
       pb+=rcp(lbl3,'−'+fmt(r.refundAmount||0),'var(--accent)');
-      if(fullReturn)pb+=rcp('eBay refunds BPF back to you','+'+fmt(bpf),'var(--green)',true);
+      if(fullReturn&&_showFee)pb+=rcp((_plat==='ebay'?'eBay':'Platform')+' refunds fee back to you','+'+fmt(bpf),'var(--green)',true);
       if((r.returnPostage||0)>0)pb+=rcp('Return postage','−'+fmt(r.returnPostage),'var(--red)');
     });
     // Partial-seller: eBay refunds the fee difference (BPF + promo) on the reduced sale base.
     // Show explicit credit lines so line items reconcile to the net profit total.
     if(_psTotal>0){
-      if(_bpfCredit>0)pb+=rcp('eBay refunds BPF difference','+'+fmt(_bpfCredit),'var(--green)',true);
-      if(_promoCredit>0)pb+=rcp('eBay refunds promo difference','+'+fmt(_promoCredit),'var(--green)',true);
+      if(_bpfCredit>0&&_showFee)pb+=rcp((_plat==='ebay'?'eBay':'Platform')+' refunds fee difference','+'+fmt(_bpfCredit),'var(--green)',true);
+      if(_promoCredit>0)pb+=rcp((_plat==='ebay'?'eBay':'Platform')+' refunds boost difference','+'+fmt(_promoCredit),'var(--green)',true);
     }
   }
   pb+='<div class="ip-receipt-row total"><span style="flex:1">'+(i.resaleSalePrice?'Sale 1 net':'Net profit / loss')+'</span><span class="ip-receipt-val" style="color:'+(sale1Net>=0?'var(--green)':'var(--red)')+'">'+fmt(sale1Net)+'</span></div>';
@@ -3669,16 +3480,16 @@ function renderItemPage(m,id){
   // Sale 2 block
   let resaleHTML='';
   if(i.resaleSalePrice){
-    const rBPF=calcEbayBPF(i.resaleSalePrice);
+    const rBPF=calcPlatformBPF(i,i.resaleSalePrice);
     const rGrossInc=i.resaleSalePrice-rBPF;
     const rPromoCost=rGrossInc*(i.resalePromoPercent||0)*1.20;
     const rRev=i.resaleSalePrice-rBPF-(i.resaleShippingCost||0)-rPromoCost;
     const lifetimeProfit=profit;
     let s2b='';
     s2b+=rcp('Sale price',fmt(i.resaleSalePrice),'var(--green)');
-    s2b+=rcp('eBay BPF','−'+fmt(rBPF),'var(--red)');
+    s2b+=rcp(_showFee?_feeLabel:'Platform fee (£0)','−'+fmt(rBPF),_showFee?'var(--red)':'var(--muted)');
     if((i.resaleShippingCost||0)>0)s2b+=rcp('Shipping cost','−'+fmt(i.resaleShippingCost),'var(--red)');
-    if(rPromoCost>0)s2b+=rcp('Promo fee ('+((i.resalePromoPercent||0)*100).toFixed(1)+'% +VAT)','−'+fmt(rPromoCost),'var(--red)');
+    if(rPromoCost>0)s2b+=rcp((_plat==='ebay'?'Promo fee ('+((i.resalePromoPercent||0)*100).toFixed(1)+'% +VAT)':'Boost fee ('+((i.resalePromoPercent||0)*100).toFixed(1)+'%)'),'−'+fmt(rPromoCost),'var(--red)');
     s2b+=rcp('Item cost (sunk)','—','var(--muted)');
     s2b+='<div class="ip-receipt-row total"><span style="flex:1">Sale 2 net</span><span class="ip-receipt-val" style="color:'+(rRev>=0?'var(--green)':'var(--red)')+'">'+fmt(rRev)+'</span></div>';
     s2b+='<div class="ip-receipt-row" style="margin-top:6px;padding:10px 0 2px;border-top:2px solid var(--border)"><span style="flex:1;font-weight:700;font-size:13px">Lifetime P&amp;L</span><span class="ip-receipt-val" style="font-size:16px;color:'+(lifetimeProfit>=0?'var(--green)':'var(--red)')+'">'+fmt(lifetimeProfit)+'</span></div>';
@@ -3691,7 +3502,7 @@ function renderItemPage(m,id){
   const hasReturnHistory=(i.returnHistory||[]).length>0;
   const notYetSold=!i.dateSold&&!i.resaleSalePrice;
   if(hasReturnHistory&&notYetSold){
-    const rlBPF=calcEbayBPF(i.salePrice||0);
+    const rlBPF=calcPlatformBPF(i,i.salePrice||0);
     const rlSalePrice=i.salePrice||0;
     const rlShipping=i.shippingCost||0;
     const rlPackaging=i.packagingCost||0;
@@ -3762,13 +3573,20 @@ function renderItemPage(m,id){
   // ── Postage row HTML ──────────────────────────────────────────────────
   // Options show tier-correct prices based on the item's current sale price.
   const sdOpts=_sdOptionsFor(i.salePrice||0,sdIdx);
-  const postageRowInner=postageMode==='simple'
-    ?'<select class="ip-postage-select" onchange="saveSDRate(\''+m+'\',\''+id+'\',this.value)">'+sdOpts+'</select>'
-     +'<div class="ip-postage-buyer"><label><input type="checkbox" '+(i._sdBuyerPays===true?'':'checked')+' onchange="saveSDFree(\''+m+'\',\''+id+'\',!this.checked)"> Free postage</label></div>'
-    :'<div class="ip-postage-custom">'
-     +'<div class="ip-postage-custom-field"><label>You pay</label><input type="number" step="0.01" value="'+(i.shippingCost||0)+'" onchange="ipSaveNum(\''+m+'\',\''+id+'\',\'shippingCost\',this.value)" onkeydown="if(event.key===\'Enter\')this.blur()"></div>'
-     +'<div class="ip-postage-custom-field"><label>Buyer pays</label><input type="number" step="0.01" value="'+(i.postage||0)+'" onchange="ipSaveNum(\''+m+'\',\''+id+'\',\'postage\',this.value)" onkeydown="if(event.key===\'Enter\')this.blur()"></div>'
+  const _customPostageInner='<div class="ip-postage-custom">'
+     +'<div class="ip-postage-custom-field"><label>You pay (£)</label><input type="number" step="0.01" value="'+(i.shippingCost||0)+'" onchange="ipSaveNum(\''+m+'\',\''+id+'\',\'shippingCost\',this.value)" onkeydown="if(event.key===\'Enter\')this.blur()"></div>'
      +'</div>';
+  const postageRowInner=!_showPostage
+    ?''
+    :!_showSimpleDelivery
+      ?_customPostageInner
+      :(postageMode==='simple'
+        ?'<select class="ip-postage-select" onchange="saveSDRate(\''+m+'\',\''+id+'\',this.value)">'+sdOpts+'</select>'
+         +'<div class="ip-postage-buyer"><label><input type="checkbox" '+(i._sdBuyerPays===true?'':'checked')+' onchange="saveSDFree(\''+m+'\',\''+id+'\',!this.checked)"> Free postage</label></div>'
+        :'<div class="ip-postage-custom">'
+         +'<div class="ip-postage-custom-field"><label>You pay</label><input type="number" step="0.01" value="'+(i.shippingCost||0)+'" onchange="ipSaveNum(\''+m+'\',\''+id+'\',\'shippingCost\',this.value)" onkeydown="if(event.key===\'Enter\')this.blur()"></div>'
+         +'<div class="ip-postage-custom-field"><label>Buyer pays</label><input type="number" step="0.01" value="'+(i.postage||0)+'" onchange="ipSaveNum(\''+m+'\',\''+id+'\',\'postage\',this.value)" onkeydown="if(event.key===\'Enter\')this.blur()"></div>'
+         +'</div>');
 
   // ── Render ────────────────────────────────────────────────────────────
   const saleEditable=!i.dateSold&&!i.resaleSalePrice&&!i.isReturned;
@@ -3779,22 +3597,27 @@ function renderItemPage(m,id){
 
   // Top bar — title is directly editable
   html+='<div class="ip-topbar">';
+  html+='<div class="ip-topbar-row1">';
   html+='<button class="btn btn-s ip-back" onclick="exitItemPage()">← Back</button>';
-  html+='<div class="ip-title-wrap">';
-  html+='<div class="ip-title" onclick="startTitleEdit(\''+m+'\',\''+id+'\')" title="Click to rename">'+esc(i.item)+'</div>';
-  html+='<div class="ip-meta-chips">';
-  if(i.gid)html+='<span class="ip-chip mono">'+esc(i.gid)+'</span>';
-  html+='<span class="ip-chip">'+m+'</span>';
-  html+='<div class="item-badge '+status+'">'+status+'</div>';
-  html+='</div></div>';
-  html+='<div class="ip-actions">';
+  html+='<div class="ip-actions" style="margin-left:0">';
   if((!i.dateSold&&!i.resaleSalePrice)&&!i.isReturned)html+='<button class="btn btn-p ip-act-btn" onclick="markSold(\''+m+'\',\''+id+'\')"><svg width="13" height="13" viewBox="0 0 15 15" fill="none"><path d="M8.5 1.5h4a1 1 0 011 1v4a.5.5 0 01-.15.35l-6 6a1 1 0 01-1.41 0l-4-4a1 1 0 010-1.41l6-6A.5.5 0 018.5 1.5z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/><circle cx="11" cy="4" r="0.8" fill="currentColor"/></svg><span class="ip-act-label">Mark Sold</span></button>';
   if(i.isReturned)html+='<button class="btn btn-p ip-act-btn" onclick="openRelist(\''+m+'\',\''+id+'\')">↩ <span class="ip-act-label">Relist</span></button>';
   if((i.dateSold||i.resaleSalePrice)&&!i.isReturned)html+='<button class="btn btn-s ip-act-btn" onclick="openReturn(\''+m+'\',\''+id+'\')">↩ <span class="ip-act-label">Return</span></button>';
   if(i.dateSold&&!i.resaleSalePrice&&!i.isReturned)html+='<button class="btn btn-s ip-act-btn" onclick="revertToActive(\''+m+'\',\''+id+'\')" title="Undo the sold mark — move this item back to active stock">⟲ <span class="ip-act-label">Revert</span></button>';
   html+='<button class="btn btn-s ip-act-btn" onclick="duplicateItem(\''+m+'\',\''+id+'\')"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><rect x="5" y="5" width="9" height="9" rx="1.5" stroke="currentColor" stroke-width="1.4"/><path d="M3 11V3a1 1 0 011-1h8" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg><span class="ip-act-label">Dupe</span></button>';
   html+='<button class="btn btn-s ip-act-btn ip-act-danger" onclick="deleteItem(\''+m+'\',\''+id+'\')"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M2 4h12M5 4V2h6v2M6 7v5M10 7v5M3 4l1 9a1 1 0 001 1h6a1 1 0 001-1l1-9" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>';
-  html+='</div></div>'; // ip-actions + ip-topbar
+  html+='</div></div>';
+  html+='<div class="ip-topbar-row2">';
+  html+='<div class="ip-title-wrap">';
+  html+='<div class="ip-title" onclick="startTitleEdit(\''+m+'\',\''+id+'\')" title="Click to rename">'+esc(i.item)+'</div>';
+  html+='<div class="ip-meta-chips">';
+  if(i.gid)html+='<span class="ip-chip mono">'+esc(i.gid)+'</span>';
+  html+='<span class="ip-chip">'+m+'</span>';
+  html+='<div class="item-badge '+status+'">'+status+'</div>';
+  const _platBadge=platBadgeHTML(i);
+  if(_platBadge)html+=_platBadge;
+  html+='</div></div></div>';
+  html+='</div>'; // ip-topbar
 
   // All content below topbar in one flex column with uniform 12px gap
   html+='<div class="ip-content">';
@@ -3818,7 +3641,7 @@ function renderItemPage(m,id){
 
   // Promo %
   html+='<div class="ip-token" id="tok-promoPercent-'+id+'" onpointerdown="tokenPointerDown(\''+m+'\',\''+id+'\',\'promoPercent\')" onclick="openTokenEdit(\''+m+'\',\''+id+'\',\'promoPercent\')">';
-  html+='<div class="ip-token-label">Promo %</div>';
+  html+='<div class="ip-token-label">'+_promoLabel+'</div>';
   html+='<div class="ip-token-val">'+promoStr+'%</div>';
   html+='<div class="ip-token-sub">Tap to edit · Fee: '+fmt(promoCost)+'</div>';
   html+='</div>';
@@ -3832,16 +3655,19 @@ function renderItemPage(m,id){
 
   html+='</div>'; // ip-tokens
 
-  // Postage row
-  html+='<div class="ip-postage-row">';
-  html+='<span class="ip-postage-label">Postage</span>';
-  html+='<div class="ip-postage-mode">';
-  html+='<button class="ip-postage-mode-btn'+(postageMode==='simple'?' active':'')+'" onclick="savePostageMode(\''+m+'\',\''+id+'\',\'simple\')">Simple Delivery</button>';
-  html+='<button class="ip-postage-mode-btn'+(postageMode==='custom'?' active':'')+'" onclick="savePostageMode(\''+m+'\',\''+id+'\',\'custom\')">Custom</button>';
-  html+='</div>';
-  html+='<div class="ip-postage-divider"></div>';
-  html+=postageRowInner;
-  html+='</div>'; // ip-postage-row
+  if(_showPostage){
+    html+='<div class="ip-postage-row">';
+    html+='<span class="ip-postage-label">Postage</span>';
+    if(_showSimpleDelivery){
+      html+='<div class="ip-postage-mode">';
+      html+='<button class="ip-postage-mode-btn'+(postageMode==='simple'?' active':'')+'" onclick="savePostageMode(\''+m+'\',\''+id+'\',\'simple\')">Simple Delivery</button>';
+      html+='<button class="ip-postage-mode-btn'+(postageMode==='custom'?' active':'')+'" onclick="savePostageMode(\''+m+'\',\''+id+'\',\'custom\')">Custom</button>';
+      html+='</div>';
+      html+='<div class="ip-postage-divider"></div>';
+    }
+    html+=postageRowInner;
+    html+='</div>';
+  }
 
   // Body sections
   html+='<div class="ip-body">';
@@ -4399,6 +4225,21 @@ function initPanelSwipe(){
 }
 initPanelSwipe();
 
+function onFabClick(){
+  const activePage=document.querySelector('.page.on');
+  const isExpenses=activePage&&activePage.id==='p-expenses';
+  if(isExpenses){
+    const dial=document.getElementById('fab-dial');
+    if(dial)dial.classList.contains('open')?closeFabDial():dial.classList.add('open');
+  }else{
+    openQuickAdd();
+  }
+}
+function closeFabDial(){
+  const dial=document.getElementById('fab-dial');
+  if(dial)dial.classList.remove('open');
+}
+
 function openQuickAdd(){
   // If not on a monthly page, pre-select current month rather than SELECTED_MONTH
   const activePage=(document.querySelector('.page.on')||{id:''}).id;
@@ -4406,7 +4247,6 @@ function openQuickAdd(){
     SELECTED_MONTH=currentMonthKey();
   }
   const html=`
-    <div class="panel-section">New item</div>
     ${formHTML()}
     <div id="qa-coming-soon-banner" class="qa-coming-soon-banner" style="display:none">
       <div class="qa-cs-icon">
@@ -4420,13 +4260,14 @@ function openQuickAdd(){
     </div>
     <button class="btn btn-p" id="qa-submit-btn" style="width:100%;margin-top:20px" onclick="submitQuickAdd()">Add Item</button>
   `;
-  openPanel('Quick Add',html);
+  openPanel('Quick Add — New Item',html);
   // Session D1.6 — initialise price label + submit state for the default
   // platform (eBay). This is a no-op cosmetically since eBay is the default,
   // but ensures the helper text + button state are consistent if the user's
   // future default ever changes.
   if(typeof _refreshQuickAddPriceCopy==='function')_refreshQuickAddPriceCopy();
   if(typeof _refreshQuickAddSubmitState==='function')_refreshQuickAddSubmitState();
+  if(typeof _refreshQuickAddDelivery==='function')_refreshQuickAddDelivery();
   // Focus the item name field immediately — must be synchronous within the
   // tap gesture chain for mobile keyboard to fire reliably.
   const qaItem=document.getElementById('qa-item');
@@ -4479,8 +4320,8 @@ function submitQuickAdd(){
     _postageMode='custom';
     postage=parseFloat(document.getElementById('qa-postage')?.value)||0;
     shippingCost=parseFloat(document.getElementById('qa-shipping')?.value)||0;
-    packagingCost=parseFloat(document.getElementById('qa-packaging')?.value)||0;
   }
+  packagingCost=parseFloat(document.getElementById('qa-packaging')?.value)||0;
   const item={
     id:'qa_'+Date.now(),
     gid:'R-'+String(getNextGID()).padStart(4,'0'),
@@ -4571,34 +4412,17 @@ function formHTML(){
       </div>
     </div>
     <div id="qa-price-helper" class="qa-price-helper" style="display:none"></div>
-    <div id="bpf-preview" class="bpf-info" style="display:none">
-      <div class="bpf-preview-inner" style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
-        <div>
-          <div style="font-size:11px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px">Fee breakdown</div>
-          <div class="bpf-breakdown">
-            <span><span id="bpf-listed-label">Buyer pays: </span><strong id="bpf-listed">£0.00</strong></span>
-            <span style="color:var(--red)"><span id="bpf-fee-label">− BPF: </span><strong id="bpf-fee">£0.00</strong></span>
-            <span style="color:var(--green)">= You receive: <strong id="bpf-total">£0.00</strong></span>
-          </div>
-        </div>
-        <div id="profit-preview" class="bpf-profit-right" style="display:none;text-align:right">
-          <div style="font-size:11px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px">Est. profit</div>
-          <div id="profit-val" style="font-family:var(--font-mono);font-size:22px;font-weight:700;line-height:1">£0.00</div>
-          <div id="profit-roi" style="font-size:11px;color:var(--text-secondary);margin-top:2px"></div>
-        </div>
-      </div>
-    </div>
-    <div class="fg">
+    <div id="qa-delivery-section" class="fg">
       <label>Delivery</label>
-      <div style="display:flex;gap:0;border:1px solid var(--border);border-radius:8px;overflow:hidden;margin-bottom:10px">
+      <div id="qa-mode-toggle" style="display:flex;gap:8px;margin-bottom:10px">
         <button type="button" id="qa-mode-simple"
           onclick="qaSetDeliveryMode('simple')"
-          style="flex:1;padding:8px;font-size:13px;font-weight:600;border:none;cursor:pointer;background:var(--accent);color:#000;transition:all 0.15s">
+          style="flex:1;padding:8px 12px;font-size:13px;font-weight:600;border:1px solid var(--accent);border-radius:8px;cursor:pointer;background:var(--accent);color:#000;transition:all 0.15s">
           Simple Delivery
         </button>
         <button type="button" id="qa-mode-custom"
           onclick="qaSetDeliveryMode('custom')"
-          style="flex:1;padding:8px;font-size:13px;font-weight:600;border:none;cursor:pointer;background:var(--surface2);color:var(--text-secondary);transition:all 0.15s">
+          style="flex:1;padding:8px 12px;font-size:13px;font-weight:600;border:1px solid var(--border);border-radius:8px;cursor:pointer;background:var(--surface2);color:var(--text-secondary);transition:all 0.15s">
           Custom
         </button>
       </div>
@@ -4614,7 +4438,7 @@ function formHTML(){
       </div>
 
       <div id="qa-delivery-custom" style="display:none">
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:8px">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
           <div class="fg" style="margin-bottom:0">
             <label style="margin-bottom:4px">Your cost (£)</label>
             <input type="number" id="qa-shipping" step="0.01" min="0" placeholder="0.00" oninput="updateBPFPreview()">
@@ -4624,16 +4448,39 @@ function formHTML(){
             <input type="number" id="qa-postage" step="0.01" min="0" placeholder="0.00" oninput="updateBPFPreview()">
           </div>
         </div>
-        <div class="fg" style="margin-bottom:0">
-          <label style="margin-bottom:4px">Packaging (£)</label>
-          <input type="number" id="qa-packaging" step="0.01" min="0" placeholder="0.00" oninput="updateBPFPreview()">
-        </div>
+      </div>
+      <div id="qa-vinted-postage-note" style="display:none;font-size:12px;color:var(--text-secondary);padding:8px 10px;background:var(--surface2);border-radius:8px;border:1px solid var(--border);margin-top:4px">
+        📦 Buyer pays postage on Vinted — no shipping cost to you
       </div>
     </div>
 
     <div class="fg">
-      <label>Promo %</label>
+      <label>Packaging (£)</label>
+      <input type="number" id="qa-packaging" step="0.01" min="0" placeholder="0.00" oninput="updateBPFPreview()">
+    </div>
+
+    <div class="fg">
+      <label id="qa-promo-label">Promo %</label>
       <input type="number" id="qa-promo" step="0.1" min="0" placeholder="0" oninput="updateBPFPreview()">
+    </div>
+
+    <div id="bpf-preview" class="bpf-info" style="display:none">
+      <div class="bpf-preview-inner" style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
+        <div>
+          <div style="font-size:11px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px">Fee breakdown</div>
+          <div class="bpf-breakdown">
+            <span><span id="bpf-listed-label">Buyer pays: </span><strong id="bpf-listed">£0.00</strong></span>
+            <span style="color:var(--red)"><span id="bpf-fee-label">− BPF: </span><strong id="bpf-fee">£0.00</strong></span>
+            <span style="color:var(--green)">= You receive: <strong id="bpf-total">£0.00</strong></span>
+          </div>
+          <div id="bpf-postage-note" style="display:none;font-size:11px;color:var(--text-secondary);margin-top:6px"></div>
+        </div>
+        <div id="profit-preview" class="bpf-profit-right" style="display:none;text-align:right">
+          <div style="font-size:11px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px">Est. profit</div>
+          <div id="profit-val" style="font-family:var(--font-mono);font-size:22px;font-weight:700;line-height:1">£0.00</div>
+          <div id="profit-roi" style="font-size:11px;color:var(--text-secondary);margin-top:2px"></div>
+        </div>
+      </div>
     </div>
   `;
 }
@@ -4661,8 +4508,37 @@ function qaSetPlatform(platformId){
   // D1.6 — adapt the price label, helper text and lock-state to the platform
   _refreshQuickAddPriceCopy();
   _refreshQuickAddSubmitState();
+  _refreshQuickAddDelivery();
   // Recompute the preview so fee labels + numbers update live.
   if(typeof updateBPFPreview==='function')updateBPFPreview();
+}
+
+function _refreshQuickAddDelivery(){
+  const platformId=document.getElementById('qa-platform')?.value||DEFAULT_PLATFORM;
+  const isEbay=platformId==='ebay';
+  const isVinted=platformId==='vinted';
+  const modeToggle=document.getElementById('qa-mode-toggle');
+  if(modeToggle)modeToggle.style.display=isEbay?'':'none';
+  if(!isEbay){
+    const simplePanel=document.getElementById('qa-delivery-simple');
+    const customPanel=document.getElementById('qa-delivery-custom');
+    const simpleBtn=document.getElementById('qa-mode-simple');
+    const customBtn=document.getElementById('qa-mode-custom');
+    if(simplePanel&&simplePanel.style.display!=='none'){
+      if(simplePanel)simplePanel.style.display='none';
+      if(customPanel)customPanel.style.display='';
+      if(simpleBtn){simpleBtn.style.background='var(--surface2)';simpleBtn.style.color='var(--text-secondary)';simpleBtn.style.borderColor='var(--border)';}
+      if(customBtn){customBtn.style.background='var(--accent)';customBtn.style.color='#000';customBtn.style.borderColor='var(--accent)';}
+    }
+  }
+  const customPanel=document.getElementById('qa-delivery-custom');
+  const vintedNote=document.getElementById('qa-vinted-postage-note');
+  if(customPanel)customPanel.style.display=isVinted?'none':'';
+  if(vintedNote)vintedNote.style.display=isVinted?'':'none';
+  const promoLbl=document.getElementById('qa-promo-label');
+  if(promoLbl)promoLbl.textContent=isEbay?'Promo %':'Boost %';
+  const postageNote=document.getElementById('bpf-postage-note');
+  if(postageNote){if(isVinted){postageNote.textContent='📦 Buyer pays postage — not deducted from your proceeds';postageNote.style.display='';}else{postageNote.style.display='none';}}
 }
 
 // Session D1.6 — Refresh price input label + helper text from the active
@@ -4718,8 +4594,10 @@ function qaSetDeliveryMode(mode){
   const isSimple=mode==='simple';
   simpleBtn.style.background=isSimple?'var(--accent)':'var(--surface2)';
   simpleBtn.style.color=isSimple?'#000':'var(--text-secondary)';
+  simpleBtn.style.borderColor=isSimple?'var(--accent)':'var(--border)';
   customBtn.style.background=isSimple?'var(--surface2)':'var(--accent)';
   customBtn.style.color=isSimple?'var(--text-secondary)':'#000';
+  customBtn.style.borderColor=isSimple?'var(--border)':'var(--accent)';
   simplePanel.style.display=isSimple?'':'none';
   customPanel.style.display=isSimple?'none':'';
   updateBPFPreview();
@@ -4792,8 +4670,8 @@ function updateBPFPreview(){
   }else{
     shipping=parseFloat(document.getElementById('qa-shipping')?.value)||0;
     buyerPostage=parseFloat(document.getElementById('qa-postage')?.value)||0;
-    packaging=parseFloat(document.getElementById('qa-packaging')?.value)||0;
   }
+  packaging=parseFloat(document.getElementById('qa-packaging')?.value)||0;
   const promoRaw=parseFloat(document.getElementById('qa-promo').value)||0;
   const promoPercent=promoRaw/100;
   const promoCost=net*promoPercent*1.20;
@@ -5116,7 +4994,7 @@ function showFilteredItems(filter){
     if((filter==='revenue'||filter==='realised')&&sold){
       if(!_inSummaryPeriod(saleDate))return;
       if(i.resaleSalePrice){
-        const bpf=calcEbayBPF(i.salePrice);
+        const bpf=calcPlatformBPF(i,i.salePrice);
         const grossInc=i.salePrice-bpf;
         const promoCost=grossInc*(i.promoPercent||0)*1.20;
         const rev=i.salePrice+(i.postage||0)-bpf;
@@ -5128,7 +5006,7 @@ function showFilteredItems(filter){
         const partsCost=calcPartsCost(i);
         const cost=(i.costPrice||0)+(i.shippingCost||0)+(i.packagingCost||0)+promoCost+returnCost+partsCost;
         const sale1Profit=+(rev-cost).toFixed(2);
-        const rBPF=calcEbayBPF(i.resaleSalePrice);
+        const rBPF=calcPlatformBPF(i,i.resaleSalePrice);
         const rGrossInc=i.resaleSalePrice-rBPF;
         const rPromoCost=rGrossInc*(i.resalePromoPercent||0)*1.20;
         const sale2Profit=+(i.resaleSalePrice-rBPF-(i.resaleShippingCost||0)-rPromoCost).toFixed(2);
@@ -6232,7 +6110,7 @@ function renderMonth(){
         <div class="kval">${stats.avgROI!==null?stats.avgROI.toFixed(1)+'%':'—'}</div>
         <div class="ksub">${stats.avgDays!==null?stats.avgDays+'d avg to sell':stats.soldCount===0?'No sales':'—'}</div>
       </div>
-      <div class="kcard p">
+      <div class="kcard r">
         <div class="klabel">Refund rate</div>
         <div class="kval">${refundLabel}</div>
         <div class="ksub">${refundSub}</div>
@@ -6489,6 +6367,7 @@ function renderItemRow(m,i){
           '<div class="item-row-name">'+esc(i.item)+'</div>'+
           '<div class="item-row-meta">'+
             '<span class="item-badge '+badgeClass+'">'+badgeLabel+'</span>'+
+            platBadgeHTML(i)+
             (metaStr?'<span class="item-row-meta-sep">·</span><span>'+metaStr+'</span>':'')+
             actionHint+
           '</div>'+
@@ -6523,7 +6402,7 @@ function openItemDetail(m,id,noHistory){
         return last._salePriceAtReturn||last.refundAmount||i.salePrice||0;
       })()
     : (i.salePrice||0);
-  const bpf=calcEbayBPF(_origSalePrice);
+  const bpf=calcPlatformBPF(i,_origSalePrice);
   const grossInc=_origSalePrice-bpf;
   const promoCost=grossInc*(i.promoPercent||0)*1.20;
   const profit=calcGrossProfit(i);
@@ -6930,7 +6809,7 @@ function renderStock(){
           {v:'days-asc', label:'Newest first'}
         ];
         const sortHTML=sortOpts.map(o=>`<option value="${o.v}" ${STOCK_SORT===o.v?'selected':''}>${o.label}</option>`).join('');
-        return `<div class="filter-row stock-filter-row" style="margin-bottom:14px;gap:8px;flex-wrap:wrap;align-items:center;">
+        return `<div class="filter-row stock-filter-row" style="margin-bottom:14px;gap:8px;flex-wrap:nowrap;align-items:center;">
           <div class="filter-chips">${chips}</div>
           <div class="filter-pill-dd" id="sfp-filter">
             <div class="filter-pill-dd-backdrop" onclick="closeFilterPill('sfp-filter')"></div>
@@ -6940,7 +6819,7 @@ function renderStock(){
             </button>
             <div class="filter-pill-dd-menu" onclick="event.stopPropagation()">${ddOpts}</div>
           </div>
-          <select class="sort-select" onchange="setStockSort(this.value)" style="margin-left:auto;flex-shrink:0;">${sortHTML}</select>
+          <select class="sort-select" onchange="setStockSort(this.value)" style="flex:1 1 0;min-width:0;">${sortHTML}</select>
         </div>`;
       })()}
       <div class="list-toolbar">
@@ -7056,11 +6935,7 @@ function calcTieredTrips(trips){
 function renderExpenses(){
   const trips=DB.trips||[];
   const expenses=DB.expenses||[];
-  // BUG-07: per-trip cost engine — handles HMRC mid-trip tiering AND
-  // per-trip expenses (parking, entry fees, etc.). Trip card total now
-  // reconciles exactly to the sum of per-trip totalCosts.
   const tiered=calcTieredTrips(trips);
-  // Build an O(1) lookup by trip id for the row render.
   const _tieredById={};
   trips.forEach(function(t,idx){ if(t&&t.id) _tieredById[t.id]=tiered[idx]; });
   const totalTripMileage=tiered.reduce(function(s,r){return s+r.mileageCost;},0);
@@ -7070,16 +6945,74 @@ function renderExpenses(){
   const _anyTier2=tiered.some(function(r){return r.tier2Miles>0;});
   const _anyExtras=totalTripExpenses>0;
   const totalExp=expenses.reduce((s,e)=>s+(e.amount||0),0);
-  
+
+  // Month grouping
+  function _mKey(d){return d?(d.slice(0,7)):'0000-00';}
+  const _ML={'01':'Jan','02':'Feb','03':'Mar','04':'Apr','05':'May','06':'Jun','07':'Jul','08':'Aug','09':'Sep','10':'Oct','11':'Nov','12':'Dec'};
+  function _fmtMK(k){if(!k||k==='0000-00')return 'Undated';const[y,m]=k.split('-');return(_ML[m]||m)+' '+y;}
+  const mMap={};
+  trips.forEach(function(t,origIdx){const k=_mKey(t.date);if(!mMap[k])mMap[k]={trips:[],expenses:[]};mMap[k].trips.push({t,origIdx});});
+  expenses.forEach(function(e,idx){const k=_mKey(e.date);if(!mMap[k])mMap[k]={trips:[],expenses:[]};mMap[k].expenses.push({e,idx});});
+  const sortedMonths=Object.keys(mMap).sort((a,b)=>b.localeCompare(a));
+
+  const _editSVG='<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>';
+  const _delSVG='<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>';
+  function _tripRow({t,origIdx}){
+    const r=_tieredById[t.id]||{totalCost:0,mileageCost:0,expensesCost:0,isSplit:false,tier2Miles:0,ratePerMile:t.ratePerMile||0.45};
+    const expCount=Array.isArray(t.expenses)?t.expenses.length:0;
+    let rateLabel=r.isSplit?fmt(r.ratePerMile||0.45)+'+'+fmt(0.25):r.tier2Miles>0?fmt(0.25):fmt(r.ratePerMile||t.ratePerMile||0.45);
+    const metaParts=[(t.mileage||0)+' mi @ '+rateLabel+'/mi'];
+    if(r.isSplit)metaParts.push('<span style="color:var(--accent)">tiered</span>');
+    else if(r.tier2Miles>0)metaParts.push('<span style="color:var(--accent)">tier 2</span>');
+    if(expCount>0)metaParts.push(expCount+' extra'+(expCount!==1?'s':''));
+    if(t.date)metaParts.push(t.date);
+    return `<div class="expense-item clickable" onclick="showTripBreakdown(${origIdx})">
+      <div class="exp-dot trip"></div>
+      <div class="expense-main"><div class="expense-label">${esc(t.description||'Sourcing trip')}</div><div class="expense-meta">${metaParts.join('<span style="color:var(--border2)">&nbsp;·&nbsp;</span>')}</div></div>
+      <div class="expense-right"><div class="expense-amount">${r.totalCost>0?fmt(r.totalCost):'<span style="color:var(--muted)">—</span>'}</div></div>
+      <div class="expense-actions" onclick="event.stopPropagation()">
+        <button class="btn btn-s" style="padding:5px 10px;font-size:12px" onclick="editTrip(${origIdx})">${_editSVG}</button>
+        <button class="btn btn-s" style="padding:5px 10px;font-size:12px;color:var(--red);border-color:rgba(248,113,113,0.3)" onclick="deleteTrip(${origIdx})">${_delSVG}</button>
+      </div></div>`;
+  }
+  function _expRow({e,idx}){
+    return `<div class="expense-item">
+      <div class="exp-dot expense"></div>
+      <div class="expense-main"><div class="expense-label">${esc(e.description||'Expense')}</div><div class="expense-meta">${[e.date,e.category?esc(e.category):''].filter(Boolean).join('<span style="color:var(--border2)">&nbsp;·&nbsp;</span>')}</div></div>
+      <div class="expense-right"><div class="expense-amount">${(e.amount||0)>0?fmt(e.amount):'<span style="color:var(--muted)">—</span>'}</div></div>
+      <div class="expense-actions">
+        <button class="btn btn-s" style="padding:5px 10px;font-size:12px" onclick="editExpense(${idx})">${_editSVG}</button>
+        <button class="btn btn-s" style="padding:5px 10px;font-size:12px;color:var(--red);border-color:rgba(248,113,113,0.3)" onclick="deleteExpense(${idx})">${_delSVG}</button>
+      </div></div>`;
+  }
+  const _curMonthKey=new Date().toISOString().slice(0,7);
+  const monthSections=sortedMonths.map(mk=>{
+    const{trips:mT,expenses:mE}=mMap[mk];
+    const mTC=mT.reduce((s,{t})=>{const r=_tieredById[t.id]||{totalCost:0};return s+r.totalCost;},0);
+    const mEC=mE.reduce((s,{e})=>s+(e.amount||0),0);
+    const mTot=+(mTC+mEC).toFixed(2);
+    const rc=mT.length+mE.length;
+    return `<div class="exp-month-group${mk!==_curMonthKey?' collapsed':''}">
+      <div class="exp-month-header" onclick="this.closest('.exp-month-group').classList.toggle('collapsed')">
+        <div style="display:flex;align-items:center;gap:8px">
+          <span class="exp-month-toggle">▾</span>
+          <span style="font-weight:700;font-size:14px">${_fmtMK(mk)}</span>
+          <span style="font-size:12px;color:var(--muted)">${rc} item${rc!==1?'s':''}</span>
+        </div>
+        <span style="font-family:var(--font-mono);font-weight:600;font-size:13px;color:var(--red)">${mTot>0?'−'+fmt(mTot):'—'}</span>
+      </div>
+      <div class="exp-month-body">
+        ${mT.length>0?'<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.6px;color:var(--muted);padding:8px 4px 4px">Trips</div>'+mT.sort((a,b)=>(b.t.date||'').localeCompare(a.t.date||'')).map(_tripRow).join(''):''}
+        ${mE.length>0?'<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.6px;color:var(--muted);padding:8px 4px 4px">Expenses</div>'+mE.map(_expRow).join(''):''}
+      </div>
+    </div>`;
+  }).join('');
+
   const html=`
     <div class="page-header">
       <div>
         <div class="page-title">Expenses</div>
         <div class="page-subtitle">Track sourcing trips and business costs</div>
-      </div>
-      <div class="page-actions">
-        <button class="btn btn-s" onclick="addTrip()">+ Trip</button>
-        <button class="btn btn-p" onclick="addExpense()">+ Expense</button>
       </div>
     </div>
 
@@ -7101,68 +7034,7 @@ function renderExpenses(){
       </div>
     </div>
 
-    <div class="sl">Sourcing Trips</div>
-    ${trips.length===0?`
-      <div class="empty-state">
-        <div class="empty-state-icon"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 17H3a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2h11l4 4v4a2 2 0 0 1-2 2h-1"/><path d="M14 17a2 2 0 1 0 4 0 2 2 0 0 0-4 0"/><path d="M5 17a2 2 0 1 0 4 0 2 2 0 0 0-4 0"/><line x1="3" y1="9" x2="14" y2="9"/></svg></div>
-        <div class="empty-state-text">No trips logged</div>
-        <div class="empty-state-sub">Log sourcing runs to claim mileage at HMRC approved rate</div>
-      </div>
-    `:`
-      ${[...trips].map((t,_,arr)=>({t,origIdx:trips.indexOf(t)})).sort((a,b)=>(b.t.date||'').localeCompare(a.t.date||'')).map(({t,origIdx})=>{
-        const r=_tieredById[t.id]||{totalCost:0,mileageCost:0,expensesCost:0,isSplit:false,tier1Miles:0,tier2Miles:0,ratePerMile:t.ratePerMile||0.45};
-        const expCount=Array.isArray(t.expenses)?t.expenses.length:0;
-        // Rate display: show the applied rate(s) after tiering, not the raw
-        // form input. A pure tier-1 trip shows trip.ratePerMile (usually 45p),
-        // a pure tier-2 trip shows 0.25, and a split trip shows both.
-        let rateLabel;
-        if(r.isSplit){
-          rateLabel=fmt(r.ratePerMile||0.45)+'+'+fmt(0.25);
-        }else if(r.tier2Miles>0){
-          rateLabel=fmt(0.25);
-        }else{
-          rateLabel=fmt(r.ratePerMile||t.ratePerMile||0.45);
-        }
-        const metaParts=[t.date, (t.mileage||0)+' mi @ '+rateLabel+'/mi'];
-        if(r.isSplit) metaParts.push('<span style="color:var(--accent)">tiered</span>');
-        else if(r.tier2Miles>0) metaParts.push('<span style="color:var(--accent)">tier 2</span>');
-        if(expCount>0) metaParts.push(expCount+' extra'+(expCount!==1?'s':''));
-        return `
-        <div class="expense-item" style="cursor:pointer" onclick="showTripBreakdown(${origIdx})">
-          <div class="expense-main">
-            <div class="expense-label">${esc(t.description||'Sourcing trip')}</div>
-            <div class="expense-meta">${metaParts.join(' &middot; ')}</div>
-          </div>
-          <div style="display:flex;align-items:center;gap:10px" onclick="event.stopPropagation()">
-            <div class="expense-amount">${r.totalCost>0?fmt(r.totalCost):'<span style="color:var(--muted);font-weight:500">—</span>'}</div>
-            <button class="btn btn-s" style="padding:5px 10px;font-size:12px" onclick="editTrip(${origIdx})"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
-            <button class="btn btn-s" style="padding:5px 10px;font-size:12px;color:var(--red);border-color:rgba(248,113,113,0.3)" onclick="deleteTrip(${origIdx})"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg></button>
-          </div>
-        </div>`;}).join('')}
-    `}
-
-    <div class="sl" style="margin-top:40px">Other Expenses</div>
-    ${expenses.length===0?`
-      <div class="empty-state">
-        <div class="empty-state-icon"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 2h14a1 1 0 0 1 1 1v18l-2.5-1.5L15 21l-2.5-1.5L10 21l-2.5-1.5L5 21V3a1 1 0 0 1 0-1z"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="12" y2="16"/></svg></div>
-        <div class="empty-state-text">No expenses logged</div>
-        <div class="empty-state-sub">Add packaging, fees, equipment and other business costs</div>
-      </div>
-    `:`
-      ${expenses.map((e,idx)=>`
-        <div class="expense-item">
-          <div class="expense-main">
-            <div class="expense-label">${esc(e.description||'Expense')}</div>
-            <div class="expense-meta">${e.date}${e.category?` &middot; ${esc(e.category)}`:''}</div>
-          </div>
-          <div style="display:flex;align-items:center;gap:10px">
-            <div class="expense-amount">${(e.amount||0)>0?fmt(e.amount):'<span style="color:var(--muted);font-weight:500">—</span>'}</div>
-            <button class="btn btn-s" style="padding:5px 10px;font-size:12px" onclick="editExpense(${idx})"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
-            <button class="btn btn-s" style="padding:5px 10px;font-size:12px;color:var(--red);border-color:rgba(248,113,113,0.3)" onclick="deleteExpense(${idx})"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg></button>
-          </div>
-        </div>
-      `).join('')}
-    `}
+    ${sortedMonths.length===0?`<div class="empty-state"><div class="empty-state-text">No expenses yet</div><div class="empty-state-sub">Tap + to log a sourcing trip or business expense</div></div>`:monthSections}
   `;
   document.getElementById('p-expenses').innerHTML=html;
 }
@@ -8939,8 +8811,8 @@ function renderTax(){
   });});
   const totalIncome=soldItems.reduce(function(s,i){return s+(i.salePrice||0)+(i.resaleSalePrice||0);},0);
   const saleCount=soldItems.length;
-  const totalBPF=soldItems.reduce(function(s,i){return s+calcEbayBPF(i.salePrice||0)+(i.resaleSalePrice?calcEbayBPF(i.resaleSalePrice):0);},0);
-  const totalPromo=soldItems.reduce(function(s,i){var bpf=calcEbayBPF(i.salePrice||0);return s+((i.salePrice||0)-bpf)*(i.promoPercent||0)*1.20;},0);
+  const totalBPF=soldItems.reduce(function(s,i){return s+calcPlatformBPF(i,i.salePrice||0)+(i.resaleSalePrice?calcPlatformBPF(i,i.resaleSalePrice):0);},0);
+  const totalPromo=soldItems.reduce(function(s,i){var bpf=calcPlatformBPF(i,i.salePrice||0);return s+((i.salePrice||0)-bpf)*(i.promoPercent||0)*1.20;},0);
   const totalPostage=soldItems.reduce(function(s,i){return s+(i.shippingCost||0)+(i.resaleShippingCost||0);},0);
   const totalPackaging=soldItems.reduce(function(s,i){return s+(i.packagingCost||0);},0);
   const totalStockCost=soldItems.reduce(function(s,i){return s+(i.costPrice||0);},0);
@@ -9622,24 +9494,23 @@ function calcEbayBPF(salePrice){
 // and all callers continue to work unchanged.
 // ─────────────────────────────────────────────────────────────────────────────
 function calcVintedBPF(item,salePrice){
-  // TODO: implement Vinted fee model when first real Vinted sale is logged.
-  // Note: Vinted's "Buyer Protection Fee" is buyer-paid; seller fee is largely
-  // £0 today, but verify against an actual settlement before shipping.
-  return calcEbayBPF(salePrice);
+  // Vinted: seller fee is £0. Buyer pays a separate Buyer Protection Fee on top.
+  return 0;
 }
 function calcDepopBPF(item,salePrice){
-  // TODO: implement Depop fee model when first real Depop sale is logged.
-  // Historical reference: 10% selling fee + payment processing — verify current.
-  return calcEbayBPF(salePrice);
+  // Depop: 10% commission + 2.9% payment processing + £0.30 flat.
+  if(!salePrice||salePrice<=0)return 0;
+  return+(salePrice*0.10+salePrice*0.029+0.30).toFixed(2);
 }
 function calcFbBPF(item,salePrice){
-  // TODO: implement FB Marketplace fee model. Local pickup typically £0;
-  // FB Shipping has its own fee schedule — verify against real settlement.
-  return calcEbayBPF(salePrice);
+  // Facebook Marketplace (P2P): £0 platform fee.
+  return 0;
 }
 function calcAmazonUKBPF(item,salePrice){
-  // TODO: implement Amazon UK (used) referral fees — category-dependent.
-  return calcEbayBPF(salePrice);
+  // Amazon UK (used): 15% referral fee + £0.75 closing fee.
+  const rate=0.15;
+  if(!salePrice||salePrice<=0)return 0;
+  return+(salePrice*rate+0.75).toFixed(2);
 }
 
 // Dispatcher: routes to the right platform fee primitive based on the item.
@@ -9706,7 +9577,7 @@ function calcGrossProfit(i){
   const _s1Promo=(_snap&&_fullReturnEntry._promoPercentAtRelist!==undefined)?_fullReturnEntry._promoPercentAtRelist:(i.promoPercent||0);
   const _baseSale=_snap?_s1SalePrice:i.salePrice;
   const effectiveSaleForFees=Math.max(0,_baseSale-partialSellerRefund);
-  const bpf=calcEbayBPF(effectiveSaleForFees);
+  const bpf=calcPlatformBPF(i,effectiveSaleForFees);
   const grossInc=effectiveSaleForFees-bpf;
   const promoCost=grossInc*_s1Promo*1.20;
   // Determine if this item has been relisted after a full return
@@ -9731,7 +9602,7 @@ function calcGrossProfit(i){
       }
       // Standard path: item is returned and not yet relisted — charge refund net of BPF refund
       const origSalePrice=r._salePriceAtReturn||r.refundAmount||i.salePrice||0;
-      const origBPF=calcEbayBPF(origSalePrice);
+      const origBPF=calcPlatformBPF(i,origSalePrice);
       const netRefund=Math.max(0,(r.refundAmount||0)-origBPF);
       return s+netRefund+(r.returnPostage||0);
     }
@@ -9744,7 +9615,7 @@ function calcGrossProfit(i){
   let profit=rev-cost;
   // Second sale (resold after return)
   if(i.resaleSalePrice){
-    const rBPF=calcEbayBPF(i.resaleSalePrice);
+    const rBPF=calcPlatformBPF(i,i.resaleSalePrice);
     const rGrossInc=i.resaleSalePrice-rBPF;
     const rPromoCost=rGrossInc*(i.resalePromoPercent||0)*1.20;
     const rRev=i.resaleSalePrice-rBPF-(i.resaleShippingCost||0)-(i.resalePackagingCost||0)-rPromoCost;
@@ -9772,7 +9643,7 @@ function calcEstProfit(i){
   // the hypothetical sale-2 NET profit (revenue minus those same costs) and
   // add it on. The relist costs cancel out, leaving:
   //   est = costPrice-sunk + returnPostages + (relistRev - relistFees)
-  const rlBPF=calcEbayBPF(i.salePrice||0);
+  const rlBPF=calcPlatformBPF(i,i.salePrice||0);
   const rlGrossInc=(i.salePrice||0)-rlBPF;
   const rlPromoCost=rlGrossInc*(i.promoPercent||0)*1.20;
   const rlRev=(i.salePrice||0)+(i.postage||0)-rlBPF;
@@ -10247,7 +10118,7 @@ function _restoreAuthInputs(){
       document.getElementById('bottom-nav').style.display = 'flex';
     }
     document.getElementById('main-content').style.display = '';
-    document.getElementById('fab').style.display = '';
+    const _fd=document.getElementById('fab-dial');if(_fd)_fd.style.display='';
     // Sync theme label on show
     const _t = document.documentElement.getAttribute('data-theme')||'light';
     const _ul = document.getElementById('user-menu-theme-label');
@@ -10487,9 +10358,6 @@ function exportForSupabase(){
   const trips=(DB.trips||[]).map(function(t){return{id:t.id||String(Date.now()),date:t.date,description:t.description||'',mileage:t.mileage||0,rate_per_mile:t.ratePerMile||0.45};});
   const expenses=(DB.expenses||[]).map(function(e){return{id:e.id||String(Date.now()),date:e.date,description:e.description||'',amount:e.amount||0,category:e.category||null};});
   const out={items,item_parts:parts,item_returns:returns,trips,expenses};
-  console.log('=== SUPABASE EXPORT ===');
-  console.log(JSON.stringify(out,null,2));
-  console.log('Items:',items.length,'Parts:',parts.length,'Returns:',returns.length,'Trips:',trips.length,'Expenses:',expenses.length);
   return out;
 }
 // Usage: open browser console and run: exportForSupabase()
