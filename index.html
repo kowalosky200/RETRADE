@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Retrade</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,300;0,14..32,400;0,14..32,500;0,14..32,600;0,14..32,700;0,14..32,800;0,14..32,900;1,14..32,400&family=Space+Grotesk:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -233,6 +233,14 @@ nav:not(#bottom-nav){position:sticky;top:0;z-index:200;background:var(--surface)
   body{padding-bottom:60px;}
   .fab{bottom:72px!important;}
   .fab-dial{bottom:72px!important;}
+}
+/* Landscape on mobile: keep bottom nav visible, shift FAB above it */
+@media(max-width:900px) and (orientation:landscape) and (max-height:500px){
+  nav:not(#bottom-nav){display:none!important;}
+  #bottom-nav{display:flex!important;}
+  body{padding-bottom:60px;}
+  .fab{bottom:72px!important;right:16px!important;}
+  .fab-dial{bottom:72px!important;right:16px!important;}
 }
 /* MORE SHEET */
 .more-sheet-row{display:flex;align-items:center;gap:16px;width:100%;padding:14px 22px;background:none;border:none;text-align:left;cursor:pointer;font-size:15px;font-weight:500;color:var(--text);-webkit-tap-highlight-color:transparent;transition:background 0.12s;}
@@ -1108,7 +1116,7 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
 .ip-field,.ip-field-select,.ip-field-date{font-size:15px;}
 #auth-screen-login,#auth-screen-reset{max-width:420px;border-radius:28px;padding:42px 36px!important;box-shadow:0 22px 60px rgba(0,0,0,.18);} 
 #auth-screen-login > div:first-child + div + div span{letter-spacing:.16em!important;}
-#auth-btn,
+#auth-btn,#preview-btn{height:48px;border-radius:16px;}
 .summary-shell{display:grid;grid-template-columns:minmax(0,1.84fr) minmax(0,.92fr);gap:18px;align-items:start;}
 .summary-main{display:flex;flex-direction:column;gap:18px;min-height:100%;min-width:0;}
 .summary-side{display:grid;grid-template-rows:auto auto auto;gap:18px;}
@@ -1334,7 +1342,8 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
 </head>
 <body>
 
-<nav id="nav" style="display:none;">
+<a href="#main-content" class="skip-nav" style="position:absolute;top:-40px;left:8px;z-index:9999;background:var(--accent);color:#000;font-weight:700;padding:8px 12px;border-radius:6px;font-size:13px;text-decoration:none;transition:top 0.15s;" onfocus="this.style.top='8px'" onblur="this.style.top='-40px'">Skip to main content</a>
+<nav id="nav" aria-label="Main navigation" style="display:none;">
   <div class="nav-inner">
 
     <!-- Brand -->
@@ -1426,7 +1435,7 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
 </nav>
 
 <!-- BOTTOM NAV — always pinned to bottom, mobile + desktop -->
-<nav id="bottom-nav" style="display:none;">
+<nav id="bottom-nav" aria-label="Bottom navigation" style="display:none;">
   <button class="bnt on" data-tab="summary" onclick="goToTab('summary',this)">
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
     Home
@@ -1521,13 +1530,13 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
   <div class="fab-dial-backdrop" onclick="closeFabDial()"></div>
   <div class="fab-dial-item" id="fab-trip-item">
     <span class="fab-dial-label">Add Trip</span>
-    <button class="fab-dial-btn trip" onclick="closeFabDial();addTrip()" title="Add sourcing trip"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 17H3a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2h11l4 4v4a2 2 0 0 1-2 2h-1"/><path d="M14 17a2 2 0 1 0 4 0 2 2 0 0 0-4 0"/><path d="M5 17a2 2 0 1 0 4 0 2 2 0 0 0-4 0"/><line x1="3" y1="9" x2="14" y2="9"/></svg></button>
+    <button class="fab-dial-btn trip" onclick="closeFabDial();addTrip()" title="Add sourcing trip" aria-label="Add sourcing trip"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 17H3a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2h11l4 4v4a2 2 0 0 1-2 2h-1"/><path d="M14 17a2 2 0 1 0 4 0 2 2 0 0 0-4 0"/><path d="M5 17a2 2 0 1 0 4 0 2 2 0 0 0-4 0"/><line x1="3" y1="9" x2="14" y2="9"/></svg></button>
   </div>
   <div class="fab-dial-item" id="fab-expense-item">
     <span class="fab-dial-label">Add Expense</span>
-    <button class="fab-dial-btn expense" onclick="closeFabDial();addExpense()" title="Add expense"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16l3-2 2 2 3-2 3 2 2-2 3 2V4a2 2 0 0 0-2-2z"/><line x1="9" y1="9" x2="15" y2="9"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="12" y2="17"/></svg></button>
+    <button class="fab-dial-btn expense" onclick="closeFabDial();addExpense()" title="Add expense" aria-label="Add expense"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16l3-2 2 2 3-2 3 2 2-2 3 2V4a2 2 0 0 0-2-2z"/><line x1="9" y1="9" x2="15" y2="9"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="12" y2="17"/></svg></button>
   </div>
-  <button class="fab-main" onclick="onFabClick()" title="Add">
+  <button class="fab-main" onclick="onFabClick()" title="Add" aria-label="Add new item">
     <span class="fab-icon">+</span>
   </button>
 </div>
@@ -1536,7 +1545,7 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
 <div class="slide-panel" id="slide-panel">
   <div class="panel-header">
     <div style="display:flex;align-items:center;gap:8px;min-width:0;">
-      <button class="panel-close" id="panel-back-btn" onclick="panelBack()" title="Back">←</button>
+      <button class="panel-close" id="panel-back-btn" onclick="panelBack()" title="Back" aria-label="Back">←</button>
       <div class="panel-title" id="panel-title">Quick Add</div>
     </div>
     <button class="panel-close" onclick="closePanel()">×</button>
@@ -1544,7 +1553,7 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
   <div id="panel-content"></div>
 </div>
 
-<div id="main-content" style="display:none;">
+<div id="main-content" role="main" style="display:none;">
 <div class="page on" id="p-summary"></div>
 <div class="page" id="p-monthly"></div>
 <div class="page" id="p-stock"></div>
@@ -1654,6 +1663,10 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
     <button onclick="doSignIn()" id="auth-btn"
       style="width:100%;padding:12px;background:var(--accent);color:#000;border:none;border-radius:8px;font-weight:700;font-size:15px;cursor:pointer;transition:background 0.15s;">
       Sign In
+    </button>
+    <button onclick="startPreviewMode()" id="preview-btn"
+      style="width:100%;padding:12px;background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:8px;font-weight:700;font-size:15px;cursor:pointer;transition:background 0.15s;margin-top:10px;">
+      Developer preview
     </button>
 
     <button onclick="showForgotPassword()"
@@ -2027,7 +2040,7 @@ let MODAL_CALLBACK=null;
 let MONTH_FILTER='all';
 let MONTH_SORT='date-sold';
 let SELECTION_MODE=false;
-let STOCK_SORT='profit';          // stock sort: profit | roi | price | days-desc | days-asc
+let STOCK_SORT='days-asc';          // stock sort: profit | roi | price | days-desc | days-asc
 let STOCK_FILTER='all';           // stock filter: all | fresh | maturing | slow | stale
 let STOCK_GROUPED=false;          // Session B: false=flat list, true=group by listing month
 let STOCK_SELECTION_MODE=false;   // stock page checkbox mode
@@ -2303,15 +2316,242 @@ let _previewMode = false;
 const _previewParam = new URLSearchParams(window.location.search).get('preview');
 const PREVIEW_STORAGE_KEY='retrade_preview_mode';
 const LEGACY_PREVIEW_STORAGE_KEYS=['general_preview_mode'];
-const PREVIEW_MODE_ENABLED=false;
-const _previewStored=false;
-// do NOT redeclare _previewMode here
+const _previewStored = localStorage.getItem(PREVIEW_STORAGE_KEY) === '1' || LEGACY_PREVIEW_STORAGE_KEYS.some(function(k){ return localStorage.getItem(k) === '1'; });
+const PREVIEW_MODE_ENABLED = false;
 
+function _buildPreviewDB(){
+  const MONTHS_=['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
+  const now = new Date();
+  // Build month keys for current + 4 previous months
+  function mkey(offset){
+    const d = new Date(now.getFullYear(), now.getMonth() - offset, 1);
+    return MONTHS_[d.getMonth()] + '-' + String(d.getFullYear()).slice(-2);
+  }
+  function mdate(monthOffset, day){
+    const d = new Date(now.getFullYear(), now.getMonth() - monthOffset, day);
+    return d.toISOString().split('T')[0];
+  }
+  const m0=mkey(0), m1=mkey(1), m2=mkey(2), m3=mkey(3), m4=mkey(4), m5=mkey(5);
 
+  const item = (id,num,name,cost,sale,listedOff,soldOff,cat,key,bpp,pkg,promo,parts,returns,notes,resale,resaleDate)=>({
+    id:'pv-'+id, gid:'R-'+String(num).padStart(4,'0'),
+    item:name, costPrice:cost, salePrice:sale??null,
+    dateListed:listedOff, dateSold:soldOff??null,
+    category:cat, postageMode:'sdp', postageKey:key,
+    buyerPaysPostage:bpp??false, packagingCost:pkg, promoPercent:promo??0,
+    parts:parts??[], returnHistory:returns??[], isReturned:false,
+    resaleSalePrice:resale??null, resaleDateSold:resaleDate??null,
+    _wasRelisted:false, notes:notes??''
+  });
 
-function enablePreviewMode(){_previewMode=true;}
+  const SP='small_parcel_2kg', LP='large_parcel', LL='large_letter', ML='medium_letter';
 
-function disablePreviewMode(){_previewMode=false;}
+  return {
+    _userOwned: false,
+
+    // ── CURRENT MONTH ──────────────────────────────────────────────────────
+    [m0]: [
+      item('c1',1,'Sony WH-1000XM5 Headphones',88,159.99,mdate(0,3),mdate(0,10),'Audio',SP,false,1.20,0.05),
+      item('c2',2,'iPhone 12 64GB Unlocked',195,289.00,mdate(0,2),mdate(0,9),'Phones',SP,false,1.00,0.03),
+      item('c3',3,'Nintendo DS Lite + Charger',18,34.99,mdate(0,4),mdate(0,11),'Gaming',LL,false,0.60,0),
+      item('c4',4,'Logitech MX Master 3 Mouse',32,64.99,mdate(0,5),mdate(0,12),'Computing',LL,false,0.75,0.05),
+      item('c5',5,'Garmin Forerunner 245',62,119.00,mdate(0,1),mdate(0,8),'Wearables',SP,false,1.10,0),
+      // Recent sales — last 7 days
+      item('c6r',6,'Canon EOS 1300D Body',75,138.00,mdate(0,18),mdate(0,23),'Camera',SP,false,1.20,0.03),
+      item('c7r',7,'Xbox 360 S Console 250GB',28,52.00,mdate(0,19),mdate(0,24),'Gaming',SP,false,1.80,0),
+      item('c14',85,'Seagate 2TB External HDD',22,44.99,mdate(0,20),mdate(0,25),'Computing',SP,false,0.80,0),
+      item('c15',86,'Philips Hue Bridge v2',18,34.00,mdate(0,21),mdate(0,26),'Smart Home',LL,false,0.50,0),
+      item('c16',87,'Corsair K70 Mechanical Keyboard',45,89.99,mdate(0,22),mdate(0,27),'Computing',SP,false,1.20,0.03),
+      item('c17',88,'Samsung T7 500GB SSD',28,54.99,mdate(0,23),mdate(0,28),'Computing',LL,false,0.50,0),
+      // Full return — buyer claimed not as described, shows in refund rate
+      {id:'pv-c8',gid:'R-0008',item:'Bose SoundLink Mini II',costPrice:45,salePrice:89.99,
+       dateListed:mdate(0,3),dateSold:null,category:'Audio',postageMode:'sdp',postageKey:SP,
+       buyerPaysPostage:false,packagingCost:0.90,promoPercent:0.05,parts:[],
+       returnHistory:[{loggedAt:mdate(0,17),type:'full_seller',refundAmount:89.99,returnPostage:3.20,
+         notes:'Buyer claimed not as described',_salePriceAtReturn:89.99,_dateSoldAtReturn:mdate(0,14)}],
+       isReturned:true,resaleSalePrice:null,resaleDateSold:null,notes:''},
+      // Active unsold — recent listings
+      item('c9',9,'iPad Mini 4 WiFi 128GB',110,179.99,mdate(0,18),null,'Tablets',SP,false,1.00,0),
+      item('c10',10,'GBA SP AGS-101 + Pokémon Emerald',55,109.99,mdate(0,19),null,'Gaming',LL,false,0.60,0,[{desc:'Replacement battery',cost:4.99,date:mdate(0,19)}]),
+      item('c11',11,'Olympus OM-D E-M10 Body',85,164.99,mdate(0,20),null,'Camera',SP,false,1.20,0),
+      item('c12',12,'Kindle Paperwhite 11th Gen',35,64.99,mdate(0,21),null,'Electronics',LL,false,0.50,0),
+    ],
+
+    // ── 1 MONTH AGO ────────────────────────────────────────────────────────
+    [m1]: [
+      item('b1',14,'PlayStation 4 Slim 500GB',98,169.99,mdate(1,2),mdate(1,12),'Gaming',SP,false,1.80,0.05),
+      item('b2',15,'MacBook Air 2017 i5',155,285.00,mdate(1,4),mdate(1,18),'Computing',LP,false,2.50,0.03),
+      item('b3',16,'Kindle Paperwhite Gen 10',28,54.99,mdate(1,5),mdate(1,14),'Electronics',LL,false,0.50,0),
+      item('b4',17,'Sony A6000 Camera Body',105,189.00,mdate(1,3),mdate(1,16),'Camera',SP,false,1.20,0.05),
+      item('b5',18,'GBC Pokemon Yellow Cart',12,29.99,mdate(1,6),mdate(1,11),'Gaming',ML,false,0.40,0),
+      item('b6',19,'Dyson V7 Cordless Hoover',85,159.99,mdate(1,1),mdate(1,9),'Appliances',LP,false,2.80,0.05),
+      item('b7',20,'Apple Watch Series 3 38mm',42,79.00,mdate(1,7),mdate(1,19),'Wearables',SP,false,1.00,0.03),
+      // Partial refund — eBay stepped in, seller eats fee
+      {id:'pv-b8',gid:'R-0021',item:'Razer Kraken Headset',costPrice:22,salePrice:44.99,
+       dateListed:mdate(1,8),dateSold:mdate(1,20),category:'Audio',postageMode:'sdp',postageKey:SP,
+       buyerPaysPostage:false,packagingCost:0.90,promoPercent:0,parts:[],
+       returnHistory:[{loggedAt:mdate(1,26),type:'partial_ebay',refundAmount:12.00,returnPostage:0,
+         notes:'Buyer said mic crackly — eBay partial refund',_salePriceAtReturn:44.99,_dateSoldAtReturn:mdate(1,20)}],
+       isReturned:false,resaleSalePrice:null,resaleDateSold:null,notes:''},
+      item('b9',22,'Samsung Galaxy Tab A 10.1 2019',65,119.99,mdate(1,9),null,'Tablets',SP,false,1.00,0),
+      item('b10',23,'JBL Flip 5 Speaker',30,58.99,mdate(1,10),mdate(1,22),'Audio',SP,false,0.80,0),
+      item('b11',24,'Nintendo Switch Lite Yellow',95,155.00,mdate(1,12),mdate(1,24),'Gaming',SP,false,1.20,0.03),
+      item('b12',25,'Xbox One Controller',18,34.00,mdate(1,14),mdate(1,25),'Gaming',LL,false,0.60,0),
+      // Full return then relisted — appears in BOTH sale months on Monthly
+      {id:'pv-b13',gid:'R-0026',item:'Sennheiser HD 280 Pro',costPrice:28,salePrice:52.00,
+       dateListed:mdate(1,1),dateSold:null,category:'Audio',postageMode:'sdp',postageKey:SP,
+       buyerPaysPostage:false,packagingCost:0.90,promoPercent:0,parts:[],
+       returnHistory:[{loggedAt:mdate(1,22),type:'full_seller',refundAmount:52.00,returnPostage:2.95,
+         notes:'Changed mind',_salePriceAtReturn:52.00,_dateSoldAtReturn:mdate(1,18)}],
+       isReturned:true,resaleSalePrice:null,resaleDateSold:null,notes:'Relisting at same price'},
+      item('b14',27,'Anker Soundcore 2 Speaker',16,32.99,mdate(1,15),mdate(1,27),'Audio',SP,false,0.70,0),
+      item('b15',28,'Fitbit Inspire 2',20,39.99,mdate(1,16),mdate(1,28),'Wearables',LL,false,0.50,0.03),
+    ],
+
+    // ── 2 MONTHS AGO ───────────────────────────────────────────────────────
+    [m2]: [
+      item('a1',29,'iPhone 11 128GB Black',175,259.99,mdate(2,3),mdate(2,10),'Phones',SP,false,1.00,0.05),
+      item('a2',30,'Canon 18-55mm IS II Lens',35,69.99,mdate(2,5),mdate(2,14),'Camera',SP,false,1.10,0),
+      item('a3',31,'PS2 Slim + 2 Controllers',38,72.00,mdate(2,2),mdate(2,8),'Gaming',SP,false,1.80,0),
+      item('a4',32,'Fitbit Charge 4',25,49.00,mdate(2,6),mdate(2,15),'Wearables',LL,false,0.50,0.03),
+      item('a5',33,'Nikon D3200 18-55mm Kit',110,199.00,mdate(2,4),mdate(2,13),'Camera',SP,false,1.20,0.05),
+      item('a6',34,'Dell Latitude E7470 i5',120,225.00,mdate(2,7),mdate(2,18),'Computing',LP,false,2.50,0.03),
+      item('a7',35,'GBA SP + Pokemon Fire Red',68,119.00,mdate(2,8),mdate(2,19),'Gaming',SP,false,0.80,0),
+      item('a8',36,'Anker PowerCore 26800',20,38.99,mdate(2,9),mdate(2,20),'Electronics',LL,false,0.40,0),
+      // Partial refund — seller agreed, eBay refunds fee difference
+      {id:'pv-a9',gid:'R-0037',item:'Sennheiser HD 599',costPrice:55,salePrice:105.00,
+       dateListed:mdate(2,10),dateSold:mdate(2,22),category:'Audio',postageMode:'sdp',postageKey:SP,
+       buyerPaysPostage:false,packagingCost:0.90,promoPercent:0.05,parts:[],
+       returnHistory:[{loggedAt:mdate(2,28),type:'partial_seller',refundAmount:15.00,returnPostage:0,
+         notes:'Ear pad worn more than photos showed',_salePriceAtReturn:105.00,_dateSoldAtReturn:mdate(2,22)}],
+       isReturned:false,resaleSalePrice:null,resaleDateSold:null,notes:''},
+      item('a10',38,'Sony PSP 3000 + Case',28,54.99,mdate(2,11),mdate(2,24),'Gaming',SP,false,0.80,0),
+      item('a11',39,'Ring Video Doorbell 3',48,89.99,mdate(2,1),mdate(2,7),'Smart Home',SP,false,1.00,0.05),
+      // Returned and then RESOLD — tests full relist lifecycle
+      {id:'pv-a12',gid:'R-0040',item:'Logitech C920 Webcam',costPrice:22,salePrice:44.99,
+       dateListed:mdate(2,12),dateSold:null,category:'Computing',postageMode:'sdp',postageKey:SP,
+       buyerPaysPostage:false,packagingCost:0.70,promoPercent:0,parts:[{desc:'USB cable replacement',cost:2.99,date:mdate(2,12)}],
+       returnHistory:[{loggedAt:mdate(2,25),type:'full_seller',refundAmount:44.99,returnPostage:2.95,
+         notes:'Claimed faulty',_salePriceAtReturn:44.99,_dateSoldAtReturn:mdate(2,20)}],
+       isReturned:false,resaleSalePrice:47.00,resaleDateSold:mdate(1,8),notes:'Tested fine — relisted and resold'},
+      item('a13',41,'Nespresso Vertuo Next',30,58.99,mdate(2,14),mdate(2,25),'Appliances',SP,false,1.20,0),
+      item('a14',42,'Jabra Evolve 20 Headset',24,45.00,mdate(2,15),mdate(2,26),'Audio',SP,false,0.80,0),
+      item('a15',43,'Philips Hue Starter Kit',35,68.99,mdate(2,16),mdate(2,27),'Smart Home',SP,false,1.00,0.05),
+    ],
+
+    // ── 3 MONTHS AGO ───────────────────────────────────────────────────────
+    [m3]: [
+      item('9a',44,'iPhone XR 64GB Coral',140,209.99,mdate(3,4),mdate(3,13),'Phones',SP,false,1.00,0.05),
+      item('9b',45,'Nintendo 3DS XL Blue',55,95.00,mdate(3,6),mdate(3,15),'Gaming',SP,false,0.80,0.03),
+      item('9c',46,'Samsung Galaxy S10 128GB',115,185.00,mdate(3,2),mdate(3,9),'Phones',SP,false,1.00,0.05),
+      item('9d',47,'Dyson AM07 Tower Fan',60,115.99,mdate(3,5),mdate(3,16),'Appliances',LP,false,2.80,0),
+      item('9e',48,'HP EliteBook 840 G3 i5',105,199.00,mdate(3,7),mdate(3,20),'Computing',LP,false,2.50,0.03),
+      item('9f',49,'GBC Gameboy Color Purple',24,47.99,mdate(3,8),mdate(3,18),'Gaming',ML,false,0.40,0),
+      item('9g',50,'Canon 50mm f1.8 STM Lens',42,79.99,mdate(3,9),mdate(3,21),'Camera',SP,false,1.10,0.03),
+      item('9h',51,'Jawbone Jambox Speaker',15,28.99,mdate(3,10),mdate(3,22),'Audio',LL,false,0.50,0),
+      item('9i',52,'Xbox 360 Games Bundle x8',14,29.99,mdate(3,11),mdate(3,23),'Gaming',SP,false,1.20,0),
+      item('9j',53,'Kodak Mini 2 Printer',22,39.99,mdate(3,12),mdate(3,24),'Electronics',SP,false,0.90,0),
+      item('9k',54,'Sonos Play:1 Speaker',48,94.99,mdate(3,3),mdate(3,11),'Audio',SP,false,1.00,0.05),
+      item('9l',55,'Surface Pro 4 i5 256GB',165,299.00,mdate(3,1),mdate(3,8),'Computing',LP,false,2.50,0.05),
+      // Full return from 3 months ago — backdated, tests period attribution
+      {id:'pv-9m',gid:'R-0056',item:'Sony WF-1000XM3 Earbuds',costPrice:48,salePrice:88.00,
+       dateListed:mdate(3,5),dateSold:null,category:'Audio',postageMode:'sdp',postageKey:LL,
+       buyerPaysPostage:false,packagingCost:0.70,promoPercent:0.03,parts:[],
+       returnHistory:[{loggedAt:mdate(3,28),type:'full_ebay',refundAmount:88.00,returnPostage:0,
+         notes:'eBay stepped in — item not received claim',_salePriceAtReturn:88.00,_dateSoldAtReturn:mdate(3,18)}],
+       isReturned:true,resaleSalePrice:null,resaleDateSold:null,notes:''},
+      item('9n',57,'Beats Solo3 Wireless',52,98.00,mdate(3,14),mdate(3,24),'Audio',SP,false,1.00,0.05),
+      item('9o',58,'DJI Osmo Mobile 3',35,65.99,mdate(3,15),mdate(3,25),'Camera',LL,false,0.60,0),
+      // ── STALE items — listed in m3, never sold, 90d+ old ──────────────────
+      item('9p',89,'Wii U Console 32GB + Gamepad',55,89.99,mdate(3,2),null,'Gaming',LP,false,2.50,0),
+      item('9q',90,'Epson Workforce WF-2830 Printer',20,44.99,mdate(3,4),null,'Electronics',LP,false,2.80,0),
+    ],
+
+    // ── 4 MONTHS AGO ───────────────────────────────────────────────────────
+    [m4]: [
+      item('8a',59,'iPhone SE 2020 64GB',110,169.99,mdate(4,3),mdate(4,10),'Phones',SP,false,1.00,0.05),
+      item('8b',60,'Nintendo Switch OLED White',195,279.00,mdate(4,5),mdate(4,14),'Gaming',SP,false,1.20,0.03),
+      item('8c',61,'Nikon D5300 + 18-55mm',130,235.00,mdate(4,4),mdate(4,12),'Camera',SP,false,1.20,0.05),
+      item('8d',62,'Sony Xperia 5 II',125,195.00,mdate(4,6),mdate(4,16),'Phones',SP,false,1.00,0),
+      item('8e',63,'Plantronics Voyager 5200',18,34.99,mdate(4,7),mdate(4,17),'Audio',LL,false,0.50,0),
+      item('8f',64,'Lenovo ThinkPad T470 i5',138,249.00,mdate(4,8),mdate(4,19),'Computing',LP,false,2.50,0.03),
+      item('8g',65,'GBA Pokemon Emerald Cart',35,67.99,mdate(4,9),mdate(4,20),'Gaming',ML,false,0.40,0),
+      item('8h',66,'Oculus Quest 2 128GB',155,239.00,mdate(4,2),mdate(4,9),'Gaming',SP,false,1.80,0.05),
+      item('8i',67,'Canon EOS M50 Body',145,265.00,mdate(4,10),mdate(4,22),'Camera',SP,false,1.20,0.05),
+      item('8j',68,'Sony SRS-XB33 Speaker',35,64.99,mdate(4,11),mdate(4,23),'Audio',SP,false,0.90,0),
+      item('8k',69,'Samsung Galaxy Watch Active2',45,84.99,mdate(4,12),mdate(4,24),'Wearables',SP,false,1.00,0.03),
+      item('8l',70,'Raspberry Pi 4 4GB Kit',38,72.00,mdate(4,13),mdate(4,25),'Computing',SP,false,0.80,0),
+      item('8m',71,'Oral-B Smart 6 Electric Toothbrush',18,34.99,mdate(4,14),mdate(4,26),'Appliances',LL,false,0.50,0),
+      item('8n',72,'Google Nest Mini 2nd Gen',15,28.00,mdate(4,15),mdate(4,27),'Smart Home',LL,false,0.40,0),
+      // ── STALE item — listed 4 months ago, never sold ───────────────────────
+      item('8o',91,'BlackBerry Passport Unlocked',35,59.99,mdate(4,5),null,'Phones',SP,false,1.00,0),
+    ],
+
+    // ── 5 MONTHS AGO ───────────────────────────────────────────────────────
+    [m5]: [
+      item('7a',73,'iPhone X 64GB Space Grey',120,185.00,mdate(5,3),mdate(5,12),'Phones',SP,false,1.00,0.05),
+      item('7b',74,'PS3 Slim 160GB + Games',42,79.99,mdate(5,4),mdate(5,14),'Gaming',SP,false,1.80,0),
+      item('7c',75,'Canon EOS 700D + 18-55mm',95,179.00,mdate(5,5),mdate(5,16),'Camera',SP,false,1.20,0.03),
+      item('7d',76,'Dell XPS 13 9370 i5',245,389.00,mdate(5,1),mdate(5,9),'Computing',LP,false,2.50,0.05),
+      item('7e',77,'Garmin Edge 530 GPS',75,138.99,mdate(5,6),mdate(5,17),'Wearables',SP,false,1.00,0),
+      item('7f',78,'Bose QuietComfort 35 II',82,154.00,mdate(5,7),mdate(5,18),'Audio',SP,false,1.20,0.05),
+      item('7g',79,'Nintendo 64 + Controller',32,62.99,mdate(5,8),mdate(5,20),'Gaming',SP,false,1.80,0),
+      item('7h',80,'Samsung Galaxy S9 64GB',75,129.99,mdate(5,9),mdate(5,21),'Phones',SP,false,1.00,0.03),
+      item('7i',81,'Olympus Pen E-PL8',88,162.00,mdate(5,10),mdate(5,22),'Camera',SP,false,1.20,0),
+      item('7j',82,'Anker USB-C Hub 7-in-1',18,34.99,mdate(5,11),mdate(5,23),'Computing',LL,false,0.50,0),
+      item('7k',83,'JBL Charge 4 Speaker',38,72.99,mdate(5,12),mdate(5,24),'Audio',SP,false,0.90,0),
+      item('7l',84,'Xiaomi Mi Band 5',12,24.99,mdate(5,13),mdate(5,25),'Wearables',LL,false,0.40,0),
+    ],
+
+    expenses:[
+      {id:'pv-ex1', label:'Packaging supplies (bubble wrap, boxes)', amount:18.40, date:mdate(0,5), category:'Supplies', notes:''},
+      {id:'pv-ex2', label:'Packing tape x4 rolls', amount:7.99, date:mdate(0,12), category:'Supplies', notes:''},
+      {id:'pv-ex3', label:'eBay promoted listings fee', amount:14.22, date:mdate(1,28), category:'Fees', notes:'Monthly promoted'},
+      {id:'pv-ex4', label:'Packaging supplies', amount:15.60, date:mdate(1,8), category:'Supplies', notes:''},
+      {id:'pv-ex5', label:'Car boot entry x2', amount:5.00, date:mdate(1,6), category:'Sourcing', notes:'Weekend boot sale'},
+      {id:'pv-ex6', label:'eBay promoted listings fee', amount:11.85, date:mdate(2,28), category:'Fees', notes:''},
+      {id:'pv-ex7', label:'Jiffy bags x50', amount:9.99, date:mdate(2,4), category:'Supplies', notes:''},
+      {id:'pv-ex8', label:'Car boot entry x3', amount:7.50, date:mdate(2,9), category:'Sourcing', notes:''},
+      {id:'pv-ex9', label:'eBay promoted listings fee', amount:18.40, date:mdate(3,28), category:'Fees', notes:''},
+      {id:'pv-ex10', label:'Packaging supplies', amount:22.10, date:mdate(3,5), category:'Supplies', notes:''},
+      {id:'pv-ex11', label:'eBay promoted listings fee', amount:9.75, date:mdate(4,28), category:'Fees', notes:''},
+      {id:'pv-ex12', label:'Bubble wrap roll x2', amount:12.50, date:mdate(4,3), category:'Supplies', notes:''},
+      {id:'pv-ex13', label:'eBay promoted listings fee', amount:16.30, date:mdate(5,28), category:'Fees', notes:''},
+      {id:'pv-ex14', label:'Jiffy bags + boxes', amount:13.80, date:mdate(5,5), category:'Supplies', notes:''},
+      {id:'pv-ex15', label:'Car boot entry x2', amount:5.00, date:mdate(5,12), category:'Sourcing', notes:''},
+    ],
+
+    trips:[
+      {id:'pv-tr1', date:mdate(0,4), mileage:8, purpose:'Post office run', notes:''},
+      {id:'pv-tr2', date:mdate(0,11), mileage:22, purpose:'Car boot sourcing — Basingstoke', notes:'Picked up PS4 + 3DS'},
+      {id:'pv-tr3', date:mdate(1,5), mileage:9, purpose:'Post office run', notes:''},
+      {id:'pv-tr4', date:mdate(1,12), mileage:18, purpose:'Charity shop run x3 stops', notes:''},
+      {id:'pv-tr5', date:mdate(1,22), mileage:26, purpose:'Car boot — Newbury', notes:'Good haul'},
+      {id:'pv-tr6', date:mdate(2,6), mileage:11, purpose:'Post office + drop-off', notes:''},
+      {id:'pv-tr7', date:mdate(2,14), mileage:20, purpose:'Car boot sourcing', notes:''},
+      {id:'pv-tr8', date:mdate(3,4), mileage:8, purpose:'Post office run', notes:''},
+      {id:'pv-tr9', date:mdate(3,18), mileage:24, purpose:'Car boot — Winchester', notes:''},
+      {id:'pv-tr10', date:mdate(4,7), mileage:12, purpose:'Post office + charity shops', notes:''},
+      {id:'pv-tr11', date:mdate(5,5), mileage:9, purpose:'Post office run', notes:''},
+      {id:'pv-tr12', date:mdate(5,18), mileage:28, purpose:'Car boot — Alton', notes:'Best haul yet'},
+    ]
+  };
+}
+
+function enablePreviewMode(){
+  _previewMode = true;
+  _currentUserId = 'preview-user';
+  localStorage.setItem(PREVIEW_STORAGE_KEY,'1');
+  LEGACY_PREVIEW_STORAGE_KEYS.forEach(function(k){ if(k!==PREVIEW_STORAGE_KEY) localStorage.removeItem(k); });
+  DB = _buildPreviewDB();
+  _dbSnapshot = _dbFingerprint();
+}
+
+function disablePreviewMode(){
+  _previewMode = false;
+  localStorage.removeItem(PREVIEW_STORAGE_KEY);
+  LEGACY_PREVIEW_STORAGE_KEYS.forEach(function(k){ if(k!==PREVIEW_STORAGE_KEY) localStorage.removeItem(k); });
+}
 
 // ── AUTH ─────────────────────────────────────────────────────────────────────
 
@@ -2330,7 +2570,27 @@ function toggleAuthPass(){
   }
 }
 
-function startPreviewMode(){}
+function startPreviewMode(){
+  enablePreviewMode();
+  try{
+    const url = new URL(window.location.href);
+    url.searchParams.set('preview','1');
+    history.replaceState({}, '', url.toString());
+  }catch(e){ /* sandboxed iframe — ignore */ }
+  document.getElementById('auth-overlay').style.display = 'none';
+  if(typeof _neutralizeAuthInputs==='function')_neutralizeAuthInputs();
+  if(window.innerWidth > 600){
+    document.getElementById('nav').style.display = '';
+    document.getElementById('bottom-nav').style.display = 'none';
+  } else {
+    document.getElementById('nav').style.display = 'none';
+    document.getElementById('bottom-nav').style.display = 'flex';
+  }
+  document.getElementById('main-content').style.display = '';
+  const _fd=document.getElementById('fab-dial');if(_fd)_fd.style.display='';
+  const av=document.getElementById('user-avatar'); if(av) av.textContent='P';
+  requestAnimationFrame(()=>goToTab('summary'));
+}
 
 async function doSignIn(){
   const email = document.getElementById('auth-email').value.trim();
@@ -2702,6 +2962,7 @@ async function _backfillDateSoldAtReturn(){
     });
   });
   if(dirty>0){
+    console.log('[backfill] Filled _dateSoldAtReturn on '+dirty+' return entries');
     try{
       // Re-save every item that has returnHistory so the column gets pushed up
       // for ALL of them in a single sync. saveDB's debounced diff engine will
@@ -3925,15 +4186,19 @@ function toggleNavSearch(){
     if(backdrop)backdrop.style.display='block';
     if(bntSearch)bntSearch.classList.add('on');
     const inp=document.getElementById('global-search-mobile');
-    // iOS Safari: focus must run within the current user-gesture frame to raise
-    // the keyboard. Calling .focus() directly inside the event handler works,
-    // but only if the element is already visible/laid-out. The .open class
-    // change above is synchronous so the next paint will have it visible —
-    // requestAnimationFrame keeps us inside the gesture window while letting
-    // layout settle. Click() trick: forcibly tapping the input element on iOS.
+    // iOS Safari: focus must be triggered after the CSS transition completes
+    // (transform:translateY 0.22s) so the element is fully visible and
+    // interactive. rAF alone (~16ms) fires before the transition ends —
+    // a 260ms setTimeout safely clears the 220ms slide-in transition and
+    // keeps us close enough to the original user gesture for iOS to permit
+    // keyboard raise. Double-focus + readOnly toggle is the most reliable
+    // cross-device approach.
     if(inp){
-      inp.focus();
-      requestAnimationFrame(()=>{ inp.focus(); inp.click&&inp.click(); });
+      inp.removeAttribute('readonly');
+      setTimeout(()=>{
+        inp.focus();
+        inp.click&&inp.click();
+      }, 260);
     }
   }
 }
@@ -4296,8 +4561,8 @@ function submitQuickAdd(){
     try{document.getElementById('qa-item').focus();}catch(e){}
     return;
   }
-  if(!isFinite(rawCost)||rawCost<=0){
-    toast('Cost must be a positive number','error');
+  if(!isFinite(rawCost)||rawCost<0){
+    toast('Cost must be 0 or more','error');
     try{document.getElementById('qa-cost').focus();}catch(e){}
     return;
   }
@@ -4454,7 +4719,7 @@ function formHTML(){
       </div>
     </div>
 
-    <div class="fg">
+    <div id="qa-packaging-group" class="fg">
       <label>Packaging (£)</label>
       <input type="number" id="qa-packaging" step="0.01" min="0" placeholder="0.00" oninput="updateBPFPreview()">
     </div>
@@ -4539,6 +4804,13 @@ function _refreshQuickAddDelivery(){
   if(promoLbl)promoLbl.textContent=isEbay?'Promo %':'Boost %';
   const postageNote=document.getElementById('bpf-postage-note');
   if(postageNote){if(isVinted){postageNote.textContent='📦 Buyer pays postage — not deducted from your proceeds';postageNote.style.display='';}else{postageNote.style.display='none';}}
+  // Sync packaging visibility: hidden when eBay Simple Delivery is active
+  const packagingGroup=document.getElementById('qa-packaging-group');
+  if(packagingGroup){
+    const simplePanel=document.getElementById('qa-delivery-simple');
+    const isSimpleActive=isEbay&&simplePanel&&simplePanel.style.display!=='none';
+    packagingGroup.style.display=isSimpleActive?'none':'';
+  }
 }
 
 // Session D1.6 — Refresh price input label + helper text from the active
@@ -4590,6 +4862,7 @@ function qaSetDeliveryMode(mode){
   const customBtn=document.getElementById('qa-mode-custom');
   const simplePanel=document.getElementById('qa-delivery-simple');
   const customPanel=document.getElementById('qa-delivery-custom');
+  const packagingGroup=document.getElementById('qa-packaging-group');
   if(!simpleBtn)return;
   const isSimple=mode==='simple';
   simpleBtn.style.background=isSimple?'var(--accent)':'var(--surface2)';
@@ -4600,6 +4873,8 @@ function qaSetDeliveryMode(mode){
   customBtn.style.borderColor=isSimple?'var(--border)':'var(--accent)';
   simplePanel.style.display=isSimple?'':'none';
   customPanel.style.display=isSimple?'none':'';
+  // Packaging cost is not applicable for Simple Delivery (covered by eBay's service)
+  if(packagingGroup)packagingGroup.style.display=isSimple?'none':'';
   updateBPFPreview();
 }
 
@@ -6412,12 +6687,16 @@ function openItemDetail(m,id,noHistory){
   const isUnsold=!i.dateSold&&!i.resaleSalePrice&&!i.isReturned;
 
   // Primary action button — the thing you most likely opened this to do
+  const canRevert=isSold&&!i.resaleSalePrice;
   const primaryBtn=i.isReturned
     ?`<button class="btn btn-p" style="flex:1;justify-content:center;gap:8px;padding:12px;background:var(--warn);color:#000" onclick="openRelist('${m}','${id}')">↩ Relist</button>`
     :isUnsold
     ?`<button class="btn btn-p" style="flex:1;justify-content:center;gap:8px;padding:12px" onclick="markSold('${m}','${id}')"><svg width="14" height="14" viewBox="0 0 15 15" fill="none"><path d="M8.5 1.5h4a1 1 0 011 1v4a.5.5 0 01-.15.35l-6 6a1 1 0 01-1.41 0l-4-4a1 1 0 010-1.41l6-6A.5.5 0 018.5 1.5z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/><circle cx="11" cy="4" r="0.8" fill="currentColor"/></svg> Mark Sold</button>`
     :isSold
     ?`<button class="btn btn-s" style="flex:1;justify-content:center;padding:12px" onclick="openReturn('${m}','${id}')">↩ Log Return</button>`
+    :'';
+  const revertBtn=canRevert
+    ?`<button class="btn btn-s" style="justify-content:center;padding:12px;color:var(--text-secondary)" onclick="revertToActive('${m}','${id}')" title="Undo sale — move back to active stock">⟲ Revert</button>`
     :'';
 
   // Stat strip — sale + cost as editable ip-tokens, profit read-only
@@ -6489,7 +6768,7 @@ function openItemDetail(m,id,noHistory){
       ${i.category?`<div style="font-size:11px;color:var(--muted)">· ${esc(i.category)}</div>`:''}
     </div>
     ${statStrip}
-    ${primaryBtn?`<div style="display:flex;gap:8px;margin-bottom:16px">${primaryBtn}</div>`:''}
+    ${(primaryBtn||revertBtn)?`<div style="display:flex;gap:8px;margin-bottom:16px">${primaryBtn}${revertBtn}</div>`:''}
     ${quickEdit}
     ${returnSection}
     <div style="display:grid;grid-template-columns:1fr auto auto;gap:8px;align-items:center;padding-top:12px;border-top:1px solid var(--border)">
@@ -8583,27 +8862,26 @@ function undoReturnEntry(m,id,rtnIdx){
   toast('Return entry removed');
 }
 
-function revertToActive(m,id){
+async function revertToActive(m,id){
   const i=(DB[m]||[]).find(x=>x.id===id);
   if(!i)return;
   // Safety: only revert a sold-but-not-returned, not-resold item
   if(!i.dateSold||i.resaleSalePrice||i.isReturned)return;
-  showConfirm(
+  const ok=await showConfirm(
     'Move back to active?',
-    'This will clear the sale date and return the item to your active stock. Use this to correct a mis-marked sale — not as a substitute for logging a return.',
-    function(){
-      i.dateSold=null;
-      i.grossProfit=null;
-      saveDB();
-      toast('Moved back to active stock');
-      closePanel();
-      const cur=document.querySelector('.page.on')?document.querySelector('.page.on').id:null;
-      if(cur==='p-item')renderItemPage(m,id);
-      else if(cur==='p-monthly')renderMonth();
-      else if(cur==='p-stock')renderStock();
-      else renderSummary();
-    }
+    'This will clear the sale date and return the item to your active stock. Use this to correct a mis-marked sale — not as a substitute for logging a return.'
   );
+  if(!ok)return;
+  i.dateSold=null;
+  i.grossProfit=null;
+  saveDB();
+  toast('Moved back to active stock');
+  closePanel();
+  const cur=document.querySelector('.page.on')?document.querySelector('.page.on').id:null;
+  if(cur==='p-item')renderItemPage(m,id);
+  else if(cur==='p-monthly')renderMonth();
+  else if(cur==='p-stock')renderStock();
+  else renderSummary();
 }
 
 function undoSale(m,id){
@@ -8811,6 +9089,11 @@ function renderTax(){
   });});
   const totalIncome=soldItems.reduce(function(s,i){return s+(i.salePrice||0)+(i.resaleSalePrice||0);},0);
   const saleCount=soldItems.length;
+  // Dynamic income label: list the unique platforms actually used this tax year
+  const _usedPlatKeys=[...new Set(soldItems.map(function(i){return _itemPlatform(i);}))];
+  const _incomeLabel=_usedPlatKeys.length===0?'Gross receipts'
+    :_usedPlatKeys.length<=3?'Gross receipts ('+_usedPlatKeys.map(function(k){return PLATFORMS[k]?PLATFORMS[k].short:k;}).join(', ')+')'
+    :'Gross receipts (multiple platforms)';
   const totalBPF=soldItems.reduce(function(s,i){return s+calcPlatformBPF(i,i.salePrice||0)+(i.resaleSalePrice?calcPlatformBPF(i,i.resaleSalePrice):0);},0);
   const totalPromo=soldItems.reduce(function(s,i){var bpf=calcPlatformBPF(i,i.salePrice||0);return s+((i.salePrice||0)-bpf)*(i.promoPercent||0)*1.20;},0);
   const totalPostage=soldItems.reduce(function(s,i){return s+(i.shippingCost||0)+(i.resaleShippingCost||0);},0);
@@ -8924,7 +9207,7 @@ function renderTax(){
     // Income summary
     +'<div class="sl">Income</div>'
     +'<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:20px">'
-    +'<div class="tax-exp-row" style="display:flex;justify-content:space-between;align-items:center;padding:10px 16px;border-bottom:1px solid var(--border);font-size:13px"><span style="color:var(--text-secondary)">Gross receipts (eBay sales)</span><span style="font-weight:700;color:var(--green)">'+fmt(totalIncome)+'</span></div>'
+    +'<div class="tax-exp-row" style="display:flex;justify-content:space-between;align-items:center;padding:10px 16px;border-bottom:1px solid var(--border);font-size:13px"><span style="color:var(--text-secondary)">'+_incomeLabel+'</span><span style="font-weight:700;color:var(--green)">'+fmt(totalIncome)+'</span></div>'
     +'<div class="tax-exp-row" style="display:flex;justify-content:space-between;align-items:center;padding:10px 16px;font-size:13px"><span style="color:var(--text-secondary)">Sales in tax year</span><span style="font-weight:600">'+saleCount+' item'+(saleCount!==1?'s':'')+'</span></div>'
     +'</div>'
 
@@ -10358,6 +10641,9 @@ function exportForSupabase(){
   const trips=(DB.trips||[]).map(function(t){return{id:t.id||String(Date.now()),date:t.date,description:t.description||'',mileage:t.mileage||0,rate_per_mile:t.ratePerMile||0.45};});
   const expenses=(DB.expenses||[]).map(function(e){return{id:e.id||String(Date.now()),date:e.date,description:e.description||'',amount:e.amount||0,category:e.category||null};});
   const out={items,item_parts:parts,item_returns:returns,trips,expenses};
+  console.log('=== SUPABASE EXPORT ===');
+  console.log(JSON.stringify(out,null,2));
+  console.log('Items:',items.length,'Parts:',parts.length,'Returns:',returns.length,'Trips:',trips.length,'Expenses:',expenses.length);
   return out;
 }
 // Usage: open browser console and run: exportForSupabase()
