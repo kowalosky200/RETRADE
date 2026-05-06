@@ -185,15 +185,17 @@ nav:not(#bottom-nav){position:sticky;top:0;z-index:200;background:var(--surface)
   padding-top:calc(10px + env(safe-area-inset-top));
   box-shadow:0 4px 16px var(--shadow-md);
   transform:translateY(-110%);
-  transition:transform 0.22s cubic-bezier(0.4,0,0.2,1);
-  visibility:hidden;
-  pointer-events:none;
-  /* Always in DOM and display:block — position handles visibility */
+  transition:transform 0.22s cubic-bezier(0.4,0,0.2,1),opacity 0.22s;
+  opacity:0;
+  /* pointer-events off only — no visibility:hidden, no display:none.
+     Input must remain in accessibility tree so iOS .focus() works synchronously.
+     Panel is hidden via transform (off-screen) so pointer-events:none is not
+     needed for tap safety — translateY(-110%) handles it. */
   display:block;
 }
 #nav-search-expand.open{
   transform:translateY(0);
-  visibility:visible;
+  opacity:1;
   pointer-events:auto;
 }
 #nav-search-expand .search-wrap{width:100%;}
@@ -532,9 +534,9 @@ input,select,textarea{touch-action:manipulation;user-select:text;-webkit-user-se
   .search-wrap input,#global-search,#global-search-mobile{font-size:16px!important;}
   .fg input[type=date]{text-align:left;direction:ltr;-webkit-text-fill-color:var(--text);}
   .fg input[type=date]::-webkit-date-and-time-value{text-align:left;}
-  /* Sort/filter row compact on mobile */
+  /* Sort/filter row compact on mobile — keep sort-select identical to filter-pill-dd-btn */
   .filter-row{flex-direction:row;gap:8px;}
-  .sort-select{font-size:13px;padding:7px 10px;}
+  .sort-select{height:38px!important;min-height:38px!important;padding:0 32px 0 14px!important;font-size:13px!important;border-radius:10px!important;-webkit-appearance:none!important;}
   /* KPI card grids — 2-col on mobile */
   .kgrid{grid-template-columns:1fr 1fr!important;}
   .kgrid-3{grid-template-columns:1fr 1fr!important;}
@@ -645,7 +647,16 @@ input,select,textarea{touch-action:manipulation;user-select:text;-webkit-user-se
 /* Dropdown: anchored below trigger, slides in. Backdrop sits behind it. */
 .month-picker-dropdown{display:none;position:absolute;top:calc(100% + 8px);left:0;background:var(--surface);border:1px solid var(--border);border-radius:14px;box-shadow:0 12px 48px var(--shadow-md);z-index:600;overflow-y:auto;width:280px;max-height:70vh;opacity:0;transform:translateY(-6px);transition:opacity .14s ease,transform .14s cubic-bezier(0.34,1.32,0.64,1);}
 .month-picker-wrap.open .month-picker-dropdown{display:block;opacity:1;transform:translateY(0);}
-@media(max-width:600px){.month-picker-dropdown{width:calc(100vw - 32px);left:auto;right:auto;}}
+@media(max-width:600px){
+  .month-picker-dropdown{
+    position:fixed!important;
+    left:16px!important;right:16px!important;
+    width:auto!important;
+    max-height:60vh!important;
+    transform:none!important;
+  }
+  .month-picker-wrap.open .month-picker-dropdown{transform:none!important;}
+}
 /* Backdrop closes on outside tap */
 .month-picker-backdrop{display:none;position:fixed;inset:0;z-index:599;}
 .month-picker-wrap.open .month-picker-backdrop{display:block;}
@@ -754,9 +765,21 @@ input,select,textarea{touch-action:manipulation;user-select:text;-webkit-user-se
 .sel-exit{background:none;border:none;cursor:pointer;color:var(--text-secondary);font-size:13px;font-weight:600;padding:4px 10px;border-radius:6px;transition:all 0.15s;margin-left:auto;flex-shrink:0;}
 .sel-exit:hover{color:var(--text);background:var(--surface2);}
 
-/* SORT SELECT in header */
-.sort-select{padding:0 10px;height:38px;background:var(--surface);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;cursor:pointer;font-family:inherit;font-weight:500;appearance:auto;width:auto;box-sizing:border-box;}
+/* SORT SELECT in header — unified with filter-pill-dd-btn */
+.sort-select{
+  padding:0 32px 0 14px;
+  height:38px;min-height:38px;
+  background:var(--surface2);border:1px solid var(--border);border-radius:10px;
+  color:var(--text);font-size:13px;font-family:inherit;font-weight:600;
+  cursor:pointer;
+  -webkit-appearance:none;-moz-appearance:none;appearance:none;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='11' height='11' viewBox='0 0 12 12'%3E%3Cpath fill='%23a09880' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right 12px center;
+  width:auto;box-sizing:border-box;transition:border-color .15s,box-shadow .15s;
+}
 .sort-select:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-dim);}
+.sort-select:hover{border-color:var(--accent);}
+[data-theme="dark"] .sort-select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='11' height='11' viewBox='0 0 12 12'%3E%3Cpath fill='%2352505a' d='M6 9L1 4h10z'/%3E%3C/svg%3E");}
 
 /* PARTS / EXPENSES ON ITEM */
 .parts-list{margin-top:8px;}
@@ -1085,7 +1108,9 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
 .item-row-profit{font-size:13px;font-weight:700;}
 .item-row-roi{font-size:11px;color:var(--text-secondary);}
 .filter-row,.list-toolbar{margin-bottom:14px;}
-.sort-select,.month-select,.period-select-inline,.period-select{height:42px;padding:0 40px 0 14px;border-radius:14px;background:color-mix(in srgb,var(--surface2) 78%, var(--surface));font-weight:600;border:1px solid var(--border);} 
+.month-select,.period-select-inline,.period-select{height:42px;padding:0 40px 0 14px;border-radius:14px;background:color-mix(in srgb,var(--surface2) 78%, var(--surface));font-weight:600;border:1px solid var(--border);}
+/* Desktop: sort-select matches filter-pill-dd-btn height — keep at 38px, just bump radius to match desktop btn scale */
+.sort-select{height:38px;border-radius:10px;} 
 .btn{border-radius:14px;height:42px;padding:0 16px;font-weight:700;}
 .btn-p{background:linear-gradient(135deg,var(--accent),color-mix(in srgb,var(--accent) 72%, #fff 28%));}
 .btn-s{background:color-mix(in srgb,var(--surface2) 70%, transparent);} 
@@ -1468,7 +1493,7 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
     <span class="search-icon">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
     </span>
-    <input type="search" id="global-search-mobile" name="app-search-mobile" placeholder="Search items…"
+    <input type="text" id="global-search-mobile" name="app-search-mobile" placeholder="Search items…"
            autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-form-type="other"
            oninput="if(this.value.trim())showSearchDropdown(this.value);else closeSearchDropdown();"
            onkeydown="if(event.key==='Enter'&&this.value.trim()){event.preventDefault();handleSearch(this.value,true);}">
@@ -2317,7 +2342,7 @@ const _previewParam = new URLSearchParams(window.location.search).get('preview')
 const PREVIEW_STORAGE_KEY='retrade_preview_mode';
 const LEGACY_PREVIEW_STORAGE_KEYS=['general_preview_mode'];
 const _previewStored = localStorage.getItem(PREVIEW_STORAGE_KEY) === '1' || LEGACY_PREVIEW_STORAGE_KEYS.some(function(k){ return localStorage.getItem(k) === '1'; });
-const PREVIEW_MODE_ENABLED = false;
+const PREVIEW_MODE_ENABLED = false; // dev build: show login, bypass via button
 
 function _buildPreviewDB(){
   const MONTHS_=['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
@@ -4182,24 +4207,16 @@ function toggleNavSearch(){
     const inp=document.getElementById('global-search-mobile');
     if(inp)inp.value='';
   } else {
+    const inp=document.getElementById('global-search-mobile');
+    // Mirror openQuickAdd: focus synchronously BEFORE the panel animates open.
+    // iOS only honours .focus() within the tap gesture chain — any async delay
+    // breaks it. Input is off-screen (transform:-110%) but NOT visibility:hidden
+    // or display:none, so iOS can focus it and will raise the keyboard as the
+    // panel slides into view.
+    if(inp){inp.value='';inp.focus();}
     expand.classList.add('open');
     if(backdrop)backdrop.style.display='block';
     if(bntSearch)bntSearch.classList.add('on');
-    const inp=document.getElementById('global-search-mobile');
-    // iOS Safari: focus must be triggered after the CSS transition completes
-    // (transform:translateY 0.22s) so the element is fully visible and
-    // interactive. rAF alone (~16ms) fires before the transition ends —
-    // a 260ms setTimeout safely clears the 220ms slide-in transition and
-    // keeps us close enough to the original user gesture for iOS to permit
-    // keyboard raise. Double-focus + readOnly toggle is the most reliable
-    // cross-device approach.
-    if(inp){
-      inp.removeAttribute('readonly');
-      setTimeout(()=>{
-        inp.focus();
-        inp.click&&inp.click();
-      }, 260);
-    }
   }
 }
 function clearMobileSearch(){
@@ -6216,6 +6233,19 @@ function toggleMonthPicker(){
   const wasOpen=el.classList.contains('open');
   el.classList.toggle('open');
   if(!wasOpen){
+    // On mobile: position the fixed dropdown just below the trigger,
+    // clamped so it never extends beyond the viewport bottom.
+    if(window.innerWidth<=600){
+      const trigger=el.querySelector('.month-picker-title');
+      const drop=document.getElementById('month-picker-list');
+      if(trigger&&drop){
+        const rect=trigger.getBoundingClientRect();
+        const topVal=rect.bottom+8;
+        const maxH=window.innerHeight-topVal-16;
+        drop.style.top=topVal+'px';
+        drop.style.maxHeight=Math.max(120,maxH)+'px';
+      }
+    }
     // Scroll the dropdown container so the active month is centred.
     // scrollIntoView() scrolls the *document* not the fixed dropdown container,
     // which causes the page to jump. Instead set scrollTop directly on the list.
