@@ -396,6 +396,11 @@ nav:not(#bottom-nav){position:sticky;top:0;z-index:200;background:var(--surface)
 .item-badge.resold{background:rgba(167,139,250,0.15);color:var(--purple);}
 .item-badge.relisted{background:rgba(167,139,250,0.2);color:var(--purple);}
 .item-badge.spares{background:var(--accent-dim);color:var(--warn);}
+/* Patch A — stock state badge: amber/orange = pre-listing, not yet active. */
+.item-badge.sourced{background:var(--accent-dim);color:var(--accent);border:1px solid rgba(212,136,10,0.22);}
+.chip.chip-state-sourced.active{background:var(--accent-dim);color:var(--accent);border-color:rgba(212,136,10,0.35);}
+.chip.chip-state-listed.active{background:rgba(96,165,250,0.13);color:var(--blue);border-color:rgba(96,165,250,0.35);}
+.chip.chip-state-all.active{background:var(--surface2);color:var(--text);border-color:var(--border);}
 .plat-badge{font-size:10px;padding:2px 6px;border-radius:5px;font-weight:600;letter-spacing:0.3px;background:var(--surface2);border:1px solid var(--border2);color:var(--text-secondary);white-space:nowrap;}
 .plat-badge.vinted{background:rgba(9,166,135,0.12);border-color:rgba(9,166,135,0.3);color:#09a687;}
 .plat-badge.depop{background:rgba(255,70,70,0.1);border-color:rgba(255,70,70,0.25);color:#e03030;}
@@ -428,6 +433,8 @@ nav:not(#bottom-nav){position:sticky;top:0;z-index:200;background:var(--surface)
 .status-dot.relisted{background:var(--purple);opacity:0.9;}
 .status-dot.resold{background:var(--purple);}
 .status-dot.spares{background:var(--warn);opacity:0.85;}
+/* Patch A — stock items use a hollow ring-style dot in amber to distinguish from listed */
+.status-dot.sourced{background:transparent;border:1.5px solid var(--accent);opacity:0.85;width:8px;height:8px;box-sizing:border-box;}
 
 /* FORMS */
 .fg{margin-bottom:16px;}
@@ -615,8 +622,13 @@ input,select,textarea{touch-action:manipulation;user-select:text;-webkit-user-se
 
 /* PAGE LAYOUT */
 .page-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:10px;}
-.page-title{font-family:"Inter",system-ui,sans-serif;font-size:22px;font-weight:700;letter-spacing:-0.03em;}
-.page-subtitle{color:var(--text-secondary);font-size:13px;margin-top:3px;}
+/* Fluid page title — scales smoothly from 20px (320px viewport) to 34px (desktop). */
+.page-title{font-family:"Inter",system-ui,sans-serif;font-size:clamp(20px,5.5vw,34px);font-weight:800;letter-spacing:-0.04em;line-height:1.1;}
+/* Subtitle fades out on very narrow viewports where it would push content down.
+   Smooth opacity + height transition means it disappears without layout jump. */
+.page-subtitle{color:var(--text-secondary);font-size:clamp(12px,3vw,14px);margin-top:3px;line-height:1.4;
+  transition:opacity 0.2s,max-height 0.2s;max-height:3em;overflow:hidden;}
+@media(max-width:340px){.page-subtitle{opacity:0;max-height:0;margin:0;}}
 .page-actions{display:flex;gap:6px;align-items:center;flex-wrap:wrap;}
 
 /* SECTION CARD */
@@ -701,7 +713,9 @@ input,select,textarea{touch-action:manipulation;user-select:text;-webkit-user-se
 /* Custom mobile filter dropdown — used in place of native select so we can
    show coloured dots next to options. Same sizing/feel as the month picker.
    Visible only on mobile (rule below in @media). */
-.filter-pill-dd{position:relative;display:none;flex:1 1 0;min-width:0;}
+/* Hidden on desktop; shown at mobile breakpoints when chips collapse.
+   Natural width (shrink-wraps to content) until both-dropdowns mode forces equal split. */
+.filter-pill-dd{position:relative;display:none;flex:0 0 auto;min-width:0;}
 .filter-pill-dd-btn{display:flex;align-items:center;gap:8px;padding:0 14px;height:38px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;font-family:var(--font-body);font-size:13px;font-weight:600;color:var(--text);cursor:pointer;width:100%;justify-content:space-between;transition:all .15s;box-sizing:border-box;}
 .filter-pill-dd-btn:hover{border-color:var(--accent);}
 .filter-pill-dd-btn .fpdd-label{display:flex;align-items:center;gap:8px;}
@@ -775,7 +789,10 @@ input,select,textarea{touch-action:manipulation;user-select:text;-webkit-user-se
   -webkit-appearance:none;-moz-appearance:none;appearance:none;
   background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='11' height='11' viewBox='0 0 12 12'%3E%3Cpath fill='%23a09880' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
   background-repeat:no-repeat;background-position:right 12px center;
-  width:auto;box-sizing:border-box;transition:border-color .15s,box-shadow .15s;
+  /* Natural width — aligns right via space-between on .filter-row.
+     Only stretches to fill when paired with a pill-dd (both-dropdowns mode). */
+  width:auto;flex:0 0 auto;box-sizing:border-box;
+  transition:border-color .15s,box-shadow .15s;
 }
 .sort-select:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-dim);}
 .sort-select:hover{border-color:var(--accent);}
@@ -988,12 +1005,30 @@ input,select,textarea{touch-action:manipulation;user-select:text;-webkit-user-se
 .fab-dial-btn:hover{transform:scale(1.1);}
 .fab-dial-btn.trip{color:var(--accent);border:1.5px solid var(--accent-dim);}
 .fab-dial-btn.expense{color:var(--green);border:1.5px solid var(--green-dim);}
-.fab-main{position:relative;width:52px;height:52px;border-radius:50%;background:var(--accent);color:#000;border:none;cursor:pointer;font-size:24px;font-weight:700;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 20px var(--shadow-md);transition:transform 0.2s,background 0.2s;pointer-events:auto;flex-shrink:0;}
+/* Patch A — additional FAB option variants */
+.fab-dial-btn.list{color:var(--accent);border:1.5px solid var(--accent-dim);}
+/* stock FAB button: orange/amber to match stock badge colour */
+.fab-dial-btn.sourced{color:var(--accent);border:1.5px solid var(--accent-dim);}
+.fab-dial-btn.sourcerun{color:var(--purple);border:1.5px solid rgba(166,134,255,0.18);}
+.fab-main{position:relative;z-index:1;width:52px;height:52px;border-radius:50%;background:var(--accent);color:#000;border:none;cursor:pointer;font-size:24px;font-weight:700;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 20px var(--shadow-md);transition:transform 0.2s,background 0.2s;pointer-events:auto;flex-shrink:0;}
 .fab-main:hover{transform:scale(1.08);background:var(--accent-hover);}
 .fab-main .fab-icon{display:block;transition:transform 0.22s;}
 .fab-dial.open .fab-main .fab-icon{transform:rotate(45deg);}
-.fab-dial-backdrop{display:none;position:fixed;inset:0;z-index:298;}
-.fab-dial.open .fab-dial-backdrop{display:block;}
+/* Patch A — backdrop dims the page. Using z-index:-1 keeps it behind sibling
+   elements (.fab-dial-options, .fab-main) within the same stacking context
+   so the buttons always appear bright/active above the dim. The FAB container
+   itself is z-index:300 which lifts the whole group above the page. */
+.fab-dial-backdrop{position:fixed;inset:0;z-index:-1;background:var(--overlay);opacity:0;pointer-events:none;transition:opacity 0.18s ease;}
+.fab-dial.open .fab-dial-backdrop{opacity:1;pointer-events:auto;}
+/* Option list container — positioned relative + z-index:1 to sit above backdrop */
+#fab-dial-options{display:flex;flex-direction:column;align-items:flex-end;gap:10px;pointer-events:none;position:relative;z-index:1;}
+.fab-dial.open #fab-dial-options{pointer-events:auto;}
+/* Stagger transition delays apply to the children of #fab-dial-options too */
+#fab-dial-options .fab-dial-item:nth-child(1){transition-delay:0s;}
+#fab-dial-options .fab-dial-item:nth-child(2){transition-delay:0.04s;}
+#fab-dial-options .fab-dial-item:nth-child(3){transition-delay:0.08s;}
+#fab-dial-options .fab-dial-item:nth-child(4){transition-delay:0.12s;}
+#fab-dial-options .fab-dial-item:nth-child(5){transition-delay:0.16s;}
 
 .brand{cursor:pointer;}
 
@@ -1070,8 +1105,8 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
 .user-menu-btn{height:42px;border-radius:14px;padding:6px 12px 6px 6px;background:color-mix(in srgb,var(--surface2) 70%, transparent);}
 .user-avatar{width:28px;height:28px;background:linear-gradient(135deg,var(--accent),color-mix(in srgb,var(--accent) 60%, #fff 40%));color:#0c1320;font-size:11px;}
 .page-header{margin-bottom:22px;}
-.page-title{font-size:34px;font-weight:800;letter-spacing:-0.05em;}
-.page-subtitle{font-size:14px;color:var(--text-secondary);}
+.page-title{font-weight:800;letter-spacing:-0.05em;}
+.page-subtitle{color:var(--text-secondary);}
 .kgrid{gap:12px;margin-bottom:18px;}
 .kcard{border-radius:20px;padding:20px 20px 18px;border:1px solid var(--border);box-shadow:0 10px 30px var(--shadow);min-height:100px;background:linear-gradient(180deg,color-mix(in srgb,var(--surface) 94%, #ffffff 6%) 0%,var(--surface) 100%);;min-width:0;}
 [data-theme="dark"] .kcard{background:linear-gradient(180deg,color-mix(in srgb,var(--surface) 92%, #1f2b40 8%) 0%,var(--surface) 100%);border-color:color-mix(in srgb,var(--border) 88%, transparent);}
@@ -1203,10 +1238,10 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
   .msub{font-size:11px;margin-top:2px!important;}
   .mname{font-size:11px;margin-bottom:2px!important;}
 .filter-chips{display:none!important;}.filter-pill-dd{display:block!important;}
-/* Filter pill + sort select share equal width on mobile (flex:1 each).
-   The 8px gap from .filter-row gives natural breathing room between them. */
-.filter-row .filter-pill-dd{flex:1 1 0;min-width:0;}
-.filter-row > .sort-select{flex:1 1 0!important;min-width:0!important;margin-left:0!important;}}
+/* Both controls are now dropdowns — switch to equal flex split so neither
+   dominates. width:0 forces flex to ignore intrinsic content size entirely. */
+.filter-row .filter-pill-dd{flex:1 1 0!important;min-width:0!important;width:0!important;}
+.filter-row > .sort-select,.filter-row .sort-select{flex:1 1 0!important;min-width:0!important;width:0!important;max-width:none!important;}}
 
 /* E4 — Stock filter row has 5 chips (All/Fresh/Maturing/Slow/Stale) plus a
    sort dropdown, so it needs an earlier swap to dropdown than the 480px
@@ -1214,10 +1249,11 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
    the sort select. The rule below collapses them into the existing
    filter-pill-dd component while keeping the sort select on the same row. */
 @media(max-width:708px){
+  /* Stock filter row: 5 chips overflow before 480px, so collapse earlier.
+     Once chips become a dropdown, both controls get equal flex split. */
   .stock-filter-row .filter-chips{display:none!important;}
-  .stock-filter-row .filter-pill-dd{display:block!important;flex:1 1 0;min-width:0;}
-  .stock-filter-row .sort-select{flex:1 1 0!important;min-width:0!important;}
-  .stock-filter-row .sort-select{flex:1 1 0!important;min-width:0!important;margin-left:0!important;}
+  .stock-filter-row .filter-pill-dd{display:block!important;flex:1 1 0!important;min-width:0!important;width:0!important;}
+  .stock-filter-row .sort-select{flex:1 1 0!important;min-width:0!important;width:0!important;max-width:none!important;}
   .stock-filter-row{flex-wrap:nowrap!important;}
 }
 
@@ -1264,7 +1300,7 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
 .nav-more-btn,.tab,.bnt{position:relative}
 .page-header{align-items:flex-end!important}
 #p-summary .page-subtitle{display:none!important}
-#p-summary .page-title{font-size:34px!important;letter-spacing:-0.04em!important}
+/* Summary title uses the same clamp as other pages — no hard override needed */
 #p-summary .kgrid,
 #p-summary .kgrid-4,
 #p-summary .insights,
@@ -1300,12 +1336,12 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
 }
 .summary-header-text{min-width:0;flex:1;}
 .summary-title{
-  font-family:var(--font-display);font-size:26px;font-weight:800;
+  font-family:"Inter",system-ui,sans-serif;font-size:clamp(20px,5.5vw,34px);font-weight:800;
   letter-spacing:-.04em;line-height:1.1;
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
 }
 .summary-subtitle{
-  font-size:13px;color:var(--text-secondary);line-height:1.4;
+  font-size:clamp(11px,2.8vw,13px);color:var(--text-secondary);line-height:1.4;
   margin-top:4px;
   display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;
 }
@@ -1314,7 +1350,6 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
 /* ≤600px: hide subtitle */
 @media(max-width:600px){
   .summary-subtitle{display:none!important;}
-  .summary-title{font-size:20px;}
 }
 /* ≤360px: hide title too, period select fills full width */
 @media(max-width:360px){
@@ -1553,14 +1588,8 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
 
 <div id="fab-dial" class="fab-dial" style="display:none">
   <div class="fab-dial-backdrop" onclick="closeFabDial()"></div>
-  <div class="fab-dial-item" id="fab-trip-item">
-    <span class="fab-dial-label">Add Trip</span>
-    <button class="fab-dial-btn trip" onclick="closeFabDial();addTrip()" title="Add sourcing trip" aria-label="Add sourcing trip"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 17H3a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2h11l4 4v4a2 2 0 0 1-2 2h-1"/><path d="M14 17a2 2 0 1 0 4 0 2 2 0 0 0-4 0"/><path d="M5 17a2 2 0 1 0 4 0 2 2 0 0 0-4 0"/><line x1="3" y1="9" x2="14" y2="9"/></svg></button>
-  </div>
-  <div class="fab-dial-item" id="fab-expense-item">
-    <span class="fab-dial-label">Add Expense</span>
-    <button class="fab-dial-btn expense" onclick="closeFabDial();addExpense()" title="Add expense" aria-label="Add expense"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16l3-2 2 2 3-2 3 2 2-2 3 2V4a2 2 0 0 0-2-2z"/><line x1="9" y1="9" x2="15" y2="9"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="12" y2="17"/></svg></button>
-  </div>
+  <!-- Patch A — option list is populated per-page by buildFabOptions(); items render top-down (most-used closest to FAB) -->
+  <div id="fab-dial-options"></div>
   <button class="fab-main" onclick="onFabClick()" title="Add" aria-label="Add new item">
     <span class="fab-icon">+</span>
   </button>
@@ -1689,10 +1718,6 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
       style="width:100%;padding:12px;background:var(--accent);color:#000;border:none;border-radius:8px;font-weight:700;font-size:15px;cursor:pointer;transition:background 0.15s;">
       Sign In
     </button>
-    <button onclick="startPreviewMode()" id="preview-btn"
-      style="width:100%;padding:12px;background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:8px;font-weight:700;font-size:15px;cursor:pointer;transition:background 0.15s;margin-top:10px;">
-      Developer preview
-    </button>
 
     <button onclick="showForgotPassword()"
       style="width:100%;padding:10px;background:none;border:none;color:var(--text-secondary);font-size:13px;cursor:pointer;margin-top:8px;text-decoration:underline;text-underline-offset:3px;">
@@ -1815,6 +1840,47 @@ function _ensureDBShape(){
   });
   if(!Array.isArray(DB.trips)) DB.trips=[];
   if(!Array.isArray(DB.expenses)) DB.expenses=[];
+}
+
+// Patch A — Item state migration. One-time pass: every item must have a
+// canonical `state` field of 'sourced' | 'listed' | 'sold' | 'returned'.
+// State is purely for filtering/display in this patch — financial logic
+// continues to read existing fields (sold/isReturned/resaleSalePrice etc).
+// Derivation rules (in order):
+//   active return in returnHistory[] (no resale yet)         → 'returned'
+//   has dateSold or resaleSalePrice (and not returned)       → 'sold'
+//   otherwise                                                → 'listed'
+// Stock items (state='stock') are pre-listing and will only ever exist if
+// they were created via the Stock Quick Add flow — never produced by this
+// migration (no existing field can imply pre-listing intent).
+//
+// ALSO: backfill dateSourced for items that don't have it. Anything created
+// via the old List Quick Add flow gets dateSourced=dateListed (effectively
+// "sourced and listed same day" → 0d time-to-list). Falls back to dateSold
+// for ancient entries with neither, ensuring the field is never undefined.
+// This matters for the Stock page's "Avg time to list" KPI which would
+// otherwise have to skip un-sourced items entirely.
+function _migrateItemStates(){
+  let touchedState=0, touchedSourced=0;
+  allDBKeys().forEach(function(k){
+    (DB[k]||[]).forEach(function(i){
+      if(!i.state){
+        const _hadFullReturn=(i.returnHistory||[]).some(function(r){return r.type==='full_seller'||r.type==='full_ebay';});
+        const _activeReturn=i.isReturned===true || (_hadFullReturn && !i.resaleSalePrice);
+        if(_activeReturn){ i.state='returned'; }
+        else if(i.dateSold || i.resaleSalePrice){ i.state='sold'; }
+        else { i.state='listed'; }
+        touchedState++;
+      }
+      if(!i.dateSourced){
+        i.dateSourced = i.dateListed || i.dateSold || null;
+        if(i.dateSourced) touchedSourced++;
+      }
+    });
+  });
+  if(touchedState>0 || touchedSourced>0){
+    try{ console.log('[Patch A] Migration: state on',touchedState,'items, dateSourced on',touchedSourced,'items'); }catch(e){}
+  }
 }
 
 // On load: migrate bare keys ('APR') → year-suffixed ('APR-26') using dateListed/dateSold
@@ -2065,8 +2131,10 @@ let MODAL_CALLBACK=null;
 let MONTH_FILTER='all';
 let MONTH_SORT='date-sold';
 let SELECTION_MODE=false;
-let STOCK_SORT='days-asc';          // stock sort: profit | roi | price | days-desc | days-asc
-let STOCK_FILTER='all';           // stock filter: all | fresh | maturing | slow | stale
+let STOCK_SORT='days-asc';          // stock sort: profit | roi | price | days-desc | days-asc | cost-desc
+let STOCK_FILTER='all';           // listed-age filter: all | fresh | maturing | slow | stale
+let STOCK_STATE_FILTER='listed';  // Patch A — population: 'listed' | 'sourced'
+let STOCK_SOURCED_FILTER='all';   // Patch A — sourced-age filter: all | new | soon | overdue | stagnant
 let STOCK_GROUPED=false;          // Session B: false=flat list, true=group by listing month
 let STOCK_SELECTION_MODE=false;   // stock page checkbox mode
 let STOCK_SELECTED=new Set();     // stock page selection
@@ -2569,6 +2637,8 @@ function enablePreviewMode(){
   localStorage.setItem(PREVIEW_STORAGE_KEY,'1');
   LEGACY_PREVIEW_STORAGE_KEYS.forEach(function(k){ if(k!==PREVIEW_STORAGE_KEY) localStorage.removeItem(k); });
   DB = _buildPreviewDB();
+  // Patch A — Stamp canonical state field on preview-mode items too
+  try{ _migrateItemStates(); }catch(e){ console.warn('state migrate (preview):',e); }
   _dbSnapshot = _dbFingerprint();
 }
 
@@ -3234,6 +3304,8 @@ async function initDB(){
     ]);
     // Migrate any legacy bare keys ('APR') → year-suffixed ('APR-26')
     _migrateBareDBKeys();
+    // Patch A — Stamp canonical state field on every item (one-time)
+    _migrateItemStates();
     // Snapshot MUST be set immediately after load — before any renderX call
     // triggers saveDB(). Without this the diff engine thinks everything is new
     // and re-upserts the entire DB on every page load.
@@ -3339,6 +3411,8 @@ function goToTab(name,sourceEl){
   else if(name==='tax')renderTax();
   else if(name==='data')renderData();
   else if(name==='search')renderSearchResults();
+  // Patch A — FAB visibility per page (hides on p-item/p-search/p-tax/p-data)
+  if(typeof _syncFabVisibility==='function')_syncFabVisibility();
 }
 
 let _itemPageOrigin='p-summary';
@@ -3353,6 +3427,8 @@ function openItemPage(m,id,origin){
   document.getElementById('p-item').classList.add('on');
   window.scrollTo(0,0);
   renderItemPage(m,id);
+  // Patch A — hide FAB on item page
+  if(typeof _syncFabVisibility==='function')_syncFabVisibility();
 }
 
 // Called when "Full details →" is tapped inside a panel popup.
@@ -3610,6 +3686,53 @@ function saveSDFree(m,id,buyerPays){
   const s=_getSecStates();renderItemPage(m,id);_applySecStates(s);
 }
 
+// Patch A — Stock item page. Minimal layout for pre-listing items: cost,
+// title, sourcing date, age in stock, photo, notes. A "List this item"
+// CTA stub points to a future patch that handles the stock→listed transition.
+function _renderStockItemPage(m,i){
+  const page=document.getElementById('p-item');
+  if(!page)return;
+  const ageDays=_daysInStock(i);
+  const ageStr=ageDays===null?'unknown':ageDays+' day'+(ageDays===1?'':'s');
+  const back=`<button class="btn btn-s" onclick="exitItemPage()" style="margin-bottom:10px;font-size:13px">\u2190 Back</button>`;
+  const photo=i.photo
+    ? `<div style="margin:0 auto 16px;max-width:280px;border-radius:12px;overflow:hidden;border:1px solid var(--border);"><img src="${i.photo}" alt="Stock photo" style="width:100%;display:block;"></div>`
+    : `<div style="margin:0 auto 16px;max-width:280px;height:140px;border-radius:12px;border:1.5px dashed var(--border);display:flex;align-items:center;justify-content:center;color:var(--text-secondary);font-size:13px;">No photo</div>`;
+  const html=`
+    <div style="max-width:560px;margin:0 auto;padding:18px 16px 80px;">
+      ${back}
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:18px;">
+        <span class="item-badge sourced" style="font-size:11px;padding:4px 9px;">stock</span>
+        <span style="font-size:12px;color:var(--text-secondary);">${i.gid||''}</span>
+      </div>
+      ${photo}
+      <h1 style="font-family:var(--font-display);font-size:26px;font-weight:800;letter-spacing:-0.02em;margin:0 0 6px;">${esc(i.item||'Untitled stock item')}</h1>
+      <div style="font-size:13px;color:var(--text-secondary);margin-bottom:22px;">
+        Sourced ${i.dateSourced||'\u2014'} \u00b7 ${ageStr} in stock
+      </div>
+      <div style="background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:16px 18px;margin-bottom:18px;">
+        <div style="display:flex;align-items:baseline;justify-content:space-between;gap:10px;">
+          <div style="font-size:11px;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-secondary);font-weight:600;">Cost</div>
+          <div style="font-family:var(--font-display);font-size:24px;font-weight:700;color:var(--text);">${fmt(i.costPrice||0)}</div>
+        </div>
+        <div style="font-size:12px;color:var(--text-secondary);margin-top:4px;">Capital tied up in this item</div>
+      </div>
+      ${i.notes?`<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:18px;">
+        <div style="font-size:11px;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-secondary);font-weight:600;margin-bottom:6px;">Notes</div>
+        <div style="font-size:14px;color:var(--text);line-height:1.5;white-space:pre-wrap;">${esc(i.notes)}</div>
+      </div>`:''}
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;">
+        <button class="btn btn-p" onclick="alert('Listing flow lands in Patch B \u2014 you\\'ll be able to set platform, price and fees from here.')" title="Coming in Patch B">List this item \u2192</button>
+        <button class="btn btn-s" onclick="editItem('${m}','${i.id}')">\u270f\ufe0f Edit</button>
+        <button class="btn btn-s danger" onclick="deleteItem('${m}','${i.id}')">\ud83d\uddd1\ufe0f Delete</button>
+      </div>
+      <div style="font-size:11px;color:var(--text-secondary);margin-top:24px;line-height:1.5;">
+        Stock items don't have a sale price, platform, or fees yet \u2014 those fields appear once you list the item.
+      </div>
+    </div>`;
+  page.innerHTML=html;
+}
+
 function renderItemPage(m,id){
   // Lookup tolerates both id and gid — some entry points (search deep-links,
   // external references) hold only a gid like "R-0042". Internal handlers
@@ -3621,6 +3744,14 @@ function renderItemPage(m,id){
   // interpolates `id` into inline onclick handlers (undoSale, openTokenEdit,
   // savePostageMode, etc.) which all look items up by i.id only.
   id=i.id;
+
+  // Patch A — Stock-state items have a minimal item page (no platform selector,
+  // no BPF breakdown, no fees — none of those concepts apply pre-listing).
+  // The full listed-item page lights up automatically once the item transitions
+  // to state='listed' in a future patch.
+  if(i.state==='sourced'){
+    return _renderStockItemPage(m,i);
+  }
 
   const _wasRelistedDetect = !i.isReturned && !i.dateSold && !i.resaleSalePrice &&
     (i.returnHistory||[]).some(r=>r.type==='full_seller'||r.type==='full_ebay');
@@ -4299,7 +4430,7 @@ function renderSearchResults(q){
     <div style="padding:20px 24px 0">
       <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:4px">
         <button class="btn btn-s" onclick="exitSearchPage()" style="font-size:13px">← Back</button>
-        <div style="font-size:20px;font-weight:700">Search Results</div>
+        <div class="page-title" style="margin-bottom:2px">Search</div>
       </div>
       <div style="font-size:14px;color:var(--muted);margin-bottom:16px">
         <strong style="color:var(--text)">${total}</strong> item${total!==1?'s':''} matching <strong style="color:var(--accent)">"${esc(q)}"</strong>
@@ -4507,19 +4638,146 @@ function initPanelSwipe(){
 }
 initPanelSwipe();
 
-function onFabClick(){
-  const activePage=document.querySelector('.page.on');
-  const isExpenses=activePage&&activePage.id==='p-expenses';
-  if(isExpenses){
-    const dial=document.getElementById('fab-dial');
-    if(dial)dial.classList.contains('open')?closeFabDial():dial.classList.add('open');
-  }else{
-    openQuickAdd();
+// Patch A — Page-aware FAB.
+// Per-page option sets (top of stack = most-used / closest to FAB).
+// Page → option ids (in order). Option specs are in _FAB_OPTION_DEFS below.
+// Pages not listed here suppress the speed-dial entirely (single-tap = primary).
+// Patch A — Uniform FAB options across all pages.
+// Same 5 options everywhere — more intuitive than page-specific sets.
+// Exception: pages where FAB is hidden entirely (item detail, search, tax, data).
+const _FAB_ALL_OPTIONS = ['list','sourced','sourcerun','expense','trip'];
+const _FAB_PAGE_OPTIONS = {
+  'p-summary':  _FAB_ALL_OPTIONS,
+  'p-stock':    _FAB_ALL_OPTIONS,
+  'p-monthly':  _FAB_ALL_OPTIONS,
+  'p-expenses': _FAB_ALL_OPTIONS,
+  // p-item, p-search, p-tax, p-data → no FAB, see _FAB_HIDDEN_PAGES
+};
+const _FAB_HIDDEN_PAGES = new Set(['p-item','p-search','p-tax','p-data']);
+
+// Option defs — label, click handler, button class colour, SVG icon.
+// Class colours map to existing tokens: accent (amber), green, blue, purple.
+const _FAB_OPTION_DEFS = {
+  list: {
+    label:'List item', cls:'list',
+    onClick:'closeFabDial();openQuickAdd()',
+    title:'Quick add a listed item',
+    svg:'<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><line x1="7" y1="9" x2="17" y2="9"/><line x1="7" y1="13" x2="17" y2="13"/><line x1="7" y1="17" x2="13" y2="17"/></svg>'
+  },
+  sourced: {
+    label:'Sourced item', cls:'sourced',
+    onClick:'closeFabDial();openStockQuickAdd()',
+    title:'Add sourced item (pre-listing)',
+    svg:'<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="14" width="18" height="6" rx="1.5"/><rect x="5" y="9" width="14" height="5" rx="1.5"/><rect x="7.5" y="4" width="9" height="5" rx="1.5"/></svg>'
+  },
+  sourcerun: {
+    label:'Start sourcing run', cls:'sourcerun',
+    onClick:'closeFabDial();openSourcingRunStub()',
+    title:'Begin a sourcing run (coming soon)',
+    svg:'<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="10" r="3"/><path d="M12 2a8 8 0 0 1 8 8c0 5.5-8 12-8 12S4 15.5 4 10a8 8 0 0 1 8-8z"/></svg>'
+  },
+  expense: {
+    label:'Add expense', cls:'expense',
+    onClick:'closeFabDial();addExpense()',
+    title:'Log an expense',
+    svg:'<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16l3-2 2 2 3-2 3 2 2-2 3 2V4a2 2 0 0 0-2-2z"/><line x1="9" y1="9" x2="15" y2="9"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="12" y2="17"/></svg>'
+  },
+  trip: {
+    label:'Add trip', cls:'trip',
+    onClick:'closeFabDial();addTrip()',
+    title:'Log a sourcing trip / mileage',
+    svg:'<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 17H3a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2h11l4 4v4a2 2 0 0 1-2 2h-1"/><path d="M14 17a2 2 0 1 0 4 0 2 2 0 0 0-4 0"/><path d="M5 17a2 2 0 1 0 4 0 2 2 0 0 0-4 0"/><line x1="3" y1="9" x2="14" y2="9"/></svg>'
   }
+};
+
+// Build & inject option pills for the active page. Order in _FAB_PAGE_OPTIONS
+// is rendered top-down (top = most-used), so we reverse for DOM since the dial
+// is flex-column-bottom-aligned and the FAB sits at the bottom.
+function buildFabOptions(){
+  const wrap=document.getElementById('fab-dial-options');
+  if(!wrap)return;
+  const activePage=(document.querySelector('.page.on')||{id:''}).id;
+  if(_FAB_HIDDEN_PAGES.has(activePage)){ wrap.innerHTML=''; return; }
+  const ids=_FAB_PAGE_OPTIONS[activePage]||['list']; // safe default
+  // Reverse so the first id ends up nearest the FAB (last child = bottom of stack)
+  const ordered=ids.slice().reverse();
+  wrap.innerHTML=ordered.map(function(id){
+    const o=_FAB_OPTION_DEFS[id]; if(!o)return '';
+    return '<div class="fab-dial-item">'
+      +'<span class="fab-dial-label">'+o.label+'</span>'
+      +'<button class="fab-dial-btn '+o.cls+'" onclick="'+o.onClick+'" title="'+o.title+'" aria-label="'+o.label+'">'+o.svg+'</button>'
+      +'</div>';
+  }).join('');
+}
+
+function onFabClick(){
+  const activePage=(document.querySelector('.page.on')||{id:''}).id;
+  // Hidden-page guard: shouldn't happen (FAB is hidden on these pages by
+  // refreshActivePage), but if it does, fall through to nothing.
+  if(_FAB_HIDDEN_PAGES.has(activePage))return;
+  const ids=_FAB_PAGE_OPTIONS[activePage]||[];
+  // If only one option, fire it directly — no dial needed for single actions.
+  // (Doesn't currently apply to any page but future-proofs the pattern.)
+  if(ids.length<=1){
+    const onlyId=ids[0]||'list';
+    const o=_FAB_OPTION_DEFS[onlyId];
+    if(o){ try{ new Function(o.onClick)(); }catch(e){ console.error('fab single-action:',e); } }
+    return;
+  }
+  // Multi-option: build options for current page, then toggle dial open.
+  buildFabOptions();
+  const dial=document.getElementById('fab-dial');
+  if(!dial)return;
+  if(dial.classList.contains('open')){ closeFabDial(); }
+  else { dial.classList.add('open'); }
 }
 function closeFabDial(){
   const dial=document.getElementById('fab-dial');
   if(dial)dial.classList.remove('open');
+}
+
+// Patch A — Esc dismisses the FAB dial (desktop). Mobile uses backdrop tap.
+document.addEventListener('keydown',function(e){
+  if(e.key==='Escape'){
+    const dial=document.getElementById('fab-dial');
+    if(dial && dial.classList.contains('open')) closeFabDial();
+  }
+});
+
+// Patch A — Hide/show FAB based on the active page (called by goToTab and
+// openItemPage). When opening a hidden page we also force-close the dial in
+// case it was open mid-navigation.
+function _syncFabVisibility(){
+  const dial=document.getElementById('fab-dial');
+  if(!dial)return;
+  // Don't override the auth-flow display:none state (FAB is hidden until
+  // sign-in / preview entry sets display:'').
+  if(dial.style.display==='none' && !DB._userOwned && !_previewMode) return;
+  const activePage=(document.querySelector('.page.on')||{id:''}).id;
+  if(_FAB_HIDDEN_PAGES.has(activePage)){
+    dial.classList.remove('open');
+    dial.style.visibility='hidden';
+    dial.setAttribute('aria-hidden','true');
+  } else {
+    dial.style.visibility='';
+    dial.removeAttribute('aria-hidden');
+  }
+}
+
+// Patch A — Sourcing-run stub. Full flow lands in Patch C.
+function openSourcingRunStub(){
+  if(typeof openPanel==='function'){
+    openPanel('Sourcing Runs',
+      '<div style="padding:24px 20px;text-align:center;">'
+      +'<div style="width:56px;height:56px;border-radius:50%;background:rgba(212,136,10,0.10);border:1.5px solid var(--accent-dim);display:inline-flex;align-items:center;justify-content:center;margin-bottom:14px;">'
+      +'<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="10" r="3"/><path d="M12 2a8 8 0 0 1 8 8c0 5.5-8 12-8 12S4 15.5 4 10a8 8 0 0 1 8-8z"/></svg>'
+      +'</div>'
+      +'<div style="font-family:var(--font-display);font-size:18px;font-weight:700;letter-spacing:-0.01em;margin-bottom:6px;">Sourcing Runs — coming soon</div>'
+      +'<div style="font-size:13px;color:var(--text-secondary);line-height:1.5;max-width:320px;margin:0 auto 18px;">Start a run, snap items as you go, and they\u2019ll auto-tag to the trip and lot. Lands in the next patch.</div>'
+      +'<button class="btn btn-s" onclick="closePanel()">Got it</button>'
+      +'</div>'
+    );
+  }
 }
 
 function openQuickAdd(){
@@ -4608,6 +4866,12 @@ function submitQuickAdd(){
     id:'qa_'+Date.now(),
     gid:'R-'+String(getNextGID()).padStart(4,'0'),
     dateListed:_qaDate,
+    // Patch A — stamp dateSourced=dateListed for items added via List Quick Add
+    // (they were sourced and listed same day → time-to-list = 0d). Ensures the
+    // Stock page "Avg time to list" KPI has uniform data across all items.
+    dateSourced:_qaDate,
+    // Patch A — canonical state field. New listed items default to 'listed'.
+    state:'listed',
     item:rawName,
     source:document.getElementById('qa-source').value||'',
     category:document.getElementById('qa-category').value||'',
@@ -4629,6 +4893,135 @@ function submitQuickAdd(){
   SELECTED_MONTH=m;MONTH_SORT='date-listed';MONTH_FILTER='all';
   SELECTION_MODE=false;SELECTED_ITEMS.clear();
   openItemPage(m,item.id,'p-monthly');
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Patch A — Stock Quick Add (pre-listing flow)
+// Minimal fields: cost (required), title, photo, notes, dateSourced.
+// Stock items have state='stock' and no salePrice / platform / fees yet.
+// They contribute to inventory cost (capital tied up) but not to revenue or
+// profit KPIs — financial calc functions short-circuit cleanly when salePrice
+// is absent (see calcGrossProfit, calcItemRevenue, calcROI).
+// ────────────────────────────────────────────────────────────────────────────
+function openStockQuickAdd(){
+  const today=new Date().toISOString().split('T')[0];
+  const html=`
+    <div class="fg">
+      <label>Cost <span style="color:var(--red);font-weight:600">*</span></label>
+      <input type="number" id="sqa-cost" step="0.01" min="0" inputmode="decimal" placeholder="0.00" autocomplete="off">
+      <div class="fg-hint" style="font-size:11px;color:var(--text-secondary);margin-top:4px;">What you paid for this item</div>
+    </div>
+    <div class="fg">
+      <label>Title <span style="color:var(--text-secondary);font-weight:400;font-size:11px;">(optional)</span></label>
+      <input type="text" id="sqa-title" placeholder="e.g. Camera, Lego set" autocomplete="off">
+    </div>
+    <div class="fg">
+      <label>Date sourced</label>
+      <input type="date" id="sqa-date" value="${today}">
+    </div>
+    <div class="fg">
+      <label>Photo <span style="color:var(--text-secondary);font-weight:400;font-size:11px;">(optional)</span></label>
+      <input type="file" id="sqa-photo" accept="image/*" style="font-size:13px;">
+      <div id="sqa-photo-preview" style="margin-top:8px;display:none;">
+        <img id="sqa-photo-img" style="max-width:100%;max-height:140px;border-radius:8px;border:1px solid var(--border);" alt="Stock photo preview">
+      </div>
+    </div>
+    <div class="fg">
+      <label>Notes <span style="color:var(--text-secondary);font-weight:400;font-size:11px;">(optional)</span></label>
+      <textarea id="sqa-notes" rows="2" placeholder="Anything worth remembering — condition, where you found it..." style="width:100%;resize:vertical;"></textarea>
+    </div>
+    <div id="sqa-confirm" style="display:none;background:rgba(26,122,74,0.08);border:1px solid var(--green-dim);border-radius:10px;padding:14px;margin-top:14px;text-align:center;">
+      <div style="display:inline-flex;align-items:center;gap:8px;color:var(--green);font-weight:600;margin-bottom:10px;">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+        Item Saved
+      </div>
+      <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;">
+        <button class="btn btn-s" onclick="_stockQuickAddAnother()">Add another</button>
+        <button class="btn btn-p" onclick="closePanel()">Done</button>
+      </div>
+    </div>
+    <button class="btn btn-p" id="sqa-submit-btn" style="width:100%;margin-top:18px" onclick="submitStockQuickAdd()">Save Sourced Item</button>
+  `;
+  openPanel('Quick Add — Sourced Item',html);
+  // Wire photo preview + base64 capture
+  const photoInput=document.getElementById('sqa-photo');
+  if(photoInput){
+    photoInput.addEventListener('change',function(e){
+      const f=e.target.files&&e.target.files[0];
+      if(!f){ document.getElementById('sqa-photo-preview').style.display='none'; return; }
+      const reader=new FileReader();
+      reader.onload=function(ev){
+        const img=document.getElementById('sqa-photo-img');
+        if(img){ img.src=ev.target.result; document.getElementById('sqa-photo-preview').style.display='block'; }
+      };
+      reader.onerror=function(){ toast('Could not read photo','error'); };
+      reader.readAsDataURL(f);
+    });
+  }
+  // Focus cost field — synchronous within the tap chain for mobile keyboard
+  const costEl=document.getElementById('sqa-cost');
+  if(costEl)costEl.focus();
+}
+
+function submitStockQuickAdd(){
+  const costEl=document.getElementById('sqa-cost');
+  const titleEl=document.getElementById('sqa-title');
+  const dateEl=document.getElementById('sqa-date');
+  const notesEl=document.getElementById('sqa-notes');
+  const photoImg=document.getElementById('sqa-photo-img');
+  const photoVisible=document.getElementById('sqa-photo-preview')?.style.display!=='none';
+  const cost=parseFloat(costEl?.value);
+  if(!isFinite(cost)||cost<0){
+    toast('Cost is required and must be 0 or more','error');
+    try{costEl.focus();}catch(e){}
+    return;
+  }
+  const _date=(dateEl?.value)||new Date().toISOString().split('T')[0];
+  const m=monthKeyFromDate(_date);
+  const photoSrc=(photoVisible && photoImg && photoImg.src && photoImg.src.indexOf('data:image')===0) ? photoImg.src : null;
+  const item={
+    id:'sqa_'+Date.now(),
+    gid:'R-'+String(getNextGID()).padStart(4,'0'),
+    state:'sourced',
+    dateSourced:_date,
+    item:(titleEl?.value||'').trim()||'Untitled stock item',
+    costPrice:+cost.toFixed(2),
+    notes:(notesEl?.value||'').trim(),
+    // Defaults so legacy code paths (filter, render, return-history) don't crash
+    parts:[],
+    returnHistory:[],
+    isReturned:false,
+    dateListed:null,
+    dateSold:null,
+    salePrice:0,
+    postage:0,
+    shippingCost:0,
+    packagingCost:0,
+    promoPercent:0,
+    grossProfit:null
+  };
+  if(photoSrc) item.photo=photoSrc;
+  if(!Array.isArray(DB[m])) DB[m]=[];
+  DB[m].push(item);
+  saveDB();
+  // Show inline confirmation, hide the form fields + submit button.
+  const confirmEl=document.getElementById('sqa-confirm');
+  const submitBtn=document.getElementById('sqa-submit-btn');
+  if(confirmEl)confirmEl.style.display='block';
+  if(submitBtn)submitBtn.style.display='none';
+  // Disable inputs so user can't re-edit the just-saved entry
+  ['sqa-cost','sqa-title','sqa-date','sqa-photo','sqa-notes'].forEach(function(id){
+    const el=document.getElementById(id);
+    if(el)el.disabled=true;
+  });
+  try{ toast('Item Saved','success'); }catch(e){}
+}
+
+// "Add another" — reopen Stock Quick Add with cost cleared, ready for next.
+function _stockQuickAddAnother(){
+  closePanel();
+  // Defer so the slide-out animation finishes before reopening
+  setTimeout(function(){ openStockQuickAdd(); },220);
 }
 
 function getNextGID(){
@@ -5326,7 +5719,7 @@ function showFilteredItems(filter){
       }
     } else if(filter==='unrealised'&&!sold&&!i.isReturned){
       items.push({...i,month:k});
-    } else if(filter==='stock'&&!sold&&!i.isReturned){
+    } else if(filter==='sourced'&&!sold&&!i.isReturned){
       items.push({...i,month:k});
     }
   });});
@@ -5353,7 +5746,7 @@ function showFilteredItems(filter){
     summaryVal=fmt(items.reduce((s,i)=>s+(calcGrossProfit(i)||0),0));
     summaryLabel=`${items.length} active listings`;
     summaryColor='var(--purple)';
-  } else if(filter==='stock'){
+  } else if(filter==='sourced'){
     summaryVal=fmt(items.reduce((s,i)=>s+(i.salePrice||0),0));
     summaryLabel=`${items.length} items listed`;
     summaryColor='var(--blue)';
@@ -5726,7 +6119,7 @@ function renderSummary(){
     const html=`
       <div class="summary-header">
         <div class="summary-header-text">
-          <div class="summary-title">Command Centre</div>
+          <div class="summary-title">Dashboard</div>
           <div class="summary-subtitle">Revenue, sourcing quality, stock health and velocity.</div>
         </div>
         <select class="period-select-inline summary-period-sel" onchange="setSummaryPeriod(this.value)">${periods.map(p=>`<option value="${p.key}"${SUMMARY_PERIOD===p.key?' selected':''}>${p.label}</option>`).join('')}</select>
@@ -5762,7 +6155,7 @@ function renderSummary(){
           <div class="panel-card summary-inventory">
             <div class="sl">Inventory health</div>
             <div class="metric-inline clickable" onclick="openDashboardStock('all')"><div><div class="metric-k">Active stock</div><div style="font-size:11px;color:var(--muted);margin-top:4px">Current live inventory</div></div><div class="metric-v">${activeStockCount}</div></div>
-            <div class="metric-inline clickable" onclick="showFilteredItems('stock')"><div><div class="metric-k">Active stock value</div><div style="font-size:11px;color:var(--muted);margin-top:4px">At current ask</div></div><div class="metric-v">${fmt(activeStockVal)}</div></div>
+            <div class="metric-inline clickable" onclick="showFilteredItems('sourced')"><div><div class="metric-k">Active stock value</div><div style="font-size:11px;color:var(--muted);margin-top:4px">At current ask</div></div><div class="metric-v">${fmt(activeStockVal)}</div></div>
             <div class="metric-inline clickable" onclick="showListedInPeriodItems()"><div><div class="metric-k">Listed in period</div><div style="font-size:11px;color:var(--muted);margin-top:4px">Fresh sourcing pace</div></div><div class="metric-v" style="color:var(--accent)">${listedInPeriod}</div></div>
             ${activeStockCount>0?(()=>{
               // Compact aging breakdown — sized down version of Stock page bar.
@@ -5908,7 +6301,7 @@ function renderSummary(){
     })();
   }catch(err){
     console.error('renderSummary failed', err);
-    el.innerHTML=`<div class="page-header"><div><div class="page-title">Command Centre</div><div class="page-subtitle">Fast operational view for revenue, sourcing quality, stock health and velocity across your business.</div></div></div><div class="section-card"><div class="section-card-title">Dashboard unavailable</div><div class="section-card-desc">There was a rendering issue. Reload the page or switch period to retry.</div><button class="btn btn-p" onclick="renderSummary()">Retry dashboard</button></div>`;
+    el.innerHTML=`<div class="page-header"><div><div class="page-title">Dashboard</div><div class="page-subtitle">Your business at a glance.</div></div></div><div class="section-card"><div class="section-card-title">Dashboard unavailable</div><div class="section-card-desc">There was a rendering issue. Reload the page or switch period to retry.</div><button class="btn btn-p" onclick="renderSummary()">Retry dashboard</button></div>`;
   }
 }
 
@@ -6124,7 +6517,7 @@ function renderMonthlyGrid(){
   const fyYears=Array.from(fySet).sort(function(a,b){return b-a;}); // newest first
 
   let html='<div style="padding-bottom:80px;">';
-  html+='<div class="page-header"><div><div class="page-title">Monthly View</div><div class="page-subtitle">Tax-year organised performance timeline.</div></div></div>';
+  html+='<div class="page-header"><div><div class="page-title">Sales History</div><div class="page-subtitle">Sales performance, month by month.</div></div></div>';
 
   fyYears.forEach(function(fy){
     const months=_fyKeys(fy); // full Apr-Mar ordered list of 'MMM-YY' keys
@@ -6448,7 +6841,7 @@ function renderMonth(){
             <div class="filter-pill-dd-menu" onclick="event.stopPropagation()">${optsHTML}</div>
           </div>`;
       })()}
-      <select class="sort-select" onchange="setMonthSort(this.value)" style="margin-left:auto;flex-shrink:0;">
+      <select class="sort-select" onchange="setMonthSort(this.value)">
         <option value="date-sold" ${MONTH_SORT==='date-sold'?'selected':''}>Date sold</option>
         <option value="profit" ${MONTH_SORT==='profit'?'selected':''}>Profit</option>
         <option value="price" ${MONTH_SORT==='price'?'selected':''}>Price</option>
@@ -6582,6 +6975,59 @@ function renderSaleEventRow(ev){
 
 function renderItemRow(m,i){
   const selected=SELECTED_ITEMS.has(i.id);
+  // Patch A — Stock-state items have a different shape (no salePrice / dateListed / fees).
+  // Branch early to a stock-specific row layout. Keeps selection/click/menu wiring
+  // consistent with listed-item rows so STOCK_SELECTION_MODE etc. still work.
+  if(i.state==='sourced'){
+    const today=new Date().toISOString().split('T')[0];
+    const ageDays=_daysInStock(i);
+    const ageStr=ageDays===null?'':ageDays+'d in stock';
+    const dateStr=i.dateSourced||'';
+    const stockMeta=[];
+    if(dateStr) stockMeta.push('sourced '+dateStr);
+    if(ageStr) stockMeta.push(ageStr);
+    if(i.gid) stockMeta.push(i.gid);
+    const stockMetaStr=stockMeta.join(' \u00b7 ');
+    // Sourced-age bucket dot colour — gives at-a-glance priority signal on each row.
+    // Mirrors the age bar colours on the Stock page: green·amber·orange·red.
+    const _sAge=_daysInStock(i);
+    const _sDotCol=_sAge===null||_sAge<=3?'var(--green)':_sAge<=7?'var(--accent)':_sAge<=14?'var(--warn)':'var(--red)';
+    const stockLeftSlot=SELECTION_MODE
+      ?'<label class="item-checkbox-left" onclick="event.stopPropagation()"><input type="checkbox" '+(selected?'checked':'')+' onchange="toggleSelect(\''+i.id+'\')" style="width:16px;height:16px;accent-color:var(--accent);cursor:pointer;margin-right:4px"></label>'
+      :'<div class="status-dot sourced" style="background:'+_sDotCol+';opacity:1;border:none;"></div>';
+    const stockRowClick=SELECTION_MODE
+      ?'onclick="toggleSelect(\''+i.id+'\')"'
+      :'onclick="openItemPage(\''+m+'\',\''+i.id+'\',document.querySelector(\'.page.on\').id)"';
+    const stockActions='<div class="ddwrap" id="dd-'+i.id+'">'+
+      '<button class="ddbtn" onclick="event.stopPropagation();toggleDD(\'dd-'+i.id+'\')" title="Actions">\u22ee</button>'+
+      '<div class="ddmenu">'+
+        '<button onclick="event.stopPropagation();openItemPage(\''+m+'\',\''+i.id+'\',document.querySelector(\'.page.on\').id)">\ud83d\udcc4 Full page</button>'+
+        '<button onclick="event.stopPropagation();editItem(\''+m+'\',\''+i.id+'\')">\u270f\ufe0f Edit</button>'+
+        '<button onclick="event.stopPropagation();duplicateItem(\''+m+'\',\''+i.id+'\')">\ud83d\udccb Duplicate</button>'+
+        '<button class="danger" onclick="event.stopPropagation();deleteItem(\''+m+'\',\''+i.id+'\')">\ud83d\uddd1\ufe0f Delete</button>'+
+      '</div></div>';
+    const photoHTML=i.photo?'<div class="stock-row-thumb" style="width:38px;height:38px;border-radius:6px;background:#0007 center/cover no-repeat url(\''+i.photo+'\');flex-shrink:0;border:1px solid var(--border);"></div>':'';
+    return '<div class="item-row sourced-row'+(selected?' selected':'')+'" '+stockRowClick+'>'+
+      '<div class="item-main">'+
+        '<div class="item-row-inner">'+
+          stockLeftSlot+
+          photoHTML+
+          '<div class="item-row-body">'+
+            '<div class="item-row-name">'+esc(i.item||'Untitled stock item')+'</div>'+
+            '<div class="item-row-meta">'+
+              '<span class="item-badge sourced">stock</span>'+
+              (stockMetaStr?'<span class="item-row-meta-sep">\u00b7</span><span>'+stockMetaStr+'</span>':'')+
+            '</div>'+
+          '</div>'+
+          '<div class="item-row-right">'+
+            '<div class="item-row-price" style="color:var(--text-secondary);font-size:13px;">'+fmt(i.costPrice||0)+'</div>'+
+            '<div class="item-row-roi" style="color:var(--text-secondary);">cost</div>'+
+          '</div>'+
+        '</div>'+
+      '</div>'+
+      stockActions+
+    '</div>';
+  }
   const status=i.isReturned?'returned':i.resaleSalePrice?'resold':i.dateSold?'sold':i.condition==='spares'?'spares':'listed';
   const today=new Date().toISOString().split('T')[0];
   // daysListed: for active items only (stale detection). For sold/resold use calcDaysToSell.
@@ -6865,6 +7311,16 @@ async function bulkAction(action){
 // STOCK PAGE
 function setStockSort(s){STOCK_SORT=s;renderStock();}
 function setStockFilter(f){STOCK_FILTER=f;renderStock();}
+// Patch A — sourced-age bucket filter setter
+function setStockSourcedFilter(f){STOCK_SOURCED_FILTER=f;renderStock();}
+// Patch A — population filter ('listed' | 'sourced'). Switching resets the
+// irrelevant age filter on the other side to avoid stale filter state.
+function setStockStateFilter(f){
+  STOCK_STATE_FILTER=f;
+  if(f==='sourced') STOCK_FILTER='all';
+  if(f==='listed')  STOCK_SOURCED_FILTER='all';
+  renderStock();
+}
 function toggleStockGrouped(){STOCK_GROUPED=!STOCK_GROUPED;renderStock();}
 
 function toggleStockSelection(){
@@ -6939,28 +7395,52 @@ function renderStockRow(m,i){
 
 function renderStock(){
   const today=new Date().toISOString().split('T')[0];
-  let allListed=[];
-  allDBKeys().forEach(k=>(DB[k]||[]).forEach(i=>{ if(!i.dateSold&&!i.isReturned&&!i.resaleSalePrice&&((i.item||'').trim().toUpperCase()!=='MONTH END'))allListed.push({...i,month:k}); }));
-  const cAll=allListed.length;
+  // Gather two populations. Sold/returned excluded — they live on Calendar.
+  let allListed=[], allStock=[];
+  allDBKeys().forEach(k=>(DB[k]||[]).forEach(i=>{
+    if((i.item||'').trim().toUpperCase()==='MONTH END')return;
+    if(i.state==='sourced'){
+      allStock.push({...i,month:k});
+    } else if(!i.dateSold && !i.isReturned && !i.resaleSalePrice){
+      allListed.push({...i,month:k});
+    }
+  }));
+  // Population is strictly one or the other — no combined 'all' view.
+  const isStockOnly = STOCK_STATE_FILTER==='sourced';
+  const isListedOnly = STOCK_STATE_FILTER==='listed';
+  let pop = isStockOnly ? allStock : allListed;
+  const cAll=pop.length;
+  const cAllListed=allListed.length, cAllStock=allStock.length;
   const cStale=allListed.filter(i=>i.dateListed&&daysBetween(i.dateListed,today)>=90).length;
-  let items=allListed;
-  // E3 P2 #10 — guard against missing dateListed (see selectAllStockVisible).
-  if(STOCK_FILTER==='stale')items=allListed.filter(i=>i.dateListed&&daysBetween(i.dateListed,today)>=90);
-  else if(STOCK_FILTER==='slow')items=allListed.filter(i=>{if(!i.dateListed)return false;const d=daysBetween(i.dateListed,today);return d>60&&d<90;});
-  else if(STOCK_FILTER==='maturing')items=allListed.filter(i=>{if(!i.dateListed)return false;const d=daysBetween(i.dateListed,today);return d>30&&d<=60;});
-  else if(STOCK_FILTER==='fresh')items=allListed.filter(i=>i.dateListed&&daysBetween(i.dateListed,today)<=30);
-  // Session E1 — Sort comparator with expanded options:
-  //   profit     → highest estimated profit £ first (default)
-  //   roi        → highest ROI % first (capital efficiency)
-  //   price      → highest ask price first
-  //   days-desc  → oldest first (was 'days' pre-E1; legacy still routed here)
-  //   days-asc   → newest first
+
+  // Sourced age buckets: New 0–3d · List soon 4–7d · Overdue 8–14d · Stagnant 15d+
+  // Used for both the filter chips and the per-row colour dot.
+  function _sourcedBucket(i){
+    const d=_daysInStock(i);
+    if(d===null)return 'new';
+    if(d<=3)return 'new';
+    if(d<=7)return 'soon';
+    if(d<=14)return 'overdue';
+    return 'stagnant';
+  }
+  const _sourcedBucketCol={new:'var(--green)',soon:'var(--accent)',overdue:'var(--warn)',stagnant:'var(--red)'};
+  const _sourcedBucketLabel={new:'New',soon:'List soon',overdue:'Overdue',stagnant:'Stagnant'};
+
+  let items=pop;
+  if(isStockOnly){
+    // Sourced-age filter
+    if(STOCK_SOURCED_FILTER!=='all') items=pop.filter(i=>_sourcedBucket(i)===STOCK_SOURCED_FILTER);
+  } else {
+    // E3 P2 #10 — guard against missing dateListed
+    if(STOCK_FILTER==='stale')items=pop.filter(i=>i.dateListed&&daysBetween(i.dateListed,today)>=90);
+    else if(STOCK_FILTER==='slow')items=pop.filter(i=>{if(!i.dateListed)return false;const d=daysBetween(i.dateListed,today);return d>60&&d<90;});
+    else if(STOCK_FILTER==='maturing')items=pop.filter(i=>{if(!i.dateListed)return false;const d=daysBetween(i.dateListed,today);return d>30&&d<=60;});
+    else if(STOCK_FILTER==='fresh')items=pop.filter(i=>i.dateListed&&daysBetween(i.dateListed,today)<=30);
+  }
+  // Sort comparator — profit/roi/price for listed; cost-desc/days for sourced.
   const sortCmp=(a,b)=>{
     if(STOCK_SORT==='profit')return(calcEstProfit(b)||0)-(calcEstProfit(a)||0);
     if(STOCK_SORT==='roi'){
-      // For ROI, compute on-the-fly using profit / invested. Active stock
-      // has no salePrice/dateSold yet — but calcROI works on est. profit
-      // when we substitute salePrice. We use: est profit / total invested.
       const investA=(a.costPrice||0)+(a.shippingCost||0)+(a.packagingCost||0)+calcPartsCost(a);
       const investB=(b.costPrice||0)+(b.shippingCost||0)+(b.packagingCost||0)+calcPartsCost(b);
       const roiA=investA>0?((calcEstProfit(a)||0)/investA)*100:-Infinity;
@@ -6968,18 +7448,13 @@ function renderStock(){
       return roiB-roiA;
     }
     if(STOCK_SORT==='price')return(b.salePrice||0)-(a.salePrice||0);
-    if(STOCK_SORT==='days-asc')return daysBetween(a.dateListed,today)>daysBetween(b.dateListed,today)?1:-1;
-    // 'days-desc' or legacy 'days' → oldest first
-    return daysBetween(a.dateListed,today)<daysBetween(b.dateListed,today)?1:-1;
+    if(STOCK_SORT==='cost-desc')return(b.costPrice||0)-(a.costPrice||0); // highest cost first
+    // day sorts — use dateListed if present, else dateSourced (sourced items)
+    const aDate=a.dateListed||a.dateSourced, bDate=b.dateListed||b.dateSourced;
+    if(STOCK_SORT==='days-asc')return daysBetween(aDate,today)>daysBetween(bDate,today)?1:-1;
+    return daysBetween(aDate,today)<daysBetween(bDate,today)?1:-1; // days-desc / legacy
   };
   items=[...items].sort(sortCmp);
-  const totalValue=allListed.reduce((s,i)=>s+(i.salePrice||0),0);
-  // Use calcEstProfit so relisted-after-return items contribute their lifetime
-  // P&L (loss-so-far + hypothetical sale-2) rather than just the loss-so-far,
-  // matching the per-row "est. profit" display.
-  const potentialProfit=allListed.reduce((s,i)=>s+(calcEstProfit(i)||0),0);
-  const avgAsking=allListed.length?totalValue/allListed.length:0;
-
   // Build listing-month groups when grouped mode is on. Iterate FY keys in
   // chronological-newest-first order so users see latest stock first.
   let groupedHTML='';
@@ -7024,11 +7499,27 @@ function renderStock(){
     });
   }
 
-  // Avg age of active listings
-  const avgAge=allListed.length?Math.round(allListed.reduce((s,i)=>s+daysBetween(i.dateListed,today),0)/allListed.length):0;
-  // Capital tied up in 90d+ stock (£ value)
+  // Avg listing age (listed items only — sourced items have no dateListed)
+  const avgListingAge=allListed.length?Math.round(allListed.reduce((s,i)=>s+daysBetween(i.dateListed,today),0)/allListed.length):0;
+  // Capital tied up in 90d+ listings
   const capitalStale=allListed.filter(i=>daysBetween(i.dateListed,today)>=90).reduce((s,i)=>s+(i.salePrice||0),0);
-  // Aging buckets — reseller "three strikes" model: fresh (0-30) / maturing (31-60) / slow (61-90) / stale (90+)
+  // Avg days to list — rolling historical avg across items that have transitioned
+  const ttlValues=[];
+  allDBKeys().forEach(k=>(DB[k]||[]).forEach(i=>{
+    if((i.item||'').trim().toUpperCase()==='MONTH END')return;
+    if(i.state==='sourced')return;
+    const t=_timeToList(i);
+    if(t!==null) ttlValues.push(t);
+  }));
+  const avgDaysToList=ttlValues.length?Math.round(ttlValues.reduce((s,v)=>s+v,0)/ttlValues.length):null;
+  // Longest sitting sourced item
+  let longestSittingDays=null,longestSittingName='';
+  allStock.forEach(i=>{
+    const d=_daysInStock(i);
+    if(d!==null&&(longestSittingDays===null||d>longestSittingDays)){longestSittingDays=d;longestSittingName=(i.item||'Untitled').trim();}
+  });
+  const longestTrunc=longestSittingName.length>18?longestSittingName.slice(0,17)+'…':longestSittingName;
+  // Aging buckets — always from allListed; chips hidden on sourced-only filter
   const ageBuckets={fresh:0,maturing:0,slow:0,stale:0};
   const ageBucketsValue={fresh:0,maturing:0,slow:0,stale:0};
   allListed.forEach(i=>{
@@ -7039,76 +7530,173 @@ function renderStock(){
     else if(d<90){ageBuckets.slow++;ageBucketsValue.slow+=v;}
     else{ageBuckets.stale++;ageBucketsValue.stale+=v;}
   });
-  const cMaturing=ageBuckets.maturing, cSlow=ageBuckets.slow;
+  const cMaturing=ageBuckets.maturing,cSlow=ageBuckets.slow;
+
+  // Value KPI: sourced items contribute cost; listed items contribute asking price
+  let totalValue=0;
+  pop.forEach(i=>{ if(i.state==='sourced')totalValue+=(i.costPrice||0); else totalValue+=(i.salePrice||0); });
+  const potentialProfit=pop.reduce((s,i)=>s+(calcEstProfit(i)||0),0);
+  const avgAsking=allListed.length?(allListed.reduce((s,i)=>s+(i.salePrice||0),0)/allListed.length):0;
+
+  // Build 4 KPI cards based on active filter
+  let kpis;
+  if(isStockOnly){
+    kpis=[
+      {cls:'b',label:'Capital tied up',  val:fmt(totalValue),
+       sub:'Cost of sourced items on hand'},
+      {cls:'', label:'Items to list',     val:allStock.length?String(allStock.length):'—',
+       sub:allStock.length===1?'1 item waiting':''+allStock.length+' items waiting to be listed'},
+      {cls:'g',label:'Avg days to list',  val:avgDaysToList!==null?avgDaysToList+'d':'—',
+       sub:ttlValues.length?'Historical avg · '+ttlValues.length+' items':'No listed items yet to measure'},
+      {cls:'p',label:'Longest sitting',   val:longestSittingDays!==null?longestSittingDays+'d':'—',
+       sub:longestSittingDays!==null?longestTrunc:'Nothing sourced yet'}
+    ];
+  } else if(isListedOnly){
+    kpis=[
+      {cls:'b',label:'Potential revenue', val:fmt(totalValue),       sub:'Sum of asking prices'},
+      {cls:'g',label:'Estimated profit',  val:fmt(potentialProfit),  sub:'If every item sells'},
+      {cls:'', label:'Avg asking price',  val:fmt(avgAsking),        sub:'Per active listing'},
+      {cls:'p',label:'Avg listing age',   val:allListed.length?avgListingAge+'d':'—',
+       sub:capitalStale>0?fmt(capitalStale)+' stale (90d+)':allListed.length?'All moving well':'—',
+       click:cStale>0?"openDashboardStock('stale')":''}
+    ];
+  } else {
+    kpis=[
+      {cls:'b',label:'Total inventory value',val:fmt(totalValue),      sub:'Listed asking + sourced cost'},
+      {cls:'g',label:'Estimated profit',     val:fmt(potentialProfit), sub:'If every listed item sells'},
+      {cls:'', label:'Avg asking price',     val:fmt(avgAsking),       sub:'Per listed item'},
+      {cls:'p',label:'Avg listing age',      val:allListed.length?avgListingAge+'d':'—',
+       sub:capitalStale>0?fmt(capitalStale)+' stale (90d+)':allListed.length?'All moving well':'—',
+       click:cStale>0?"openDashboardStock('stale')":''}
+    ];
+  }
+  const kpiHTML=kpis.map(k=>'<div class="kcard '+(k.cls||'')+'"'+(k.click?' onclick="'+k.click+'" style="cursor:pointer;"':'')+'>'+
+    '<div class="klabel">'+k.label+'</div><div class="kval">'+k.val+'</div><div class="ksub">'+k.sub+'</div>'+
+  '</div>').join('');
 
   const html=`
     <div class="page-header">
       <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;width:100%;">
         <div>
           ${_stockFromSummary?`<button class="btn btn-s" onclick="goToTab('summary',document.querySelector('[data-tab=\\'summary\\']'));_stockFromSummary=false;" style="margin-bottom:10px;font-size:13px">← Dashboard</button>`:''}
-          <div class="page-title">Active Stock</div>
-          <div class="page-subtitle">Inventory view built for quick scanning, pricing confidence, and proactive cleanup.</div>
+          <div class="page-title">Stock Room</div>
+          <div class="page-subtitle">Live listings and sourced items — your full inventory.</div>
         </div>
-        <button class="btn btn-s${STOCK_GROUPED?' active':''}" style="margin-top:4px;padding:7px 12px;font-size:12px;white-space:nowrap;flex-shrink:0;${STOCK_GROUPED?'background:var(--accent);color:#000;border-color:var(--accent);':''}" onclick="toggleStockGrouped()" title="Group items by their listing month">
-          <svg width="13" height="13" viewBox="0 0 15 15" fill="none" style="vertical-align:-1px;margin-right:4px"><rect x="1" y="1" width="5.5" height="5.5" rx="1" stroke="currentColor" stroke-width="1.3"/><rect x="8.5" y="1" width="5.5" height="5.5" rx="1" stroke="currentColor" stroke-width="1.3"/><rect x="1" y="8.5" width="5.5" height="5.5" rx="1" stroke="currentColor" stroke-width="1.3"/><rect x="8.5" y="8.5" width="5.5" height="5.5" rx="1" stroke="currentColor" stroke-width="1.3"/></svg>${STOCK_GROUPED?'By month':'By month'}
+        <button class="btn btn-s${STOCK_GROUPED?' active':''}" style="margin-top:4px;padding:7px 12px;font-size:12px;white-space:nowrap;flex-shrink:0;${STOCK_GROUPED?'background:var(--accent);color:#000;border-color:var(--accent);':''}" onclick="toggleStockGrouped()" title="Group items by listing month">
+          <svg width="13" height="13" viewBox="0 0 15 15" fill="none" style="vertical-align:-1px;margin-right:4px"><rect x="1" y="1" width="5.5" height="5.5" rx="1" stroke="currentColor" stroke-width="1.3"/><rect x="8.5" y="1" width="5.5" height="5.5" rx="1" stroke="currentColor" stroke-width="1.3"/><rect x="1" y="8.5" width="5.5" height="5.5" rx="1" stroke="currentColor" stroke-width="1.3"/><rect x="8.5" y="8.5" width="5.5" height="5.5" rx="1" stroke="currentColor" stroke-width="1.3"/></svg>By month
         </button>
       </div>
     </div>
-    <div class="kgrid kgrid-4">
-      <div class="kcard b"><div class="klabel">Potential revenue</div><div class="kval">${fmt(totalValue)}</div><div class="ksub">Total asking price</div></div>
-      <div class="kcard g"><div class="klabel">Estimated profit</div><div class="kval">${fmt(potentialProfit)}</div><div class="ksub">If every item sells</div></div>
-      <div class="kcard"><div class="klabel">Avg asking price</div><div class="kval">${fmt(avgAsking)}</div><div class="ksub">Per active item</div></div>
-      <div class="kcard p" onclick="${cStale>0?`openDashboardStock('stale')`:''}"><div class="klabel">Avg age</div><div class="kval">${cAll>0?avgAge+'d':'—'}</div><div class="ksub">${capitalStale>0?fmt(capitalStale)+' stale (90d+)':cAll>0?'All stock moving well':'—'}</div></div>
-    </div>
-    ${cAll===0?`<div class="empty-state"><div class="empty-state-text">No active listings</div><div class="empty-state-sub">Add stock to start building your live inventory command view.</div></div>`:`
-      ${(()=>{
-        // Aging bar: visual distribution at a glance. Buckets are clickable
-        // (same as the chip pills below) but we no longer render duplicate
-        // legend buttons — chips replace them.
-        const segs=[
-          {key:'fresh',  label:'Fresh',    sub:'0–30d',  count:ageBuckets.fresh,    val:ageBucketsValue.fresh,    col:'var(--green)',cls:'fresh'},
-          {key:'maturing',label:'Maturing',sub:'31–60d', count:ageBuckets.maturing, val:ageBucketsValue.maturing, col:'var(--text-secondary)',cls:'maturing'},
-          {key:'slow',   label:'Slow',     sub:'61–90d', count:ageBuckets.slow,     val:ageBucketsValue.slow,     col:'var(--warn)',cls:'slow'},
-          {key:'stale',  label:'Stale',    sub:'90d+',   count:ageBuckets.stale,    val:ageBucketsValue.stale,    col:'var(--red)',cls:'stale'}
+    <div class="kgrid kgrid-4">${kpiHTML}</div>
+    ${(()=>{
+      // 2-option toggle: Listed ↔ Sourced. No 'All' — you're always in one mode.
+      const stateBuckets=[
+        {key:'listed',  label:'Listed',  count:cAllListed,  activeStyle:'background:rgba(96,165,250,0.15);color:var(--blue);border-color:rgba(96,165,250,0.4);'},
+        {key:'sourced', label:'Sourced', count:cAllStock,   activeStyle:'background:var(--accent-dim);color:var(--accent);border-color:rgba(212,136,10,0.4);'}
+      ];
+      const segs=stateBuckets.map((b,idx)=>{
+        const isActive=STOCK_STATE_FILTER===b.key;
+        const style=isActive?b.activeStyle:'color:var(--text-secondary);';
+        const br=idx===0?'border-radius:8px 0 0 8px;':'border-radius:0 8px 8px 0;border-left:none;';
+        return `<button onclick="setStockStateFilter('${b.key}')" style="flex:1;padding:8px 10px;font-size:13px;font-weight:${isActive?'700':'500'};font-family:var(--font-body);background:var(--surface);border:1px solid var(--border);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all 0.12s;${br}${style}">
+          <span style="display:inline-flex;align-items:baseline;gap:5px;">${b.label}<span style="font-size:11px;opacity:0.65;">${b.count}</span></span>
+        </button>`;
+      }).join('');
+      return `<div style="display:flex;margin-bottom:16px;border-radius:8px;overflow:hidden;width:100%;">${segs}</div>`;
+    })()}
+    ${cAll===0?`<div class="empty-state">
+      <div class="empty-state-text">${isStockOnly?'No sourced items':'No active listings'}</div>
+      <div class="empty-state-sub">${isStockOnly?'Tap + and choose Sourced item to add your first.':'Use Quick Add to list your first item.'}</div>
+    </div>`:`
+      ${isStockOnly?(()=>{
+        // ── Sourced view: age distribution bar + bucket chips + sort ──────
+        // Buckets: New 0–3d · List soon 4–7d · Overdue 8–14d · Stagnant 15d+
+        const sBuckets=[
+          {key:'new',      label:'New',       sub:'0–3d',   col:'var(--green)', cls:'sourced-new'},
+          {key:'soon',     label:'List soon', sub:'4–7d',   col:'var(--accent)',cls:'sourced-soon'},
+          {key:'overdue',  label:'Overdue',   sub:'8–14d',  col:'var(--warn)',  cls:'sourced-overdue'},
+          {key:'stagnant', label:'Stagnant',  sub:'15d+',   col:'var(--red)',   cls:'sourced-stagnant'}
         ];
-        const tot=cAll||1;
-        const barSegs=segs.map(s=>{
-          const pct=(s.count/tot)*100;
+        const sCounts={new:0,soon:0,overdue:0,stagnant:0};
+        const sCostVal={new:0,soon:0,overdue:0,stagnant:0};
+        allStock.forEach(i=>{
+          const b=_sourcedBucket(i);
+          sCounts[b]++;
+          sCostVal[b]+=(i.costPrice||0);
+        });
+        const tot=allStock.length||1;
+        const barHTML=sBuckets.map(s=>{
+          const pct=(sCounts[s.key]/tot)*100;
           if(pct===0)return '';
-          const isActive=STOCK_FILTER===s.key;
-          return `<div class="age-bar-seg ${s.cls}${isActive?' active':''}" style="width:${pct}%;background:${s.col};" title="${s.label} (${s.sub}): ${s.count} item${s.count!==1?'s':''} · ${fmt(s.val)}" onclick="setStockFilter('${s.key}')"></div>`;
+          const isAct=STOCK_SOURCED_FILTER===s.key;
+          return `<div class="age-bar-seg ${s.cls}${isAct?' active':''}" style="width:${pct}%;background:${s.col};" title="${s.label} (${s.sub}): ${sCounts[s.key]} item${sCounts[s.key]!==1?'s':''} · ${fmt(sCostVal[s.key])}" onclick="setStockSourcedFilter('${s.key}')"></div>`;
         }).join('');
-        return `<div class="age-bar-wrap">
-          <div class="age-bar">${barSegs}</div>
-        </div>`;
-      })()}
-      ${(()=>{
-        // Session E1 — Filter chips + sort, single inline row matching monthly page.
-        // Empty buckets render as disabled chips (greyed out, count visible)
-        // so the user keeps a stable layout and understands distribution.
+        const chips=sBuckets.map(b=>{
+          const isAct=STOCK_SOURCED_FILTER===b.key;
+          const isEmpty=sCounts[b.key]===0;
+          const cls='chip chip-'+b.cls+(isAct?' active':'')+(isEmpty?' chip-empty':'');
+          return `<button class="${cls}" ${isEmpty?'disabled':''} onclick="${isEmpty?'':("setStockSourcedFilter('"+b.key+"')")}">${b.label} <span class="chip-count">${sCounts[b.key]}</span></button>`;
+        }).join('');
+        // Mobile dropdown for sourced filter
+        const curBucket=sBuckets.find(b=>STOCK_SOURCED_FILTER===b.key)||{key:'all',label:'All',col:'var(--muted)'};
+        const ddOpts=['all',...sBuckets.map(b=>b.key)].map(k=>{
+          const meta=k==='all'?{label:'All',col:'var(--muted)'}:sBuckets.find(b=>b.key===k);
+          const isAct=STOCK_SOURCED_FILTER===k;
+          const cnt=k==='all'?allStock.length:(sCounts[k]||0);
+          const isEmpty=k!=='all'&&cnt===0;
+          return `<button class="filter-pill-dd-opt${isAct?' active':''}${isEmpty?' filter-pill-dd-opt-empty':''}" ${isEmpty?'disabled':''} onclick="${isEmpty?'':("setStockSourcedFilter('"+k+"');closeFilterPill('sfp-sourced')")}"><span class="filter-pill-dd-opt-dot" style="background:${meta.col||'var(--muted)'}"></span>${meta.label}<span class="filter-pill-dd-opt-count">${cnt}</span></button>`;
+        }).join('');
+        const sortOpts=[
+          {v:'cost-desc', label:'Highest cost first'},
+          {v:'days-desc', label:'Oldest first (longest sitting)'},
+          {v:'days-asc',  label:'Newest first'}
+        ];
+        const sortHTML=sortOpts.map(o=>`<option value="${o.v}" ${STOCK_SORT===o.v?'selected':''}>${o.label}</option>`).join('');
+        return `<div class="age-bar-wrap"><div class="age-bar">${barHTML}</div></div>
+          <div class="filter-row stock-filter-row" style="margin-bottom:14px;gap:8px;flex-wrap:nowrap;align-items:center;">
+            <div class="filter-chips">${chips}
+              <button class="chip${STOCK_SOURCED_FILTER==='all'?' active':''}" onclick="setStockSourcedFilter('all')">All <span class="chip-count">${allStock.length}</span></button>
+            </div>
+            <div class="filter-pill-dd" id="sfp-sourced">
+              <div class="filter-pill-dd-backdrop" onclick="closeFilterPill('sfp-sourced')"></div>
+              <button class="filter-pill-dd-btn" onclick="event.stopPropagation();toggleFilterPill('sfp-sourced')">
+                <span class="fpdd-label"><span class="filter-pill-dd-opt-dot" style="background:${curBucket.col||'var(--muted)'}"></span>${curBucket.label}</span>
+                <span class="fpdd-chev">▾</span>
+              </button>
+              <div class="filter-pill-dd-menu" onclick="event.stopPropagation()">${ddOpts}</div>
+            </div>
+            <select class="sort-select" onchange="setStockSort(this.value)">${sortHTML}</select>
+          </div>`;
+      })():(()=>{
+        // ── Listed view: aging bar + chips + sort ──────────────────────────
+        const segsBar=[
+          {key:'fresh',  label:'Fresh',    sub:'0–30d',  count:ageBuckets.fresh,    val:ageBucketsValue.fresh,    col:'var(--green)'},
+          {key:'maturing',label:'Maturing',sub:'31–60d', count:ageBuckets.maturing, val:ageBucketsValue.maturing, col:'var(--text-secondary)'},
+          {key:'slow',   label:'Slow',     sub:'61–90d', count:ageBuckets.slow,     val:ageBucketsValue.slow,     col:'var(--warn)'},
+          {key:'stale',  label:'Stale',    sub:'90d+',   count:ageBuckets.stale,    val:ageBucketsValue.stale,    col:'var(--red)'}
+        ];
+        const barSegs=segsBar.map(s=>{
+          const pct=(s.count/cAllListed)*100; if(pct===0)return '';
+          const isAct=STOCK_FILTER===s.key;
+          return `<div class="age-bar-seg ${s.key}${isAct?' active':''}" style="width:${pct}%;background:${s.col};" title="${s.label} (${s.sub}): ${s.count} · ${fmt(s.val)}" onclick="setStockFilter('${s.key}')"></div>`;
+        }).join('');
         const buckets=[
-          {key:'all',     label:'All',      count:cAll,                dot:'var(--muted)'},
-          {key:'fresh',   label:'Fresh',    count:ageBuckets.fresh,    dot:'var(--green)'},
-          {key:'maturing',label:'Maturing', count:cMaturing,           dot:'var(--text-secondary)'},
-          {key:'slow',    label:'Slow',     count:cSlow,               dot:'#f5a623'},
-          {key:'stale',   label:'Stale',    count:cStale,              dot:'var(--red)'}
+          {key:'all',     label:'All',      count:cAllListed,       dot:'var(--muted)'},
+          {key:'fresh',   label:'Fresh',    count:ageBuckets.fresh, dot:'var(--green)'},
+          {key:'maturing',label:'Maturing', count:cMaturing,        dot:'var(--text-secondary)'},
+          {key:'slow',    label:'Slow',     count:cSlow,            dot:'var(--warn)'},
+          {key:'stale',   label:'Stale',    count:cStale,           dot:'var(--red)'}
         ];
         const chips=buckets.map(b=>{
-          const isActive=STOCK_FILTER===b.key;
-          const isEmpty=b.count===0&&b.key!=='all';
-          const cls='chip chip-'+b.key+(isActive?' active':'')+(isEmpty?' chip-empty':'');
-          const handler=isEmpty?'':`setStockFilter('${b.key}')`;
-          return `<button class="${cls}" ${isEmpty?'disabled':''} onclick="${handler}">${b.label} <span class="chip-count">${b.count}</span></button>`;
+          const isAct=STOCK_FILTER===b.key; const isEmpty=b.count===0&&b.key!=='all';
+          return `<button class="chip chip-${b.key}${isAct?' active':''}${isEmpty?' chip-empty':''}" ${isEmpty?'disabled':''} onclick="${isEmpty?'':("setStockFilter('"+b.key+"')")}">
+            ${b.label} <span class="chip-count">${b.count}</span></button>`;
         }).join('');
-        // Mobile-only custom dropdown — coloured dot per option matches chip
-        // colour scheme. Empty buckets shown but greyed/disabled.
         const cur=buckets.find(b=>b.key===STOCK_FILTER)||buckets[0];
         const ddOpts=buckets.map(b=>{
-          const isActive=STOCK_FILTER===b.key;
-          const isEmpty=b.count===0&&b.key!=='all';
-          const cls='filter-pill-dd-opt'+(isActive?' active':'')+(isEmpty?' filter-pill-dd-opt-empty':'');
-          const handler=isEmpty?'':`setStockFilter('${b.key}');closeFilterPill('sfp-filter')`;
-          return `<button class="${cls}" ${isEmpty?'disabled':''} onclick="${handler}"><span class="filter-pill-dd-opt-dot" style="background:${b.dot}"></span>${b.label}<span class="filter-pill-dd-opt-count">${b.count}</span></button>`;
+          const isAct=STOCK_FILTER===b.key; const isEmpty=b.count===0&&b.key!=='all';
+          return `<button class="filter-pill-dd-opt${isAct?' active':''}${isEmpty?' filter-pill-dd-opt-empty':''}" ${isEmpty?'disabled':''} onclick="${isEmpty?'':("setStockFilter('"+b.key+"');closeFilterPill('sfp-filter')")}">
+            <span class="filter-pill-dd-opt-dot" style="background:${b.dot}"></span>${b.label}<span class="filter-pill-dd-opt-count">${b.count}</span></button>`;
         }).join('');
         const sortOpts=[
           {v:'profit',   label:'Highest est. profit'},
@@ -7118,18 +7706,19 @@ function renderStock(){
           {v:'days-asc', label:'Newest first'}
         ];
         const sortHTML=sortOpts.map(o=>`<option value="${o.v}" ${STOCK_SORT===o.v?'selected':''}>${o.label}</option>`).join('');
-        return `<div class="filter-row stock-filter-row" style="margin-bottom:14px;gap:8px;flex-wrap:nowrap;align-items:center;">
-          <div class="filter-chips">${chips}</div>
-          <div class="filter-pill-dd" id="sfp-filter">
-            <div class="filter-pill-dd-backdrop" onclick="closeFilterPill('sfp-filter')"></div>
-            <button class="filter-pill-dd-btn" onclick="event.stopPropagation();toggleFilterPill('sfp-filter')">
-              <span class="fpdd-label"><span class="filter-pill-dd-opt-dot" style="background:${cur.dot}"></span>${cur.label} (${cur.count})</span>
-              <span class="fpdd-chev">▾</span>
-            </button>
-            <div class="filter-pill-dd-menu" onclick="event.stopPropagation()">${ddOpts}</div>
-          </div>
-          <select class="sort-select" onchange="setStockSort(this.value)" style="flex:1 1 0;min-width:0;">${sortHTML}</select>
-        </div>`;
+        return `<div class="age-bar-wrap"><div class="age-bar">${barSegs}</div></div>
+          <div class="filter-row stock-filter-row" style="margin-bottom:14px;gap:8px;flex-wrap:nowrap;align-items:center;">
+            <div class="filter-chips">${chips}</div>
+            <div class="filter-pill-dd" id="sfp-filter">
+              <div class="filter-pill-dd-backdrop" onclick="closeFilterPill('sfp-filter')"></div>
+              <button class="filter-pill-dd-btn" onclick="event.stopPropagation();toggleFilterPill('sfp-filter')">
+                <span class="fpdd-label"><span class="filter-pill-dd-opt-dot" style="background:${cur.dot}"></span>${cur.label} (${cur.count})</span>
+                <span class="fpdd-chev">▾</span>
+              </button>
+              <div class="filter-pill-dd-menu" onclick="event.stopPropagation()">${ddOpts}</div>
+            </div>
+            <select class="sort-select" onchange="setStockSort(this.value)">${sortHTML}</select>
+          </div>`;
       })()}
       <div class="list-toolbar">
         ${STOCK_SELECTION_MODE?`
@@ -7320,8 +7909,8 @@ function renderExpenses(){
   const html=`
     <div class="page-header">
       <div>
-        <div class="page-title">Expenses</div>
-        <div class="page-subtitle">Track sourcing trips and business costs</div>
+        <div class="page-title">Costs &amp; Trips</div>
+        <div class="page-subtitle">Log mileage, sourcing runs and business spend</div>
       </div>
     </div>
 
@@ -7663,7 +8252,7 @@ function renderData(){
 
   const html=`
     <div style="margin-bottom:24px">
-      <h1 class="stat-num" style="margin-bottom:6px">Import / Export</h1>
+      <div class="page-header"><div><div class="page-title">Data</div><div class="page-subtitle">Back up, restore and manage your records.</div></div></div>
       <div style="color:var(--text-secondary);font-size:14px">Backup and restore your data</div>
     </div>
 
@@ -8227,6 +8816,8 @@ async function clearAllData(){
 function editItem(m,id){
   const item=(DB[m]||[]).find(i=>i.id===id);
   if(!item)return;
+  // Patch A — stock items get a minimal edit panel (no platform/price/fees)
+  if(item.state==='sourced'){ return _editStockItem(m,item); }
   const html=`
     <div class="fg">
       <label>Item Name</label>
@@ -8314,6 +8905,52 @@ function saveEdit(m,id){
   else if(cur==='p-summary')renderSummary();
   // Re-open detail panel so user stays in context
   openItemDetail(m,id,true);
+}
+
+// Patch A — stock-specific edit panel (no salePrice / platform / fees fields).
+function _editStockItem(m,item){
+  const html=`
+    <div class="fg">
+      <label>Title</label>
+      <input type="text" id="edit-stock-title" value="${esc(item.item||'')}" placeholder="e.g. Camera, Lego set">
+    </div>
+    <div class="fg">
+      <label>Cost <span style="color:var(--red);font-weight:600">*</span></label>
+      <input type="number" id="edit-stock-cost" step="0.01" min="0" inputmode="decimal" value="${item.costPrice||0}">
+    </div>
+    <div class="fg">
+      <label>Date sourced</label>
+      <input type="date" id="edit-stock-date" value="${item.dateSourced||''}">
+    </div>
+    <div class="fg">
+      <label>Notes</label>
+      <textarea id="edit-stock-notes" rows="3" style="width:100%;resize:vertical;">${esc(item.notes||'')}</textarea>
+    </div>
+    <button class="btn btn-p" style="width:100%;margin-top:14px" onclick="_saveStockEdit('${m}','${item.id}')">Save</button>
+  `;
+  openPanel('Edit Sourced Item',html);
+  setTimeout(function(){ const t=document.getElementById('edit-stock-title'); if(t)t.focus(); },50);
+}
+
+function _saveStockEdit(m,id){
+  const item=(DB[m]||[]).find(i=>i.id===id);
+  if(!item)return;
+  const cost=parseFloat(document.getElementById('edit-stock-cost').value);
+  if(!isFinite(cost)||cost<0){
+    toast('Cost must be 0 or more','error');
+    return;
+  }
+  item.item=(document.getElementById('edit-stock-title').value||'').trim()||'Untitled stock item';
+  item.costPrice=+cost.toFixed(2);
+  item.dateSourced=document.getElementById('edit-stock-date').value||item.dateSourced;
+  item.notes=(document.getElementById('edit-stock-notes').value||'').trim();
+  saveDB();
+  toast('Stock item updated');
+  closePanel();
+  const cur=document.querySelector('.page.on').id;
+  if(cur==='p-stock')renderStock();
+  else if(cur==='p-item')renderItemPage(m,id);
+  else if(cur==='p-summary')renderSummary();
 }
 
 function savePanelQuickEdit(m,id,silent){
@@ -9204,7 +9841,7 @@ function renderTax(){
   var html=''
     // Header
     +'<div style="margin-bottom:20px">'
-    +'<h1 class="stat-num-sm" style="margin-bottom:4px">Tax / SA103</h1>'
+    +'<div class="page-header"><div><div class="page-title">Tax Return</div><div class="page-subtitle">SA103 figures, ready to file.</div></div></div>'
     +'<div style="color:var(--text-secondary);font-size:13px">Self Assessment \u2014 Self-employment income</div>'
     +'</div>'
 
@@ -10047,6 +10684,25 @@ function daysBetween(d1,d2){
   if(isNaN(a)||isNaN(b))return -1;
   const diff=Math.abs(b-a);
   return Math.floor(diff/(1000*60*60*24));
+}
+
+// Patch A — Time-to-list (days from sourcing to listing). Returns null if
+// either date is missing — call sites that average should filter null out.
+// Items created via List Quick Add post-Patch-A will return 0 here (sourced
+// and listed same day). Migrated legacy items also return 0 (dateSourced
+// was backfilled to dateListed). Only items created via Stock Quick Add and
+// later transitioned to listed will have meaningful non-zero values.
+function _timeToList(i){
+  if(!i || !i.dateSourced || !i.dateListed) return null;
+  const d=daysBetween(i.dateSourced,i.dateListed);
+  return d<0 ? null : d;
+}
+// Patch A — Days in stock for a stock-state item. Uses today as the endpoint.
+function _daysInStock(i){
+  if(!i || !i.dateSourced) return null;
+  const today=new Date().toISOString().split('T')[0];
+  const d=daysBetween(i.dateSourced,today);
+  return d<0 ? null : d;
 }
 
 // Returns the average days-to-sell for an item, accounting for return+relist cycles.
