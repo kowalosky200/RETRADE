@@ -1237,11 +1237,13 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
   .mval{font-size:18px!important;margin-bottom:0!important;}
   .msub{font-size:11px;margin-top:2px!important;}
   .mname{font-size:11px;margin-bottom:2px!important;}
-.filter-chips{display:none!important;}.filter-pill-dd{display:block!important;}
-/* Both controls are now dropdowns — switch to equal flex split so neither
-   dominates. width:0 forces flex to ignore intrinsic content size entirely. */
-.filter-row .filter-pill-dd{flex:1 1 0!important;min-width:0!important;width:0!important;}
-.filter-row > .sort-select,.filter-row .sort-select{flex:1 1 0!important;min-width:0!important;width:0!important;max-width:none!important;}}
+  .filter-chips{display:none!important;}.filter-pill-dd{display:block!important;}
+/* T-05 Approach 1 — CSS Grid: forces true 50/50 split regardless of content width.
+   Grid ignores intrinsic size; flex:1 1 0 failed because <select> has a browser-
+   enforced min-width floor that persists even with width:0. */
+  .filter-row{display:grid!important;grid-template-columns:1fr 1fr!important;gap:8px!important;align-items:center!important;}
+  .filter-row .filter-pill-dd,.filter-row > .sort-select,.filter-row .sort-select{width:100%!important;min-width:0!important;max-width:none!important;flex:none!important;}
+}
 
 /* E4 — Stock filter row has 5 chips (All/Fresh/Maturing/Slow/Stale) plus a
    sort dropdown, so it needs an earlier swap to dropdown than the 480px
@@ -1252,9 +1254,10 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
   /* Stock filter row: 5 chips overflow before 480px, so collapse earlier.
      Once chips become a dropdown, both controls get equal flex split. */
   .stock-filter-row .filter-chips{display:none!important;}
-  .stock-filter-row .filter-pill-dd{display:block!important;flex:1 1 0!important;min-width:0!important;width:0!important;}
-  .stock-filter-row .sort-select{flex:1 1 0!important;min-width:0!important;width:0!important;max-width:none!important;}
-  .stock-filter-row{flex-wrap:nowrap!important;}
+  .stock-filter-row .filter-pill-dd{display:block!important;}
+/* T-05 same grid approach for stock filter row at 708px breakpoint */
+  .stock-filter-row{display:grid!important;grid-template-columns:1fr 1fr!important;gap:8px!important;align-items:center!important;flex-wrap:unset!important;}
+  .stock-filter-row .filter-pill-dd,.stock-filter-row .sort-select{width:100%!important;min-width:0!important;max-width:none!important;flex:none!important;}
 }
 
 /* Aging bar — stock page distribution viz */
@@ -1718,6 +1721,7 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
       style="width:100%;padding:12px;background:var(--accent);color:#000;border:none;border-radius:8px;font-weight:700;font-size:15px;cursor:pointer;transition:background 0.15s;">
       Sign In
     </button>
+
 
     <button onclick="showForgotPassword()"
       style="width:100%;padding:10px;background:none;border:none;color:var(--text-secondary);font-size:13px;cursor:pointer;margin-top:8px;text-decoration:underline;text-underline-offset:3px;">
@@ -3693,6 +3697,8 @@ function _renderStockItemPage(m,i){
   const page=document.getElementById('p-item');
   if(!page)return;
   const ageDays=_daysInStock(i);
+  const partsCost=calcPartsCost(i);
+  const totalCapital=(i.costPrice||0)+partsCost;
   const ageStr=ageDays===null?'unknown':ageDays+' day'+(ageDays===1?'':'s');
   const back=`<button class="btn btn-s" onclick="exitItemPage()" style="margin-bottom:10px;font-size:13px">\u2190 Back</button>`;
   const photo=i.photo
@@ -3712,22 +3718,27 @@ function _renderStockItemPage(m,i){
       </div>
       <div style="background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:16px 18px;margin-bottom:18px;">
         <div style="display:flex;align-items:baseline;justify-content:space-between;gap:10px;">
-          <div style="font-size:11px;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-secondary);font-weight:600;">Cost</div>
+          <div style="font-size:11px;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-secondary);font-weight:600;">Buy price</div>
           <div style="font-family:var(--font-display);font-size:24px;font-weight:700;color:var(--text);">${fmt(i.costPrice||0)}</div>
         </div>
-        <div style="font-size:12px;color:var(--text-secondary);margin-top:4px;">Capital tied up in this item</div>
+        ${partsCost>0?`<div style="display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-top:6px;padding-top:6px;border-top:1px solid var(--border)"><div style="font-size:11px;color:var(--text-secondary);">Parts &amp; expenses</div><div style="font-size:14px;font-weight:600;color:var(--red);">+${fmt(partsCost)}</div></div><div style="display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-top:4px;"><div style="font-size:11px;font-weight:700;color:var(--text-secondary);">Total capital</div><div style="font-family:var(--font-display);font-size:18px;font-weight:700;color:var(--text);">${fmt(totalCapital)}</div></div><div style="font-size:12px;color:var(--text-secondary);margin-top:4px)">Capital incl. parts</div>`:`<div style="font-size:12px;color:var(--text-secondary);margin-top:4px;">Capital tied up in this item</div>`}
+
       </div>
       ${i.notes?`<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:18px;">
         <div style="font-size:11px;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-secondary);font-weight:600;margin-bottom:6px;">Notes</div>
         <div style="font-size:14px;color:var(--text);line-height:1.5;white-space:pre-wrap;">${esc(i.notes)}</div>
       </div>`:''}
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:18px;">
+        <div style="font-size:11px;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-secondary);font-weight:600;margin-bottom:10px;">Parts &amp; Expenses${(i.parts||[]).length>0?' ('+i.parts.length+')':''}</div>
+        ${partsHTML(m,i.id,'page')}
+      </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;">
         <button class="btn btn-p" onclick="alert('Listing flow lands in Patch B \u2014 you\\'ll be able to set platform, price and fees from here.')" title="Coming in Patch B">List this item \u2192</button>
         <button class="btn btn-s" onclick="editItem('${m}','${i.id}')">\u270f\ufe0f Edit</button>
         <button class="btn btn-s danger" onclick="deleteItem('${m}','${i.id}')">\ud83d\uddd1\ufe0f Delete</button>
       </div>
       <div style="font-size:11px;color:var(--text-secondary);margin-top:24px;line-height:1.5;">
-        Stock items don't have a sale price, platform, or fees yet \u2014 those fields appear once you list the item.
+        Parts and expenses added here carry through to the full P&amp;L once the item is listed and sold.
       </div>
     </div>`;
   page.innerHTML=html;
@@ -3768,6 +3779,10 @@ function renderItemPage(m,id){
   const promoCost=grossInc*(i.promoPercent||0)*1.20;
   const profit=calcGrossProfit(i);
   const roi=calcROI(i);
+  // T-06: display guard for £0-cost items — calcROI returns null when totalInvested<=0
+  // (mathematically correct), but the render layer should show ∞ rather than nothing.
+  const _isZeroCost=(i.costPrice==null||i.costPrice===0)&&!(i.shippingCost>0)&&!(i.packagingCost>0)&&!calcPartsCost(i);
+  const roiDisplay=_isZeroCost&&profit!==null?'∞':(roi!==null?roi.toFixed(1)+'%':null);
   const status=i.isReturned?'returned':i.resaleSalePrice?'resold':i.dateSold?'sold':i.condition==='spares'?'spares':'active';
   const hasReturn=(i.returnHistory||[]).length>0;
   const _plat=_itemPlatform(i);
@@ -3910,7 +3925,7 @@ function renderItemPage(m,id){
     s2b+=rcp('Item cost (sunk)','—','var(--muted)');
     s2b+='<div class="ip-receipt-row total"><span style="flex:1">Sale 2 net</span><span class="ip-receipt-val" style="color:'+(rRev>=0?'var(--green)':'var(--red)')+'">'+fmt(rRev)+'</span></div>';
     s2b+='<div class="ip-receipt-row" style="margin-top:6px;padding:10px 0 2px;border-top:2px solid var(--border)"><span style="flex:1;font-weight:700;font-size:13px">Lifetime P&amp;L</span><span class="ip-receipt-val" style="font-size:16px;color:'+(lifetimeProfit>=0?'var(--green)':'var(--red)')+'">'+fmt(lifetimeProfit)+'</span></div>';
-    if(roi!==null)s2b+=rcp('Overall ROI',roi.toFixed(1)+'%','var(--muted)');
+    if(roiDisplay)s2b+=rcp('Overall ROI',roiDisplay,'var(--muted)');
     resaleHTML=sec2('Sale 2 P&amp;L <span style="color:var(--muted);font-weight:400;font-size:11px">re-sold '+esc(i.resaleDateSold||'—')+'</span>',s2b,true,fmt(rRev),rRev>=0?'var(--green)':'var(--red)','ip-section-pnl','var(--purple)');
   }
 
@@ -4067,7 +4082,7 @@ function renderItemPage(m,id){
   html+='<div class="ip-token locked '+profitClass+'">';
   html+='<div class="ip-token-label">'+(i.resaleSalePrice?'Lifetime Profit':'Net Profit')+'</div>';
   html+='<div class="ip-token-val">'+(profit!==null?fmt(profit):'—')+'</div>';
-  html+='<div class="ip-token-sub">'+(roi!==null?roi.toFixed(1)+'% ROI · ':'')+(hasReturn?'after return':'after fees')+'</div>';
+  html+='<div class="ip-token-sub">'+(roiDisplay?roiDisplay+' ROI · ':'')+(hasReturn?'after return':'after fees')+'</div>';
   html+='</div>';
 
   html+='</div>'; // ip-tokens
@@ -4880,6 +4895,7 @@ function submitQuickAdd(){
     salePrice:parseFloat(document.getElementById('qa-price').value)||0,
     postage,shippingCost,packagingCost,
     _postageMode,_sdRateIdx,_sdBuyerPays,
+    // T-11 verified 2026-05-07: promoPercent stored as decimal (÷100 here). Input is integer % from UI.
     promoPercent:(parseFloat(document.getElementById('qa-promo').value)||0)/100,
     defaultPlatform:(document.getElementById('qa-platform')?.value)||DEFAULT_PLATFORM,
     dateSold:null,grossProfit:null,isReturned:false
@@ -4904,20 +4920,34 @@ function submitQuickAdd(){
 // is absent (see calcGrossProfit, calcItemRevenue, calcROI).
 // ────────────────────────────────────────────────────────────────────────────
 function openStockQuickAdd(){
+  _sqaParts=[];
   const today=new Date().toISOString().split('T')[0];
   const html=`
     <div class="fg">
-      <label>Cost <span style="color:var(--red);font-weight:600">*</span></label>
-      <input type="number" id="sqa-cost" step="0.01" min="0" inputmode="decimal" placeholder="0.00" autocomplete="off">
-      <div class="fg-hint" style="font-size:11px;color:var(--text-secondary);margin-top:4px;">What you paid for this item</div>
+      <label>Date sourced</label>
+      <input type="date" id="sqa-date" value="${today}">
     </div>
     <div class="fg">
       <label>Title <span style="color:var(--text-secondary);font-weight:400;font-size:11px;">(optional)</span></label>
       <input type="text" id="sqa-title" placeholder="e.g. Camera, Lego set" autocomplete="off">
     </div>
     <div class="fg">
-      <label>Date sourced</label>
-      <input type="date" id="sqa-date" value="${today}">
+      <label>Cost <span style="color:var(--red);font-weight:600">*</span></label>
+      <input type="number" id="sqa-cost" step="0.01" min="0" inputmode="decimal" placeholder="0.00" autocomplete="off">
+      <div class="fg-hint" style="font-size:11px;color:var(--text-secondary);margin-top:4px;">What you paid for this item</div>
+    </div>
+    <div class="fg" style="margin-bottom:0">
+      <label>Parts &amp; Expenses <span style="color:var(--text-secondary);font-weight:400;font-size:11px;">(optional)</span></label>
+      <div id="sqa-parts-list" style="margin-bottom:6px;"></div>
+      <div style="display:flex;gap:6px;align-items:stretch;">
+        <input type="text" id="sqa-part-desc" placeholder="e.g. Battery, charging cable…" style="flex:1;min-width:0;">
+        <input type="number" id="sqa-part-cost" step="0.01" placeholder="£0.00" style="width:80px;">
+        <button class="btn btn-s" style="padding:9px 12px;font-size:13px;white-space:nowrap" onclick="_sqaAddPart()">+ Add</button>
+      </div>
+    </div>
+    <div class="fg" style="margin-top:14px">
+      <label>Notes <span style="color:var(--text-secondary);font-weight:400;font-size:11px;">(optional)</span></label>
+      <textarea id="sqa-notes" rows="2" placeholder="Anything worth remembering — condition, where you found it..." style="width:100%;resize:vertical;"></textarea>
     </div>
     <div class="fg">
       <label>Photo <span style="color:var(--text-secondary);font-weight:400;font-size:11px;">(optional)</span></label>
@@ -4926,18 +4956,14 @@ function openStockQuickAdd(){
         <img id="sqa-photo-img" style="max-width:100%;max-height:140px;border-radius:8px;border:1px solid var(--border);" alt="Stock photo preview">
       </div>
     </div>
-    <div class="fg">
-      <label>Notes <span style="color:var(--text-secondary);font-weight:400;font-size:11px;">(optional)</span></label>
-      <textarea id="sqa-notes" rows="2" placeholder="Anything worth remembering — condition, where you found it..." style="width:100%;resize:vertical;"></textarea>
-    </div>
-    <div id="sqa-confirm" style="display:none;background:rgba(26,122,74,0.08);border:1px solid var(--green-dim);border-radius:10px;padding:14px;margin-top:14px;text-align:center;">
-      <div style="display:inline-flex;align-items:center;gap:8px;color:var(--green);font-weight:600;margin-bottom:10px;">
+    <div id="sqa-confirm" style="display:none;background:rgba(26,122,74,0.08);border:1px solid var(--green-dim);border-radius:10px;padding:14px;margin-top:14px;">
+      <div style="display:flex;align-items:center;gap:8px;color:var(--green);font-weight:600;margin-bottom:10px;justify-content:center;">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
         Item Saved
       </div>
       <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;">
         <button class="btn btn-s" onclick="_stockQuickAddAnother()">Add another</button>
-        <button class="btn btn-p" onclick="closePanel()">Done</button>
+        <button class="btn btn-p" onclick="closePanel();_goToSourcedStock()">Done</button>
       </div>
     </div>
     <button class="btn btn-p" id="sqa-submit-btn" style="width:100%;margin-top:18px" onclick="submitStockQuickAdd()">Save Sourced Item</button>
@@ -4958,9 +4984,9 @@ function openStockQuickAdd(){
       reader.readAsDataURL(f);
     });
   }
-  // Focus cost field — synchronous within the tap chain for mobile keyboard
-  const costEl=document.getElementById('sqa-cost');
-  if(costEl)costEl.focus();
+  // Focus title field first — most likely thing to fill in at point of sourcing
+  const titleEl2=document.getElementById('sqa-title');
+  if(titleEl2)titleEl2.focus();
 }
 
 function submitStockQuickAdd(){
@@ -5001,6 +5027,9 @@ function submitStockQuickAdd(){
     grossProfit:null
   };
   if(photoSrc) item.photo=photoSrc;
+  // Flush pre-save parts list into item
+  item.parts=(_sqaParts||[]).map(function(p){return{description:p.desc,cost:p.cost,date:p.date};});
+  _sqaParts=[];
   if(!Array.isArray(DB[m])) DB[m]=[];
   DB[m].push(item);
   saveDB();
@@ -5010,8 +5039,8 @@ function submitStockQuickAdd(){
   if(confirmEl)confirmEl.style.display='block';
   if(submitBtn)submitBtn.style.display='none';
   // Disable inputs so user can't re-edit the just-saved entry
-  ['sqa-cost','sqa-title','sqa-date','sqa-photo','sqa-notes'].forEach(function(id){
-    const el=document.getElementById(id);
+  ['sqa-cost','sqa-title','sqa-date','sqa-photo','sqa-notes','sqa-part-desc','sqa-part-cost'].forEach(function(elId){
+    const el=document.getElementById(elId);
     if(el)el.disabled=true;
   });
   try{ toast('Item Saved','success'); }catch(e){}
@@ -5020,8 +5049,47 @@ function submitStockQuickAdd(){
 // "Add another" — reopen Stock Quick Add with cost cleared, ready for next.
 function _stockQuickAddAnother(){
   closePanel();
-  // Defer so the slide-out animation finishes before reopening
   setTimeout(function(){ openStockQuickAdd(); },220);
+}
+
+// "Done" after saving a sourced item — close panel and land on Stock → Sourced tab.
+function _goToSourcedStock(){
+  STOCK_STATE_FILTER='sourced';
+  goToTab('stock',document.querySelector('[data-tab="stock"]'));
+}
+
+// Pre-save parts accumulator for Stock Quick Add form.
+// Holds parts entered before the item is saved (no id yet).
+let _sqaParts=[];
+
+function _sqaRenderParts(){
+  const el=document.getElementById('sqa-parts-list');
+  if(!el)return;
+  if(!_sqaParts.length){el.innerHTML='';return;}
+  const total=_sqaParts.reduce(function(s,p){return s+p.cost;},0);
+  el.innerHTML=_sqaParts.map(function(p,idx){
+    return'<div class="part-row">'
+      +'<span class="part-desc">'+esc(p.desc)+'</span>'
+      +'<span class="part-cost">−'+fmt(p.cost)+'</span>'
+      +'<button class="part-del" onclick="event.stopPropagation();_sqaDeletePart('+idx+')" title="Remove">×</button>'
+      +'</div>';
+  }).join('')
+  +'<div class="parts-total"><span>Parts total</span><span style="color:var(--red)">−'+fmt(total)+'</span></div>';
+}
+
+function _sqaAddPart(){
+  const desc=document.getElementById('sqa-part-desc');
+  const cost=document.getElementById('sqa-part-cost');
+  if(!desc||!desc.value.trim())return;
+  _sqaParts.push({desc:desc.value.trim(),cost:parseFloat(cost.value)||0,date:new Date().toISOString().split('T')[0]});
+  desc.value='';cost.value='';
+  desc.focus();
+  _sqaRenderParts();
+}
+
+function _sqaDeletePart(idx){
+  _sqaParts.splice(idx,1);
+  _sqaRenderParts();
 }
 
 function getNextGID(){
@@ -5057,24 +5125,6 @@ function formHTML(){
         `).join('')}
       </div>
       <input type="hidden" id="qa-platform" value="${DEFAULT_PLATFORM}">
-    </div>
-    <div class="fg">
-      <label>Source</label>
-      <select id="qa-source">
-        <option value="">Select source...</option>
-        ${ITEM_SOURCES.map(s=>`<option value="${s}">${s}</option>`).join('')}
-      </select>
-    </div>
-    <div class="fg">
-      <label>Category</label>
-      <select id="qa-category">
-        <option value="">Select category...</option>
-        ${ITEM_CATEGORIES.map(c=>`<option value="${c}">${c}</option>`).join('')}
-      </select>
-    </div>
-    <div class="fg">
-      <label>Location (optional)</label>
-      <input type="text" id="qa-location" placeholder="e.g. A101, Boot sale">
     </div>
     <div class="form-grid-2" style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
       <div class="fg">
@@ -5129,14 +5179,14 @@ function formHTML(){
       </div>
     </div>
 
-    <div id="qa-packaging-group" class="fg">
-      <label>Packaging (£)</label>
-      <input type="number" id="qa-packaging" step="0.01" min="0" placeholder="0.00" oninput="updateBPFPreview()">
-    </div>
-
     <div class="fg">
       <label id="qa-promo-label">Promo %</label>
       <input type="number" id="qa-promo" step="0.1" min="0" placeholder="0" oninput="updateBPFPreview()">
+    </div>
+
+    <div id="qa-packaging-group" class="fg">
+      <label>Packaging (£)</label>
+      <input type="number" id="qa-packaging" step="0.01" min="0" placeholder="0.00" oninput="updateBPFPreview()">
     </div>
 
     <div id="bpf-preview" class="bpf-info" style="display:none">
@@ -5156,6 +5206,25 @@ function formHTML(){
           <div id="profit-roi" style="font-size:11px;color:var(--text-secondary);margin-top:2px"></div>
         </div>
       </div>
+    </div>
+
+    <div class="fg">
+      <label>Category</label>
+      <select id="qa-category">
+        <option value="">Select category...</option>
+        ${ITEM_CATEGORIES.map(c=>`<option value="${c}">${c}</option>`).join('')}
+      </select>
+    </div>
+    <div class="fg">
+      <label>Source</label>
+      <select id="qa-source">
+        <option value="">Select source...</option>
+        ${ITEM_SOURCES.map(s=>`<option value="${s}">${s}</option>`).join('')}
+      </select>
+    </div>
+    <div class="fg">
+      <label>Location (optional)</label>
+      <input type="text" id="qa-location" placeholder="e.g. A101, Boot sale">
     </div>
   `;
 }
@@ -5193,31 +5262,34 @@ function _refreshQuickAddDelivery(){
   const isEbay=platformId==='ebay';
   const isVinted=platformId==='vinted';
   const modeToggle=document.getElementById('qa-mode-toggle');
-  if(modeToggle)modeToggle.style.display=isEbay?'':'none';
-  if(!isEbay){
-    const simplePanel=document.getElementById('qa-delivery-simple');
-    const customPanel=document.getElementById('qa-delivery-custom');
-    const simpleBtn=document.getElementById('qa-mode-simple');
-    const customBtn=document.getElementById('qa-mode-custom');
-    if(simplePanel&&simplePanel.style.display!=='none'){
-      if(simplePanel)simplePanel.style.display='none';
-      if(customPanel)customPanel.style.display='';
-      if(simpleBtn){simpleBtn.style.background='var(--surface2)';simpleBtn.style.color='var(--text-secondary)';simpleBtn.style.borderColor='var(--border)';}
-      if(customBtn){customBtn.style.background='var(--accent)';customBtn.style.color='#000';customBtn.style.borderColor='var(--accent)';}
-    }
-  }
+  const simplePanel=document.getElementById('qa-delivery-simple');
   const customPanel=document.getElementById('qa-delivery-custom');
+  const simpleBtn=document.getElementById('qa-mode-simple');
+  const customBtn=document.getElementById('qa-mode-custom');
+  // Mode toggle only visible on eBay
+  if(modeToggle)modeToggle.style.display=isEbay?'':'none';
+  if(isEbay){
+    // eBay: respect whichever mode is currently active (simple is default).
+    // Simple panel is already visible by default from the HTML; only hide custom.
+    const simpleIsActive=simplePanel&&simplePanel.style.display!=='none';
+    if(customPanel)customPanel.style.display=simpleIsActive?'none':'';
+  } else {
+    // Non-eBay: always use custom delivery fields (no Simple Delivery option).
+    if(simplePanel)simplePanel.style.display='none';
+    if(simpleBtn){simpleBtn.style.background='var(--surface2)';simpleBtn.style.color='var(--text-secondary)';simpleBtn.style.borderColor='var(--border)';}
+    if(customBtn){customBtn.style.background='var(--accent)';customBtn.style.color='#000';customBtn.style.borderColor='var(--accent)';}
+    // Vinted: buyer pays postage, hide custom shipping fields entirely
+    if(customPanel)customPanel.style.display=isVinted?'none':'';
+  }
   const vintedNote=document.getElementById('qa-vinted-postage-note');
-  if(customPanel)customPanel.style.display=isVinted?'none':'';
   if(vintedNote)vintedNote.style.display=isVinted?'':'none';
   const promoLbl=document.getElementById('qa-promo-label');
   if(promoLbl)promoLbl.textContent=isEbay?'Promo %':'Boost %';
   const postageNote=document.getElementById('bpf-postage-note');
   if(postageNote){if(isVinted){postageNote.textContent='📦 Buyer pays postage — not deducted from your proceeds';postageNote.style.display='';}else{postageNote.style.display='none';}}
-  // Sync packaging visibility: hidden when eBay Simple Delivery is active
+  // Packaging: hidden when eBay Simple Delivery is active
   const packagingGroup=document.getElementById('qa-packaging-group');
   if(packagingGroup){
-    const simplePanel=document.getElementById('qa-delivery-simple');
     const isSimpleActive=isEbay&&simplePanel&&simplePanel.style.display!=='none';
     packagingGroup.style.display=isSimpleActive?'none':'';
   }
@@ -7137,6 +7209,55 @@ function renderItemRow(m,i){
 function openItemDetail(m,id,noHistory){
   const i=(DB[m]||[]).find(x=>x.id===id);
   if(!i)return;
+
+  // T-03: Sourced items have no platform, sale price, or fees — render a
+  // stripped-down panel instead of the listed-item layout to avoid empty/£0 fields.
+  if(i.state==='sourced'){
+    const ageDays=_daysInStock(i);
+    const ageStr=ageDays===null?'unknown':ageDays+' day'+(ageDays===1?'':'s');
+    const _panelPartsCost=calcPartsCost(i);
+    const _panelTotalCapital=(i.costPrice||0)+_panelPartsCost;
+    const photo=i.photo
+      ?`<div style="margin:0 auto 12px;max-width:240px;border-radius:10px;overflow:hidden;border:1px solid var(--border)"><img src="${i.photo}" alt="Stock photo" style="width:100%;display:block"></div>`
+      :'';
+    const html=`
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px">
+        <span class="item-badge sourced" style="font-size:11px;padding:4px 9px">stock</span>
+        ${i.gid?`<span style="font-size:11px;color:var(--muted);font-family:monospace">${i.gid}</span>`:''}
+        ${i.category?`<span style="font-size:11px;color:var(--muted)">· ${esc(i.category)}</span>`:''}
+      </div>
+      ${photo}
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px">
+        <div class="ip-token locked">
+          <div class="ip-token-label">${_panelPartsCost>0?'Total capital':'Buy price'}</div>
+          <div class="ip-token-val">${fmt(_panelPartsCost>0?_panelTotalCapital:(i.costPrice||0))}</div>
+          <div class="ip-token-sub">${_panelPartsCost>0?'Buy '+fmt(i.costPrice||0)+' + parts':'Capital tied up'}</div>
+        </div>
+        <div class="ip-token locked">
+          <div class="ip-token-label">In stock</div>
+          <div class="ip-token-val">${ageStr}</div>
+          <div class="ip-token-sub">Sourced ${i.dateSourced||'—'}</div>
+        </div>
+      </div>
+      ${i.notes?`<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin-bottom:14px;font-size:13px;color:var(--text);line-height:1.5;white-space:pre-wrap">${esc(i.notes)}</div>`:''}
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin-bottom:14px">
+        <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:8px">Parts &amp; Expenses${(i.parts||[]).length>0?' ('+i.parts.length+')':''}</div>
+        <div id="panel-parts-${id}">${partsHTML(m,id,'panel')}</div>
+      </div>
+      <div style="display:flex;gap:8px;margin-bottom:12px">
+        <button class="btn btn-p" style="flex:1;justify-content:center;padding:11px" onclick="alert('Listing flow lands in Patch B — you\\'ll be able to set platform, price and fees from here.')" title="Coming in Patch B">List this item →</button>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr auto auto;gap:8px;align-items:center;padding-top:12px;border-top:1px solid var(--border)">
+        <button class="btn btn-p" style="justify-content:center" onclick="openItemPageFromPanel('${m}','${id}')">Full details →</button>
+        <button class="btn btn-s" onclick="editItem('${m}','${id}')" title="Edit">✏️</button>
+        <button class="btn btn-s danger" onclick="deleteItem('${m}','${id}')" title="Delete">🗑️</button>
+      </div>
+    `;
+    const pushHistory=document.getElementById('slide-panel').classList.contains('on')&&!noHistory;
+    openPanel(i.item,html,pushHistory);
+    return;
+  }
+
   // When an item has been returned and relisted, confirmRelist overwrites i.salePrice
   // with the new asking price. For the P&L receipt we need the ORIGINAL sale price.
   // _salePriceAtReturn is snapshotted on the return entry at the time of the return log.
@@ -7158,6 +7279,8 @@ function openItemDetail(m,id,noHistory){
   const promoCost=grossInc*(i.promoPercent||0)*1.20;
   const profit=calcGrossProfit(i);
   const roi=calcROI(i);
+  const _isZeroCost2=(i.costPrice==null||i.costPrice===0)&&!(i.shippingCost>0)&&!(i.packagingCost>0)&&!calcPartsCost(i);
+  const roiDisplay2=_isZeroCost2&&profit!==null?'∞':(roi!==null?roi.toFixed(1)+'%':null);
   const status=i.isReturned?'returned':i.resaleSalePrice?'resold':i.dateSold?'sold':i.condition==='spares'?'spares':'listed';
   const isSold=(i.dateSold||i.resaleSalePrice)&&!i.isReturned;
   const isUnsold=!i.dateSold&&!i.resaleSalePrice&&!i.isReturned;
@@ -7192,7 +7315,7 @@ function openItemDetail(m,id,noHistory){
       ${profit!==null?`<div class="ip-token locked ${profit>=0?'pos':'neg'}">
         <div class="ip-token-label">Profit</div>
         <div class="ip-token-val">${fmt(profit)}</div>
-        <div class="ip-token-sub">${roi!==null?'ROI '+roi.toFixed(1)+'%':'—'}</div>
+        <div class="ip-token-sub">${roiDisplay2?'ROI '+roiDisplay2:'—'}</div>
       </div>`:''}
     </div>`;
 
@@ -8818,32 +8941,28 @@ function editItem(m,id){
   if(!item)return;
   // Patch A — stock items get a minimal edit panel (no platform/price/fees)
   if(item.state==='sourced'){ return _editStockItem(m,item); }
+  const _editPlat=item.defaultPlatform||DEFAULT_PLATFORM;
+  const _editDate=item.dateListed||'';
+  const _editPostMode=item._postageMode||(item.shippingCost>0?'custom':'simple');
   const html=`
+    <div class="fg">
+      <label>Date Listed</label>
+      <input type="date" id="edit-date" value="${_editDate}">
+    </div>
     <div class="fg">
       <label>Item Name</label>
       <input type="text" id="edit-item" value="${esc(item.item)}">
     </div>
     <div class="fg">
-      <label>Source</label>
-      <select id="edit-source">
-        <option value="">Select source...</option>
-        ${ITEM_SOURCES.map(s=>`<option value="${s}" ${s===item.source?'selected':''}>${s}</option>`).join('')}
-      </select>
-    </div>
-    <div class="fg">
-      <label>Category</label>
-      <select id="edit-category">
-        <option value="">Select category...</option>
-        ${ITEM_CATEGORIES.map(c=>`<option value="${c}" ${c===item.category?'selected':''}>${c}</option>`).join('')}
-      </select>
-    </div>
-    <div class="fg">
-      <label>Location (optional)</label>
-      <input type="text" id="edit-location" value="${esc(item.location||'')}">
-    </div>
-    <div class="fg">
-      <label>Date Listed</label>
-      <input type="date" id="edit-date" value="${item.dateListed}">
+      <label>Platform</label>
+      <div class="qa-platform-row" id="edit-platform-row">
+        ${Object.values(PLATFORMS).map(p=>`<button type="button"
+          class="qa-platform-pill${p.id===_editPlat?' active':''}${!p.live?' coming-soon':''}"
+          data-platform="${p.id}"
+          onclick="document.getElementById('edit-platform-row').querySelectorAll('.qa-platform-pill').forEach(b=>b.classList.toggle('active',b.dataset.platform==='${p.id}'));document.getElementById('edit-platform-hidden').value='${p.id}';"
+          >${p.short}</button>`).join('')}
+      </div>
+      <input type="hidden" id="edit-platform-hidden" value="${_editPlat}">
     </div>
     <div class="form-grid-2" style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
       <div class="fg">
@@ -8855,19 +8974,48 @@ function editItem(m,id){
         <input type="number" id="edit-price" step="0.01" value="${item.salePrice}">
       </div>
     </div>
-    <div class="form-grid-2" style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-      <div class="fg">
-        <label>Postage Charged to Buyer</label>
-        <input type="number" id="edit-postage" step="0.01" value="${item.postage||0}">
+    <div class="fg">
+      <label>Delivery</label>
+      <div style="display:flex;gap:8px;margin-bottom:10px">
+        <button type="button" id="edit-mode-simple" onclick="_editSetDelivery('simple')"
+          style="flex:1;padding:8px 12px;font-size:13px;font-weight:600;border-radius:8px;cursor:pointer;transition:all 0.15s;${_editPostMode==='simple'?'background:var(--accent);color:#000;border:1px solid var(--accent)':'background:var(--surface2);color:var(--text-secondary);border:1px solid var(--border)'}">
+          Simple Delivery
+        </button>
+        <button type="button" id="edit-mode-custom" onclick="_editSetDelivery('custom')"
+          style="flex:1;padding:8px 12px;font-size:13px;font-weight:600;border-radius:8px;cursor:pointer;transition:all 0.15s;${_editPostMode==='custom'?'background:var(--accent);color:#000;border:1px solid var(--accent)':'background:var(--surface2);color:var(--text-secondary);border:1px solid var(--border)'}">
+          Custom
+        </button>
       </div>
-      <div class="fg">
-        <label>Your Shipping Cost</label>
-        <input type="number" id="edit-shipping" step="0.01" value="${item.shippingCost||0}">
+      <div id="edit-delivery-simple" style="display:${_editPostMode==='simple'?'block':'none'}">
+        <div class="form-grid-2" style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+          <div class="fg" style="margin-bottom:0">
+            <label style="margin-bottom:4px">Your cost (£)</label>
+            <input type="number" id="edit-shipping" step="0.01" min="0" placeholder="0.00" value="${item.shippingCost||0}">
+          </div>
+          <div class="fg" style="margin-bottom:0">
+            <label style="margin-bottom:4px">Buyer pays (£)</label>
+            <input type="number" id="edit-postage" step="0.01" min="0" placeholder="0.00" value="${item.postage||0}">
+          </div>
+        </div>
+        <div style="font-size:11px;color:var(--muted);margin-top:6px">eBay calculates these — check your listing for the exact values</div>
       </div>
+      <div id="edit-delivery-custom" style="display:${_editPostMode==='custom'?'block':'none'}">
+        <div class="form-grid-2" style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+          <div class="fg" style="margin-bottom:0">
+            <label style="margin-bottom:4px">Your cost (£)</label>
+            <input type="number" id="edit-shipping-c" step="0.01" min="0" placeholder="0.00" value="${item.shippingCost||0}">
+          </div>
+          <div class="fg" style="margin-bottom:0">
+            <label style="margin-bottom:4px">Buyer pays (£)</label>
+            <input type="number" id="edit-postage-c" step="0.01" min="0" placeholder="0.00" value="${item.postage||0}">
+          </div>
+        </div>
+      </div>
+      <input type="hidden" id="edit-postage-mode" value="${_editPostMode}">
     </div>
     <div class="form-grid-2" style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
       <div class="fg">
-        <label>Packaging</label>
+        <label>Packaging (£)</label>
         <input type="number" id="edit-packaging" step="0.01" value="${item.packagingCost||0}">
       </div>
       <div class="fg">
@@ -8875,23 +9023,62 @@ function editItem(m,id){
         <input type="number" id="edit-promo" step="0.1" value="${((item.promoPercent||0)*100).toFixed(1).replace(/\.0$/,'')}">
       </div>
     </div>
+    <div class="fg">
+      <label>Category</label>
+      <select id="edit-category">
+        <option value="">Select category...</option>
+        ${ITEM_CATEGORIES.map(c=>`<option value="${c}" ${c===item.category?'selected':''}>${c}</option>`).join('')}
+      </select>
+    </div>
+    <div class="fg">
+      <label>Source</label>
+      <select id="edit-source">
+        <option value="">Select source...</option>
+        ${ITEM_SOURCES.map(s=>`<option value="${s}" ${s===item.source?'selected':''}>${s}</option>`).join('')}
+      </select>
+    </div>
+    <div class="fg">
+      <label>Location (optional)</label>
+      <input type="text" id="edit-location" value="${esc(item.location||'')}">
+    </div>
     <button class="btn btn-p" style="width:100%;margin-top:16px" onclick="saveEdit('${m}','${id}')">Save Changes</button>
   `;
   openPanel('Edit Item',html);
+}
+
+function _editSetDelivery(mode){
+  const isSimple=mode==='simple';
+  document.getElementById('edit-postage-mode').value=mode;
+  const s=document.getElementById('edit-delivery-simple');
+  const c=document.getElementById('edit-delivery-custom');
+  const sb=document.getElementById('edit-mode-simple');
+  const cb=document.getElementById('edit-mode-custom');
+  if(s)s.style.display=isSimple?'block':'none';
+  if(c)c.style.display=isSimple?'none':'block';
+  if(sb){sb.style.background=isSimple?'var(--accent)':'var(--surface2)';sb.style.color=isSimple?'#000':'var(--text-secondary)';sb.style.borderColor=isSimple?'var(--accent)':'var(--border)';}
+  if(cb){cb.style.background=isSimple?'var(--surface2)':'var(--accent)';cb.style.color=isSimple?'var(--text-secondary)':'#000';cb.style.borderColor=isSimple?'var(--border)':'var(--accent)';}
 }
 
 function saveEdit(m,id){
   const item=(DB[m]||[]).find(i=>i.id===id);
   if(!item)return;
   item.item=document.getElementById('edit-item').value;
+  // Platform
+  const editPlat=document.getElementById('edit-platform-hidden')?.value;
+  if(editPlat&&PLATFORMS[editPlat])item.defaultPlatform=editPlat;
   item.source=document.getElementById('edit-source').value;
   item.category=document.getElementById('edit-category').value;
   item.location=document.getElementById('edit-location').value;
   item.dateListed=document.getElementById('edit-date').value;
   item.costPrice=parseFloat(document.getElementById('edit-cost').value)||0;
   item.salePrice=parseFloat(document.getElementById('edit-price').value)||0;
-  item.postage=parseFloat(document.getElementById('edit-postage').value)||0;
-  item.shippingCost=parseFloat(document.getElementById('edit-shipping').value)||0;
+  // Delivery mode + fields
+  const editMode=document.getElementById('edit-postage-mode')?.value||'simple';
+  item._postageMode=editMode;
+  const shippingId=editMode==='simple'?'edit-shipping':'edit-shipping-c';
+  const postageId=editMode==='simple'?'edit-postage':'edit-postage-c';
+  item.shippingCost=parseFloat(document.getElementById(shippingId)?.value)||0;
+  item.postage=parseFloat(document.getElementById(postageId)?.value)||0;
   item.packagingCost=parseFloat(document.getElementById('edit-packaging').value)||0;
   item.promoPercent=(parseFloat(document.getElementById('edit-promo').value)||0)/100;
   if(item.dateSold){item.grossProfit=calcGrossProfit(item);}
@@ -8901,9 +9088,7 @@ function saveEdit(m,id){
   if(cur==='p-monthly')renderMonth();
   else if(cur==='p-stock')renderStock();
   else if(cur==='p-item')renderItemPage(m,id);
-  // E3 P1 #5 — Summary re-render on edit-via-panel (KPIs went stale until tab nav).
   else if(cur==='p-summary')renderSummary();
-  // Re-open detail panel so user stays in context
   openItemDetail(m,id,true);
 }
 
@@ -8911,16 +9096,16 @@ function saveEdit(m,id){
 function _editStockItem(m,item){
   const html=`
     <div class="fg">
+      <label>Date sourced</label>
+      <input type="date" id="edit-stock-date" value="${item.dateSourced||''}">
+    </div>
+    <div class="fg">
       <label>Title</label>
       <input type="text" id="edit-stock-title" value="${esc(item.item||'')}" placeholder="e.g. Camera, Lego set">
     </div>
     <div class="fg">
       <label>Cost <span style="color:var(--red);font-weight:600">*</span></label>
       <input type="number" id="edit-stock-cost" step="0.01" min="0" inputmode="decimal" value="${item.costPrice||0}">
-    </div>
-    <div class="fg">
-      <label>Date sourced</label>
-      <input type="date" id="edit-stock-date" value="${item.dateSourced||''}">
     </div>
     <div class="fg">
       <label>Notes</label>
@@ -10301,7 +10486,7 @@ function getSaleEventsInMonth(m){
             profit:calcGrossProfit(sale1Item),
             roi:null,                   // ROI semantically belongs to the resale outcome
             daysToSell:i.dateListed?daysBetween(i.dateListed,i.dateSold):null,
-            isReturned:true             // sale1 ended in a return
+            isReturned:false            // T-14: final item state is sold (resold) — filter on current state
           });
         } else if(!i.isReturned){
           // Standard single sale (not relisted, not currently returned)
