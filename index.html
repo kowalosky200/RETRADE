@@ -1176,7 +1176,7 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
 .ip-field,.ip-field-select,.ip-field-date{font-size:15px;}
 #auth-screen-login,#auth-screen-reset{max-width:420px;border-radius:28px;padding:42px 36px!important;box-shadow:0 22px 60px rgba(0,0,0,.18);} 
 #auth-screen-login > div:first-child + div + div span{letter-spacing:.16em!important;}
-#auth-btn,#preview-btn{height:48px;border-radius:16px;}
+#auth-btn{height:48px;border-radius:16px;}
 .summary-shell{display:grid;grid-template-columns:minmax(0,1.84fr) minmax(0,.92fr);gap:18px;align-items:start;}
 .summary-main{display:flex;flex-direction:column;gap:18px;min-height:100%;min-width:0;}
 .summary-side{display:grid;grid-template-rows:auto auto auto;gap:18px;}
@@ -1721,11 +1721,6 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
       style="width:100%;padding:12px;background:var(--accent);color:#000;border:none;border-radius:8px;font-weight:700;font-size:15px;cursor:pointer;transition:background 0.15s;">
       Sign In
     </button>
-    <button onclick="startPreviewMode()" id="preview-btn"
-      style="width:100%;padding:12px;background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:8px;font-weight:700;font-size:15px;cursor:pointer;transition:background 0.15s;margin-top:10px;">
-      Developer preview
-    </button>
-
     <button onclick="showForgotPassword()"
       style="width:100%;padding:10px;background:none;border:none;color:var(--text-secondary);font-size:13px;cursor:pointer;margin-top:8px;text-decoration:underline;text-underline-offset:3px;">
       Forgot password?
@@ -1872,14 +1867,14 @@ function _migrateItemStates(){
   let touchedState=0, touchedSourced=0;
   allDBKeys().forEach(function(k){
     (DB[k]||[]).forEach(function(i){
-      // E7 fix: remap legacy 'stock' → 'sourced'. Items saved before E6 renamed the
-      // pre-listing state use 'stock', which is not in the DB CHECK constraint
-      // ('sourced'|'listed'|'sold'|'returned'). 'stock' is truthy so the old
-      // if(!i.state) guard below would skip it — explicit remap required first.
+      // E7: remap legacy 'stock' → 'sourced'. Items saved before E6 renamed the
+      // pre-listing state carry 'stock', which the DB CHECK constraint rejects.
+      // 'stock' is truthy so the !i.state guard below would silently skip it.
       if(i.state==='stock'){
         i.state='sourced';
         touchedState++;
       }
+      // Catch null/undefined/empty/any other unrecognised value
       if(!i.state || !_VALID_STATES.includes(i.state)){
         const _hadFullReturn=(i.returnHistory||[]).some(function(r){return r.type==='full_seller'||r.type==='full_ebay';});
         const _activeReturn=i.isReturned===true || (_hadFullReturn && !i.resaleSalePrice);
@@ -3096,17 +3091,22 @@ async function _backfillDateSoldAtReturn(){
 // Upserts the item row, then replaces its parts and returns in full.
 
 async function saveItemToSupabase(m, i){
-  // E7 — defensive guard at persistence boundary. Refuse to send any row with
-  // a state value that would violate the DB CHECK constraint. Crash loudly so
-  // the bad path is immediately visible in the console rather than silently
-  // corrupting (or failing to write) the row.
+  // ── E7/E8 boundary guard ─────────────────────────────────────────────────
+  // Hard-throw on any invalid state BEFORE building the row — if this fires,
+  // the bad path is immediately visible in the console with the item id and
+  // the value that would have been sent. Never silently corrupt the DB.
   const _VALID_STATES = ['sourced','listed','sold','returned'];
   if (!_VALID_STATES.includes(i.state)) {
-    console.error('[E7] Invalid state on save:', i.state, i);
-    throw new Error('Refusing to save item with invalid state: ' + JSON.stringify(i.state) + ' (id=' + i.id + ')');
+    const msg = '[E8] GUARD: invalid state on save — refusing upsert. state=' + JSON.stringify(i.state) + ' id=' + i.id;
+    console.error(msg, i);
+    throw new Error(msg);
   }
 
   const row = _itemToRow(i, m);
+
+  // E8 debug log — temporary. Shows the exact payload sent to Supabase so we
+  // can confirm the state value that reaches the wire. Remove after diagnosis.
+  console.log('[E8] UPSERT payload:', JSON.stringify(row, null, 2));
 
   // Upsert main item row — conflict on (id, user_id) so two users with the
   // same item ID never overwrite each other
