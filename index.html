@@ -1868,10 +1868,19 @@ function _ensureDBShape(){
 // This matters for the Stock page's "Avg time to list" KPI which would
 // otherwise have to skip un-sourced items entirely.
 function _migrateItemStates(){
+  const _VALID_STATES=['sourced','listed','sold','returned'];
   let touchedState=0, touchedSourced=0;
   allDBKeys().forEach(function(k){
     (DB[k]||[]).forEach(function(i){
-      if(!i.state){
+      // E7 fix: remap legacy 'stock' → 'sourced'. Items saved before E6 renamed the
+      // pre-listing state use 'stock', which is not in the DB CHECK constraint
+      // ('sourced'|'listed'|'sold'|'returned'). 'stock' is truthy so the old
+      // if(!i.state) guard below would skip it — explicit remap required first.
+      if(i.state==='stock'){
+        i.state='sourced';
+        touchedState++;
+      }
+      if(!i.state || !_VALID_STATES.includes(i.state)){
         const _hadFullReturn=(i.returnHistory||[]).some(function(r){return r.type==='full_seller'||r.type==='full_ebay';});
         const _activeReturn=i.isReturned===true || (_hadFullReturn && !i.resaleSalePrice);
         if(_activeReturn){ i.state='returned'; }
@@ -3087,6 +3096,16 @@ async function _backfillDateSoldAtReturn(){
 // Upserts the item row, then replaces its parts and returns in full.
 
 async function saveItemToSupabase(m, i){
+  // E7 — defensive guard at persistence boundary. Refuse to send any row with
+  // a state value that would violate the DB CHECK constraint. Crash loudly so
+  // the bad path is immediately visible in the console rather than silently
+  // corrupting (or failing to write) the row.
+  const _VALID_STATES = ['sourced','listed','sold','returned'];
+  if (!_VALID_STATES.includes(i.state)) {
+    console.error('[E7] Invalid state on save:', i.state, i);
+    throw new Error('Refusing to save item with invalid state: ' + JSON.stringify(i.state) + ' (id=' + i.id + ')');
+  }
+
   const row = _itemToRow(i, m);
 
   // Upsert main item row — conflict on (id, user_id) so two users with the
