@@ -1721,7 +1721,10 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
       style="width:100%;padding:12px;background:var(--accent);color:#000;border:none;border-radius:8px;font-weight:700;font-size:15px;cursor:pointer;transition:background 0.15s;">
       Sign In
     </button>
-
+    <button onclick="startPreviewMode()" id="preview-btn"
+      style="width:100%;padding:12px;background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:8px;font-weight:700;font-size:15px;cursor:pointer;transition:background 0.15s;margin-top:10px;">
+      Developer preview
+    </button>
 
     <button onclick="showForgotPassword()"
       style="width:100%;padding:10px;background:none;border:none;color:var(--text-secondary);font-size:13px;cursor:pointer;margin-top:8px;text-decoration:underline;text-underline-offset:3px;">
@@ -2902,6 +2905,8 @@ function _rowToItem(row, parts, returns){
     resaleShippingCost: row.resale_shipping_cost ? Number(row.resale_shipping_cost) : null,
     resalePromoPercent: row.resale_promo_percent ? Number(row.resale_promo_percent) : null,
     grossProfit:     row.gross_profit != null ? Number(row.gross_profit) : null,
+    state:           row.state || null,
+    dateSourced:     row.date_sourced || null,
     _shippingMigrated: true,
     returnData:      null,
     parts: (parts||[]).map(p=>({id:p.id, desc:p.description||'', cost:Number(p.cost)||0})),
@@ -2951,6 +2956,8 @@ function _itemToRow(i, month){
     resale_shipping_cost: i.resaleShippingCost || null,
     resale_promo_percent: i.resalePromoPercent || null,
     gross_profit:     i.grossProfit || null,
+    state:            i.state || 'listed',
+    date_sourced:     i.dateSourced || null,
   };
 }
 
@@ -3733,7 +3740,7 @@ function _renderStockItemPage(m,i){
         ${partsHTML(m,i.id,'page')}
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;">
-        <button class="btn btn-p" onclick="alert('Listing flow lands in Patch B \u2014 you\\'ll be able to set platform, price and fees from here.')" title="Coming in Patch B">List this item \u2192</button>
+        <button class="btn btn-p" onclick="openListFromSourced('${m}','${i.id}')">List this item &#x2192;</button>
         <button class="btn btn-s" onclick="editItem('${m}','${i.id}')">\u270f\ufe0f Edit</button>
         <button class="btn btn-s danger" onclick="deleteItem('${m}','${i.id}')">\ud83d\uddd1\ufe0f Delete</button>
       </div>
@@ -4829,6 +4836,121 @@ function openQuickAdd(){
   if(qaItem)qaItem.focus();
 }
 
+// ── Patch B — Sourced → Listed transition ────────────────────────────────────
+// Opens the standard List Quick Add form pre-filled with the sourced item's
+// data. On save, mutates the existing item record in place (preserving id,
+// gid, parts, returnHistory, dateSourced, photo) rather than creating a new
+// one. This keeps all history intact and avoids duplicate GIDs.
+function openListFromSourced(m, id){
+  const i=(DB[m]||[]).find(x=>x.id===id);
+  if(!i||i.state!=='sourced'){toast('Item not found or already listed','error');return;}
+  // Use current month so the bucket is correct for today's listing date
+  SELECTED_MONTH=currentMonthKey();
+  const html=`
+    ${formHTML()}
+    <div id="qa-coming-soon-banner" class="qa-coming-soon-banner" style="display:none">
+      <div class="qa-cs-icon">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+      </div>
+      <div class="qa-cs-text">
+        <strong id="qa-cs-title">Coming soon</strong>
+        <span id="qa-cs-detail">Tracking for this platform isn't ready yet.</span>
+      </div>
+      <button type="button" class="qa-cs-cta" onclick="qaSetPlatform('ebay')">Use eBay instead</button>
+    </div>
+    <button class="btn btn-p" id="qa-submit-btn" style="width:100%;margin-top:20px" onclick="submitListFromSourced('${m}','${id}')">List Item</button>
+  `;
+  openPanel('List Item — '+esc(i.item||'Stock item'), html);
+  // Initialise platform helpers same as openQuickAdd
+  if(typeof _refreshQuickAddPriceCopy==='function')_refreshQuickAddPriceCopy();
+  if(typeof _refreshQuickAddSubmitState==='function')_refreshQuickAddSubmitState();
+  if(typeof _refreshQuickAddDelivery==='function')_refreshQuickAddDelivery();
+  // Pre-fill fields from sourced item
+  const qaItem=document.getElementById('qa-item');
+  if(qaItem){ qaItem.value=i.item||''; }
+  const qaCost=document.getElementById('qa-cost');
+  if(qaCost){ qaCost.value=i.costPrice||0; updateBPFPreview(); }
+  const qaNotes=document.getElementById('qa-notes');
+  if(qaNotes){ qaNotes.value=i.notes||''; }
+  const qaSource=document.getElementById('qa-source');
+  if(qaSource&&i.source){ qaSource.value=i.source; }
+  const qaCat=document.getElementById('qa-category');
+  if(qaCat&&i.category){ qaCat.value=i.category; }
+  const qaLoc=document.getElementById('qa-location');
+  if(qaLoc&&i.location){ qaLoc.value=i.location; }
+  // Focus price — cost is already filled, price is the key missing field
+  const qaPrice=document.getElementById('qa-price');
+  if(qaPrice)qaPrice.focus();
+}
+
+function submitListFromSourced(m, srcId){
+  // Validate using same rules as submitQuickAdd
+  const rawName=(document.getElementById('qa-item').value||'').trim();
+  const rawCost=parseFloat(document.getElementById('qa-cost').value);
+  const _qaDate=(document.getElementById('qa-date').value||new Date().toISOString().split('T')[0]);
+  const _qaPlat=document.getElementById('qa-platform')?.value||DEFAULT_PLATFORM;
+  if(!PLATFORMS[_qaPlat]||!PLATFORMS[_qaPlat].live){
+    toast((PLATFORMS[_qaPlat]?.label||'This platform')+' tracking is coming soon — pick eBay to list this item','error');
+    return;
+  }
+  if(!rawName){toast('Item name is required','error');try{document.getElementById('qa-item').focus();}catch(e){}return;}
+  if(!isFinite(rawCost)||rawCost<0){toast('Cost must be 0 or more','error');try{document.getElementById('qa-cost').focus();}catch(e){}return;}
+  // Find the sourced item — it may live in its original month bucket
+  let srcMonth=m, srcItem=null;
+  allDBKeys().forEach(function(k){ const found=(DB[k]||[]).find(x=>x.id===srcId); if(found){srcMonth=k;srcItem=found;} });
+  if(!srcItem||srcItem.state!=='sourced'){toast('Sourced item not found — may already be listed','error');return;}
+
+  // Delivery fields
+  const isSimple=document.getElementById('qa-delivery-simple')&&document.getElementById('qa-delivery-simple').style.display!=='none';
+  const _qaSalePrice=parseFloat(document.getElementById('qa-price').value)||0;
+  let postage=0,shippingCost=0,packagingCost=0,_postageMode,_sdRateIdx=1,_sdBuyerPays=false;
+  if(isSimple){
+    _postageMode='simple';
+    const _rawIdx=parseInt(document.getElementById('qa-sd-rate')?.value,10);
+    _sdRateIdx=isNaN(_rawIdx)?1:_rawIdx;
+    _sdBuyerPays=document.getElementById('qa-sd-free-postage')?.checked===false;
+    const rateCost=_sdRateFor(_sdRateIdx,_qaSalePrice);
+    shippingCost=rateCost;
+    postage=_sdBuyerPays?rateCost:0;
+  }else{
+    _postageMode='custom';
+    postage=parseFloat(document.getElementById('qa-postage')?.value)||0;
+    shippingCost=parseFloat(document.getElementById('qa-shipping')?.value)||0;
+  }
+  packagingCost=parseFloat(document.getElementById('qa-packaging')?.value)||0;
+
+  // Mutate the sourced item in place — preserve id, gid, parts, returnHistory, dateSourced, photo
+  const newMonth=monthKeyFromDate(_qaDate);
+  srcItem.state='listed';
+  srcItem.dateListed=_qaDate;
+  srcItem.item=rawName;
+  srcItem.source=document.getElementById('qa-source').value||srcItem.source||'';
+  srcItem.category=(document.getElementById('qa-category').value||srcItem.category||autoCategory(rawName));
+  srcItem.location=document.getElementById('qa-location').value||srcItem.location||'';
+  srcItem.notes=(document.getElementById('qa-notes')?.value||'').trim()||srcItem.notes||'';
+  srcItem.costPrice=+rawCost.toFixed(2);
+  srcItem.salePrice=+_qaSalePrice.toFixed(2);
+  srcItem.postage=postage; srcItem.shippingCost=shippingCost; srcItem.packagingCost=packagingCost;
+  srcItem._postageMode=_postageMode; srcItem._sdRateIdx=_sdRateIdx; srcItem._sdBuyerPays=_sdBuyerPays;
+  srcItem.promoPercent=(parseFloat(document.getElementById('qa-promo').value)||0)/100;
+  srcItem.defaultPlatform=_qaPlat;
+  srcItem.dateSold=null; srcItem.grossProfit=null; srcItem.isReturned=false;
+
+  // If the listing month differs from the sourced month, move the item to the new bucket
+  if(newMonth!==srcMonth){
+    DB[srcMonth]=(DB[srcMonth]||[]).filter(x=>x.id!==srcId);
+    if(!Array.isArray(DB[newMonth]))DB[newMonth]=[];
+    DB[newMonth].push(srcItem);
+  }
+
+  saveDB();
+  closePanel();
+  SELECTED_MONTH=newMonth; MONTH_SORT='date-listed'; MONTH_FILTER='all';
+  SELECTION_MODE=false; SELECTED_ITEMS.clear();
+  openItemPage(newMonth,srcId,'p-stock');
+  toast(esc(rawName)+' listed ✓');
+}
+
 function submitQuickAdd(){
   // Session D1.5 — month bucket derived from the Date Listed input.
   // Previously a separate Month dropdown duplicated this information.
@@ -4891,6 +5013,7 @@ function submitQuickAdd(){
     source:document.getElementById('qa-source').value||'',
     category:document.getElementById('qa-category').value||'',
     location:document.getElementById('qa-location').value||'',
+    notes:(document.getElementById('qa-notes')?.value||'').trim(),
     costPrice:rawCost,
     salePrice:parseFloat(document.getElementById('qa-price').value)||0,
     postage,shippingCost,packagingCost,
@@ -5226,6 +5349,10 @@ function formHTML(){
       <label>Location (optional)</label>
       <input type="text" id="qa-location" placeholder="e.g. A101, Boot sale">
     </div>
+    <div class="fg">
+      <label>Notes <span style="color:var(--text-secondary);font-weight:400;font-size:11px;">(optional)</span></label>
+      <textarea id="qa-notes" rows="2" placeholder="Condition, provenance, anything worth remembering..." style="width:100%;resize:vertical;"></textarea>
+    </div>
   `;
 }
 
@@ -5261,11 +5388,14 @@ function _refreshQuickAddDelivery(){
   const platformId=document.getElementById('qa-platform')?.value||DEFAULT_PLATFORM;
   const isEbay=platformId==='ebay';
   const isVinted=platformId==='vinted';
+  const deliverySection=document.getElementById('qa-delivery-section');
   const modeToggle=document.getElementById('qa-mode-toggle');
   const simplePanel=document.getElementById('qa-delivery-simple');
   const customPanel=document.getElementById('qa-delivery-custom');
   const simpleBtn=document.getElementById('qa-mode-simple');
   const customBtn=document.getElementById('qa-mode-custom');
+  // Vinted: buyer pays postage — hide the entire delivery section, show note below price
+  if(deliverySection)deliverySection.style.display=isVinted?'none':'';
   // Mode toggle only visible on eBay
   if(modeToggle)modeToggle.style.display=isEbay?'':'none';
   if(isEbay){
@@ -7245,7 +7375,7 @@ function openItemDetail(m,id,noHistory){
         <div id="panel-parts-${id}">${partsHTML(m,id,'panel')}</div>
       </div>
       <div style="display:flex;gap:8px;margin-bottom:12px">
-        <button class="btn btn-p" style="flex:1;justify-content:center;padding:11px" onclick="alert('Listing flow lands in Patch B — you\\'ll be able to set platform, price and fees from here.')" title="Coming in Patch B">List this item →</button>
+        <button class="btn btn-p" style="flex:1;justify-content:center;padding:11px" onclick="openListFromSourced('${m}','${id}')">List this item →</button>
       </div>
       <div style="display:grid;grid-template-columns:1fr auto auto;gap:8px;align-items:center;padding-top:12px;border-top:1px solid var(--border)">
         <button class="btn btn-p" style="justify-content:center" onclick="openItemPageFromPanel('${m}','${id}')">Full details →</button>
@@ -9206,6 +9336,7 @@ function markSold(m,id){
       item.resalePackagingCost=item.packagingCost||0;
       item.resalePromoPercent=item.promoPercent||0;
       item.isReturned=false;
+      item.state='sold';
       item.grossProfit=calcGrossProfit(item);
       saveDB();
       toast('Re-sold logged');
@@ -9232,6 +9363,7 @@ function markSold(m,id){
         item.soldOnPlatform=_soldPlat;
       }
       item.isReturned=false;
+      item.state='sold';
       item.grossProfit=calcGrossProfit(item);
       saveDB();
       toast('Marked as sold');
@@ -9561,6 +9693,7 @@ function confirmRelist(m,id){
   }
   // Restore to active stock
   i.isReturned=false;
+  i.state='listed';
   i.dateSold=null;
   i.salePrice=price;
   i.promoPercent=promoInput/100;
@@ -9661,6 +9794,7 @@ function saveReturn(m,id){
   // Mark as fully returned only for full refund types
   if(type==='full_seller'||type==='full_ebay'){
     i.isReturned=true;
+    i.state='returned';
     i.dateSold=null; // remove from sold — back to stock
   }
   saveDB();
@@ -9687,6 +9821,7 @@ function panelDeleteReturn(m,id,rtnIdx){
   const stillFullyReturned=i.returnHistory.some(r=>r.type==='full_seller'||r.type==='full_ebay');
   if(!stillFullyReturned&&i.isReturned){
     i.isReturned=false;
+    i.state='sold';
     i.dateSold=i.dateSold||new Date().toISOString().split('T')[0];
   }
   saveDB();
@@ -9706,6 +9841,7 @@ function undoReturnEntry(m,id,rtnIdx){
   const stillFullyReturned=i.returnHistory.some(function(r2){return r2.type==='full_seller'||r2.type==='full_ebay';});
   if(!stillFullyReturned&&i.isReturned){
     i.isReturned=false;
+    i.state='sold';
     // Restore dateSold from the entry we just removed (best guess)
     i.dateSold=r.loggedAt||null;
   }
@@ -9725,6 +9861,7 @@ async function revertToActive(m,id){
   );
   if(!ok)return;
   i.dateSold=null;
+  i.state='listed';
   i.grossProfit=null;
   saveDB();
   toast('Moved back to active stock');
@@ -9749,6 +9886,7 @@ function undoSale(m,id){
   function _doUndo(){
     i.dateSold=null;
     i.isReturned=false;
+    i.state='listed';
     // Preserve returnHistory so refund records aren't silently destroyed.
     saveDB();
     renderItemPage(m,id);
@@ -9776,6 +9914,7 @@ function undoResale(m,id){
   delete i.resalePromoPercent;
   delete i.resalePackagingCost;
   i.isReturned=true;
+  i.state='returned';
   i.grossProfit=calcGrossProfit(i);
   saveDB();
   renderItemPage(m,id);
@@ -9792,6 +9931,7 @@ function undoRelist(m,id,rtnIdx){
   delete r._relistCondition;
   // Restore returned state
   i.isReturned=true;
+  i.state='returned';
   i.dateSold=null;
   i.condition=undefined;
   i.grossProfit=calcGrossProfit(i);
