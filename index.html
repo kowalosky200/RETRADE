@@ -1721,6 +1721,7 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
       style="width:100%;padding:12px;background:var(--accent);color:#000;border:none;border-radius:8px;font-weight:700;font-size:15px;cursor:pointer;transition:background 0.15s;">
       Sign In
     </button>
+
     <button onclick="showForgotPassword()"
       style="width:100%;padding:10px;background:none;border:none;color:var(--text-secondary);font-size:13px;cursor:pointer;margin-top:8px;text-decoration:underline;text-underline-offset:3px;">
       Forgot password?
@@ -2421,7 +2422,7 @@ const _previewParam = new URLSearchParams(window.location.search).get('preview')
 const PREVIEW_STORAGE_KEY='retrade_preview_mode';
 const LEGACY_PREVIEW_STORAGE_KEYS=['general_preview_mode'];
 const _previewStored = localStorage.getItem(PREVIEW_STORAGE_KEY) === '1' || LEGACY_PREVIEW_STORAGE_KEYS.some(function(k){ return localStorage.getItem(k) === '1'; });
-const PREVIEW_MODE_ENABLED = false; // dev build: show login, bypass via button
+const PREVIEW_MODE_ENABLED = false; // Push file — preview mode disabled.
 
 function _buildPreviewDB(){
   const MONTHS_=['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
@@ -2743,6 +2744,9 @@ function showForgotPassword(){
 function showLoginScreen(){
   document.getElementById('auth-screen-reset').style.display = 'none';
   document.getElementById('auth-screen-login').style.display = 'block';
+  // Gate: hide dev bypass button unless this is a dev build
+  const _pb = document.getElementById('preview-btn');
+  if(_pb) _pb.style.display = PREVIEW_MODE_ENABLED ? 'block' : 'none';
 }
 
 async function doResetPassword(){
@@ -3104,9 +3108,9 @@ async function saveItemToSupabase(m, i){
 
   const row = _itemToRow(i, m);
 
-  // E8 debug log — temporary. Shows the exact payload sent to Supabase so we
-  // can confirm the state value that reaches the wire. Remove after diagnosis.
-  console.log('[E8] UPSERT payload:', JSON.stringify(row, null, 2));
+  // E8 verified 2026-05-11: previous upsert bug was server-side CHECK constraint
+  // missing 'sourced' after E6 rename. Boundary guard above provides defence
+  // against future regression. Debug log removed — bug confirmed fixed.
 
   // Upsert main item row — conflict on (id, user_id) so two users with the
   // same item ID never overwrite each other
@@ -4063,6 +4067,7 @@ function renderItemPage(m,id){
   if((i.dateSold||i.resaleSalePrice)&&!i.isReturned)html+='<button class="btn btn-s ip-act-btn" onclick="openReturn(\''+m+'\',\''+id+'\')">↩ <span class="ip-act-label">Return</span></button>';
   if(i.dateSold&&!i.resaleSalePrice&&!i.isReturned)html+='<button class="btn btn-s ip-act-btn" onclick="revertToActive(\''+m+'\',\''+id+'\')" title="Undo the sold mark — move this item back to active stock">⟲ <span class="ip-act-label">Revert</span></button>';
   html+='<button class="btn btn-s ip-act-btn" onclick="duplicateItem(\''+m+'\',\''+id+'\')"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><rect x="5" y="5" width="9" height="9" rx="1.5" stroke="currentColor" stroke-width="1.4"/><path d="M3 11V3a1 1 0 011-1h8" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg><span class="ip-act-label">Dupe</span></button>';
+  if(i.state==='listed')html+='<button class="btn btn-s ip-act-btn" onclick="withdrawToSourced(\''+m+'\',\''+id+'\')" title="Withdraw listing and move back to sourced stock" style="color:var(--accent)"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M10 4L6 8l4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M6 8h8M3 2v12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg><span class="ip-act-label">Withdraw</span></button>';
   html+='<button class="btn btn-s ip-act-btn ip-act-danger" onclick="deleteItem(\''+m+'\',\''+id+'\')"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M2 4h12M5 4V2h6v2M6 7v5M10 7v5M3 4l1 9a1 1 0 001 1h6a1 1 0 001-1l1-9" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>';
   html+='</div></div>';
   html+='<div class="ip-topbar-row2">';
@@ -5199,6 +5204,118 @@ function _goToSourcedStock(){
   STOCK_STATE_FILTER='sourced';
   goToTab('stock',document.querySelector('[data-tab="stock"]'));
 }
+
+// ── E9 Task 4 — Listed → Sourced transition ("Withdraw from listing") ────────
+// Allows a user to move a listed item back to sourced state — e.g. when a
+// listing expired, was removed, or they want to relist later. Inverse of Patch B.
+//
+// Open questions resolved:
+//   • category: PRESERVED — it's reusable sourcing-level info, not listing-specific
+//   • dateSourced: PRESERVED (original) — item hasn't been re-sourced; age bucket
+//     may show "Stagnant" immediately for old items, which is correct behaviour
+//   • transition history log: DEFERRED to a future session
+
+const _WITHDRAW_CLEAR_FIELDS = [
+  'salePrice','platform','defaultPlatform','dateListed',
+  'postageMode','_postageMode','shippingCost','postage','packagingCost',
+  'promoPercent','sdRateIdx','sdBuyerPays'
+];
+
+function withdrawToSourced(m, id){
+  // Find item — search all months (same pattern as submitListFromSourced)
+  let srcMonth = m, item = null;
+  allDBKeys().forEach(function(k){
+    const found = (DB[k]||[]).find(function(x){ return x.id===id; });
+    if(found){ srcMonth=k; item=found; }
+  });
+  if(!item){ toast('Item not found','error'); return; }
+  if(item.state !== 'listed'){
+    if(item.state==='sold'||item.state==='returned'){
+      toast('Cannot withdraw a '+item.state+' item — relist it first, then withdraw','error');
+    } else {
+      toast('Only listed items can be moved back to sourced','error');
+    }
+    return;
+  }
+
+  const hasReturnHistory = item.returnHistory && item.returnHistory.length > 0;
+  const itemName = esc(item.item || 'this item');
+
+  // Confirmation modal — builds inline modal overlay
+  const returnWarning = hasReturnHistory
+    ? `<div style="background:var(--accent-dim);border:1px solid rgba(212,136,10,0.25);border-radius:8px;padding:10px 12px;margin:12px 0;font-size:12px;color:var(--warn)">
+        <strong>⚠ Note:</strong> This item was previously sold and returned. Withdrawing preserves the return history but clears the current listing.
+      </div>` : '';
+
+  const modalHtml = `
+    <div id="withdraw-modal-backdrop" onclick="closeWithdrawModal()"
+         style="position:fixed;inset:0;background:var(--overlay);z-index:1000;display:flex;align-items:center;justify-content:center;padding:20px;">
+      <div onclick="event.stopPropagation()"
+           style="background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:24px;max-width:380px;width:100%;box-shadow:0 20px 60px var(--shadow-md);">
+        <div style="font-size:16px;font-weight:700;margin-bottom:4px;color:var(--text)">Move "${itemName}" back to sourced?</div>
+        <div style="font-size:13px;color:var(--text-secondary);margin-bottom:14px">The listing data will be cleared:</div>
+        ${returnWarning}
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;font-size:12px;">
+          <div>
+            <div style="font-weight:600;color:var(--red);margin-bottom:6px;font-size:11px;text-transform:uppercase;letter-spacing:0.06em">Cleared</div>
+            <div style="color:var(--text-secondary);line-height:1.8">Sale price<br>Platform<br>Postage settings<br>Date listed<br>Promo %</div>
+          </div>
+          <div>
+            <div style="font-weight:600;color:var(--green);margin-bottom:6px;font-size:11px;text-transform:uppercase;letter-spacing:0.06em">Preserved</div>
+            <div style="color:var(--text-secondary);line-height:1.8">Cost &amp; name<br>Photo &amp; notes<br>Parts &amp; expenses<br>Date sourced<br>Category &amp; location</div>
+          </div>
+        </div>
+        <div style="font-size:12px;color:var(--muted);margin-bottom:18px">You can list it again any time.</div>
+        <div style="display:flex;gap:10px;justify-content:flex-end">
+          <button class="btn btn-s" onclick="closeWithdrawModal()" style="min-width:80px">Cancel</button>
+          <button class="btn btn-p" onclick="confirmWithdrawToSourced('${srcMonth}','${id}')"
+                  style="min-width:80px;background:var(--accent)">Move</button>
+        </div>
+      </div>
+    </div>`;
+  document.body.insertAdjacentHTML('beforeend', modalHtml);
+}
+
+function closeWithdrawModal(){
+  const el = document.getElementById('withdraw-modal-backdrop');
+  if(el) el.remove();
+}
+
+function confirmWithdrawToSourced(m, id){
+  closeWithdrawModal();
+  // Find item
+  let srcMonth = m, item = null, itemIdx = -1;
+  allDBKeys().forEach(function(k){
+    const idx = (DB[k]||[]).findIndex(function(x){ return x.id===id; });
+    if(idx !== -1){ srcMonth=k; item=DB[k][idx]; itemIdx=idx; }
+  });
+  if(!item || item.state !== 'listed'){
+    toast('Item not found or no longer listed','error');
+    return;
+  }
+  // Mutate in place — preserve id, gid, cost, name, notes, parts, photo,
+  // dateSourced, source, location, returnHistory, category
+  item.state = 'sourced';
+  _WITHDRAW_CLEAR_FIELDS.forEach(function(f){ item[f] = null; });
+  // Reset numeric fields to 0 rather than null
+  ['salePrice','shippingCost','postage','packagingCost','promoPercent'].forEach(function(f){ item[f] = 0; });
+  item.dateListed = null;
+  item.soldOnPlatform = null;
+
+  // Persist to Supabase via standard save path (boundary guard validates state)
+  try{
+    saveItemToSupabase(srcMonth, item);
+  } catch(e){
+    toast('Save failed: '+(e.message||'unknown error'),'error');
+    return;
+  }
+
+  // Refresh UI — close any open panel/item page, navigate to sourced view
+  if(typeof closePanel === 'function') closePanel();
+  _goToSourcedStock();
+  toast('Moved to sourced','success');
+}
+
 
 // Pre-save parts accumulator for Stock Quick Add form.
 // Holds parts entered before the item is saved (no id yet).
@@ -7517,6 +7634,7 @@ function openItemDetail(m,id,noHistory){
     </div>
     ${statStrip}
     ${(primaryBtn||revertBtn)?`<div style="display:flex;gap:8px;margin-bottom:16px">${primaryBtn}${revertBtn}</div>`:''}
+    ${isUnsold&&i.state==='listed'?`<div style="margin-bottom:16px"><button class="btn btn-s" style="width:100%;justify-content:center;gap:6px;color:var(--accent);border-color:var(--accent-dim)" onclick="withdrawToSourced('${m}','${id}')"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M10 4L6 8l4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M6 8h8M3 2v12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg> Move to Sourced</button></div>`:''}
     ${quickEdit}
     ${returnSection}
     <div style="display:grid;grid-template-columns:1fr auto auto;gap:8px;align-items:center;padding-top:12px;border-top:1px solid var(--border)">
@@ -7926,8 +8044,8 @@ function renderStock(){
         const sortHTML=sortOpts.map(o=>`<option value="${o.v}" ${STOCK_SORT===o.v?'selected':''}>${o.label}</option>`).join('');
         return `<div class="age-bar-wrap"><div class="age-bar">${barHTML}</div></div>
           <div class="filter-row stock-filter-row" style="margin-bottom:14px;gap:8px;flex-wrap:nowrap;align-items:center;">
-            <div class="filter-chips">${chips}
-              <button class="chip${STOCK_SOURCED_FILTER==='all'?' active':''}" onclick="setStockSourcedFilter('all')">All <span class="chip-count">${allStock.length}</span></button>
+            <div class="filter-chips">
+              <button class="chip${STOCK_SOURCED_FILTER==='all'?' active':''}" onclick="setStockSourcedFilter('all')">All <span class="chip-count">${allStock.length}</span></button>${chips}
             </div>
             <div class="filter-pill-dd" id="sfp-sourced">
               <div class="filter-pill-dd-backdrop" onclick="closeFilterPill('sfp-sourced')"></div>
@@ -11679,17 +11797,33 @@ function exportForSupabase(){
 // Usage: open browser console and run: exportForSupabase()
 // Then paste the JSON into Supabase Table Editor > Import or use the REST API
 
-// ── Password manager suppression sweep ────────────────────────────────────
-// Stamps every non-auth input with autocomplete=off + vendor suppression
-// attributes so password managers (Chrome, Safari, LastPass, 1Password etc.)
-// never trigger on app inputs. Auth inputs (auth-email, auth-pass, reset-email)
-// keep their correct autocomplete values and are excluded.
+// ── Password manager / autofill suppression ───────────────────────────────
+// Strategy: two-layer defence.
+//   Layer 1 — Honeypot fields injected into each input container.
+//   Layer 2 — Attribute sweep stamps every non-auth input with autocomplete=off.
+// Auth inputs (auth-email, auth-pass, reset-email) excluded from both layers.
+
+const _AUTOFILL_HONEYPOT = `
+  <input type="text" name="username_fake" tabindex="-1"
+         autocomplete="username" aria-hidden="true"
+         style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0;pointer-events:none;" />
+  <input type="password" name="password_fake" tabindex="-1"
+         autocomplete="new-password" aria-hidden="true"
+         style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0;pointer-events:none;" />`;
+
+function _injectHoneypots(containerEl){
+  if(!containerEl) return;
+  if(containerEl.querySelector('[name="username_fake"]')) return;
+  containerEl.insertAdjacentHTML('afterbegin', _AUTOFILL_HONEYPOT);
+}
+
 const _AUTH_INPUT_IDS = new Set(['auth-email','auth-pass','auth-pass-confirm','reset-email']);
 function _suppressPasswordManagers(root){
   root = root || document;
   const inputs = root.querySelectorAll('input:not([type=checkbox]):not([type=radio]):not([type=hidden]):not([type=submit]):not([type=button]):not([type=file])');
   inputs.forEach(function(el){
     if(_AUTH_INPUT_IDS.has(el.id)) return; // leave auth inputs alone
+    if(el.name==='username_fake'||el.name==='password_fake') return; // skip honeypots
     if(el.getAttribute('autocomplete')==='off') return; // already done
     el.setAttribute('autocomplete','off');
     el.setAttribute('autocorrect','off');
@@ -11700,17 +11834,26 @@ function _suppressPasswordManagers(root){
   });
 }
 // Run on load for static inputs
-window.addEventListener('load', function(){ _suppressPasswordManagers(); });
+window.addEventListener('load', function(){
+  _suppressPasswordManagers();
+  ['mark-sold-modal','relist-modal','return-modal'].forEach(function(id){
+    _injectHoneypots(document.getElementById(id));
+  });
+});
 // Re-run whenever panel content is injected (covers Quick Add, Relist, Item Page etc.)
 (function(){
   function _observe(id,subtree){
     const el=document.getElementById(id);
     if(!el)return;
-    const obs=new MutationObserver(function(){ _suppressPasswordManagers(el); });
+    const obs=new MutationObserver(function(){
+      _suppressPasswordManagers(el);
+      _injectHoneypots(el);
+    });
     obs.observe(el,{childList:true,subtree:!!subtree});
   }
   _observe('panel-content',false); // slide-panel: Quick Add, Relist, return form, edit form
   _observe('p-item',true);         // full-page item view: ip-field inputs (nested)
+  _observe('modal-overlay',false); // mark-sold + other modals
 })();
 </script>
 
