@@ -1010,6 +1010,14 @@ input,select,textarea{touch-action:manipulation;user-select:text;-webkit-user-se
 /* stock FAB button: orange/amber to match stock badge colour */
 .fab-dial-btn.sourced{color:var(--accent);border:1.5px solid var(--accent-dim);}
 .fab-dial-btn.sourcerun{color:var(--purple);border:1.5px solid rgba(166,134,255,0.18);}
+/* Patch C — sourcing run banner */
+.run-banner{display:flex;align-items:center;gap:12px;background:rgba(34,197,94,0.08);border:1.5px solid rgba(34,197,94,0.3);border-radius:12px;padding:12px 14px;margin-bottom:14px;}
+.run-banner-dot{width:10px;height:10px;border-radius:50%;background:var(--green);flex-shrink:0;animation:run-pulse 2s ease-in-out infinite;}
+@keyframes run-pulse{0%,100%{opacity:1;}50%{opacity:0.4;}}
+.run-banner-body{flex:1;min-width:0;}
+.run-banner-title{font-size:13px;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.run-banner-meta{font-size:11px;color:var(--text-secondary);margin-top:1px;}
+.run-banner-actions{display:flex;gap:6px;flex-shrink:0;}
 .fab-main{position:relative;z-index:1;width:52px;height:52px;border-radius:50%;background:var(--accent);color:#000;border:none;cursor:pointer;font-size:24px;font-weight:700;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 20px var(--shadow-md);transition:transform 0.2s,background 0.2s;pointer-events:auto;flex-shrink:0;}
 .fab-main:hover{transform:scale(1.08);background:var(--accent-hover);}
 .fab-main .fab-icon{display:block;transition:transform 0.22s;}
@@ -1176,7 +1184,7 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
 .ip-field,.ip-field-select,.ip-field-date{font-size:15px;}
 #auth-screen-login,#auth-screen-reset{max-width:420px;border-radius:28px;padding:42px 36px!important;box-shadow:0 22px 60px rgba(0,0,0,.18);} 
 #auth-screen-login > div:first-child + div + div span{letter-spacing:.16em!important;}
-#auth-btn{height:48px;border-radius:16px;}
+#auth-btn,#preview-btn{height:48px;border-radius:16px;}
 .summary-shell{display:grid;grid-template-columns:minmax(0,1.84fr) minmax(0,.92fr);gap:18px;align-items:start;}
 .summary-main{display:flex;flex-direction:column;gap:18px;min-height:100%;min-width:0;}
 .summary-side{display:grid;grid-template-rows:auto auto auto;gap:18px;}
@@ -1721,6 +1729,10 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
       style="width:100%;padding:12px;background:var(--accent);color:#000;border:none;border-radius:8px;font-weight:700;font-size:15px;cursor:pointer;transition:background 0.15s;">
       Sign In
     </button>
+    <button onclick="startPreviewMode()" id="preview-btn"
+      style="width:100%;padding:12px;background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:8px;font-weight:700;font-size:15px;cursor:pointer;transition:background 0.15s;margin-top:10px;">
+      Developer preview
+    </button>
 
     <button onclick="showForgotPassword()"
       style="width:100%;padding:10px;background:none;border:none;color:var(--text-secondary);font-size:13px;cursor:pointer;margin-top:8px;text-decoration:underline;text-underline-offset:3px;">
@@ -2150,8 +2162,12 @@ let STOCK_SOURCED_FILTER='all';   // Patch A — sourced-age filter: all | new |
 let STOCK_GROUPED=false;          // Session B: false=flat list, true=group by listing month
 let STOCK_SELECTION_MODE=false;   // stock page checkbox mode
 let STOCK_SELECTED=new Set();     // stock page selection
+// Patch C — Sourcing Runs
+let _sourcingRuns=[];             // all runs loaded from Supabase (active + ended)
+let _activeSourcingRun=null;      // convenience pointer: run with status==='active', or null
 let MONTHLY_VIEW='grid';          // 'grid' | 'detail'
 let SUMMARY_PERIOD='current_fy';  // summary period filter
+let _sourcedPartsCost=0;          // parts cost carried from sourced item into List Item form (BPF preview)
 
 // CUSTOM CONFIRM MODAL
 let _confirmResolve=null;
@@ -2422,7 +2438,7 @@ const _previewParam = new URLSearchParams(window.location.search).get('preview')
 const PREVIEW_STORAGE_KEY='retrade_preview_mode';
 const LEGACY_PREVIEW_STORAGE_KEYS=['general_preview_mode'];
 const _previewStored = localStorage.getItem(PREVIEW_STORAGE_KEY) === '1' || LEGACY_PREVIEW_STORAGE_KEYS.some(function(k){ return localStorage.getItem(k) === '1'; });
-const PREVIEW_MODE_ENABLED = false; // Push file — preview mode disabled.
+const PREVIEW_MODE_ENABLED = false;
 
 function _buildPreviewDB(){
   const MONTHS_=['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
@@ -2915,6 +2931,7 @@ function _rowToItem(row, parts, returns){
     grossProfit:     row.gross_profit != null ? Number(row.gross_profit) : null,
     state:           row.state || null,
     dateSourced:     row.date_sourced || null,
+    sourcingRunId:   row.sourcing_run_id || null,
     _shippingMigrated: true,
     returnData:      null,
     parts: (parts||[]).map(p=>({id:p.id, desc:p.description||'', cost:Number(p.cost)||0})),
@@ -2966,6 +2983,7 @@ function _itemToRow(i, month){
     gross_profit:     i.grossProfit || null,
     state:            i.state || 'listed',
     date_sourced:     i.dateSourced || null,
+    sourcing_run_id:  i.sourcingRunId || null,
   };
 }
 
@@ -2982,12 +3000,13 @@ async function loadFromSupabase(){
   // Fetch all tables in parallel — explicit .eq('user_id') on every query as
   // belt-and-braces on top of RLS. Prevents NULL-user_id orphan rows or
   // misconfigured policies from bleeding into the loaded DB.
-  const [itemsRes, partsRes, returnsRes, tripsRes, expensesRes] = await Promise.all([
+  const [itemsRes, partsRes, returnsRes, tripsRes, expensesRes, runsRes] = await Promise.all([
     _sb.from('items').select('*').eq('user_id', uid).order('date_listed', {ascending: true}),
     _sb.from('item_parts').select('*').eq('user_id', uid),
     _sb.from('item_returns').select('*').eq('user_id', uid).order('logged_at', {ascending: true}),
     _sb.from('trips').select('*').eq('user_id', uid).order('date', {ascending: true}),
     _sb.from('expenses').select('*').eq('user_id', uid).order('date', {ascending: true}),
+    _sb.from('sourcing_runs').select('*').eq('user_id', uid).order('date_started', {ascending: false}),
   ]);
 
   if(itemsRes.error) throw new Error('Items load failed: ' + itemsRes.error.message);
@@ -3030,6 +3049,15 @@ async function loadFromSupabase(){
     amount:      Number(e.amount) || 0,
     category:    e.category || null,
   }));
+  // Patch C — load sourcing runs (graceful: if table doesn't exist yet, skip)
+  if(!runsRes.error){
+    _sourcingRuns = (runsRes.data||[]).map(_rowToRun);
+    _activeSourcingRun = _sourcingRuns.find(r=>r.status==='active')||null;
+  } else {
+    console.warn('sourcing_runs load skipped (table may not exist yet):', runsRes.error.message);
+    _sourcingRuns = [];
+    _activeSourcingRun = null;
+  }
   DB._userOwned = true;
   // Guarantee all expected month arrays exist, even if user has no data yet.
   // Without this, DB[m].push(...) crashes for brand-new users.
@@ -3204,7 +3232,56 @@ async function deleteExpenseFromSupabase(id){
   if(error) throw new Error('Delete expense failed: ' + error.message);
 }
 
-// ── LEGACY WRAPPERS (called throughout the app — now async-aware) ────────────
+// ── SOURCING RUNS — mappers ───────────────────────────────────────────────────
+// E6 lesson: both mappers must round-trip every field. Adding a field to one
+// without the other = silent data loss on save or load. Audit before shipping.
+
+function _runToRow(run){
+  return {
+    id:           run.id,
+    user_id:      _currentUserId||null,
+    name:         run.name,
+    location:     run.location||null,
+    date_started: run.dateStarted,
+    date_ended:   run.dateEnded||null,
+    status:       run.status,
+    notes:        run.notes||null
+  };
+}
+
+function _rowToRun(row){
+  return {
+    id:          row.id,
+    name:        row.name,
+    location:    row.location||null,
+    dateStarted: row.date_started,
+    dateEnded:   row.date_ended||null,
+    status:      row.status,
+    notes:       row.notes||null
+  };
+}
+
+// ── SOURCING RUNS — boundary guard ───────────────────────────────────────────
+// E7/E8 pattern: throw loudly before any upsert, never silently corrupt.
+const _VALID_RUN_STATUS=['active','ended'];
+
+async function saveRunToSupabase(run){
+  if(!_VALID_RUN_STATUS.includes(run.status)){
+    const msg='[PatchC] GUARD: invalid run status on save — refusing upsert. status='+JSON.stringify(run.status)+' id='+run.id;
+    console.error(msg,run);
+    throw new Error(msg);
+  }
+  const row=_runToRow(run);
+  const {error}=await _sbCall(()=>_sb.from('sourcing_runs').upsert(row,{onConflict:'id'}));
+  if(error) throw new Error('Save run failed: '+error.message);
+}
+
+async function deleteRunFromSupabase(id){
+  const {error}=await _sbCall(()=>_sb.from('sourcing_runs').delete().eq('id',id).eq('user_id',_currentUserId));
+  if(error) throw new Error('Delete run failed: '+error.message);
+}
+
+
 // saveDB() is called after every mutation throughout the app.
 // Strategy: snapshot the DB state, debounce 400ms, then diff & persist to Supabase.
 
@@ -3247,7 +3324,7 @@ function saveDB(){
   _saveTimer = setTimeout(_persistChanges, 400);
 }
 
-// Build a flat map of id → JSON for all items + trips + expenses
+// Build a flat map of id → JSON for all items + trips + expenses + runs
 function _dbFingerprint(){
   const fp = {};
   allDBKeys().forEach(k => {
@@ -3255,6 +3332,7 @@ function _dbFingerprint(){
   });
   (DB.trips||[]).forEach(t => { fp['trip:'+t.id] = JSON.stringify(t); });
   (DB.expenses||[]).forEach(e => { fp['exp:'+e.id] = JSON.stringify(e); });
+  (_sourcingRuns||[]).forEach(r => { fp['run:'+r.id] = JSON.stringify(r); });
   return fp;
 }
 
@@ -3290,6 +3368,10 @@ async function _persistChanges(){
           const id = key.slice(4);
           const exp = (DB.expenses||[]).find(e => e.id === id);
           if(exp) await saveExpenseToSupabase(exp);
+        } else if(key.startsWith('run:')){
+          const id = key.slice(4);
+          const run = (_sourcingRuns||[]).find(r => r.id === id);
+          if(run) await saveRunToSupabase(run);
         }
       }catch(e){ errors.push(e.message); }
     }
@@ -3308,6 +3390,9 @@ async function _persistChanges(){
         } else if(key.startsWith('exp:')){
           const id = key.slice(4);
           await deleteExpenseFromSupabase(id);
+        } else if(key.startsWith('run:')){
+          const id = key.slice(4);
+          await deleteRunFromSupabase(id);
         }
       }catch(e){ errors.push(e.message); }
     }
@@ -3726,53 +3811,67 @@ function saveSDFree(m,id,buyerPays){
 function _renderStockItemPage(m,i){
   const page=document.getElementById('p-item');
   if(!page)return;
+  const id=i.id;
   const ageDays=_daysInStock(i);
   const partsCost=calcPartsCost(i);
   const totalCapital=(i.costPrice||0)+partsCost;
   const ageStr=ageDays===null?'unknown':ageDays+' day'+(ageDays===1?'':'s');
   const back=`<button class="btn btn-s" onclick="exitItemPage()" style="margin-bottom:10px;font-size:13px">\u2190 Back</button>`;
   const photo=i.photo
-    ? `<div style="margin:0 auto 16px;max-width:280px;border-radius:12px;overflow:hidden;border:1px solid var(--border);"><img src="${i.photo}" alt="Stock photo" style="width:100%;display:block;"></div>`
-    : `<div style="margin:0 auto 16px;max-width:280px;height:140px;border-radius:12px;border:1.5px dashed var(--border);display:flex;align-items:center;justify-content:center;color:var(--text-secondary);font-size:13px;">No photo</div>`;
+    ?`<div style="margin:0 auto 16px;max-width:280px;border-radius:12px;overflow:hidden;border:1px solid var(--border);"><img src="${i.photo}" alt="Stock photo" style="width:100%;display:block;"></div>`
+    :`<div style="margin:0 auto 16px;max-width:280px;height:140px;border-radius:12px;border:1.5px dashed var(--border);display:flex;align-items:center;justify-content:center;color:var(--text-secondary);font-size:13px;">No photo</div>`;
+  const metaTags=(i.category||i.source||i.location)
+    ?`<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:16px;">`
+      +(i.category?`<span style="font-size:12px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:3px 9px;color:var(--text-secondary);">${esc(i.category)}</span>`:'')
+      +(i.source?`<span style="font-size:12px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:3px 9px;color:var(--text-secondary);">\ud83d\udccd ${esc(i.source)}</span>`:'')
+      +(i.location?`<span style="font-size:12px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:3px 9px;color:var(--text-secondary);">\ud83d\udce6 ${esc(i.location)}</span>`:'')
+      +`</div>`
+    :'';
+  const capitalToken=partsCost>0
+    ?`<div class="ip-token locked" style="grid-column:span 2;"><div class="ip-token-label">Total Capital</div><div class="ip-token-val">${fmt(totalCapital)}</div><div class="ip-token-sub">Buy ${fmt(i.costPrice||0)} + parts ${fmt(partsCost)}</div></div>`
+    :'';
   const html=`
     <div style="max-width:560px;margin:0 auto;padding:18px 16px 80px;">
       ${back}
-      <div style="display:flex;align-items:center;gap:10px;margin-bottom:18px;">
-        <span class="item-badge sourced" style="font-size:11px;padding:4px 9px;">stock</span>
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
+        <span class="item-badge sourced" style="font-size:11px;padding:4px 9px;">sourced</span>
         <span style="font-size:12px;color:var(--text-secondary);">${i.gid||''}</span>
       </div>
       ${photo}
-      <h1 style="font-family:var(--font-display);font-size:26px;font-weight:800;letter-spacing:-0.02em;margin:0 0 6px;">${esc(i.item||'Untitled stock item')}</h1>
-      <div style="font-size:13px;color:var(--text-secondary);margin-bottom:22px;">
-        Sourced ${i.dateSourced||'\u2014'} \u00b7 ${ageStr} in stock
-      </div>
-      <div style="background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:16px 18px;margin-bottom:18px;">
-        <div style="display:flex;align-items:baseline;justify-content:space-between;gap:10px;">
-          <div style="font-size:11px;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-secondary);font-weight:600;">Buy price</div>
-          <div style="font-family:var(--font-display);font-size:24px;font-weight:700;color:var(--text);">${fmt(i.costPrice||0)}</div>
+      <h1 style="font-family:var(--font-display);font-size:26px;font-weight:800;letter-spacing:-0.02em;margin:0 0 10px;">${esc(i.item||'Untitled stock item')}</h1>
+      ${metaTags}
+      <div class="ip-tokens" style="grid-template-columns:1fr 1fr;margin-bottom:18px;">
+        <div class="ip-token" id="tok-costPrice-${id}"
+          onpointerdown="tokenPointerDown('${m}','${id}','costPrice')"
+          onclick="openTokenEdit('${m}','${id}','costPrice')">
+          <div class="ip-token-label">Buy Price</div>
+          <div class="ip-token-val">${fmt(i.costPrice||0)}</div>
+          <div class="ip-token-sub">\u270f\ufe0f Tap to edit</div>
         </div>
-        ${partsCost>0?`<div style="display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-top:6px;padding-top:6px;border-top:1px solid var(--border)"><div style="font-size:11px;color:var(--text-secondary);">Parts &amp; expenses</div><div style="font-size:14px;font-weight:600;color:var(--red);">+${fmt(partsCost)}</div></div><div style="display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-top:4px;"><div style="font-size:11px;font-weight:700;color:var(--text-secondary);">Total capital</div><div style="font-family:var(--font-display);font-size:18px;font-weight:700;color:var(--text);">${fmt(totalCapital)}</div></div><div style="font-size:12px;color:var(--text-secondary);margin-top:4px)">Capital incl. parts</div>`:`<div style="font-size:12px;color:var(--text-secondary);margin-top:4px;">Capital tied up in this item</div>`}
-
+        <div class="ip-token locked">
+          <div class="ip-token-label">In Stock</div>
+          <div class="ip-token-val">${ageStr}</div>
+          <div class="ip-token-sub">Sourced ${i.dateSourced||'\u2014'}</div>
+        </div>
+        ${capitalToken}
       </div>
-      ${i.notes?`<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:18px;">
-        <div style="font-size:11px;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-secondary);font-weight:600;margin-bottom:6px;">Notes</div>
-        <div style="font-size:14px;color:var(--text);line-height:1.5;white-space:pre-wrap;">${esc(i.notes)}</div>
-      </div>`:''}
+      ${i.notes?`<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:18px;"><div style="font-size:11px;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-secondary);font-weight:600;margin-bottom:6px;">Notes</div><div style="font-size:14px;color:var(--text);line-height:1.5;white-space:pre-wrap;">${esc(i.notes)}</div></div>`:''}
       <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:18px;">
         <div style="font-size:11px;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-secondary);font-weight:600;margin-bottom:10px;">Parts &amp; Expenses${(i.parts||[]).length>0?' ('+i.parts.length+')':''}</div>
-        ${partsHTML(m,i.id,'page')}
+        ${partsHTML(m,id,'page')}
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;">
-        <button class="btn btn-p" onclick="openListFromSourced('${m}','${i.id}')">List this item &#x2192;</button>
-        <button class="btn btn-s" onclick="editItem('${m}','${i.id}')">\u270f\ufe0f Edit</button>
-        <button class="btn btn-s danger" onclick="deleteItem('${m}','${i.id}')">\ud83d\uddd1\ufe0f Delete</button>
+        <button class="btn btn-p" onclick="openListFromSourced('${m}','${id}')">List this item &#x2192;</button>
+        <button class="btn btn-s" onclick="editItem('${m}','${id}')">\u270f\ufe0f Edit</button>
+        <button class="btn btn-s danger" onclick="deleteItem('${m}','${id}')">\ud83d\uddd1\ufe0f Delete</button>
       </div>
       <div style="font-size:11px;color:var(--text-secondary);margin-top:24px;line-height:1.5;">
-        Parts and expenses added here carry through to the full P&amp;L once the item is listed and sold.
+        Parts and expenses carry through to the full P&amp;L once listed and sold.
       </div>
     </div>`;
   page.innerHTML=html;
 }
+
 
 function renderItemPage(m,id){
   // Lookup tolerates both id and gid — some entry points (search deep-links,
@@ -4718,9 +4817,15 @@ const _FAB_OPTION_DEFS = {
   },
   sourcerun: {
     label:'Start sourcing run', cls:'sourcerun',
-    onClick:'closeFabDial();openSourcingRunStub()',
-    title:'Begin a sourcing run (coming soon)',
+    onClick:'closeFabDial();openStartRunModal()',
+    title:'Begin a sourcing run — auto-tags items you add',
     svg:'<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="10" r="3"/><path d="M12 2a8 8 0 0 1 8 8c0 5.5-8 12-8 12S4 15.5 4 10a8 8 0 0 1 8-8z"/></svg>'
+  },
+  endrun: {
+    label:'End sourcing run', cls:'sourcerun',
+    onClick:'closeFabDial();endSourcingRun()',
+    title:'End the active sourcing run',
+    svg:'<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 9l6 6M15 9l-6 6"/></svg>'
   },
   expense: {
     label:'Add expense', cls:'expense',
@@ -4744,7 +4849,11 @@ function buildFabOptions(){
   if(!wrap)return;
   const activePage=(document.querySelector('.page.on')||{id:''}).id;
   if(_FAB_HIDDEN_PAGES.has(activePage)){ wrap.innerHTML=''; return; }
-  const ids=_FAB_PAGE_OPTIONS[activePage]||['list']; // safe default
+  let ids=(_FAB_PAGE_OPTIONS[activePage]||['list']).slice();
+  // Patch C: swap sourcerun↔endrun depending on whether a run is active
+  if(_activeSourcingRun){
+    ids=ids.map(function(id){return id==='sourcerun'?'endrun':id;});
+  }
   // Reverse so the first id ends up nearest the FAB (last child = bottom of stack)
   const ordered=ids.slice().reverse();
   wrap.innerHTML=ordered.map(function(id){
@@ -4811,22 +4920,552 @@ function _syncFabVisibility(){
 }
 
 // Patch A — Sourcing-run stub. Full flow lands in Patch C.
-function openSourcingRunStub(){
-  if(typeof openPanel==='function'){
-    openPanel('Sourcing Runs',
-      '<div style="padding:24px 20px;text-align:center;">'
-      +'<div style="width:56px;height:56px;border-radius:50%;background:rgba(212,136,10,0.10);border:1.5px solid var(--accent-dim);display:inline-flex;align-items:center;justify-content:center;margin-bottom:14px;">'
-      +'<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="10" r="3"/><path d="M12 2a8 8 0 0 1 8 8c0 5.5-8 12-8 12S4 15.5 4 10a8 8 0 0 1 8-8z"/></svg>'
-      +'</div>'
-      +'<div style="font-family:var(--font-display);font-size:18px;font-weight:700;letter-spacing:-0.01em;margin-bottom:6px;">Sourcing Runs — coming soon</div>'
-      +'<div style="font-size:13px;color:var(--text-secondary);line-height:1.5;max-width:320px;margin:0 auto 18px;">Start a run, snap items as you go, and they\u2019ll auto-tag to the trip and lot. Lands in the next patch.</div>'
-      +'<button class="btn btn-s" onclick="closePanel()">Got it</button>'
-      +'</div>'
-    );
+// ── PATCH C: SOURCING RUNS ───────────────────────────────────────────────────
+
+function _runUUID(){
+  try{ return crypto.randomUUID(); }
+  catch(e){ return 'run_'+Date.now()+'_'+Math.random().toString(36).slice(2,9); }
+}
+
+// ── Section 2: Start run modal ────────────────────────────────────────────────
+function openStartRunModal(){
+  // If already active, warn and offer to end it first
+  if(_activeSourcingRun){
+    const warningHtml=`
+      <div style="padding:4px 0 16px">
+        <div style="font-size:14px;color:var(--text);margin-bottom:14px;">
+          You already have an active run: <strong>${esc(_activeSourcingRun.name)}</strong>.<br>
+          End that first, or cancel.
+        </div>
+        <div style="display:flex;gap:8px;">
+          <button class="btn btn-p" style="flex:1;justify-content:center;" onclick="endSourcingRun();closePanel();">End previous run</button>
+          <button class="btn btn-s" onclick="closePanel()">Cancel</button>
+        </div>
+      </div>`;
+    openPanel('Active run exists', warningHtml);
+    return;
+  }
+  const today=new Date().toISOString().split('T')[0];
+  const html=`
+    <div class="fg"><label>Date <span style="color:var(--red);font-weight:600">*</span></label>
+      <input type="date" id="sr-date" value="${today}">
+    </div>
+    <div class="fg"><label>Name <span style="color:var(--red);font-weight:600">*</span></label>
+      <input type="text" id="sr-name" placeholder="e.g. Sat Boot 10 May" autocomplete="off">
+    </div>
+    <div class="fg"><label>Location</label>
+      <input type="text" id="sr-location" placeholder="e.g. Wickham car boot" autocomplete="off">
+    </div>
+    <div class="fg"><label>Notes</label>
+      <textarea id="sr-notes" rows="3" style="width:100%;resize:vertical;" placeholder="Anything worth noting…"></textarea>
+    </div>
+    <button class="btn btn-p" style="width:100%;margin-top:6px" onclick="submitStartRun()">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:4px"><circle cx="12" cy="10" r="3"/><path d="M12 2a8 8 0 0 1 8 8c0 5.5-8 12-8 12S4 15.5 4 10a8 8 0 0 1 8-8z"/></svg>
+      Start Run
+    </button>`;
+  openPanel('Start sourcing run', html);
+  setTimeout(function(){ const n=document.getElementById('sr-name'); if(n)n.focus(); },80);
+}
+
+function submitStartRun(){
+  const name=(document.getElementById('sr-name').value||'').trim();
+  const date=document.getElementById('sr-date').value||new Date().toISOString().split('T')[0];
+  const location=(document.getElementById('sr-location').value||'').trim();
+  const notes=(document.getElementById('sr-notes').value||'').trim();
+  if(!name){ toast('Run name is required','error'); document.getElementById('sr-name').focus(); return; }
+  const run={
+    id:_runUUID(),
+    name:name,
+    location:location||null,
+    dateStarted:date,
+    dateEnded:null,
+    status:'active',
+    notes:notes||null
+  };
+  // Boundary guard fires inside saveRunToSupabase — belt+braces check here too
+  if(!_VALID_RUN_STATUS.includes(run.status)){
+    toast('Invalid run status','error'); return;
+  }
+  _sourcingRuns.push(run);
+  _activeSourcingRun=run;
+  saveDB();
+  closePanel();
+  toast('\u25cf Run started \u2014 items will be auto-tagged');
+  // Navigate to Stock → Sourced view
+  STOCK_STATE_FILTER='sourced';
+  goToTab('stock',document.querySelector('[data-tab="stock"]'));
+}
+
+// ── Section 2: End run ────────────────────────────────────────────────────────
+function endSourcingRun(runId){
+  const run=runId?_sourcingRuns.find(r=>r.id===runId):_activeSourcingRun;
+  if(!run||run.status==='ended'){ toast('No active run to end','error'); return; }
+  showConfirm(
+    'End "'+run.name+'"?',
+    'No new items will be auto-tagged. You can still view P\u0026L and items.',
+    {icon:'check',okLabel:'End Run'}
+  ).then(function(ok){
+    if(!ok)return;
+    run.status='ended';
+    run.dateEnded=new Date().toISOString();
+    if(_activeSourcingRun&&_activeSourcingRun.id===run.id) _activeSourcingRun=null;
+    saveDB();
+    toast('Run ended \u2014 view in Run History');
+    refreshActivePage();
+  });
+}
+
+// ── Section 2: Edit run ───────────────────────────────────────────────────────
+function openEditRun(runId){
+  const run=_sourcingRuns.find(r=>r.id===runId);
+  if(!run)return;
+  const html=`
+    <div class="fg"><label>Name <span style="color:var(--red);font-weight:600">*</span></label>
+      <input type="text" id="er-name" value="${esc(run.name||'')}" autocomplete="off">
+    </div>
+    <div class="fg"><label>Location</label>
+      <input type="text" id="er-location" value="${esc(run.location||'')}" autocomplete="off">
+    </div>
+    <div class="fg"><label>Date started</label>
+      <input type="date" id="er-date" value="${(run.dateStarted||'').slice(0,10)}">
+    </div>
+    <div class="fg"><label>Notes</label>
+      <textarea id="er-notes" rows="3" style="width:100%;resize:vertical;">${esc(run.notes||'')}</textarea>
+    </div>
+    <button class="btn btn-p" style="width:100%;margin-top:6px" onclick="submitEditRun('${run.id}')">Save</button>`;
+  openPanel('Edit run', html);
+  setTimeout(function(){ const n=document.getElementById('er-name'); if(n)n.focus(); },80);
+}
+
+function submitEditRun(runId){
+  const run=_sourcingRuns.find(r=>r.id===runId);
+  if(!run)return;
+  const name=(document.getElementById('er-name').value||'').trim();
+  if(!name){ toast('Name required','error'); return; }
+  run.name=name;
+  run.location=(document.getElementById('er-location').value||'').trim()||null;
+  run.dateStarted=document.getElementById('er-date').value||run.dateStarted;
+  run.notes=(document.getElementById('er-notes').value||'').trim()||null;
+  saveDB();
+  closePanel();
+  toast('Run updated');
+  // If run detail page is open, re-render it
+  if(document.querySelector('.page.on')&&document.querySelector('.page.on').id==='p-run'){
+    openRunPage(runId);
   }
 }
 
+// ── Section 2: Delete run ─────────────────────────────────────────────────────
+function deleteRun(runId){
+  const run=_sourcingRuns.find(r=>r.id===runId);
+  if(!run)return;
+  showConfirm(
+    'Delete "'+run.name+'"?',
+    'Items in this run will be un-tagged but not deleted.',
+    {icon:'delete',okLabel:'Delete run'}
+  ).then(function(ok){
+    if(!ok)return;
+    // Un-tag all items that belong to this run
+    allDBKeys().forEach(function(k){
+      (DB[k]||[]).forEach(function(i){ if(i.sourcingRunId===runId) i.sourcingRunId=null; });
+    });
+    _sourcingRuns=_sourcingRuns.filter(r=>r.id!==runId);
+    if(_activeSourcingRun&&_activeSourcingRun.id===runId) _activeSourcingRun=null;
+    // Mark run as deleted in fingerprint by removing from _sourcingRuns — diff engine will detect absence and call deleteRunFromSupabase
+    saveDB();
+    toast('Run deleted');
+    goToTab('stock',document.querySelector('[data-tab="stock"]'));
+  });
+}
+
+// ── Section 2: Auto-tag helper ────────────────────────────────────────────────
+// Called after any Quick Add (stock or list) to tag item to active run.
+// Also called in submitListFromSourced — preserves existing tag.
+function _autoTagToActiveRun(item){
+  if(_activeSourcingRun && !item.sourcingRunId){
+    item.sourcingRunId=_activeSourcingRun.id;
+  }
+}
+
+// ── Section 2: Active run banner HTML ────────────────────────────────────────
+function _activeRunBannerHTML(){
+  if(!_activeSourcingRun)return'';
+  const run=_activeSourcingRun;
+  const items=_runItems(run.id);
+  const spent=items.reduce(function(s,i){return s+(i.costPrice||0)+calcPartsCost(i);},0);
+  const listed=items.filter(function(i){return i.state!=='sourced';}).length;
+  const pctListed=items.length?Math.round((listed/items.length)*100):0;
+  const loc=run.location?(' \u00b7 '+esc(run.location)):'';
+  return '<div class="run-banner" id="active-run-banner">'
+    +'<div class="run-banner-dot"></div>'
+    +'<div class="run-banner-body">'
+      +'<div class="run-banner-title">'+esc(run.name)+loc+'</div>'
+      +'<div class="run-banner-meta">'+items.length+' item'+(items.length!==1?'s':'')+' \u00b7 \u00a3'+spent.toFixed(2)+' spent \u00b7 '+pctListed+'% listed</div>'
+    +'</div>'
+    +'<div class="run-banner-actions">'
+      +'<button class="btn btn-s" style="padding:6px 10px;font-size:12px;" onclick="endSourcingRun()">End</button>'
+      +'<button class="btn btn-s" style="padding:6px 10px;font-size:12px;" onclick="openRunPage(\''+run.id+'\')">View</button>'
+    +'</div>'
+    +'</div>';
+}
+
+// ── Section 3: Run detail page ────────────────────────────────────────────────
+function openRunPage(runId){
+  const run=_sourcingRuns.find(r=>r.id===runId);
+  if(!run){ toast('Run not found','error'); return; }
+  const page=document.getElementById('p-item');
+  if(!page)return;
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('on'));
+  page.classList.add('on');
+  _syncFabVisibility();
+  _renderRunPage(run);
+}
+
+function _runItems(runId){
+  const items=[];
+  allDBKeys().forEach(function(k){
+    (DB[k]||[]).forEach(function(i){
+      if(i.sourcingRunId===runId) items.push(Object.assign({},i,{_month:k}));
+    });
+  });
+  return items;
+}
+
+function _renderRunPage(run){
+  const page=document.getElementById('p-item');
+  if(!page)return;
+  const items=_runItems(run.id);
+  const totalSpent=items.reduce(function(s,i){return s+(i.costPrice||0)+calcPartsCost(i);},0);
+  const soldItems=items.filter(function(i){return i.state==='sold'||i.resaleSalePrice;});
+  const revenue=soldItems.reduce(function(s,i){return s+calcItemRevenue(i);},0);
+  const profit=soldItems.reduce(function(s,i){return s+(calcGrossProfit(i)||0);},0);
+  const pctListed=items.length?Math.round((items.filter(function(i){return i.state!=='sourced';}).length/items.length)*100):0;
+  const pctSold=items.length?Math.round((soldItems.length/items.length)*100):0;
+  const roi=totalSpent>0?((profit/totalSpent)*100).toFixed(1):null;
+  const isActive=run.status==='active';
+  const statusPill='<span style="font-size:11px;font-weight:700;padding:3px 9px;border-radius:20px;'+(isActive?'background:rgba(34,197,94,0.15);color:var(--green)':'background:var(--surface2);color:var(--text-secondary)')+';">'+(isActive?'\u25cf Active':'Ended')+'</span>';
+
+  // KPI cards
+  function kcard(label,val,sub,cls){
+    return '<div class="kcard '+(cls||'')+'" style="min-width:0;">'
+      +'<div class="klabel">'+label+'</div>'
+      +'<div class="kval">'+val+'</div>'
+      +'<div class="ksub">'+sub+'</div>'
+      +'</div>';
+  }
+  const kpis='<div class="kgrid kgrid-4" style="margin-bottom:16px;">'
+    +kcard('Total spent','\u00a3'+totalSpent.toFixed(2),'Cost + parts','b')
+    +kcard('Items sourced',String(items.length),items.length===1?'1 item in run':items.length+' items','')
+    +kcard('Revenue',revenue>0?'\u00a3'+revenue.toFixed(2):'\u2014','From sold items','g')
+    +kcard('Profit',profit!==0||soldItems.length?'\u00a3'+profit.toFixed(2):'\u2014',soldItems.length+' sold','g')
+    +'</div>'
+    +'<div style="display:flex;gap:10px;margin-bottom:18px;flex-wrap:wrap;">'
+    +'<div style="flex:1;min-width:120px;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px;"><div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--muted);margin-bottom:4px;">% Listed</div><div style="font-size:20px;font-weight:700;">'+(pctListed)+'%</div></div>'
+    +'<div style="flex:1;min-width:120px;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px;"><div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--muted);margin-bottom:4px;">% Sold</div><div style="font-size:20px;font-weight:700;">'+(pctSold)+'%</div></div>'
+    +'<div style="flex:1;min-width:120px;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px;"><div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--muted);margin-bottom:4px;">ROI</div><div style="font-size:20px;font-weight:700;">'+(roi!==null?roi+'%':'\u2014')+'</div></div>'
+    +'</div>';
+
+  // Items grouped by state
+  const groups=[
+    {key:'sold',label:'Sold',filter:function(i){return i.state==='sold'||!!i.resaleSalePrice;}},
+    {key:'listed',label:'Listed',filter:function(i){return i.state==='listed'&&!i.dateSold&&!i.resaleSalePrice;}},
+    {key:'sourced',label:'Sourced',filter:function(i){return i.state==='sourced';}},
+    {key:'returned',label:'Returned',filter:function(i){return i.state==='returned'||i.isReturned;}}
+  ];
+  let itemsHTML='';
+  groups.forEach(function(g){
+    const grpItems=items.filter(g.filter);
+    if(grpItems.length===0)return;
+    itemsHTML+='<div style="margin-bottom:16px;">'
+      +'<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--muted);margin-bottom:8px;">'+g.label+' ('+grpItems.length+')</div>'
+      +'<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden;">';
+    grpItems.forEach(function(i,idx){
+      const gp=g.key==='sold'?calcGrossProfit(i):null;
+      const profStr=gp!==null?('<span style="font-size:12px;color:'+(gp>=0?'var(--green)':'var(--red)')+';">\u00a3'+gp.toFixed(2)+'</span>'):'';
+      itemsHTML+='<div style="display:flex;align-items:center;gap:8px;padding:10px 14px;'+(idx>0?'border-top:1px solid var(--border)':'')+';cursor:pointer;" onclick="renderItemPage(\''+i._month+'\',\''+i.id+'\')">'
+        +'<div style="flex:1;min-width:0;">'
+          +'<div style="font-size:13px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(i.item||'Untitled')+'</div>'
+          +'<div style="font-size:11px;color:var(--text-secondary);">\u00a3'+(i.costPrice||0).toFixed(2)+' cost'+(i.salePrice?' \u00b7 \u00a3'+i.salePrice.toFixed(2)+' ask':'')+'</div>'
+        +'</div>'
+        +profStr
+        +'<button class="btn btn-s" style="padding:4px 8px;font-size:11px;flex-shrink:0;" onclick="event.stopPropagation();removeItemFromRun(\''+i._month+'\',\''+i.id+'\',\''+run.id+'\')" title="Remove from run">\u00d7</button>'
+      +'</div>';
+    });
+    itemsHTML+='</div></div>';
+  });
+  if(items.length===0){
+    itemsHTML='<div class="empty-state"><div class="empty-state-text">No items in this run</div><div class="empty-state-sub">Items added while this run was active appear here.</div></div>';
+  }
+
+  const dateStr=(run.dateStarted||'').slice(0,10);
+  const endedStr=run.dateEnded?(' \u2014 ended '+(run.dateEnded||'').slice(0,10)):'';
+  const html=`
+    <div style="max-width:560px;margin:0 auto;padding:18px 16px 80px;">
+      <button class="btn btn-s" onclick="goToTab('stock',document.querySelector('[data-tab=\\'stock\\']'))" style="margin-bottom:12px;font-size:13px">\u2190 Stock</button>
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:6px;">
+        <div>
+          <h1 style="font-family:var(--font-display);font-size:24px;font-weight:800;letter-spacing:-0.02em;margin:0 0 4px;">${esc(run.name)}</h1>
+          <div style="font-size:12px;color:var(--text-secondary);">${run.location?esc(run.location)+' \u00b7 ':''} ${dateStr}${endedStr}</div>
+        </div>
+        ${statusPill}
+      </div>
+      ${run.notes?`<div style="font-size:13px;color:var(--text-secondary);margin-bottom:12px;padding:8px 12px;background:var(--surface2);border-radius:8px;">${esc(run.notes)}</div>`:''}
+      <div style="display:flex;gap:8px;margin-bottom:18px;flex-wrap:wrap;">
+        ${isActive?'<button class="btn btn-p" style="font-size:13px;" onclick="endSourcingRun(\''+run.id+'\')">End run</button>':''}
+        <button class="btn btn-s" style="font-size:13px;" onclick="openEditRun('${run.id}')">Edit</button>
+        ${!isActive?'<button class="btn btn-s danger" style="font-size:13px;" onclick="deleteRun(\''+run.id+'\')">Delete</button>':''}
+      </div>
+      ${kpis}
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+        <div style="font-size:13px;font-weight:600;">Items in this run</div>
+        <button class="btn btn-s" style="font-size:12px;padding:6px 10px;" onclick="openBulkAssignModal('${run.id}')">+ Add existing items</button>
+      </div>
+      ${itemsHTML}
+    </div>`;
+  page.innerHTML=html;
+}
+
+function removeItemFromRun(m,itemId,runId){
+  const i=(DB[m]||[]).find(x=>x.id===itemId);
+  if(!i)return;
+  i.sourcingRunId=null;
+  saveDB();
+  const run=_sourcingRuns.find(r=>r.id===runId);
+  if(run)_renderRunPage(run);
+}
+
+// ── Section 4: Run history (rendered inside renderStock) ──────────────────────
+function _runHistoryHTML(){
+  const ended=_sourcingRuns.filter(r=>r.status==='ended').slice(0,3);
+  const hasAny=_sourcingRuns.length>0;
+  if(!hasAny){
+    return '<div style="background:var(--surface);border:1px dashed var(--border);border-radius:12px;padding:20px;text-align:center;margin-bottom:18px;">'
+      +'<div style="font-size:13px;font-weight:600;margin-bottom:4px;">No sourcing runs yet</div>'
+      +'<div style="font-size:12px;color:var(--text-secondary);">Tap + \u2192 Start sourcing run when you\u2019re at a boot or charity shop.</div>'
+      +'</div>';
+  }
+  if(ended.length===0)return'';
+  let html='<div style="margin-bottom:18px;">'
+    +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">'
+      +'<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--muted);">Past Runs</div>'
+      +(_sourcingRuns.filter(r=>r.status==='ended').length>3?'<button class="btn btn-s" style="font-size:11px;padding:4px 8px;" onclick="openRunHistoryPanel()">View all</button>':'')
+    +'</div>'
+    +'<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden;">';
+  ended.forEach(function(run,idx){
+    const items=_runItems(run.id);
+    const spent=items.reduce(function(s,i){return s+(i.costPrice||0);},0);
+    const dateStr=(run.dateEnded||'').slice(0,10);
+    html+='<div style="display:flex;align-items:center;gap:10px;padding:10px 14px;cursor:pointer;'+(idx>0?'border-top:1px solid var(--border)':'')+'" onclick="openRunPage(\''+run.id+'\')">'+
+      '<div style="flex:1;min-width:0;">'+
+        '<div style="font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(run.name)+'</div>'+
+        '<div style="font-size:11px;color:var(--text-secondary);">'+(run.location?esc(run.location)+' \u00b7 ':'')+dateStr+' \u00b7 '+items.length+' items \u00b7 \u00a3'+spent.toFixed(2)+'</div>'+
+      '</div>'+
+      '<svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M6 4l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>'+
+    '</div>';
+  });
+  html+='</div></div>';
+  return html;
+}
+
+function openRunHistoryPanel(){
+  const ended=_sourcingRuns.filter(r=>r.status==='ended');
+  if(ended.length===0){ openPanel('Run History','<div style="padding:20px;text-align:center;color:var(--muted)">No completed runs yet</div>'); return; }
+  let html='<div style="display:flex;flex-direction:column;gap:0;">';
+  html+='<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden;">';
+  ended.forEach(function(run,idx){
+    const items=_runItems(run.id);
+    const spent=items.reduce(function(s,i){return s+(i.costPrice||0);},0);
+    const sold=items.filter(function(i){return i.state==='sold';});
+    const profit=sold.reduce(function(s,i){return s+(calcGrossProfit(i)||0);},0);
+    const dateStr=(run.dateEnded||'').slice(0,10);
+    html+='<div style="display:flex;align-items:center;gap:10px;padding:12px 14px;cursor:pointer;'+(idx>0?'border-top:1px solid var(--border)':'')+'" onclick="closePanel();openRunPage(\''+run.id+'\')">'+
+      '<div style="flex:1;min-width:0;">'+
+        '<div style="font-size:13px;font-weight:600;">'+esc(run.name)+'</div>'+
+        '<div style="font-size:11px;color:var(--text-secondary);">'+dateStr+' \u00b7 '+items.length+' items \u00b7 \u00a3'+spent.toFixed(2)+' spent'+(sold.length?' \u00b7 \u00a3'+profit.toFixed(2)+' profit':'')+'</div>'+
+      '</div>'+
+      '<svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M6 4l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>'+
+    '</div>';
+  });
+  html+='</div></div>';
+  openPanel('Run History', html);
+}
+
+// ── Section 5: Retroactive bulk assign ───────────────────────────────────────
+function openBulkAssignModal(runId){
+  const run=_sourcingRuns.find(r=>r.id===runId);
+  if(!run)return;
+  // Gather all items (not sold/returned — those rarely need retroactive tagging but still show)
+  const today=new Date().toISOString().split('T')[0];
+  const cutoff=new Date(); cutoff.setDate(cutoff.getDate()-7);
+  const cutoffStr=cutoff.toISOString().split('T')[0];
+  let _baFilter='7d'; // default
+  let _baSearch='';
+
+  function _baItems(){
+    let all=[];
+    allDBKeys().forEach(function(k){
+      (DB[k]||[]).forEach(function(i){
+        if((i.item||'').trim().toUpperCase()==='MONTH END')return;
+        all.push(Object.assign({},i,{_month:k}));
+      });
+    });
+    // Date filter
+    if(_baFilter!=='all'){
+      const days={'7d':7,'30d':30,'90d':90}[_baFilter]||7;
+      const cutD=new Date(); cutD.setDate(cutD.getDate()-days);
+      const cutS=cutD.toISOString().split('T')[0];
+      all=all.filter(function(i){
+        const d=i.dateSourced||i.dateListed||'';
+        return d>=cutS;
+      });
+    }
+    if(_baSearch){
+      const q=_baSearch.toLowerCase();
+      all=all.filter(function(i){return (i.item||'').toLowerCase().includes(q);});
+    }
+    return all;
+  }
+
+  let _baSelected=new Set();
+
+  function _baRender(){
+    const items=_baItems();
+    const selCount=_baSelected.size;
+    // Conflicts: selected items already in a different run
+    const conflicted=Array.from(_baSelected).map(function(id){
+      let found=null;
+      allDBKeys().forEach(function(k){const x=(DB[k]||[]).find(y=>y.id===id);if(x)found=x;});
+      return found;
+    }).filter(function(i){return i&&i.sourcingRunId&&i.sourcingRunId!==runId;});
+
+    let html='<div style="margin-bottom:10px;display:flex;gap:6px;flex-wrap:wrap;align-items:center;">'
+      +'<select id="ba-filter" style="padding:7px 10px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);font-size:12px;color:var(--text);" onchange="_baFilterChange(this.value,\''+runId+'\');">'
+      +'<option value="7d"'+((_baFilter==='7d')?' selected':'')+'>Last 7 days</option>'
+      +'<option value="30d"'+((_baFilter==='30d')?' selected':'')+'>Last 30 days</option>'
+      +'<option value="90d"'+((_baFilter==='90d')?' selected':'')+'>Last 90 days</option>'
+      +'<option value="all"'+((_baFilter==='all')?' selected':'')+'>All time</option>'
+      +'</select>'
+      +'<input type="text" id="ba-search" value="'+esc(_baSearch)+'" placeholder="Search\u2026" style="flex:1;min-width:100px;padding:7px 10px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);font-size:12px;color:var(--text);" oninput="_baSearchChange(this.value,\''+runId+'\');">'
+      +'</div>';
+
+    if(items.length===0){
+      html+='<div style="padding:20px;text-align:center;color:var(--muted);font-size:13px;">No items match this filter</div>';
+    } else {
+      html+='<div style="font-size:11px;color:var(--text-secondary);margin-bottom:6px;cursor:pointer;" onclick="_baToggleAll(\''+runId+'\')">'
+        +(selCount===items.length?'Deselect all':'Select all visible')+' ('+items.length+')'
+        +'</div>';
+      html+='<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden;max-height:320px;overflow-y:auto;">';
+      items.forEach(function(i,idx){
+        const checked=_baSelected.has(i.id);
+        const inOtherRun=i.sourcingRunId&&i.sourcingRunId!==runId;
+        const inThisRun=i.sourcingRunId===runId;
+        const otherRunName=inOtherRun?(_sourcingRuns.find(r=>r.id===i.sourcingRunId)||{}).name||'another run':'';
+        const dateSrc=(i.dateSourced||i.dateListed||'').slice(0,10);
+        html+='<label style="display:flex;align-items:center;gap:10px;padding:10px 14px;'+(idx>0?'border-top:1px solid var(--border)':'')+';cursor:pointer;">'
+          +'<input type="checkbox" '+(checked?'checked ':'')+' onchange="_baToggle(\''+i.id+'\',\''+runId+'\',this.checked)" style="width:16px;height:16px;flex-shrink:0;">'
+          +'<div style="flex:1;min-width:0;">'
+            +'<div style="font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(i.item||'Untitled')+'</div>'
+            +'<div style="font-size:11px;color:var(--text-secondary);">'
+              +'<span class="item-badge '+i.state+'" style="font-size:10px;padding:2px 6px;margin-right:4px;">'+i.state+'</span>'
+              +dateSrc
+              +(inThisRun?' \u00b7 <span style="color:var(--green)">Already in this run</span>':'')
+              +(inOtherRun?' \u00b7 <span style="color:var(--warn)">In: '+esc(otherRunName)+'</span>':'')
+            +'</div>'
+          +'</div>'
+          +'\u00a3'+(i.costPrice||0).toFixed(2)
+          +'</label>';
+      });
+      html+='</div>';
+    }
+
+    html+='<div style="display:flex;align-items:center;justify-content:space-between;margin-top:12px;flex-wrap:wrap;gap:8px;">'
+      +'<div style="font-size:13px;color:var(--text-secondary);">'+selCount+' selected'+(conflicted.length?' \u00b7 <span style="color:var(--warn)">'+conflicted.length+' in other runs</span>':'')+'</div>'
+      +'<div style="display:flex;gap:8px;">'
+        +'<button class="btn btn-s" onclick="closePanel()">Cancel</button>'
+        +'<button class="btn btn-p" style="'+(selCount===0?'opacity:0.5;pointer-events:none;':'')+'" onclick="_baConfirm(\''+runId+'\')">Add '+selCount+' item'+(selCount!==1?'s to':'  to')+' run</button>'
+      +'</div>'
+    +'</div>';
+
+    const wrap=document.getElementById('ba-modal-wrap');
+    if(wrap){
+      wrap.innerHTML=html;
+    }
+  }
+
+  // Module-level state for bulk assign modal
+  window._baFilter=_baFilter;
+  window._baSearch=_baSearch;
+  window._baSelected=_baSelected;
+  window._baItems=_baItems;
+  window._baRender=_baRender;
+
+  window._baFilterChange=function(v,rId){ window._baFilter=v; _baFilter=v; _baRender(); };
+  window._baSearchChange=function(v,rId){ window._baSearch=v; _baSearch=v; _baRender(); };
+  window._baToggle=function(id,rId,checked){ if(checked)_baSelected.add(id); else _baSelected.delete(id); _baRender(); };
+  window._baToggleAll=function(rId){
+    const items=_baItems();
+    const allSel=items.length>0&&items.every(function(i){return _baSelected.has(i.id);});
+    if(allSel){items.forEach(function(i){_baSelected.delete(i.id);});}
+    else{items.forEach(function(i){_baSelected.add(i.id);});}
+    _baRender();
+  };
+  window._baConfirm=function(rId){
+    if(_baSelected.size===0)return;
+    const run2=_sourcingRuns.find(r=>r.id===rId);
+    if(!run2)return;
+    // Check for conflicts
+    const conflicts=[];
+    _baSelected.forEach(function(id){
+      let found=null;
+      allDBKeys().forEach(function(k){const x=(DB[k]||[]).find(y=>y.id===id);if(x)found=x;});
+      if(found&&found.sourcingRunId&&found.sourcingRunId!==rId){
+        const rn=(_sourcingRuns.find(r=>r.id===found.sourcingRunId)||{}).name||'another run';
+        conflicts.push({item:found,runName:rn});
+      }
+    });
+    if(conflicts.length>0){
+      const conflictList=conflicts.slice(0,3).map(function(c){return '\u00b7 '+esc(c.item.item||'Untitled')+' (in \u201c'+esc(c.runName)+'\u201d)';}).join('\n');
+      const more=conflicts.length>3?' and '+(conflicts.length-3)+' more':'';
+      showConfirm(
+        conflicts.length+' item'+(conflicts.length!==1?'s are':' is')+' in other runs',
+        conflictList+more+'\nMove them to this run?',
+        {okLabel:'Move all',cancelLabel:'Skip these'}
+      ).then(function(ok){
+        _baApply(rId,!ok);
+      });
+    } else {
+      _baApply(rId,false);
+    }
+  };
+
+  window._baApply=function(rId,skipConflicts){
+    let count=0;
+    _baSelected.forEach(function(id){
+      let found=null, foundM=null;
+      allDBKeys().forEach(function(k){const x=(DB[k]||[]).find(y=>y.id===id);if(x){found=x;foundM=k;}});
+      if(!found)return;
+      if(skipConflicts&&found.sourcingRunId&&found.sourcingRunId!==rId)return;
+      found.sourcingRunId=rId;
+      count++;
+    });
+    saveDB();
+    closePanel();
+    toast('Added '+count+' item'+(count!==1?'s':'')+' to run');
+    const run2=_sourcingRuns.find(r=>r.id===rId);
+    if(run2&&document.getElementById('p-item')&&document.getElementById('p-item').classList.contains('on')){
+      _renderRunPage(run2);
+    }
+  };
+
+  const outerHtml='<div id="ba-modal-wrap"></div>';
+  openPanel('Add items to \u201c'+esc(run.name)+'\u201d', outerHtml);
+  setTimeout(function(){ _baRender(); },40);
+}
+
+
+
 function openQuickAdd(){
+  _sourcedPartsCost = 0; // clear any carried-over parts cost from a sourced item
   // If not on a monthly page, pre-select current month rather than SELECTED_MONTH
   const activePage=(document.querySelector('.page.on')||{id:''}).id;
   if(activePage!=='p-monthly'){
@@ -4868,9 +5507,24 @@ function openQuickAdd(){
 function openListFromSourced(m, id){
   const i=(DB[m]||[]).find(x=>x.id===id);
   if(!i||i.state!=='sourced'){toast('Item not found or already listed','error');return;}
+  // Track parts cost so updateBPFPreview can include it in profit estimate
+  _sourcedPartsCost = calcPartsCost(i);
+  _listFromSourcedM = m;
+  _listFromSourcedId = id;
   // Use current month so the bucket is correct for today's listing date
   SELECTED_MONTH=currentMonthKey();
+  const partsCost=_sourcedPartsCost;
+  // Parts section: always shown so user can add/edit before listing
+  const partsSection=`<div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:16px;">
+    <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-secondary);margin-bottom:6px;">
+      Parts &amp; Expenses${(i.parts||[]).length>0?' ('+i.parts.length+')':''}
+      <span style="font-weight:400;color:var(--muted);"> · carried to P&amp;L</span>
+    </div>
+    <div id="lf-parts-wrap">${partsHTML(m,id,'list-form')}</div>
+    ${partsCost>0?`<div style="font-size:12px;color:var(--text-secondary);margin-top:8px;padding-top:8px;border-top:1px solid var(--border);">Total capital: <strong style="color:var(--text)">${fmt((i.costPrice||0)+partsCost)}</strong> · Included in profit &amp; ROI estimate</div>`:'<div style="font-size:11px;color:var(--muted);margin-top:4px;">Add parts/expenses to factor into profit estimate</div>'}
+  </div>`;
   const html=`
+    ${partsSection}
     ${formHTML()}
     <div id="qa-coming-soon-banner" class="qa-coming-soon-banner" style="display:none">
       <div class="qa-cs-icon">
@@ -4906,6 +5560,11 @@ function openListFromSourced(m, id){
   const qaPrice=document.getElementById('qa-price');
   if(qaPrice)qaPrice.focus();
 }
+
+// Module-level refs so partsHTML 'list-form' context can find the item
+var _listFromSourcedM=null;
+var _listFromSourcedId=null;
+
 
 function submitListFromSourced(m, srcId){
   // Validate using same rules as submitQuickAdd
@@ -4959,6 +5618,10 @@ function submitListFromSourced(m, srcId){
   srcItem.promoPercent=(parseFloat(document.getElementById('qa-promo').value)||0)/100;
   srcItem.defaultPlatform=_qaPlat;
   srcItem.dateSold=null; srcItem.grossProfit=null; srcItem.isReturned=false;
+  // Patch C: preserve existing run tag (withdraw→sourced already keeps it);
+  // if item has no tag and a run is active, tag it now (e.g. user added item
+  // outside a run but is listing during one — edge case, auto-tag is fine).
+  _autoTagToActiveRun(srcItem);
 
   // If the listing month differs from the sourced month, move the item to the new bucket
   if(newMonth!==srcMonth){
@@ -5051,6 +5714,7 @@ function submitQuickAdd(){
   if(!item.notes)item.notes='';if(!item.parts)item.parts=[];
   if(!item.returnHistory)item.returnHistory=[];
   if(item.isReturned===undefined)item.isReturned=false;
+  _autoTagToActiveRun(item); // Patch C: tag to active sourcing run if one is running
   if(!Array.isArray(DB[m])) DB[m]=[];
   DB[m].push(item);saveDB();closePanel();
   SELECTED_MONTH=m;MONTH_SORT='date-listed';MONTH_FILTER='all';
@@ -5177,6 +5841,7 @@ function submitStockQuickAdd(){
   // Flush pre-save parts list into item
   item.parts=(_sqaParts||[]).map(function(p){return{description:p.desc,cost:p.cost,date:p.date};});
   _sqaParts=[];
+  _autoTagToActiveRun(item); // Patch C: tag to active sourcing run if one is running
   if(!Array.isArray(DB[m])) DB[m]=[];
   DB[m].push(item);
   saveDB();
@@ -5699,12 +6364,12 @@ function updateBPFPreview(){
   const promoPercent=promoRaw/100;
   const promoCost=net*promoPercent*1.20;
   const rev=price+buyerPostage-bpf;
-  const totalCost=cost+shipping+packaging+promoCost;
+  const totalCost=cost+shipping+packaging+promoCost+_sourcedPartsCost;
   const profit=+(rev-totalCost).toFixed(2);
   const profitEl=document.getElementById('profit-preview');
   const valEl=document.getElementById('profit-val');
   const roiEl=document.getElementById('profit-roi');
-  if(cost>0||shipping>0||packaging>0||promoPercent>0){profitEl.style.display='block';valEl.textContent=fmt(profit);valEl.style.color=profit>=0?'var(--green)':'var(--red)';if(cost>0){const ti=cost+shipping+packaging+bpf+promoCost;const roi=ti>0?((profit/ti)*100).toFixed(1):null;roiEl.textContent=roi!==null?roi+'% ROI':'';}else{roiEl.textContent='';}}
+  if(cost>0||shipping>0||packaging>0||promoPercent>0||_sourcedPartsCost>0){profitEl.style.display='block';valEl.textContent=fmt(profit);valEl.style.color=profit>=0?'var(--green)':'var(--red)';if(cost>0||_sourcedPartsCost>0){const ti=cost+shipping+packaging+bpf+promoCost+_sourcedPartsCost;const roi=ti>0?((profit/ti)*100).toFixed(1):null;roiEl.textContent=roi!==null?roi+'% ROI':'';}else{roiEl.textContent='';}}
   else{profitEl.style.display='none';}
 }
 
@@ -7994,10 +8659,11 @@ function renderStock(){
       }).join('');
       return `<div style="display:flex;margin-bottom:16px;border-radius:8px;overflow:hidden;width:100%;">${segs}</div>`;
     })()}
-    ${cAll===0?`<div class="empty-state">
+    ${cAll===0?`<div>${isStockOnly?_activeRunBannerHTML()+_runHistoryHTML():''}</div><div class="empty-state">
       <div class="empty-state-text">${isStockOnly?'No sourced items':'No active listings'}</div>
       <div class="empty-state-sub">${isStockOnly?'Tap + and choose Sourced item to add your first.':'Use Quick Add to list your first item.'}</div>
     </div>`:`
+      ${isStockOnly?(_activeRunBannerHTML()+_runHistoryHTML()):''}
       ${isStockOnly?(()=>{
         // ── Sourced view: age distribution bar + bucket chips + sort ──────
         // Buckets: New 0–3d · List soon 4–7d · Overdue 8–14d · Stagnant 15d+
@@ -9361,6 +10027,9 @@ function saveEdit(m,id){
 
 // Patch A — stock-specific edit panel (no salePrice / platform / fees fields).
 function _editStockItem(m,item){
+  const catOpts=['Electronics & Tech','Cameras & Photography','Audio & Music','Books & Media','Toys & Games','Home & Garden','Clothing & Fashion','Sports & Leisure','Collectables','Other'].map(function(c){
+    return '<option value="'+c+'"'+(item.category===c?' selected':'')+'>'+c+'</option>';
+  }).join('');
   const html=`
     <div class="fg">
       <label>Date sourced</label>
@@ -9373,6 +10042,21 @@ function _editStockItem(m,item){
     <div class="fg">
       <label>Cost <span style="color:var(--red);font-weight:600">*</span></label>
       <input type="number" id="edit-stock-cost" step="0.01" min="0" inputmode="decimal" value="${item.costPrice||0}">
+    </div>
+    <div class="fg">
+      <label>Source</label>
+      <input type="text" id="edit-stock-source" value="${esc(item.source||'')}" placeholder="e.g. Car boot, eBay">
+    </div>
+    <div class="fg">
+      <label>Category</label>
+      <select id="edit-stock-category" style="width:100%;padding:9px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:14px;">
+        <option value="">— Pick category —</option>
+        ${catOpts}
+      </select>
+    </div>
+    <div class="fg">
+      <label>Location</label>
+      <input type="text" id="edit-stock-location" value="${esc(item.location||'')}" placeholder="e.g. Box A, Shelf 2">
     </div>
     <div class="fg">
       <label>Notes</label>
@@ -9396,6 +10080,9 @@ function _saveStockEdit(m,id){
   item.costPrice=+cost.toFixed(2);
   item.dateSourced=document.getElementById('edit-stock-date').value||item.dateSourced;
   item.notes=(document.getElementById('edit-stock-notes').value||'').trim();
+  const srcEl=document.getElementById('edit-stock-source'); if(srcEl)item.source=srcEl.value.trim()||item.source||'';
+  const catEl=document.getElementById('edit-stock-category'); if(catEl&&catEl.value)item.category=catEl.value;
+  const locEl=document.getElementById('edit-stock-location'); if(locEl)item.location=locEl.value.trim()||item.location||'';
   saveDB();
   toast('Stock item updated');
   closePanel();
@@ -11431,18 +12118,18 @@ function startInlineEdit(m,id,field,currentVal){
 
 // ── Parts / item expenses ─────────────────────────────────────────────────────
 function partsHTML(m,id,context){
-  // context: 'panel' or 'page' — affects button onclick targets
+  // context: 'panel', 'page', or 'list-form'
   const i=(DB[m]||[]).find(x=>x.id===id);
   if(!i)return'';
   const parts=i.parts||[];
   const total=calcPartsCost(i);
-  const today=new Date().toISOString().split('T')[0];
 
   const rows=parts.map(function(p,idx){
+    const editFn='editPart(\''+m+'\',\''+id+'\','+idx+',\''+context+'\')';
     const delFn=context==='page'
       ?'deletePart(\''+m+'\',\''+id+'\','+idx+')'
-      :'deletePart(\''+m+'\',\''+id+'\','+idx+',\'panel\')';
-    return'<div class="part-row">'
+      :'deletePart(\''+m+'\',\''+id+'\','+idx+',\''+context+'\')';
+    return'<div class="part-row" style="cursor:pointer;" onclick="'+editFn+'" title="Tap to edit">'
       +'<span class="part-desc">'+esc(p.description)+'</span>'
       +(p.date?'<span class="part-date">'+p.date+'</span>':'')
       +'<span class="part-cost">−'+fmt(p.cost)+'</span>'
@@ -11454,9 +12141,7 @@ function partsHTML(m,id,context){
     ?'<div class="parts-total"><span>Parts total</span><span style="color:var(--red)">−'+fmt(total)+'</span></div>'
     :'';
 
-  const addFn=context==='page'
-    ?'addPart(\''+m+'\',\''+id+'\',\'page\')'
-    :'addPart(\''+m+'\',\''+id+'\',\'panel\')';
+  const addFn='addPart(\''+m+'\',\''+id+'\',\''+context+'\')';
 
   const addForm='<div class="add-part-row">'
     +'<div class="fg" style="margin-bottom:0"><input type="text" id="part-desc-'+context+'" placeholder="e.g. Charging cable, battery…"></div>'
@@ -11464,7 +12149,66 @@ function partsHTML(m,id,context){
     +'<button class="btn btn-s" style="padding:9px 12px;font-size:13px" onclick="'+addFn+'">+ Add</button>'
     +'</div>';
 
-  return'<div class="parts-list">'+rows+totalRow+'</div>'+addForm;
+  return'<div class="parts-list" id="parts-list-'+id+'-'+context+'">'+rows+totalRow+'</div>'+addForm;
+}
+
+
+
+function editPart(m,id,idx,context){
+  const i=(DB[m]||[]).find(x=>x.id===id);
+  if(!i||!i.parts||!i.parts[idx])return;
+  const p=i.parts[idx];
+  const rowId='part-edit-row-'+id+'-'+idx+'-'+context;
+  if(document.getElementById(rowId))return;
+  const list=document.getElementById('parts-list-'+id+'-'+context);
+  if(!list)return;
+  const rows=list.querySelectorAll('.part-row');
+  const rowEl=rows[idx];
+  if(!rowEl)return;
+  const saveFn='savePartEdit(\''+m+'\',\''+id+'\','+idx+',\''+context+'\')';
+  const cancelFn='cancelPartEdit(\''+id+'\','+idx+',\''+context+'\')';
+  rowEl.outerHTML='<div class="add-part-row" id="'+rowId+'" style="background:var(--accent-dim);border-radius:8px;padding:6px 4px;">'
+    +'<div class="fg" style="margin-bottom:0"><input type="text" id="part-edit-desc-'+idx+'-'+context+'" value="'+esc(p.description||'')+'" placeholder="Description"></div>'
+    +'<div class="fg" style="margin-bottom:0"><input type="number" id="part-edit-cost-'+idx+'-'+context+'" step="0.01" value="'+(p.cost||0)+'" style="width:90px"></div>'
+    +'<button class="btn btn-p" style="padding:9px 12px;font-size:13px" onclick="'+saveFn+'">✓</button>'
+    +'<button class="btn btn-s" style="padding:9px 10px;font-size:13px" onclick="'+cancelFn+'">✕</button>'
+    +'</div>';
+  const descEl=document.getElementById('part-edit-desc-'+idx+'-'+context);
+  if(descEl)setTimeout(function(){descEl.focus();try{descEl.select();}catch(e){}},0);
+}
+
+function _refreshListFormParts(m,id){
+  const wrap=document.getElementById('lf-parts-wrap');
+  if(!wrap)return;
+  wrap.innerHTML=partsHTML(m,id,'list-form');
+  _sourcedPartsCost=calcPartsCost((DB[m]||[]).find(x=>x.id===id)||{});
+  if(typeof updateBPFPreview==='function')updateBPFPreview();
+}
+
+function savePartEdit(m,id,idx,context){
+  const i=(DB[m]||[]).find(x=>x.id===id);
+  if(!i||!i.parts||!i.parts[idx])return;
+  const descEl=document.getElementById('part-edit-desc-'+idx+'-'+context);
+  const costEl=document.getElementById('part-edit-cost-'+idx+'-'+context);
+  if(!descEl||!costEl)return;
+  const desc=descEl.value.trim();
+  if(!desc){toast('Description required','error');return;}
+  i.parts[idx].description=desc;
+  i.parts[idx].cost=parseFloat(costEl.value)||0;
+  saveDB();
+  _sourcedPartsCost=calcPartsCost(i);
+  if(context==='page'){renderItemPage(m,id);}
+  else if(context==='list-form'){_refreshListFormParts(m,id);}
+  else{refreshPanelParts(m,id);}
+}
+
+function cancelPartEdit(id,idx,context){
+  let foundM=null;
+  allDBKeys().forEach(function(k){if((DB[k]||[]).find(x=>x.id===id))foundM=k;});
+  if(!foundM)return;
+  if(context==='page'){renderItemPage(foundM,id);}
+  else if(context==='list-form'){_refreshListFormParts(foundM,id);}
+  else{refreshPanelParts(foundM,id);}
 }
 
 function addPart(m,id,context){
@@ -11480,8 +12224,10 @@ function addPart(m,id,context){
     date:new Date().toISOString().split('T')[0]
   });
   saveDB();
+  _sourcedPartsCost=calcPartsCost(i);
   toast('Part added');
   if(context==='page'){renderItemPage(m,id);}
+  else if(context==='list-form'){_refreshListFormParts(m,id);}
   else{refreshPanelParts(m,id);}
 }
 
@@ -11490,8 +12236,10 @@ function deletePart(m,id,idx,context){
   if(!i||!i.parts)return;
   i.parts.splice(idx,1);
   saveDB();
+  _sourcedPartsCost=calcPartsCost(i);
   toast('Part removed');
   if(context==='panel'){refreshPanelParts(m,id);}
+  else if(context==='list-form'){_refreshListFormParts(m,id);}
   else{renderItemPage(m,id);}
 }
 
@@ -11499,6 +12247,7 @@ function refreshPanelParts(m,id){
   const el=document.getElementById('panel-parts-'+id);
   if(el)el.innerHTML=partsHTML(m,id,'panel');
 }
+
 
 initTheme();
 initCountry();
