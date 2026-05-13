@@ -1014,10 +1014,19 @@ input,select,textarea{touch-action:manipulation;user-select:text;-webkit-user-se
 .run-banner{display:flex;align-items:center;gap:12px;background:rgba(34,197,94,0.08);border:1.5px solid rgba(34,197,94,0.3);border-radius:12px;padding:12px 14px;margin-bottom:14px;}
 .run-banner-dot{width:10px;height:10px;border-radius:50%;background:var(--green);flex-shrink:0;animation:run-pulse 2s ease-in-out infinite;}
 @keyframes run-pulse{0%,100%{opacity:1;}50%{opacity:0.4;}}
+@keyframes _arPulse{0%,100%{box-shadow:0 0 0 0 rgba(26,182,100,0.55);}60%{box-shadow:0 0 0 6px rgba(26,182,100,0);}}
 .run-banner-body{flex:1;min-width:0;}
 .run-banner-title{font-size:13px;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .run-banner-meta{font-size:11px;color:var(--text-secondary);margin-top:1px;}
 .run-banner-actions{display:flex;gap:6px;flex-shrink:0;}
+.nav-item-runs{position:relative;}
+.nav-active-dot{position:absolute;top:4px;right:4px;width:8px;height:8px;background:var(--green);border-radius:50%;box-shadow:0 0 0 2px var(--bg);animation:navDotPulse 2s ease-in-out infinite;pointer-events:none;z-index:5;}
+@keyframes navDotPulse{0%,100%{opacity:1;}50%{opacity:0.4;}}
+.runs-start-pill{position:fixed;bottom:calc(24px + env(safe-area-inset-bottom));right:20px;display:flex;align-items:center;gap:8px;padding:14px 22px;background:var(--accent);color:#000;font-weight:700;font-size:15px;border-radius:50px;border:none;cursor:pointer;box-shadow:0 4px 20px rgba(212,136,10,0.35);z-index:300;-webkit-tap-highlight-color:transparent;transition:transform 0.15s,box-shadow 0.15s;}
+.runs-start-pill:active{transform:scale(0.94);box-shadow:0 2px 10px rgba(212,136,10,0.25);}
+.run-history-row{display:flex;align-items:center;gap:10px;padding:12px 14px;cursor:pointer;border-top:1px solid var(--border);}
+.run-history-row:first-child{border-top:none;}
+.run-history-row:active{background:var(--surface2);}
 .fab-main{position:relative;z-index:1;width:52px;height:52px;border-radius:50%;background:var(--accent);color:#000;border:none;cursor:pointer;font-size:24px;font-weight:700;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 20px var(--shadow-md);transition:transform 0.2s,background 0.2s;pointer-events:auto;flex-shrink:0;}
 .fab-main:hover{transform:scale(1.08);background:var(--accent-hover);}
 .fab-main .fab-icon{display:block;transition:transform 0.22s;}
@@ -1184,7 +1193,7 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
 .ip-field,.ip-field-select,.ip-field-date{font-size:15px;}
 #auth-screen-login,#auth-screen-reset{max-width:420px;border-radius:28px;padding:42px 36px!important;box-shadow:0 22px 60px rgba(0,0,0,.18);} 
 #auth-screen-login > div:first-child + div + div span{letter-spacing:.16em!important;}
-#auth-btn,#preview-btn{height:48px;border-radius:16px;}
+#auth-btn{height:48px;border-radius:16px;}
 .summary-shell{display:grid;grid-template-columns:minmax(0,1.84fr) minmax(0,.92fr);gap:18px;align-items:start;}
 .summary-main{display:flex;flex-direction:column;gap:18px;min-height:100%;min-width:0;}
 .summary-side{display:grid;grid-template-rows:auto auto auto;gap:18px;}
@@ -1446,6 +1455,7 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
         <button class="tab on" data-tab="summary" onclick="goToTab('summary',this)" title="Home"><span class="tab-ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg></span><span class="tab-label">Home</span></button>
         <button class="tab" data-tab="monthly" onclick="goToTab('monthly',this)" title="Calendar"><span class="tab-ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2.5"/><path d="M8 3v4M16 3v4"/><line x1="3" y1="10" x2="21" y2="10"/><rect x="7" y="13" width="3" height="3" rx="0.5" fill="currentColor" stroke="none" opacity="0.7"/></svg></span><span class="tab-label">Calendar</span></button>
         <button class="tab" data-tab="stock" onclick="goToTab('stock',this)" title="Stock"><span class="tab-ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="14" width="20" height="7" rx="1.5"/><rect x="4" y="9" width="16" height="6" rx="1.5"/><rect x="7" y="4" width="10" height="6" rx="1.5"/></svg></span><span class="tab-label">Stock</span></button>
+        <button class="tab nav-item-runs" data-tab="runs" onclick="goToTab('runs',this)" title="Runs" style="position:relative;"><span class="tab-ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h3l3-8 4 16 3-8h5"/></svg></span><span class="tab-label">Runs</span></button>
       </div>
       <!-- More dropdown — Expenses, Tax, Data always here, no dynamic overflow -->
       <div class="nav-more" id="nav-more-wrap">
@@ -1519,7 +1529,11 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="14" width="20" height="7" rx="1.5"/><rect x="4" y="9" width="16" height="6" rx="1.5"/><rect x="7" y="4" width="10" height="6" rx="1.5"/></svg>
     Stock
   </button>
-  <button class="bnt" id="bnt-search" onclick="toggleNavSearch()">
+  <button class="bnt nav-item-runs" data-tab="runs" onclick="goToTab('runs',this)" style="position:relative;">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h3l3-8 4 16 3-8h5"/></svg>
+    <span class="bnt-label">Runs</span>
+  </button>
+    <button class="bnt" id="bnt-search" onclick="toggleNavSearch()">
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
     Search
   </button>
@@ -1627,6 +1641,9 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
 <div class="page" id="p-data"></div>
 <div class="page" id="p-search"></div>
 <div class="page" id="p-item"></div>
+<div class="page" id="p-active-run"></div>
+<div class="page" id="p-runs"></div>
+<div class="page" id="p-run"></div>
 </div>
 
 <div id="toast"></div>
@@ -1729,10 +1746,7 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
       style="width:100%;padding:12px;background:var(--accent);color:#000;border:none;border-radius:8px;font-weight:700;font-size:15px;cursor:pointer;transition:background 0.15s;">
       Sign In
     </button>
-    <button onclick="startPreviewMode()" id="preview-btn"
-      style="width:100%;padding:12px;background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:8px;font-weight:700;font-size:15px;cursor:pointer;transition:background 0.15s;margin-top:10px;">
-      Developer preview
-    </button>
+
 
     <button onclick="showForgotPassword()"
       style="width:100%;padding:10px;background:none;border:none;color:var(--text-secondary);font-size:13px;cursor:pointer;margin-top:8px;text-decoration:underline;text-underline-offset:3px;">
@@ -2438,7 +2452,7 @@ const _previewParam = new URLSearchParams(window.location.search).get('preview')
 const PREVIEW_STORAGE_KEY='retrade_preview_mode';
 const LEGACY_PREVIEW_STORAGE_KEYS=['general_preview_mode'];
 const _previewStored = localStorage.getItem(PREVIEW_STORAGE_KEY) === '1' || LEGACY_PREVIEW_STORAGE_KEYS.some(function(k){ return localStorage.getItem(k) === '1'; });
-const PREVIEW_MODE_ENABLED = false;
+const PREVIEW_MODE_ENABLED = false; // DEV ONLY — set false in push file. Controls preview-btn visibility.
 
 function _buildPreviewDB(){
   const MONTHS_=['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
@@ -2932,6 +2946,7 @@ function _rowToItem(row, parts, returns){
     state:           row.state || null,
     dateSourced:     row.date_sourced || null,
     sourcingRunId:   row.sourcing_run_id || null,
+    estSalePrice:    row.est_sale_price != null ? Number(row.est_sale_price) : null,
     _shippingMigrated: true,
     returnData:      null,
     parts: (parts||[]).map(p=>({id:p.id, desc:p.description||'', cost:Number(p.cost)||0})),
@@ -2984,6 +2999,7 @@ function _itemToRow(i, month){
     state:            i.state || 'listed',
     date_sourced:     i.dateSourced || null,
     sourcing_run_id:  i.sourcingRunId || null,
+    est_sale_price:   i.estSalePrice != null ? i.estSalePrice : null,
   };
 }
 
@@ -3033,26 +3049,29 @@ async function loadFromSupabase(){
 
   // trips / expenses stored flat on DB (same as localStorage shape)
   DB.trips = (tripsRes.data || []).map(t => ({
-    id:          t.id,
-    date:        t.date,
-    description: t.description || '',
-    mileage:     Number(t.mileage) || 0,
-    ratePerMile: Number(t.rate_per_mile) || 0.45,
+    id:            t.id,
+    date:          t.date,
+    description:   t.description || '',
+    mileage:       Number(t.mileage) || 0,
+    ratePerMile:   Number(t.rate_per_mile) || 0.45,
     // BUG-07: per-trip expenses (parking, entry fees, etc.). JSONB column on
     // Supabase trips table — defaults to [] if column absent / null on row.
-    expenses:    Array.isArray(t.expenses) ? t.expenses : [],
+    expenses:      Array.isArray(t.expenses) ? t.expenses : [],
+    sourcingRunId: t.sourcing_run_id || null,
   }));
   DB.expenses = (expensesRes.data || []).map(e => ({
-    id:          e.id,
-    date:        e.date,
-    description: e.description || '',
-    amount:      Number(e.amount) || 0,
-    category:    e.category || null,
+    id:            e.id,
+    date:          e.date,
+    description:   e.description || '',
+    amount:        Number(e.amount) || 0,
+    category:      e.category || null,
+    sourcingRunId: e.sourcing_run_id || null,
   }));
   // Patch C — load sourcing runs (graceful: if table doesn't exist yet, skip)
   if(!runsRes.error){
     _sourcingRuns = (runsRes.data||[]).map(_rowToRun);
     _activeSourcingRun = _sourcingRuns.find(r=>r.status==='active')||null;
+    if(typeof _refreshNav==='function')_refreshNav();
   } else {
     console.warn('sourcing_runs load skipped (table may not exist yet):', runsRes.error.message);
     _sourcingRuns = [];
@@ -3195,7 +3214,8 @@ async function saveTripToSupabase(t){
     description:t.description||'', mileage:t.mileage||0,
     rate_per_mile:t.ratePerMile||0.45,
     // BUG-07: persist per-trip expenses as JSONB
-    expenses: Array.isArray(t.expenses) ? t.expenses : []
+    expenses: Array.isArray(t.expenses) ? t.expenses : [],
+    sourcing_run_id: t.sourcingRunId||null
   };
   let {error} = await _sbCall(()=>_sb.from('trips').upsert(row, {onConflict:'id,user_id'}));
   // BUG-07 graceful fallback: if Supabase doesn't have the expenses column
@@ -3222,7 +3242,7 @@ async function deleteTripFromSupabase(id){
 // ── SAVE EXPENSE ─────────────────────────────────────────────────────────────
 
 async function saveExpenseToSupabase(e){
-  const row = {id:e.id, user_id:_currentUserId||null, date:e.date, description:e.description||'', amount:e.amount||0, category:e.category||null};
+  const row = {id:e.id, user_id:_currentUserId||null, date:e.date, description:e.description||'', amount:e.amount||0, category:e.category||null, sourcing_run_id:e.sourcingRunId||null};
   const {error} = await _sbCall(()=>_sb.from('expenses').upsert(row, {onConflict:'id,user_id'}));
   if(error) throw new Error('Save expense failed: ' + error.message);
 }
@@ -3484,6 +3504,8 @@ function refreshActivePage(){
   else if(id==='p-stock')renderStock();
   else if(id==='p-expenses')renderExpenses();
   else if(id==='p-tax'&&typeof renderTax==='function')renderTax();
+  else if(id==='p-active-run'&&typeof renderActiveRunPage==='function')renderActiveRunPage();
+  else if(id==='p-runs'&&typeof renderRunsPage==='function')renderRunsPage();
   // p-item and p-search intentionally skipped
 }
 
@@ -3530,6 +3552,7 @@ function goToTab(name,sourceEl){
   else if(name==='tax')renderTax();
   else if(name==='data')renderData();
   else if(name==='search')renderSearchResults();
+  else if(name==='runs')renderRunsPage();
   // Patch A — FAB visibility per page (hides on p-item/p-search/p-tax/p-data)
   if(typeof _syncFabVisibility==='function')_syncFabVisibility();
 }
@@ -3589,7 +3612,7 @@ function exitItemPage(){
     // Restore the page the panel was on top of
     const pageId=_savedPanelState.pageId||'p-summary';
     document.getElementById(pageId).classList.add('on');
-    const tabMap={'p-summary':'summary','p-monthly':'monthly','p-stock':'stock','p-expenses':'expenses','p-tax':'tax','p-data':'data'};
+    const tabMap={'p-summary':'summary','p-monthly':'monthly','p-stock':'stock','p-expenses':'expenses','p-tax':'tax','p-data':'data','p-runs':'runs'};
     const tabName=tabMap[pageId];
     if(tabName){const tab=document.querySelector('[data-tab="'+tabName+'"]');if(tab)tab.classList.add('on');}
     handleNavResize();
@@ -3605,7 +3628,7 @@ function exitItemPage(){
     return;
   }
   document.getElementById(origin).classList.add('on');
-  const tabMap={'p-summary':'summary','p-monthly':'monthly','p-stock':'stock','p-expenses':'expenses','p-tax':'tax','p-data':'data'};
+  const tabMap={'p-summary':'summary','p-monthly':'monthly','p-stock':'stock','p-expenses':'expenses','p-tax':'tax','p-data':'data','p-runs':'runs'};
   const tabName=tabMap[origin];
   if(tabName){const tab=document.querySelector('[data-tab="'+tabName+'"]');if(tab)tab.classList.add('on');}
   handleNavResize();
@@ -3613,6 +3636,9 @@ function exitItemPage(){
   else if(origin==='p-stock')renderStock();
   else if(origin==='p-summary')renderSummary();
   else if(origin==='p-search')renderSearchResults();
+  else if(origin==='p-active-run'&&typeof renderActiveRunPage==='function')renderActiveRunPage();
+  else if(origin==='p-runs'&&typeof renderRunsPage==='function')renderRunsPage();
+  else if(origin==='p-runs'&&typeof renderRunsPage==='function')renderRunsPage();
 }
 
 
@@ -3854,6 +3880,14 @@ function _renderStockItemPage(m,i){
           <div class="ip-token-sub">Sourced ${i.dateSourced||'\u2014'}</div>
         </div>
         ${capitalToken}
+        ${i.estSalePrice!=null?`
+        <div class="ip-token" id="tok-estSalePrice-${id}"
+          onpointerdown="tokenPointerDown('${m}','${id}','estSalePrice')"
+          onclick="openTokenEdit('${m}','${id}','estSalePrice')">
+          <div class="ip-token-label">Est. Sale</div>
+          <div class="ip-token-val">${fmt(i.estSalePrice)}</div>
+          <div class="ip-token-sub">✏️ est profit ${(function(p){return (p>=0?'+':'')+fmt(p);})(i.estSalePrice-(i.costPrice||0)-partsCost)}</div>
+        </div>`:''}
       </div>
       ${i.notes?`<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:18px;"><div style="font-size:11px;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-secondary);font-weight:600;margin-bottom:6px;">Notes</div><div style="font-size:14px;color:var(--text);line-height:1.5;white-space:pre-wrap;">${esc(i.notes)}</div></div>`:''}
       <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:18px;">
@@ -4792,13 +4826,23 @@ initPanelSwipe();
 // Exception: pages where FAB is hidden entirely (item detail, search, tax, data).
 const _FAB_ALL_OPTIONS = ['list','sourced','sourcerun','expense','trip'];
 const _FAB_PAGE_OPTIONS = {
-  'p-summary':  _FAB_ALL_OPTIONS,
-  'p-stock':    _FAB_ALL_OPTIONS,
-  'p-monthly':  _FAB_ALL_OPTIONS,
-  'p-expenses': _FAB_ALL_OPTIONS,
+  'p-summary':     _FAB_ALL_OPTIONS,
+  'p-stock':       _FAB_ALL_OPTIONS,
+  'p-monthly':     _FAB_ALL_OPTIONS,
+  'p-expenses':    _FAB_ALL_OPTIONS,
+  'p-active-run':  _FAB_ALL_OPTIONS,
+  'p-runs':        _FAB_ALL_OPTIONS,
   // p-item, p-search, p-tax, p-data → no FAB, see _FAB_HIDDEN_PAGES
 };
 const _FAB_HIDDEN_PAGES = new Set(['p-item','p-search','p-tax','p-data']);
+
+// Patch C-2: per-page FAB single-tap override. Returns 'speed-dial' or a specific action.
+function getFabTapAction(pageId){
+  if(pageId==='p-active-run') return 'stock-quick-add';
+  // Patch C-3: p-runs FAB single-tap → stock quick add when run is active
+  if(pageId==='p-runs'&&_activeSourcingRun) return 'stock-quick-add';
+  return 'speed-dial';
+}
 
 // Option defs — label, click handler, button class colour, SVG icon.
 // Class colours map to existing tokens: accent (amber), green, blue, purple.
@@ -4870,9 +4914,11 @@ function onFabClick(){
   // Hidden-page guard: shouldn't happen (FAB is hidden on these pages by
   // refreshActivePage), but if it does, fall through to nothing.
   if(_FAB_HIDDEN_PAGES.has(activePage))return;
+  // Patch C-2: per-page single-tap override
+  const _fabAction=getFabTapAction(activePage);
+  if(_fabAction==='stock-quick-add'){ closeFabDial(); openStockQuickAdd(); return; }
   const ids=_FAB_PAGE_OPTIONS[activePage]||[];
   // If only one option, fire it directly — no dial needed for single actions.
-  // (Doesn't currently apply to any page but future-proofs the pattern.)
   if(ids.length<=1){
     const onlyId=ids[0]||'list';
     const o=_FAB_OPTION_DEFS[onlyId];
@@ -4991,9 +5037,139 @@ function submitStartRun(){
   saveDB();
   closePanel();
   toast('\u25cf Run started \u2014 items will be auto-tagged');
-  // Navigate to Stock → Sourced view
-  STOCK_STATE_FILTER='sourced';
-  goToTab('stock',document.querySelector('[data-tab="stock"]'));
+  _refreshNav();
+  // Patch C-3: go to p-runs first, then open active run workspace
+  openActiveRunPageFromRuns();
+}
+
+// ── Patch C-2: Active Run page ────────────────────────────────────────────────
+
+
+function openActiveRunPageFromRuns(){
+  // C-3: After starting a run, land on p-runs first, then open active run workspace
+  goToTab('runs',document.querySelector('[data-tab="runs"]'));
+  if(_activeSourcingRun){
+    setTimeout(openActiveRunPage, 80);
+  }
+}
+
+function openActiveRunPage(){
+  if(!_activeSourcingRun){
+    toast('No active run \u2014 start one from the FAB','error');
+    STOCK_STATE_FILTER='sourced';
+    goToTab('stock',document.querySelector('[data-tab="stock"]'));
+    return;
+  }
+  document.querySelectorAll('.page').forEach(function(p){p.classList.remove('on');});
+  const page=document.getElementById('p-active-run');
+  if(page) page.classList.add('on');
+  _syncFabVisibility();
+  renderActiveRunPage();
+}
+
+function renderActiveRunPage(){
+  const page=document.getElementById('p-active-run');
+  if(!page) return;
+  const run=_activeSourcingRun;
+  if(!run){
+    page.classList.remove('on');
+    STOCK_STATE_FILTER='sourced';
+    goToTab('stock',document.querySelector('[data-tab="stock"]'));
+    toast('No active run','error');
+    return;
+  }
+  const runItems=[];
+  allDBKeys().forEach(function(k){
+    (DB[k]||[]).forEach(function(i){
+      if(i.sourcingRunId===run.id) runItems.push(Object.assign({},i,{_month:k}));
+    });
+  });
+  runItems.sort(function(a,b){
+    const da=a.dateSourced||'',db=b.dateSourced||'';
+    if(da!==db) return da<db?1:-1;
+    return a.id<b.id?1:-1;
+  });
+  const itemCount=runItems.length;
+  const spent=runItems.reduce(function(s,i){return s+(i.costPrice||0)+calcPartsCost(i);},0);
+  const estItems=runItems.filter(function(i){return i.estSalePrice!=null;});
+  const estProfit=estItems.reduce(function(s,i){return s+(i.estSalePrice-(i.costPrice||0)-calcPartsCost(i));},0);
+  function _elapsed(){
+    const start=run.dateStarted?new Date(run.dateStarted+' 00:00').getTime():Date.now();
+    const diff=Date.now()-start;
+    const mins=Math.floor(diff/60000);
+    const hrs=Math.floor(mins/60);
+    if(mins<1) return 'just started';
+    if(mins<60) return mins+' minute'+(mins===1?'':'s')+' ago';
+    if(hrs<24) return hrs+'h '+(mins%60)+'m ago';
+    return 'Started '+run.dateStarted;
+  }
+  function kc(label,val,sub,cls){
+    return '<div class="kcard '+(cls||'')+'"><div class="klabel">'+label+'</div><div class="kval">'+val+'</div><div class="ksub">'+sub+'</div></div>';
+  }
+  const kpiHTML='<div class="kgrid kgrid-3" style="margin-bottom:20px;">'
+    +kc('ITEMS',String(itemCount),itemCount===1?'1 item sourced':itemCount+' items sourced','')
+    +kc('SPENT',fmt(spent),'Cost + parts','b')
+    +kc('EST. PROFIT',estItems.length?fmt(estProfit):'\u2014',estItems.length?estItems.length+' with estimate':'No estimates yet',estItems.length&&estProfit>=0?'g':estItems.length?'r':'')
+    +'</div>';
+  function _arRow(i){
+    const _ep=i.estSalePrice!=null?(i.estSalePrice-(i.costPrice||0)-calcPartsCost(i)):null;
+    const _estStr=i.estSalePrice!=null?' \u00b7 est '+fmt(i.estSalePrice):'';
+    const _profStr=_ep!=null?' \u00b7 <span style="color:'+(_ep>=0?'var(--green)':'var(--red)')+';">'+(_ep>=0?'+':'')+fmt(_ep)+'</span>':'';
+    const bdr=runItems.indexOf(i)>0?'border-top:1px solid var(--border)':'';
+    const qm=i._month.replace(/'/g,"\\'"), qid=i.id.replace(/'/g,"\\'");
+    return '<div style="display:flex;align-items:center;gap:10px;padding:11px 14px;'+bdr+';">'
+      +'<div style="flex:1;min-width:0;cursor:pointer;" onclick="openItemPage(\''+qm+'\',\''+qid+'\',\'p-active-run\')">'
+        +'<div style="font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(i.item||'Untitled')+'</div>'
+        +'<div style="font-size:12px;color:var(--text-secondary);">'+fmt(i.costPrice||0)+'<span style="color:var(--muted)"> cost</span>'+_estStr+_profStr+'</div>'
+      +'</div>'
+      +'<div class="ddwrap" id="ardd-'+i.id+'">'
+        +'<button class="ddbtn" onclick="event.stopPropagation();toggleDD(\'ardd-'+qid+'\')" title="Actions">\u22EE</button>'
+        +'<div class="ddmenu">'
+          +'<button onclick="openItemPage(\''+qm+'\',\''+qid+'\',\'p-active-run\')">Open</button>'
+          +'<button onclick="editItem(\''+qm+'\',\''+qid+'\')">Edit</button>'
+          +'<button onclick="_removeFromActiveRun(\''+qm+'\',\''+qid+'\')">Remove from run</button>'
+          +'<button class="danger" onclick="deleteItem(\''+qm+'\',\''+qid+'\')">Delete</button>'
+        +'</div>'
+      +'</div>'
+      +'</div>';
+  }
+  const emptyState='<div style="padding:36px 24px;text-align:center;color:var(--text-secondary);">'
+    +'<div style="font-size:16px;font-weight:600;color:var(--text);margin-bottom:8px;">Nothing sourced yet</div>'
+    +'<div style="font-size:13px;line-height:1.5;">Tap \u201cAdd another item\u201d below to log your first find.<br>'
+    +'The clock\u2019s ticking \u2014 happy hunting.</div>'
+    +'</div>';
+  const listHTML=runItems.length
+    ?'<div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;">'+runItems.map(_arRow).join('')+'</div>'
+    :emptyState;
+  page.innerHTML=''
+    +'<div style="max-width:560px;margin:0 auto;padding:18px 16px 100px;">'
+      +'<div style="display:flex;align-items:center;gap:10px;margin-bottom:4px;">'
+        +'<span style="width:10px;height:10px;border-radius:50%;background:var(--green);display:inline-block;flex-shrink:0;animation:_arPulse 1.4s ease-in-out infinite;"></span>'
+        +'<span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:var(--green);">Sourcing</span>'
+      +'</div>'
+      +'<h1 style="font-family:var(--font-display);font-size:24px;font-weight:800;letter-spacing:-0.02em;margin:4px 0 2px;">'+esc(run.name)+'</h1>'
+      +(run.location?'<div style="font-size:13px;color:var(--text-secondary);margin-bottom:2px;">'+esc(run.location)+'</div>':'')
+      +'<div style="font-size:12px;color:var(--muted);margin-bottom:20px;">'+_elapsed()+'</div>'
+      +kpiHTML
+      +'<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-secondary);margin-bottom:10px;">Items sourced this run</div>'
+      +listHTML
+      +'<button class="btn btn-p" style="width:100%;justify-content:center;margin-top:16px;padding:14px;font-size:15px;" onclick="openStockQuickAdd()">'
+        +'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:6px"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>'
+        +'Add another item</button>'
+      +'<div style="display:flex;gap:8px;margin-top:12px;padding-top:16px;border-top:1px solid var(--border);">'
+        +'<button class="btn btn-s" style="flex:1;justify-content:center;color:var(--red);border-color:rgba(220,55,55,0.3);" onclick="endSourcingRun()">End Run</button>'
+        +'<button class="btn btn-s" style="flex:1;justify-content:center;" onclick="openRunPage(\''+run.id.replace(/'/g,"\\'")+'\')">View P&amp;L</button>'
+      +'</div>'
+    +'</div>';
+}
+
+function _removeFromActiveRun(m,id){
+  const item=(DB[m]||[]).find(function(x){return x.id===id;});
+  if(!item) return;
+  item.sourcingRunId=null;
+  saveDB();
+  renderActiveRunPage();
+  toast('Removed from run');
 }
 
 // ── Section 2: End run ────────────────────────────────────────────────────────
@@ -5008,10 +5184,12 @@ function endSourcingRun(runId){
     if(!ok)return;
     run.status='ended';
     run.dateEnded=new Date().toISOString();
+    const _endedRunId=run.id;
     if(_activeSourcingRun&&_activeSourcingRun.id===run.id) _activeSourcingRun=null;
     saveDB();
-    toast('Run ended \u2014 view in Run History');
-    refreshActivePage();
+    _refreshNav();
+    toast('Run ended \u2014 here\'s your summary');
+    openRunPageFromRuns(_endedRunId);
   });
 }
 
@@ -5073,8 +5251,9 @@ function deleteRun(runId){
     if(_activeSourcingRun&&_activeSourcingRun.id===runId) _activeSourcingRun=null;
     // Mark run as deleted in fingerprint by removing from _sourcingRuns — diff engine will detect absence and call deleteRunFromSupabase
     saveDB();
+    _refreshNav();
     toast('Run deleted');
-    goToTab('stock',document.querySelector('[data-tab="stock"]'));
+    goToTab('runs',document.querySelector('[data-tab="runs"]'));
   });
 }
 
@@ -5103,8 +5282,9 @@ function _activeRunBannerHTML(){
       +'<div class="run-banner-meta">'+items.length+' item'+(items.length!==1?'s':'')+' \u00b7 \u00a3'+spent.toFixed(2)+' spent \u00b7 '+pctListed+'% listed</div>'
     +'</div>'
     +'<div class="run-banner-actions">'
+      +'<button class="btn btn-s" style="padding:6px 10px;font-size:12px;" onclick="openActiveRunPage()" title="Go to active run workspace">Go</button>'
       +'<button class="btn btn-s" style="padding:6px 10px;font-size:12px;" onclick="endSourcingRun()">End</button>'
-      +'<button class="btn btn-s" style="padding:6px 10px;font-size:12px;" onclick="openRunPage(\''+run.id+'\')">View</button>'
+      +'<button class="btn btn-s" style="padding:6px 10px;font-size:12px;" onclick="openRunPage(\''+run.id+'\')">P&amp;L</button>'
     +'</div>'
     +'</div>';
 }
@@ -5135,7 +5315,15 @@ function _renderRunPage(run){
   const page=document.getElementById('p-item');
   if(!page)return;
   const items=_runItems(run.id);
-  const totalSpent=items.reduce(function(s,i){return s+(i.costPrice||0)+calcPartsCost(i);},0);
+  // Patch C-2: trips and expenses tagged to this run
+  const runTrips=(DB.trips||[]).filter(function(t){return t.sourcingRunId===run.id;});
+  const runExps=(DB.expenses||[]).filter(function(e){return e.sourcingRunId===run.id;});
+  const itemCost=items.reduce(function(s,i){return s+(i.costPrice||0)+calcPartsCost(i);},0);
+  const tripCost=runTrips.reduce(function(s,t){
+    return s+(t.mileage||0)*(t.ratePerMile||0.45)+((Array.isArray(t.expenses)?t.expenses:[]).reduce(function(a,e){return a+(e.amount||0);},0));
+  },0);
+  const expCost=runExps.reduce(function(s,e){return s+(e.amount||0);},0);
+  const totalSpent=itemCost+tripCost+expCost;
   const soldItems=items.filter(function(i){return i.state==='sold'||i.resaleSalePrice;});
   const revenue=soldItems.reduce(function(s,i){return s+calcItemRevenue(i);},0);
   const profit=soldItems.reduce(function(s,i){return s+(calcGrossProfit(i)||0);},0);
@@ -5154,7 +5342,7 @@ function _renderRunPage(run){
       +'</div>';
   }
   const kpis='<div class="kgrid kgrid-4" style="margin-bottom:16px;">'
-    +kcard('Total spent','\u00a3'+totalSpent.toFixed(2),'Cost + parts','b')
+    +kcard('Total spent','\u00a3'+totalSpent.toFixed(2),'Items \u00a3'+itemCost.toFixed(2)+(tripCost>0?' + trips \u00a3'+tripCost.toFixed(2):'')+(expCost>0?' + exp \u00a3'+expCost.toFixed(2):''),'b')
     +kcard('Items sourced',String(items.length),items.length===1?'1 item in run':items.length+' items','')
     +kcard('Revenue',revenue>0?'\u00a3'+revenue.toFixed(2):'\u2014','From sold items','g')
     +kcard('Profit',profit!==0||soldItems.length?'\u00a3'+profit.toFixed(2):'\u2014',soldItems.length+' sold','g')
@@ -5216,9 +5404,42 @@ function _renderRunPage(run){
         ${!isActive?'<button class="btn btn-s danger" style="font-size:13px;" onclick="deleteRun(\''+run.id+'\')">Delete</button>':''}
       </div>
       ${kpis}
+      ${(function(){
+        if(!runTrips.length&&!runExps.length) return '';
+        let s='<div style="margin-bottom:18px;">';
+        if(runTrips.length){
+          s+='<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--muted);margin-bottom:8px;">Trips ('+runTrips.length+')</div>';
+          s+='<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden;">';
+          runTrips.forEach(function(t,idx){
+            const mc=(t.mileage||0)*(t.ratePerMile||0.45);
+            const ec=(Array.isArray(t.expenses)?t.expenses:[]).reduce(function(a,e){return a+(e.amount||0);},0);
+            s+='<div style="display:flex;align-items:center;gap:8px;padding:10px 14px;'+(idx?'border-top:1px solid var(--border)':'')+';">'
+              +'<div style="flex:1;min-width:0;"><div style="font-size:13px;font-weight:600;">'+esc(t.description||'Trip')+'</div>'
+              +'<div style="font-size:11px;color:var(--text-secondary);">'+(t.date||'')+' · '+(t.mileage||0)+' mi @ £'+(t.ratePerMile||0.45).toFixed(2)+'</div></div>'
+              +'<span style="font-size:13px;font-weight:600;">£'+(mc+ec).toFixed(2)+'</span>'
+              +'</div>';
+          });
+          s+='</div><div style="font-size:11px;color:var(--text-secondary);text-align:right;margin-top:4px;">Subtotal: £'+tripCost.toFixed(2)+'</div>';
+        }
+        if(runExps.length){
+          s+='<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--muted);margin-bottom:8px;'+(runTrips.length?'margin-top:14px;':'')+'">'
+            +'Other Expenses ('+runExps.length+')</div>';
+          s+='<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden;">';
+          runExps.forEach(function(e,idx){
+            s+='<div style="display:flex;align-items:center;gap:8px;padding:10px 14px;'+(idx?'border-top:1px solid var(--border)':'')+';">'
+              +'<div style="flex:1;min-width:0;"><div style="font-size:13px;font-weight:600;">'+esc(e.description||'Expense')+'</div>'
+              +'<div style="font-size:11px;color:var(--text-secondary);">'+(e.date||'')+(e.category?' · '+esc(e.category):'')+'</div></div>'
+              +'<span style="font-size:13px;font-weight:600;">£'+(e.amount||0).toFixed(2)+'</span>'
+              +'</div>';
+          });
+          s+='</div><div style="font-size:11px;color:var(--text-secondary);text-align:right;margin-top:4px;">Subtotal: £'+expCost.toFixed(2)+'</div>';
+        }
+        s+='</div>';
+        return s;
+      })()}
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
         <div style="font-size:13px;font-weight:600;">Items in this run</div>
-        <button class="btn btn-s" style="font-size:12px;padding:6px 10px;" onclick="openBulkAssignModal('${run.id}')">+ Add existing items</button>
+        <button class="btn btn-s" style="font-size:12px;padding:6px 10px;" onclick="openBulkAssignModal('${run.id}')">+ Add existing</button>
       </div>
       ${itemsHTML}
     </div>`;
@@ -5291,6 +5512,173 @@ function openRunHistoryPanel(){
 }
 
 // ── Section 5: Retroactive bulk assign ───────────────────────────────────────
+// ── Patch C-3: Runs page (p-runs) ─────────────────────────────────────────────
+
+function renderRunsPage(){
+  const page=document.getElementById('p-runs');
+  if(!page)return;
+
+  const ended=_sourcingRuns.filter(function(r){return r.status==='ended';});
+  const hasRuns=_sourcingRuns.length>0;
+  let RUNS_SORT=window._RUNS_SORT||'newest';
+
+  // Sort ended runs per current sort
+  function sortedRuns(runs){
+    const copy=runs.slice();
+    if(RUNS_SORT==='newest')copy.sort(function(a,b){return (b.dateEnded||b.dateStarted||'').localeCompare(a.dateEnded||a.dateStarted||'');});
+    else if(RUNS_SORT==='oldest')copy.sort(function(a,b){return (a.dateEnded||a.dateStarted||'').localeCompare(b.dateEnded||b.dateStarted||'');});
+    else if(RUNS_SORT==='items')copy.sort(function(a,b){return _runItems(b.id).length-_runItems(a.id).length;});
+    else if(RUNS_SORT==='profit'){
+      copy.sort(function(a,b){
+        const pA=_runProfit(a.id), pB=_runProfit(b.id);
+        return pB-pA;
+      });
+    }
+    else if(RUNS_SORT==='roi'){
+      copy.sort(function(a,b){
+        const costA=_runCost(a.id), costB=_runCost(b.id);
+        const pA=_runProfit(a.id), pB=_runProfit(b.id);
+        const roiA=costA>0?(pA/costA)*100:-Infinity;
+        const roiB=costB>0?(pB/costB)*100:-Infinity;
+        return roiB-roiA;
+      });
+    }
+    return copy;
+  }
+
+  // Build active run card if run is active
+  let activeCardHTML='';
+  if(_activeSourcingRun){
+    const run=_activeSourcingRun;
+    const items=_runItems(run.id);
+    const spent=items.reduce(function(s,i){return s+(i.costPrice||0)+calcPartsCost(i);},0);
+    const estPot=items.reduce(function(s,i){return s+(i.estSalePrice!=null?i.estSalePrice:0);},0);
+    const startedMs=run.dateStarted?new Date(run.dateStarted).getTime():0;
+    const nowMs=Date.now();
+    const minAgo=startedMs?Math.round((nowMs-startedMs)/60000):0;
+    const timeStr=minAgo<60?(minAgo<=1?'Just started':(minAgo+' minutes ago')):(Math.round(minAgo/60)+'h ago');
+    const loc=run.location?(' · '+esc(run.location)):'';
+    activeCardHTML=
+      '<div style="background:rgba(34,197,94,0.07);border:1.5px solid rgba(34,197,94,0.3);border-radius:12px;padding:14px 16px;margin-bottom:18px;">'+
+        '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">'+
+          '<div style="width:9px;height:9px;border-radius:50%;background:var(--green);flex-shrink:0;animation:run-pulse 2s ease-in-out infinite;"></div>'+
+          '<div style="font-size:13px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(run.name)+loc+'</div>'+
+        '</div>'+
+        '<div style="font-size:12px;color:var(--text-secondary);margin-bottom:10px;">'+
+          items.length+' item'+(items.length!==1?'s':'')+' · £'+spent.toFixed(2)+' spent'+(estPot>0?' · est £'+estPot.toFixed(2):'')+
+          '<br><span style="color:var(--text-tertiary,var(--muted));font-size:11px;">Started '+timeStr+'</span>'+
+        '</div>'+
+        '<button class="btn btn-p" style="width:100%;justify-content:center;gap:6px;font-size:13px;" onclick="openActiveRunPage()">'+
+          'Open Run <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M6 4l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>'+
+        '</button>'+
+      '</div>';
+  }
+
+  // Build past runs list
+  let pastHTML='';
+  if(ended.length>0){
+    const sortOpts=[
+      {v:'newest',label:'Newest first'},
+      {v:'oldest',label:'Oldest first'},
+      {v:'items', label:'Most items'},
+      {v:'profit',label:'Highest profit'},
+      {v:'roi',   label:'Highest ROI'}
+    ];
+    const sortSel=sortOpts.map(function(o){return '<option value="'+o.v+'"'+(RUNS_SORT===o.v?' selected':'')+'>'+o.label+'</option>';}).join('');
+    const rows=sortedRuns(ended).map(function(run,idx){
+      const items=_runItems(run.id);
+      const spent=_runCost(run.id);
+      const profit=_runProfit(run.id);
+      const sold=items.filter(function(i){return i.state==='sold'||i.resaleSalePrice;});
+      const profitStr=sold.length>0?'£'+profit.toFixed(2)+' profit':'—';
+      const dateStr=(run.dateEnded||run.dateStarted||'').slice(0,10);
+      const loc=run.location?(esc(run.location)+' · '):'';
+      return '<div class="run-history-row" data-runid="'+run.id+'" onclick="openRunPageFromRuns(this.dataset.runid)">'+
+        '<div style="flex:1;min-width:0;">'+
+          '<div style="font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(run.name)+'</div>'+
+          '<div style="font-size:11px;color:var(--text-secondary);">'+loc+dateStr+'</div>'+
+          '<div style="font-size:11px;color:var(--muted);margin-top:2px;">'+items.length+' item'+(items.length!==1?'s':'')+' · £'+spent.toFixed(2)+' spent · '+profitStr+'</div>'+
+        '</div>'+
+        '<svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M6 4l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>'+
+      '</div>';
+    }).join('');
+    pastHTML=
+      '<div style="margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;gap:12px;">'+
+        '<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--muted);">Past Runs</div>'+
+        '<select class="sort-select" style="font-size:12px;" onchange="window._RUNS_SORT=this.value;renderRunsPage()">'+sortSel+'</select>'+
+      '</div>'+
+      '<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden;">'+rows+'</div>';
+  }
+
+  // Empty state
+  let emptyHTML='';
+  if(!hasRuns&&!_activeSourcingRun){
+    emptyHTML='<div class="empty-state" style="padding-top:40px;">'+
+      '<div class="empty-state-text">No sourcing runs yet</div>'+
+      '<div class="empty-state-sub">Tap ▶ Start Sourcing Run when you’re out<br>at a boot or charity shop. Items you source<br>will auto-tag to the run and roll up into<br>per-event P&amp;L.</div>'+
+    '</div>';
+  }
+
+  const html=
+    '<div class="page-header">'+
+      '<div class="page-title">Runs</div>'+
+      '<div class="page-subtitle">Your sourcing events and their P&amp;L.</div>'+
+    '</div>'+
+    activeCardHTML+
+    (hasRuns||_activeSourcingRun?pastHTML:emptyHTML)+
+    // Wide start pill (only when no active run) — fixed bottom-right
+    (!_activeSourcingRun?
+      '<button class="runs-start-pill" onclick="openStartRunModal()" aria-label="Start Sourcing Run">'+
+        '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg>'+
+        'Start Sourcing Run'+
+      '</button>':'');
+
+  page.innerHTML=html;
+}
+
+
+// ── Patch C-3: Nav refresh — updates active-run dot on Runs nav item ─────────
+function _refreshNav(){
+  document.querySelectorAll('.nav-item-runs').forEach(function(btn){
+    btn.querySelectorAll('.nav-active-dot').forEach(function(d){d.remove();});
+    if(_activeSourcingRun){
+      const dot=document.createElement('span');
+      dot.className='nav-active-dot';
+      btn.appendChild(dot);
+    }
+  });
+}
+
+function _runCost(runId){
+  const items=_runItems(runId);
+  const itemCost=items.reduce(function(s,i){return s+(i.costPrice||0)+calcPartsCost(i);},0);
+  const runTrips=(DB.trips||[]).filter(function(t){return t.sourcingRunId===runId;});
+  const runExps=(DB.expenses||[]).filter(function(e){return e.sourcingRunId===runId;});
+  const tripCost=runTrips.reduce(function(s,t){
+    return s+(t.mileage||0)*(t.ratePerMile||0.45)+((Array.isArray(t.expenses)?t.expenses:[]).reduce(function(a,e){return a+(e.amount||0);},0));
+  },0);
+  const expCost=runExps.reduce(function(s,e){return s+(e.amount||0);},0);
+  return itemCost+tripCost+expCost;
+}
+
+function _runProfit(runId){
+  const items=_runItems(runId);
+  const sold=items.filter(function(i){return i.state==='sold'||i.resaleSalePrice;});
+  return sold.reduce(function(s,i){return s+(calcGrossProfit(i)||0);},0);
+}
+
+function openRunPageFromRuns(runId){
+  const run=_sourcingRuns.find(function(r){return r.id===runId;});
+  if(!run){toast('Run not found','error');return;}
+  // Use p-item as run detail page (existing pattern), set origin to p-runs
+  _itemPageOrigin='p-runs';
+  document.querySelectorAll('.page').forEach(function(p){p.classList.remove('on');});
+  document.getElementById('p-item').classList.add('on');
+  _syncFabVisibility();
+  _renderRunPage(run);
+}
+
+
 function openBulkAssignModal(runId){
   const run=_sourcingRuns.find(r=>r.id===runId);
   if(!run)return;
@@ -5457,9 +5845,120 @@ function openBulkAssignModal(runId){
     }
   };
 
+  // Patch C-2: tab state for trips/expenses
+  window._baTab='items';
+  window._baTripsSelected=new Set();
+  window._baExpSelected=new Set();
+  window._baCurRunId=runId;
+
+  // Tab renderer — avoids inline onclick quote nesting by using data attrs + delegated events
+  window._baRenderTabs=function(rId){
+    const tab=window._baTab||'items';
+    const wrap=document.getElementById('ba-modal-wrap');
+    if(!wrap) return;
+
+    function tabBtn(id,lbl){
+      const act=tab===id;
+      return '<button data-tab="'+id+'" class="ba-tab-btn" style="padding:8px 14px;font-size:13px;font-weight:'+(act?700:500)+';border:none;border-bottom:2px solid '+(act?'var(--accent)':'transparent')+';background:transparent;color:'+(act?'var(--accent)':'var(--text-secondary)')+';cursor:pointer;">'+lbl+'</button>';
+    }
+    let html='<div style="display:flex;border-bottom:1px solid var(--border);margin-bottom:12px;">'+tabBtn('items','Items')+tabBtn('trips','Trips')+tabBtn('expenses','Expenses')+'</div>';
+
+    if(tab==='items'){
+      html+='<div id="ba-items-inner"></div>';
+    } else if(tab==='trips'){
+      const trips=(DB.trips||[]);
+      if(!trips.length){
+        html+='<div style="padding:20px;text-align:center;color:var(--muted);">No trips logged yet</div>';
+      } else {
+        html+='<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden;max-height:300px;overflow-y:auto;">';
+        trips.forEach(function(t,idx){
+          const chk=window._baTripsSelected.has(t.id);
+          const inThis=t.sourcingRunId===rId,inOther=t.sourcingRunId&&!inThis;
+          const cost=((t.mileage||0)*(t.ratePerMile||0.45)).toFixed(2);
+          html+='<label style="display:flex;align-items:center;gap:10px;padding:10px 14px;'+(idx?'border-top:1px solid var(--border)':'')+';cursor:pointer;">'
+            +'<input type="checkbox" class="ba-trip-chk" data-id="'+t.id+'" '+(chk?'checked ':'')+' style="width:16px;height:16px;flex-shrink:0;">'
+            +'<div style="flex:1;min-width:0;"><div style="font-size:13px;font-weight:600;">'+esc(t.description||'Trip')+'</div>'
+            +'<div style="font-size:11px;color:var(--text-secondary);">'+(t.date||'')+(inThis?' \u00b7 <span style="color:var(--green)">In this run</span>':(inOther?' \u00b7 <span style="color:var(--warn)">In another run</span>':''))+'</div></div>'
+            +'\u00a3'+cost+'</label>';
+        });
+        html+='</div>';
+        const sel=window._baTripsSelected.size;
+        html+='<div style="display:flex;justify-content:flex-end;gap:8px;margin-top:10px;">'
+          +'<button class="btn btn-s" onclick="closePanel()">Cancel</button>'
+          +'<button class="btn btn-p ba-apply-trips" style="'+(sel?'':'opacity:0.5;pointer-events:none;')+'">Tag '+sel+' trip'+(sel!==1?'s':'')+' to run</button>'
+          +'</div>';
+      }
+    } else {
+      const exps=(DB.expenses||[]);
+      if(!exps.length){
+        html+='<div style="padding:20px;text-align:center;color:var(--muted);">No expenses logged yet</div>';
+      } else {
+        html+='<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden;max-height:300px;overflow-y:auto;">';
+        exps.forEach(function(e,idx){
+          const chk=window._baExpSelected.has(e.id);
+          const inThis=e.sourcingRunId===rId,inOther=e.sourcingRunId&&!inThis;
+          html+='<label style="display:flex;align-items:center;gap:10px;padding:10px 14px;'+(idx?'border-top:1px solid var(--border)':'')+';cursor:pointer;">'
+            +'<input type="checkbox" class="ba-exp-chk" data-id="'+e.id+'" '+(chk?'checked ':'')+' style="width:16px;height:16px;flex-shrink:0;">'
+            +'<div style="flex:1;min-width:0;"><div style="font-size:13px;font-weight:600;">'+esc(e.description||'Expense')+'</div>'
+            +'<div style="font-size:11px;color:var(--text-secondary);">'+(e.date||'')+(e.category?' \u00b7 '+esc(e.category):'')+(inThis?' \u00b7 <span style="color:var(--green)">In this run</span>':(inOther?' \u00b7 <span style="color:var(--warn)">In another run</span>':''))+'</div></div>'
+            +'\u00a3'+(e.amount||0).toFixed(2)+'</label>';
+        });
+        html+='</div>';
+        const sel=window._baExpSelected.size;
+        html+='<div style="display:flex;justify-content:flex-end;gap:8px;margin-top:10px;">'
+          +'<button class="btn btn-s" onclick="closePanel()">Cancel</button>'
+          +'<button class="btn btn-p ba-apply-exp" style="'+(sel?'':'opacity:0.5;pointer-events:none;')+'">Tag '+sel+' expense'+(sel!==1?'s':'')+' to run</button>'
+          +'</div>';
+      }
+    }
+    wrap.innerHTML=html;
+
+    // Delegate events on the rendered content
+    wrap.querySelectorAll('.ba-tab-btn').forEach(function(btn){
+      btn.addEventListener('click',function(){ window._baTab=btn.dataset.tab; window._baRenderTabs(rId); });
+    });
+    wrap.querySelectorAll('.ba-trip-chk').forEach(function(chk){
+      chk.addEventListener('change',function(){ if(chk.checked)window._baTripsSelected.add(chk.dataset.id);else window._baTripsSelected.delete(chk.dataset.id); window._baRenderTabs(rId); });
+    });
+    wrap.querySelectorAll('.ba-exp-chk').forEach(function(chk){
+      chk.addEventListener('change',function(){ if(chk.checked)window._baExpSelected.add(chk.dataset.id);else window._baExpSelected.delete(chk.dataset.id); window._baRenderTabs(rId); });
+    });
+    const applyTripsBtn=wrap.querySelector('.ba-apply-trips');
+    if(applyTripsBtn) applyTripsBtn.addEventListener('click',function(){ window._baApplyTrips(rId); });
+    const applyExpBtn=wrap.querySelector('.ba-apply-exp');
+    if(applyExpBtn) applyExpBtn.addEventListener('click',function(){ window._baApplyExp(rId); });
+
+    // For items tab, delegate to _baRender
+    if(tab==='items'){
+      const itemsDiv=wrap.querySelector('#ba-items-inner');
+      if(itemsDiv){ itemsDiv.id='ba-modal-wrap'; _baRender(); itemsDiv.id='ba-items-inner'; }
+    }
+  };
+
+  window._baApplyTrips=function(rId){
+    let n=0;
+    window._baTripsSelected.forEach(function(id){
+      const t=(DB.trips||[]).find(function(x){return x.id===id;});
+      if(t){t.sourcingRunId=rId;n++;}
+    });
+    saveDB(); closePanel(); toast('Tagged '+n+' trip'+(n!==1?'s':'')+' to run');
+    const r2=_sourcingRuns.find(function(r){return r.id===rId;});
+    if(r2&&document.getElementById('p-item')&&document.getElementById('p-item').classList.contains('on')) _renderRunPage(r2);
+  };
+  window._baApplyExp=function(rId){
+    let n=0;
+    window._baExpSelected.forEach(function(id){
+      const e=(DB.expenses||[]).find(function(x){return x.id===id;});
+      if(e){e.sourcingRunId=rId;n++;}
+    });
+    saveDB(); closePanel(); toast('Tagged '+n+' expense'+(n!==1?'s':'')+' to run');
+    const r2=_sourcingRuns.find(function(r){return r.id===rId;});
+    if(r2&&document.getElementById('p-item')&&document.getElementById('p-item').classList.contains('on')) _renderRunPage(r2);
+  };
+
   const outerHtml='<div id="ba-modal-wrap"></div>';
-  openPanel('Add items to \u201c'+esc(run.name)+'\u201d', outerHtml);
-  setTimeout(function(){ _baRender(); },40);
+  openPanel('Assign to \u201c'+esc(run.name)+'\u201d', outerHtml);
+  setTimeout(function(){ window._baRenderTabs(runId); },40);
 }
 
 
@@ -5515,7 +6014,8 @@ function openListFromSourced(m, id){
   SELECTED_MONTH=currentMonthKey();
   const partsCost=_sourcedPartsCost;
   // Parts section: always shown so user can add/edit before listing
-  const partsSection=`<div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:16px;">
+  // Section 4 (Patch C-2): parts section injected between cost/price and delivery via DOM after openPanel
+  const _partsSectionHTML=`<div id="lf-parts-section" style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:16px;">
     <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-secondary);margin-bottom:6px;">
       Parts &amp; Expenses${(i.parts||[]).length>0?' ('+i.parts.length+')':''}
       <span style="font-weight:400;color:var(--muted);"> · carried to P&amp;L</span>
@@ -5524,7 +6024,6 @@ function openListFromSourced(m, id){
     ${partsCost>0?`<div style="font-size:12px;color:var(--text-secondary);margin-top:8px;padding-top:8px;border-top:1px solid var(--border);">Total capital: <strong style="color:var(--text)">${fmt((i.costPrice||0)+partsCost)}</strong> · Included in profit &amp; ROI estimate</div>`:'<div style="font-size:11px;color:var(--muted);margin-top:4px;">Add parts/expenses to factor into profit estimate</div>'}
   </div>`;
   const html=`
-    ${partsSection}
     ${formHTML()}
     <div id="qa-coming-soon-banner" class="qa-coming-soon-banner" style="display:none">
       <div class="qa-cs-icon">
@@ -5539,6 +6038,15 @@ function openListFromSourced(m, id){
     <button class="btn btn-p" id="qa-submit-btn" style="width:100%;margin-top:20px" onclick="submitListFromSourced('${m}','${id}')">List Item</button>
   `;
   openPanel('List Item — '+esc(i.item||'Stock item'), html);
+  // Section 4 (Patch C-2): inject parts section between price and delivery
+  (function(){
+    const _ph=document.getElementById('qa-price-helper');
+    if(_ph&&_ph.parentNode&&!document.getElementById('lf-parts-section')){
+      const _d=document.createElement('div');
+      _d.innerHTML=_partsSectionHTML;
+      _ph.parentNode.insertBefore(_d.firstElementChild||_d,_ph.nextSibling);
+    }
+  })();
   // Initialise platform helpers same as openQuickAdd
   if(typeof _refreshQuickAddPriceCopy==='function')_refreshQuickAddPriceCopy();
   if(typeof _refreshQuickAddSubmitState==='function')_refreshQuickAddSubmitState();
@@ -5556,9 +6064,12 @@ function openListFromSourced(m, id){
   if(qaCat&&i.category){ qaCat.value=i.category; }
   const qaLoc=document.getElementById('qa-location');
   if(qaLoc&&i.location){ qaLoc.value=i.location; }
-  // Focus price — cost is already filled, price is the key missing field
+  // Pre-fill sale price from estSalePrice if set (Patch C-2). Preserved on item after listing.
   const qaPrice=document.getElementById('qa-price');
-  if(qaPrice)qaPrice.focus();
+  if(qaPrice){
+    if(i.estSalePrice!=null&&i.estSalePrice>0){ qaPrice.value=i.estSalePrice; updateBPFPreview(); }
+    qaPrice.focus();
+  }
 }
 
 // Module-level refs so partsHTML 'list-form' context can find the item
@@ -5622,6 +6133,8 @@ function submitListFromSourced(m, srcId){
   // if item has no tag and a run is active, tag it now (e.g. user added item
   // outside a run but is listing during one — edge case, auto-tag is fine).
   _autoTagToActiveRun(srcItem);
+  // Patch C-2: estSalePrice is preserved through the transition (not cleared) to allow
+  // future "estimate accuracy" analysis (actual vs estimated sale price).
 
   // If the listing month differs from the sourced month, move the item to the new bucket
   if(newMonth!==srcMonth){
@@ -5742,10 +6255,17 @@ function openStockQuickAdd(){
       <label>Title <span style="color:var(--text-secondary);font-weight:400;font-size:11px;">(optional)</span></label>
       <input type="text" id="sqa-title" placeholder="e.g. Camera, Lego set" autocomplete="off">
     </div>
-    <div class="fg">
-      <label>Cost <span style="color:var(--red);font-weight:600">*</span></label>
-      <input type="number" id="sqa-cost" step="0.01" min="0" inputmode="decimal" placeholder="0.00" autocomplete="off">
-      <div class="fg-hint" style="font-size:11px;color:var(--text-secondary);margin-top:4px;">What you paid for this item</div>
+    <div class="cost-pair-row" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+      <div class="fg" style="margin-bottom:0">
+        <label>Cost <span style="color:var(--red);font-weight:600">*</span></label>
+        <input type="number" id="sqa-cost" step="0.01" min="0" inputmode="decimal" placeholder="0.00" autocomplete="off">
+        <div class="fg-hint" style="font-size:11px;color:var(--text-secondary);margin-top:4px;">What you paid</div>
+      </div>
+      <div class="fg" style="margin-bottom:0">
+        <label>Est. Sale <span style="color:var(--text-secondary);font-weight:400;font-size:11px;">(optional)</span></label>
+        <input type="number" id="sqa-est-sale" step="0.01" min="0" inputmode="decimal" placeholder="0.00" autocomplete="off">
+        <div class="fg-hint" style="font-size:11px;color:var(--text-secondary);margin-top:4px;">What you reckon</div>
+      </div>
     </div>
     <div class="fg" style="margin-bottom:0">
       <label>Parts &amp; Expenses <span style="color:var(--text-secondary);font-weight:400;font-size:11px;">(optional)</span></label>
@@ -5807,12 +6327,15 @@ function submitStockQuickAdd(){
   const notesEl=document.getElementById('sqa-notes');
   const photoImg=document.getElementById('sqa-photo-img');
   const photoVisible=document.getElementById('sqa-photo-preview')?.style.display!=='none';
+  const estSaleEl=document.getElementById('sqa-est-sale');
   const cost=parseFloat(costEl?.value);
   if(!isFinite(cost)||cost<0){
     toast('Cost is required and must be 0 or more','error');
     try{costEl.focus();}catch(e){}
     return;
   }
+  const _estSaleRaw=parseFloat(estSaleEl?.value);
+  const _estSalePrice=isFinite(_estSaleRaw)&&_estSaleRaw>0 ? +_estSaleRaw.toFixed(2) : null;
   const _date=(dateEl?.value)||new Date().toISOString().split('T')[0];
   const m=monthKeyFromDate(_date);
   const photoSrc=(photoVisible && photoImg && photoImg.src && photoImg.src.indexOf('data:image')===0) ? photoImg.src : null;
@@ -5823,6 +6346,7 @@ function submitStockQuickAdd(){
     dateSourced:_date,
     item:(titleEl?.value||'').trim()||'Untitled stock item',
     costPrice:+cost.toFixed(2),
+    estSalePrice:_estSalePrice,
     notes:(notesEl?.value||'').trim(),
     // Defaults so legacy code paths (filter, render, return-history) don't crash
     parts:[],
@@ -5851,7 +6375,7 @@ function submitStockQuickAdd(){
   if(confirmEl)confirmEl.style.display='block';
   if(submitBtn)submitBtn.style.display='none';
   // Disable inputs so user can't re-edit the just-saved entry
-  ['sqa-cost','sqa-title','sqa-date','sqa-photo','sqa-notes','sqa-part-desc','sqa-part-cost'].forEach(function(elId){
+  ['sqa-cost','sqa-est-sale','sqa-title','sqa-date','sqa-photo','sqa-notes','sqa-part-desc','sqa-part-cost'].forEach(function(elId){
     const el=document.getElementById(elId);
     if(el)el.disabled=true;
   });
@@ -5864,10 +6388,14 @@ function _stockQuickAddAnother(){
   setTimeout(function(){ openStockQuickAdd(); },220);
 }
 
-// "Done" after saving a sourced item — close panel and land on Stock → Sourced tab.
+// "Done" after saving a sourced item — if a run is active go to run page; else Stock → Sourced.
 function _goToSourcedStock(){
-  STOCK_STATE_FILTER='sourced';
-  goToTab('stock',document.querySelector('[data-tab="stock"]'));
+  if(_activeSourcingRun){
+    openActiveRunPage();
+  } else {
+    STOCK_STATE_FILTER='sourced';
+    goToTab('stock',document.querySelector('[data-tab="stock"]'));
+  }
 }
 
 // ── E9 Task 4 — Listed → Sourced transition ("Withdraw from listing") ────────
@@ -8023,8 +8551,14 @@ function renderItemRow(m,i){
             '</div>'+
           '</div>'+
           '<div class="item-row-right">'+
-            '<div class="item-row-price" style="color:var(--text-secondary);font-size:13px;">'+fmt(i.costPrice||0)+'</div>'+
-            '<div class="item-row-roi" style="color:var(--text-secondary);">cost</div>'+
+            (i.estSalePrice!=null?(function(){
+              const _ep=i.estSalePrice-(i.costPrice||0)-calcPartsCost(i);
+              return '<div class="item-row-price" style="color:var(--text-secondary);font-size:13px;">'+fmt(i.costPrice||0)+'</div>'+
+                '<div class="item-row-roi" style="color:'+(_ep>=0?'var(--green)':'var(--red)')+';font-size:11px;">est '+(_ep>=0?'+':'')+fmt(_ep)+'</div>';
+            })():(
+              '<div class="item-row-price" style="color:var(--text-secondary);font-size:13px;">'+fmt(i.costPrice||0)+'</div>'+
+              '<div class="item-row-roi" style="color:var(--text-secondary);">cost</div>'
+            ))+
           '</div>'+
         '</div>'+
       '</div>'+
@@ -8169,6 +8703,14 @@ function openItemDetail(m,id,noHistory){
           <div class="ip-token-val">${ageStr}</div>
           <div class="ip-token-sub">Sourced ${i.dateSourced||'—'}</div>
         </div>
+        ${i.estSalePrice!=null?`
+        <div class="ip-token" id="tok-estSalePrice-${id}"
+          onpointerdown="tokenPointerDown('${m}','${id}','estSalePrice')"
+          onclick="openTokenEdit('${m}','${id}','estSalePrice')">
+          <div class="ip-token-label">Est. Sale</div>
+          <div class="ip-token-val">${fmt(i.estSalePrice)}</div>
+          <div class="ip-token-sub">✏️ est ${(function(p){return (p>=0?'+':'')+fmt(p);})(i.estSalePrice-_panelTotalCapital)}</div>
+        </div>`:''}
       </div>
       ${i.notes?`<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin-bottom:14px;font-size:13px;color:var(--text);line-height:1.5;white-space:pre-wrap">${esc(i.notes)}</div>`:''}
       <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin-bottom:14px">
@@ -8587,6 +9129,11 @@ function renderStock(){
   });
   const cMaturing=ageBuckets.maturing,cSlow=ageBuckets.slow;
 
+  // Est. potential (Patch C-2) — sum of (estSalePrice-cost-parts) for sourced items with estimate
+  let estPotential=0;
+  let cWithEstimate=0;
+  allStock.forEach(function(i){ if(i.estSalePrice!=null){estPotential+=(i.estSalePrice-(i.costPrice||0)-calcPartsCost(i));cWithEstimate++;} });
+
   // Value KPI: sourced items contribute cost; listed items contribute asking price
   let totalValue=0;
   pop.forEach(i=>{ if(i.state==='sourced')totalValue+=(i.costPrice||0); else totalValue+=(i.salePrice||0); });
@@ -8601,8 +9148,8 @@ function renderStock(){
        sub:'Cost of sourced items on hand'},
       {cls:'', label:'Items to list',     val:allStock.length?String(allStock.length):'—',
        sub:allStock.length===1?'1 item waiting':''+allStock.length+' items waiting to be listed'},
-      {cls:'g',label:'Avg days to list',  val:avgDaysToList!==null?avgDaysToList+'d':'—',
-       sub:ttlValues.length?'Historical avg · '+ttlValues.length+' items':'No listed items yet to measure'},
+      {cls:'g',label:'Est. potential',    val:cWithEstimate?fmt(estPotential):'—',
+       sub:cWithEstimate?cWithEstimate+' item'+(cWithEstimate===1?'':' s')+' with estimate':'No estimates set yet'},
       {cls:'p',label:'Longest sitting',   val:longestSittingDays!==null?longestSittingDays+'d':'—',
        sub:longestSittingDays!==null?longestTrunc:'Nothing sourced yet'}
     ];
@@ -8659,11 +9206,10 @@ function renderStock(){
       }).join('');
       return `<div style="display:flex;margin-bottom:16px;border-radius:8px;overflow:hidden;width:100%;">${segs}</div>`;
     })()}
-    ${cAll===0?`<div>${isStockOnly?_activeRunBannerHTML()+_runHistoryHTML():''}</div><div class="empty-state">
+    ${cAll===0?`<div class="empty-state">
       <div class="empty-state-text">${isStockOnly?'No sourced items':'No active listings'}</div>
       <div class="empty-state-sub">${isStockOnly?'Tap + and choose Sourced item to add your first.':'Use Quick Add to list your first item.'}</div>
     </div>`:`
-      ${isStockOnly?(_activeRunBannerHTML()+_runHistoryHTML()):''}
       ${isStockOnly?(()=>{
         // ── Sourced view: age distribution bar + bucket chips + sort ──────
         // Buckets: New 0–3d · List soon 4–7d · Overdue 8–14d · Stagnant 15d+
@@ -9048,6 +9594,24 @@ function _readTripExtras(){
   return out;
 }
 
+// Patch C-2: sourcing run dropdown for trip/expense add/edit forms
+function _runDropdownHTML(fieldId, currentRunId){
+  const runs=[..._sourcingRuns].sort(function(a,b){
+    return (b.dateStarted||'').localeCompare(a.dateStarted||'');
+  });
+  if(!runs.length) return '';
+  const defVal=currentRunId||(_activeSourcingRun?_activeSourcingRun.id:'');
+  let opts='<option value="">None</option>';
+  runs.forEach(function(r){
+    const label=r.status==='active'?'\u25cf '+r.name+' (active)':r.name+' ('+r.dateStarted+')';
+    opts+='<option value="'+r.id+'"'+(defVal===r.id?' selected':'')+'>'+esc(label)+'</option>';
+  });
+  return '<div class="fg" style="margin-top:4px;">'
+    +'<label style="font-size:12px;color:var(--text-secondary);">Sourcing Run <span style="font-weight:400;color:var(--muted);">(optional)</span></label>'
+    +'<select id="'+fieldId+'" style="width:100%;">'+opts+'</select>'
+    +'</div>';
+}
+
 function addTrip(){
   const html=`
     <div class="fg">
@@ -9067,6 +9631,7 @@ function addTrip(){
       <input type="number" id="trip-rate" step="0.01" min="0" value="0.45">
     </div>
     ${_tripExtrasHTML([])}
+    ${_runDropdownHTML('trip-run-id',null)}
     <button class="btn btn-p" style="width:100%;margin-top:16px" onclick="saveTrip()">Save Trip</button>
   `;
   openPanel('Log Trip',html);
@@ -9092,7 +9657,8 @@ function saveTrip(){
     description:document.getElementById('trip-desc').value,
     mileage:miles,
     ratePerMile:rate,
-    expenses:_readTripExtras()
+    expenses:_readTripExtras(),
+    sourcingRunId:(document.getElementById('trip-run-id')?.value)||(_activeSourcingRun?_activeSourcingRun.id:null)||null
   };
   if(!DB.trips)DB.trips=[];
   DB.trips.push(trip);
@@ -9123,6 +9689,7 @@ function addExpense(){
       <label>Amount (£)</label>
       <input type="number" id="exp-amt" step="0.01" min="0" placeholder="0.00">
     </div>
+    ${_runDropdownHTML('exp-run-id',null)}
     <button class="btn btn-p" style="width:100%;margin-top:16px" onclick="saveExpense()">Save Expense</button>
   `;
   openPanel('Add Expense',html);
@@ -9147,7 +9714,8 @@ function saveExpense(){
     date:document.getElementById('exp-date').value,
     description:desc,
     category:document.getElementById('exp-cat').value,
-    amount:amt
+    amount:amt,
+    sourcingRunId:(document.getElementById('exp-run-id')?.value)||(_activeSourcingRun?_activeSourcingRun.id:null)||null
   };
   if(!DB.expenses)DB.expenses=[];
   DB.expenses.push(exp);
@@ -9165,6 +9733,7 @@ function editTrip(idx){
     <div class="fg"><label>Mileage</label><input type="number" id="trip-miles" step="0.1" min="0" value="${t.mileage||''}"></div>
     <div class="fg"><label>Rate per mile (£)</label><input type="number" id="trip-rate" step="0.01" min="0" value="${t.ratePerMile||0.45}"></div>
     ${_tripExtrasHTML(Array.isArray(t.expenses)?t.expenses:[])}
+    ${_runDropdownHTML('trip-run-id',t.sourcingRunId||null)}
     <button class="btn btn-p" style="width:100%;margin-top:16px" onclick="saveTripEdit(${idx})">Update Trip</button>
   `);
 }
@@ -9189,7 +9758,8 @@ function saveTripEdit(idx){
     description:document.getElementById('trip-desc').value,
     mileage:miles,
     ratePerMile:rate,
-    expenses:_readTripExtras()
+    expenses:_readTripExtras(),
+    sourcingRunId:(document.getElementById('trip-run-id')?.value)||trips[idx].sourcingRunId||null
   };
   DB.trips=trips;saveDB();closePanel();toast('Trip updated');renderExpenses();
 }
@@ -9277,6 +9847,7 @@ function editExpense(idx){
     <div class="fg"><label>Description</label><input type="text" id="exp-desc" value="${esc(e.description||'')}"></div>
     <div class="fg"><label>Category</label><select id="exp-cat"><option value="">Select category...</option>${EXPENSE_CATEGORIES.map(c=>`<option value="${c}" ${e.category===c?'selected':''}>${c}</option>`).join('')}</select></div>
     <div class="fg"><label>Amount (£)</label><input type="number" id="exp-amt" step="0.01" min="0" value="${e.amount||''}"></div>
+    ${_runDropdownHTML('exp-run-id',e.sourcingRunId||null)}
     <button class="btn btn-p" style="width:100%;margin-top:16px" onclick="saveExpenseEdit(${idx})">Update Expense</button>
   `);
 }
@@ -9295,7 +9866,7 @@ function saveExpenseEdit(idx){
     return;
   }
   const existingId = expenses[idx].id || ('exp_'+Date.now());
-  expenses[idx]={id:existingId,date:document.getElementById('exp-date').value,description:desc,category:document.getElementById('exp-cat').value,amount:amt};
+  expenses[idx]={id:existingId,date:document.getElementById('exp-date').value,description:desc,category:document.getElementById('exp-cat').value,amount:amt,sourcingRunId:(document.getElementById('exp-run-id')?.value)||expenses[idx].sourcingRunId||null};
   DB.expenses=expenses;saveDB();closePanel();toast('Expense updated');renderExpenses();
 }
 async function deleteExpense(idx){
@@ -12350,13 +12921,8 @@ function _restoreAuthInputs(){
     if(_av && session.user?.email) _av.textContent=session.user.email[0].toUpperCase();
     await initDB();
     _dbSnapshot = _dbFingerprint();
-  } else if(PREVIEW_MODE_ENABLED){
-    enablePreviewMode();
-    showApp();
-    const _av=document.getElementById('user-avatar');
-    if(_av) _av.textContent='P';
-    requestAnimationFrame(()=>goToTab('summary'));
   } else {
+    // DEV: always show login so you can sign in normally OR tap "Developer preview"
     showLogin();
   }
 
