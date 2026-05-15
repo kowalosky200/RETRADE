@@ -1193,7 +1193,7 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
 .ip-field,.ip-field-select,.ip-field-date{font-size:15px;}
 #auth-screen-login,#auth-screen-reset{max-width:420px;border-radius:28px;padding:42px 36px!important;box-shadow:0 22px 60px rgba(0,0,0,.18);} 
 #auth-screen-login > div:first-child + div + div span{letter-spacing:.16em!important;}
-#auth-btn{height:48px;border-radius:16px;}
+#auth-btn,#preview-btn{height:48px;border-radius:16px;}
 .summary-shell{display:grid;grid-template-columns:minmax(0,1.84fr) minmax(0,.92fr);gap:18px;align-items:start;}
 .summary-main{display:flex;flex-direction:column;gap:18px;min-height:100%;min-width:0;}
 .summary-side{display:grid;grid-template-rows:auto auto auto;gap:18px;}
@@ -1442,7 +1442,7 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
              autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-form-type="other"
              oninput="handleSearch(this.value)"
              onkeydown="handleSearchKey(event)"
-             onfocus="if(this.value.trim())showSearchDropdown(this.value)">
+             onfocus="if(this.value.trim())showSearchDropdown(this.value);else showSearchHistoryDropdown()">
       <button class="search-clear" onclick="clearSearch()">×</button>
     </div>
 
@@ -2070,7 +2070,8 @@ function refreshCountrySubmenu(){
   });
 }
 const PLATFORMS={
-  ebay:      { id:'ebay',      label:'eBay UK',              short:'eBay',   live:true,  pattern:'buyer_pays',      country:'uk' },
+  ebay:      { id:'ebay',      label:'eBay UK (Private)',     short:'eBay',   live:true,  pattern:'buyer_pays',      country:'uk' },
+  ebay_biz:  { id:'ebay_biz',  label:'eBay UK (Business)',   short:'eBay Biz', live:true, pattern:'buyer_pays',     country:'uk' },
   vinted:    { id:'vinted',    label:'Vinted',               short:'Vinted', live:true,  pattern:'seller_receives', country:'uk' },
   depop:     { id:'depop',     label:'Depop',                short:'Depop',  live:true,  pattern:'listed_plus_fee', country:'uk' },
   fb:        { id:'fb',        label:'Facebook Marketplace', short:'FB',     live:true,  pattern:'seller_receives', country:'uk' },
@@ -2094,8 +2095,9 @@ function _itemPlatform(i){
 // so the preview header can adapt without rewriting the layout per platform.
 function _platformFeeLabel(i){
   const p=_itemPlatform(i);
-  switch(p){
+  switch(p){ // ebay_biz falls through to ebay label for now
     case 'ebay':      return { feeLabel:'BPF',         priceLabel:'Buyer pays' };
+    case 'ebay_biz':  return { feeLabel:'BPF (Biz)',   priceLabel:'Buyer pays' };
     case 'vinted':    return { feeLabel:'Vinted fee',  priceLabel:'You set'    };
     case 'depop':     return { feeLabel:'Depop fee',   priceLabel:'Listed at'  };
     case 'fb':        return { feeLabel:'FB fee',      priceLabel:'You set'    };
@@ -2380,9 +2382,11 @@ document.addEventListener('click',(e)=>{
   const sw=document.querySelector('.nav-inner .search-wrap');
   const dd=document.getElementById('search-dropdown');
   if(sw&&!sw.contains(e.target)&&dd&&!dd.contains(e.target)){
+    // Don't clear search input if p-search is the active page — user is browsing results
+    const _onSearchPage=document.getElementById('p-search')?.classList.contains('on');
     const inp=document.getElementById('global-search');
-    if(inp&&inp.value){inp.value='';document.querySelector('.search-clear')?.classList.remove('show');}
-    closeSearchDropdown();
+    if(inp&&inp.value&&!_onSearchPage){inp.value='';document.querySelector('.search-clear')?.classList.remove('show');}
+    if(!_onSearchPage)closeSearchDropdown();
   }
 });
 
@@ -2949,7 +2953,7 @@ function _rowToItem(row, parts, returns){
     estSalePrice:    row.est_sale_price != null ? Number(row.est_sale_price) : null,
     _shippingMigrated: true,
     returnData:      null,
-    parts: (parts||[]).map(p=>({id:p.id, desc:p.description||'', cost:Number(p.cost)||0})),
+    parts: (parts||[]).map(p=>({id:p.id, description:p.description||'', cost:Number(p.cost)||0})),
     returnHistory: (returns||[]).map(r=>({
       id:             r.id,
       loggedAt:       r.logged_at || null,
@@ -3517,11 +3521,20 @@ function platBadgeHTML(i){
   const p=_itemPlatform(i);
   if(!p||p==='ebay')return '';
   const label=PLATFORMS[p]?PLATFORMS[p].short:p;
-  return '<span class="plat-badge '+p+'">'+label+'</span>';
+  // Use ebay colour for ebay_biz badge
+  const badgeClass=p==='ebay_biz'?'ebay':p;
+  return '<span class="plat-badge '+badgeClass+'" title="'+(PLATFORMS[p]?PLATFORMS[p].label:p)+'">'+label+'</span>';
 }
 
 // NAVIGATION
 function goToTab(name,sourceEl){
+  // Restore nav search wrap visibility (may have been hidden while on p-search)
+  const _gttSW=document.querySelector('.nav-inner .search-wrap');
+  if(_gttSW)_gttSW.style.visibility='';
+  // Dismiss any lingering overlays that could block nav taps
+  if(typeof closeMoreSheet==='function')closeMoreSheet();
+  const _fabDial=document.querySelector('.fab-dial');if(_fabDial)_fabDial.classList.remove('open');
+  const _fabBackdrop=document.querySelector('.fab-dial-backdrop');if(_fabBackdrop){_fabBackdrop.style.opacity='0';_fabBackdrop.style.pointerEvents='none';}
   document.querySelectorAll('.tab').forEach(t=>t.classList.remove('on'));
   document.querySelectorAll('.bnt').forEach(b=>b.classList.remove('on'));
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('on'));
@@ -3544,7 +3557,7 @@ function goToTab(name,sourceEl){
   document.querySelector('.nav-more')?.classList.remove('open');
   handleNavResize();
   window.scrollTo(0,0);
-  document.getElementById('bottom-nav')?.classList.remove('nav-hidden');
+  if(typeof window._resetNavScrollState==='function')window._resetNavScrollState();
   if(name==='summary')renderSummary();
   else if(name==='monthly'){SELECTED_MONTH=currentMonthKey();MONTHLY_VIEW='detail';renderMonthlyPage();}
   else if(name==='stock'){_stockFromSummary=false;renderStock();}
@@ -3559,10 +3572,14 @@ function goToTab(name,sourceEl){
 
 let _itemPageOrigin='p-summary';
 let _preSearchPage='p-summary'; // page to return to when dismissing mobile search
+let _lastSearchQuery=''; // last search query — restored when back-navigating from item page
 let _monthOrigin='grid'; // 'grid' | 'summary' | other page id
 let _savedPanelState=null; // saved panel title+content+scroll for back-from-item-page
 
 function openItemPage(m,id,origin){
+  // Dismiss lingering overlays that could block nav buttons after return
+  if(typeof closeMoreSheet==='function')closeMoreSheet();
+  if(typeof window._resetNavScrollState==='function')window._resetNavScrollState();
   _itemPageOrigin=origin||(document.querySelector('.page.on')?document.querySelector('.page.on').id:'p-summary');
   document.querySelectorAll('.tab').forEach(t=>t.classList.remove('on'));
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('on'));
@@ -3595,6 +3612,7 @@ function openItemPageFromPanel(m,id){
 }
 
 function exitItemPage(){
+  if(typeof window._resetNavScrollState==='function')window._resetNavScrollState();
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('on'));
   document.querySelectorAll('.tab').forEach(t=>t.classList.remove('on'));
   const origin=_itemPageOrigin||'p-summary';
@@ -3635,9 +3653,29 @@ function exitItemPage(){
   if(origin==='p-monthly')renderMonth();
   else if(origin==='p-stock')renderStock();
   else if(origin==='p-summary')renderSummary();
-  else if(origin==='p-search')renderSearchResults();
-  else if(origin==='p-active-run'&&typeof renderActiveRunPage==='function')renderActiveRunPage();
-  else if(origin==='p-runs'&&typeof renderRunsPage==='function')renderRunsPage();
+  else if(origin==='p-search'){
+    // Hide nav search wrap again (we're back on p-search)
+    const _navSW2=document.querySelector('.nav-inner .search-wrap');
+    if(_navSW2)_navSW2.style.visibility='hidden';
+    // Restore the search input and results from before the user opened the item page
+    const _si=document.getElementById('global-search');
+    if(_si&&_lastSearchQuery){_si.value=_lastSearchQuery;const _sc=document.querySelector('.search-clear');if(_sc)_sc.classList.add('show');}
+    const _sim=document.getElementById('global-search-mobile');
+    if(_sim&&_lastSearchQuery)_sim.value=_lastSearchQuery;
+    renderSearchResults(_lastSearchQuery||undefined);
+  }
+  else if(origin==='p-active-run'){
+    if(_activeSourcingRun&&typeof renderActiveRunPage==='function'){renderActiveRunPage();}
+    else{
+      // Run ended while on item page — fall back to runs list
+      const _fbTab=document.querySelector('[data-tab="runs"]');
+      if(_fbTab)_fbTab.classList.add('on');
+      document.getElementById('p-runs').classList.add('on');
+      const _fbBnt=document.querySelector('#bottom-nav .bnt[data-tab="runs"]');
+      if(_fbBnt)_fbBnt.classList.add('on');
+      if(typeof renderRunsPage==='function')renderRunsPage();
+    }
+  }
   else if(origin==='p-runs'&&typeof renderRunsPage==='function')renderRunsPage();
 }
 
@@ -3758,8 +3796,10 @@ function openTokenEdit(m,id,field,_alreadyAsync){
     inp.focus();
     try{inp.setSelectionRange(0,999);}catch(e){try{inp.select();}catch(e2){}}
   }
-  if(_alreadyAsync){focusAndSelect();}
-  else{setTimeout(focusAndSelect,0);}
+  // Always focus synchronously — setTimeout breaks iOS gesture chain and prevents keyboard popup.
+  // Belt+braces retry handles cases where the DOM isn't fully laid out yet.
+  focusAndSelect();
+  setTimeout(focusAndSelect,50);
 
   let committed=false;
   function commit(save){
@@ -3950,9 +3990,9 @@ function renderItemPage(m,id){
   const hasReturn=(i.returnHistory||[]).length>0;
   const _plat=_itemPlatform(i);
   const _showPostage=(_plat!=='vinted');
-  const _showSimpleDelivery=(_plat==='ebay');
+  const _showSimpleDelivery=(_plat==='ebay'||_plat==='ebay_biz'); // Simple Delivery available for both eBay account types
   const _showFee=(_plat!=='vinted'&&_plat!=='fb');
-  const _feeLabel=_plat==='ebay'?'eBay BPF':_plat==='depop'?'Depop fee':_plat==='amazon_uk'?'Amazon fee':'Platform fee';
+  const _feeLabel=_plat==='ebay'?'eBay BPF':_plat==='ebay_biz'?'eBay BPF (Biz)':_plat==='depop'?'Depop fee':_plat==='amazon_uk'?'Amazon fee':'Platform fee';
   const _promoLabel=_plat==='ebay'?'Promo %':'Boost %';
   const totalRefunded=(i.returnHistory||[]).reduce((s,r)=>s+(r.refundAmount||0),0);
   const totalReturnPostage=(i.returnHistory||[]).reduce((s,r)=>s+(r.returnPostage||0),0);
@@ -3961,7 +4001,8 @@ function renderItemPage(m,id){
 
   // ── Timeline entries ─────────────────────────────────────────────────
   const timeline=[];
-  timeline.push({date:i.dateListed||'',badge:'listed',label:'Listed on eBay',detail:'Price: '+fmt(i.salePrice)+' · Cost: '+fmt(i.costPrice||0)});
+  const _listPlat=PLATFORMS[i.defaultPlatform||'ebay']||PLATFORMS['ebay'];
+  timeline.push({date:i.dateListed||'',badge:'listed',label:'Listed on '+(_listPlat.short||'eBay'),detail:'Price: '+fmt(i.salePrice)+' · Cost: '+fmt(i.costPrice||0)});
   // Show sale entry if: sold, currently returned, OR has return history (was sold before the return)
   if(i.dateSold||hasReturn){
     const sd=i.dateSold||((i.returnHistory||[])[0]?(i.returnHistory[0].loggedAt||''):'');
@@ -4357,6 +4398,35 @@ const CATEGORY_ICONS={
 };
 let _searchIdx=-1;
 let _searchResults=[];
+// Recent search terms — session only, max 8, shown when search input focused empty
+let _searchHistory=(function(){
+  try{return JSON.parse(sessionStorage.getItem('_rtrade_srch_hist')||'[]');}catch(e){return [];}
+})();
+function _addSearchHistory(q){
+  if(!q||q.length<2)return;
+  _searchHistory=_searchHistory.filter(function(s){return s!==q;});
+  _searchHistory.unshift(q);
+  if(_searchHistory.length>8)_searchHistory=_searchHistory.slice(0,8);
+  try{sessionStorage.setItem('_rtrade_srch_hist',JSON.stringify(_searchHistory));}catch(e){}
+}
+function showSearchHistoryDropdown(){
+  if(!_searchHistory.length)return;
+  const dd=document.getElementById('search-dropdown');
+  const input=document.getElementById('global-search');
+  if(!dd||!input)return;
+  const r=input.getBoundingClientRect();
+  dd.style.top=(r.bottom+6)+'px';
+  dd.style.left=r.left+'px';
+  dd.style.width=Math.max(r.width,280)+'px';
+  const rows=_searchHistory.map(function(q){
+    return'<div class="search-result" onclick="document.getElementById(\'global-search\').value=\''+q.replace(/'/g,"\\'")+'\';handleSearch(\''+q.replace(/'/g,"\\'")+'\')" style="gap:8px;">'
+      +'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" style="flex-shrink:0;opacity:0.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>'
+      +'<div class="sr-body"><div class="sr-name" style="font-weight:500">'+esc(q)+'</div></div>'
+      +'</div>';
+  }).join('');
+  dd.innerHTML='<div style="padding:8px 14px 4px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted)">Recent</div>'+rows;
+  dd.classList.add('open');
+}
 
 function searchAllItems(q){
   const terms=q.toLowerCase().trim().split(/\s+/).filter(Boolean);
@@ -4548,10 +4618,14 @@ function clearMobileSearch(){
 
 function openSearchPage(q){
   closeSearchDropdown();
+  if(q){_lastSearchQuery=q;_addSearchHistory(q);} // persist + add to history
   const currentPage=document.querySelector('.page.on');
   if(currentPage&&currentPage.id!=='p-search')_preSearchPage=currentPage.id;
   document.getElementById('global-search').value=q;
   document.querySelector('.search-clear').classList.add('show');
+  // Hide the desktop nav search wrap — it sits over p-search content otherwise
+  const _navSW=document.querySelector('.nav-inner .search-wrap');
+  if(_navSW)_navSW.style.visibility='hidden';
   // Switch to search page without using goToTab (no tab element to highlight)
   document.querySelectorAll('.tab').forEach(t=>t.classList.remove('on'));
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('on'));
@@ -4562,6 +4636,7 @@ function openSearchPage(q){
 function renderSearchResults(q){
   // q may be passed directly or read from the input
   if(q===undefined)q=document.getElementById('global-search').value.trim();
+  if(q)_lastSearchQuery=q; // persist so back-nav can restore
   const page=document.getElementById('p-search');
   if(!q){page.innerHTML='<div style="padding:40px;text-align:center;color:var(--muted)">No search query</div>';return;}
   const results=searchAllItems(q);
@@ -4625,6 +4700,9 @@ function exitSearchPage(){
   document.getElementById('global-search').value='';
   document.querySelector('.search-clear').classList.remove('show');
   closeSearchDropdown();
+  // Restore nav search wrap
+  const _navSW=document.querySelector('.nav-inner .search-wrap');
+  if(_navSW)_navSW.style.visibility='';
   const target=_preSearchPage||'p-summary';
   const tabName=target.replace('p-','');
   const tabEl=document.querySelector('[data-tab="'+tabName+'"]');
@@ -4834,7 +4912,7 @@ const _FAB_PAGE_OPTIONS = {
   'p-runs':        _FAB_ALL_OPTIONS,
   // p-item, p-search, p-tax, p-data → no FAB, see _FAB_HIDDEN_PAGES
 };
-const _FAB_HIDDEN_PAGES = new Set(['p-item','p-search','p-tax','p-data']);
+const _FAB_HIDDEN_PAGES = new Set(['p-search','p-tax','p-data']); // p-item removed: FAB visible on item page for quick adds
 
 // Patch C-2: per-page FAB single-tap override. Returns 'speed-dial' or a specific action.
 function getFabTapAction(pageId){
@@ -5010,7 +5088,11 @@ function openStartRunModal(){
       Start Run
     </button>`;
   openPanel('Start sourcing run', html);
-  setTimeout(function(){ const n=document.getElementById('sr-name'); if(n)n.focus(); },80);
+  // Focus synchronously — iOS requires focus within the gesture chain for keyboard to appear
+  const _srn=document.getElementById('sr-name');
+  if(_srn){_srn.focus();try{_srn.select();}catch(e){}}
+  // Belt+braces retry for Android/edge cases
+  setTimeout(function(){const n=document.getElementById('sr-name');if(n&&document.activeElement!==n){n.focus();}},60);
 }
 
 function submitStartRun(){
@@ -5094,7 +5176,7 @@ function renderActiveRunPage(){
   const estItems=runItems.filter(function(i){return i.estSalePrice!=null;});
   const estProfit=estItems.reduce(function(s,i){return s+(i.estSalePrice-(i.costPrice||0)-calcPartsCost(i));},0);
   function _elapsed(){
-    const start=run.dateStarted?new Date(run.dateStarted+' 00:00').getTime():Date.now();
+    const start=run.dateStarted?new Date(run.dateStarted+'T00:00:00').getTime():Date.now();
     const diff=Date.now()-start;
     const mins=Math.floor(diff/60000);
     const hrs=Math.floor(mins/60);
@@ -5157,8 +5239,7 @@ function renderActiveRunPage(){
         +'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:6px"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>'
         +'Add another item</button>'
       +'<div style="display:flex;gap:8px;margin-top:12px;padding-top:16px;border-top:1px solid var(--border);">'
-        +'<button class="btn btn-s" style="flex:1;justify-content:center;color:var(--red);border-color:rgba(220,55,55,0.3);" onclick="endSourcingRun()">End Run</button>'
-        +'<button class="btn btn-s" style="flex:1;justify-content:center;" onclick="openRunPage(\''+run.id.replace(/'/g,"\\'")+'\')">View P&amp;L</button>'
+        +'<button class="btn btn-s" style="width:100%;justify-content:center;color:var(--red);border-color:rgba(220,55,55,0.3);" onclick="endSourcingRun()">End Run</button>'
       +'</div>'
     +'</div>';
 }
@@ -5553,7 +5634,7 @@ function renderRunsPage(){
     const items=_runItems(run.id);
     const spent=items.reduce(function(s,i){return s+(i.costPrice||0)+calcPartsCost(i);},0);
     const estPot=items.reduce(function(s,i){return s+(i.estSalePrice!=null?i.estSalePrice:0);},0);
-    const startedMs=run.dateStarted?new Date(run.dateStarted).getTime():0;
+    const startedMs=run.dateStarted?new Date(run.dateStarted+'T00:00:00').getTime():0;
     const nowMs=Date.now();
     const minAgo=startedMs?Math.round((nowMs-startedMs)/60000):0;
     const timeStr=minAgo<60?(minAgo<=1?'Just started':(minAgo+' minutes ago')):(Math.round(minAgo/60)+'h ago');
@@ -6293,8 +6374,11 @@ function openStockQuickAdd(){
         Item Saved
       </div>
       <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;">
-        <button class="btn btn-s" onclick="_stockQuickAddAnother()">Add another</button>
-        <button class="btn btn-p" onclick="closePanel();_goToSourcedStock()">Done</button>
+        <button class="btn btn-p" onclick="_stockQuickAddAnother()" style="flex:1">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:4px"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Add another
+        </button>
+        <button class="btn btn-s" onclick="closePanel();_goToSourcedStock()" style="flex:1">Done</button>
       </div>
     </div>
     <button class="btn btn-p" id="sqa-submit-btn" style="width:100%;margin-top:18px" onclick="submitStockQuickAdd()">Save Sourced Item</button>
@@ -6369,11 +6453,22 @@ function submitStockQuickAdd(){
   if(!Array.isArray(DB[m])) DB[m]=[];
   DB[m].push(item);
   saveDB();
-  // Show inline confirmation, hide the form fields + submit button.
-  const confirmEl=document.getElementById('sqa-confirm');
-  const submitBtn=document.getElementById('sqa-submit-btn');
-  if(confirmEl)confirmEl.style.display='block';
-  if(submitBtn)submitBtn.style.display='none';
+  // If a run is active: auto-reopen a fresh SQA immediately so user stays in flow.
+  // Toast confirms save. User taps Done in the confirm panel to exit.
+  if(_activeSourcingRun){
+    // Show confirm briefly then reopen — gives visual feedback without blocking
+    const confirmEl=document.getElementById('sqa-confirm');
+    const submitBtn=document.getElementById('sqa-submit-btn');
+    if(confirmEl)confirmEl.style.display='block';
+    if(submitBtn)submitBtn.style.display='none';
+    setTimeout(function(){if(typeof openStockQuickAdd==='function')openStockQuickAdd();},420);
+  } else {
+    // No active run: show confirm with Add another / Done buttons as normal
+    const confirmEl=document.getElementById('sqa-confirm');
+    const submitBtn=document.getElementById('sqa-submit-btn');
+    if(confirmEl)confirmEl.style.display='block';
+    if(submitBtn)submitBtn.style.display='none';
+  }
   // Disable inputs so user can't re-edit the just-saved entry
   ['sqa-cost','sqa-est-sale','sqa-title','sqa-date','sqa-photo','sqa-notes','sqa-part-desc','sqa-part-cost'].forEach(function(elId){
     const el=document.getElementById(elId);
@@ -6715,7 +6810,7 @@ function qaSetPlatform(platformId){
 
 function _refreshQuickAddDelivery(){
   const platformId=document.getElementById('qa-platform')?.value||DEFAULT_PLATFORM;
-  const isEbay=platformId==='ebay';
+  const isEbay=(platformId==='ebay'||platformId==='ebay_biz'); // Simple Delivery for both eBay account types
   const isVinted=platformId==='vinted';
   const deliverySection=document.getElementById('qa-delivery-section');
   const modeToggle=document.getElementById('qa-mode-toggle');
@@ -8532,6 +8627,7 @@ function renderItemRow(m,i){
     const stockActions='<div class="ddwrap" id="dd-'+i.id+'">'+
       '<button class="ddbtn" onclick="event.stopPropagation();toggleDD(\'dd-'+i.id+'\')" title="Actions">\u22ee</button>'+
       '<div class="ddmenu">'+
+        '<button onclick="event.stopPropagation();toggleDD(\'dd-'+i.id+'\');openListFromSourced(\''+m+'\',\''+i.id+'\')" style="color:var(--accent);font-weight:600;">\ud83d\udce6 List Item</button>'+
         '<button onclick="event.stopPropagation();openItemPage(\''+m+'\',\''+i.id+'\',document.querySelector(\'.page.on\').id)">\ud83d\udcc4 Full page</button>'+
         '<button onclick="event.stopPropagation();editItem(\''+m+'\',\''+i.id+'\')">\u270f\ufe0f Edit</button>'+
         '<button onclick="event.stopPropagation();duplicateItem(\''+m+'\',\''+i.id+'\')">\ud83d\udccb Duplicate</button>'+
@@ -8553,11 +8649,17 @@ function renderItemRow(m,i){
           '<div class="item-row-right">'+
             (i.estSalePrice!=null?(function(){
               const _ep=i.estSalePrice-(i.costPrice||0)-calcPartsCost(i);
-              return '<div class="item-row-price" style="color:var(--text-secondary);font-size:13px;">'+fmt(i.costPrice||0)+'</div>'+
+              const _tc=(i.costPrice||0)+calcPartsCost(i);
+              const _hasParts=calcPartsCost(i)>0;
+              return '<div class="item-row-price" style="color:var(--text-secondary);font-size:13px;">'+fmt(_tc)+(_hasParts?' <span style="font-size:10px;opacity:0.6">all-in</span>':'')+'</div>'+
                 '<div class="item-row-roi" style="color:'+(_ep>=0?'var(--green)':'var(--red)')+';font-size:11px;">est '+(_ep>=0?'+':'')+fmt(_ep)+'</div>';
             })():(
-              '<div class="item-row-price" style="color:var(--text-secondary);font-size:13px;">'+fmt(i.costPrice||0)+'</div>'+
-              '<div class="item-row-roi" style="color:var(--text-secondary);">cost</div>'
+              (function(){
+                const _tc=(i.costPrice||0)+calcPartsCost(i);
+                const _hasParts=calcPartsCost(i)>0;
+                return '<div class="item-row-price" style="color:var(--text-secondary);font-size:13px;">'+fmt(_tc)+(_hasParts?' <span style="font-size:10px;opacity:0.6">all-in</span>':'')+'</div>'+
+                  '<div class="item-row-roi" style="color:var(--text-secondary);">cost</div>';
+              })()
             ))+
           '</div>'+
         '</div>'+
@@ -10615,6 +10717,10 @@ function _editStockItem(m,item){
       <input type="number" id="edit-stock-cost" step="0.01" min="0" inputmode="decimal" value="${item.costPrice||0}">
     </div>
     <div class="fg">
+      <label>Est. Sale Price <span style="font-size:11px;color:var(--muted);font-weight:400">(optional · used in profit estimate)</span></label>
+      <input type="number" id="edit-stock-est" step="0.01" min="0" inputmode="decimal" value="${item.estSalePrice!=null?item.estSalePrice:''}">
+    </div>
+    <div class="fg">
       <label>Source</label>
       <input type="text" id="edit-stock-source" value="${esc(item.source||'')}" placeholder="e.g. Car boot, eBay">
     </div>
@@ -10649,6 +10755,11 @@ function _saveStockEdit(m,id){
   }
   item.item=(document.getElementById('edit-stock-title').value||'').trim()||'Untitled stock item';
   item.costPrice=+cost.toFixed(2);
+  const _estEl=document.getElementById('edit-stock-est');
+  if(_estEl){
+    const _estVal=_estEl.value.trim();
+    item.estSalePrice=_estVal!==''&&parseFloat(_estVal)>=0?+parseFloat(_estVal).toFixed(2):null;
+  }
   item.dateSourced=document.getElementById('edit-stock-date').value||item.dateSourced;
   item.notes=(document.getElementById('edit-stock-notes').value||'').trim();
   const srcEl=document.getElementById('edit-stock-source'); if(srcEl)item.source=srcEl.value.trim()||item.source||'';
@@ -10753,8 +10864,10 @@ function markSold(m,id){
       if(price&&price>0)item.salePrice=+price.toFixed(2);
       // Session D2 — capture which platform the sale actually closed on.
       // Defaults to the item's defaultPlatform; user can change at Mark Sold.
-      const _soldPlat=document.getElementById('modal-platform')?.value;
-      if(_soldPlat&&PLATFORMS[_soldPlat]&&PLATFORMS[_soldPlat].live){
+      const _soldPlat=document.getElementById('modal-platform')?.value||DEFAULT_PLATFORM;
+      // Always write soldOnPlatform explicitly so _itemPlatform returns the correct
+      // platform for fee calculation, receipt display, and postage gating
+      if(_soldPlat&&PLATFORMS[_soldPlat]){
         item.soldOnPlatform=_soldPlat;
       }
       item.isReturned=false;
@@ -11477,7 +11590,11 @@ function renderTax(){
   const totalIncome=soldItems.reduce(function(s,i){return s+(i.salePrice||0)+(i.resaleSalePrice||0);},0);
   const saleCount=soldItems.length;
   // Dynamic income label: list the unique platforms actually used this tax year
-  const _usedPlatKeys=[...new Set(soldItems.map(function(i){return _itemPlatform(i);}))];
+  // Group ebay_biz under ebay for tax display purposes (same HMRC treatment)
+  const _usedPlatKeys=[...new Set(soldItems.map(function(i){
+    const p=_itemPlatform(i);
+    return p==='ebay_biz'?'ebay':p;
+  }))];
   const _incomeLabel=_usedPlatKeys.length===0?'Gross receipts'
     :_usedPlatKeys.length<=3?'Gross receipts ('+_usedPlatKeys.map(function(k){return PLATFORMS[k]?PLATFORMS[k].short:k;}).join(', ')+')'
     :'Gross receipts (multiple platforms)';
@@ -12183,6 +12300,15 @@ function calcAmazonUKBPF(item,salePrice){
   return+(salePrice*rate+0.75).toFixed(2);
 }
 
+// eBay Business UK fee formula — 5.9% FVF + £0.30 per order (most categories).
+// Significantly lower than private rates (effective ~12.8%). Uses the same
+// buyer-pays model as private eBay — buyer pays listed price, seller receives
+// listed price minus the FVF + order fee.
+function calcEbayBizBPF(salePrice){
+  if(!salePrice||salePrice<=0)return 0;
+  return+(salePrice*0.059+0.30).toFixed(2);
+}
+
 // Dispatcher: routes to the right platform fee primitive based on the item.
 // All NEW code paths should use this. Existing calcEbayBPF callers remain
 // valid (they operate on items that resolve to eBay either explicitly or by
@@ -12191,6 +12317,7 @@ function calcPlatformBPF(item,salePrice){
   const p=_itemPlatform(item);
   switch(p){
     case 'ebay':      return calcEbayBPF(salePrice);
+    case 'ebay_biz':  return calcEbayBizBPF(salePrice);
     case 'vinted':    return calcVintedBPF(item,salePrice);
     case 'depop':     return calcDepopBPF(item,salePrice);
     case 'fb':        return calcFbBPF(item,salePrice);
@@ -12509,6 +12636,8 @@ window.addEventListener('load',handleNavResize);
   function _bnav(){return document.getElementById('bottom-nav');}
   function _show(){var b=_bnav();if(!b||!_navHidden)return;b.classList.remove('nav-hidden');_navHidden=false;}
   function _hide(){var b=_bnav();if(!b||_navHidden)return;b.classList.add('nav-hidden');_navHidden=true;}
+  // Called by goToTab to reset scroll state so tab switch never triggers auto-hide
+  window._resetNavScrollState=function(){_lastScrollY=0;_navHidden=false;var b=_bnav();if(b)b.classList.remove('nav-hidden');};
 
   window.addEventListener('scroll',function(){
     if(_raf)return;
@@ -12701,7 +12830,7 @@ function partsHTML(m,id,context){
       ?'deletePart(\''+m+'\',\''+id+'\','+idx+')'
       :'deletePart(\''+m+'\',\''+id+'\','+idx+',\''+context+'\')';
     return'<div class="part-row" style="cursor:pointer;" onclick="'+editFn+'" title="Tap to edit">'
-      +'<span class="part-desc">'+esc(p.description)+'</span>'
+      +'<span class="part-desc">'+esc(p.description||p.desc||'')+'</span>'
       +(p.date?'<span class="part-date">'+p.date+'</span>':'')
       +'<span class="part-cost">−'+fmt(p.cost)+'</span>'
       +'<button class="part-del" onclick="event.stopPropagation();'+delFn+'" title="Remove">×</button>'
@@ -12739,7 +12868,7 @@ function editPart(m,id,idx,context){
   const saveFn='savePartEdit(\''+m+'\',\''+id+'\','+idx+',\''+context+'\')';
   const cancelFn='cancelPartEdit(\''+id+'\','+idx+',\''+context+'\')';
   rowEl.outerHTML='<div class="add-part-row" id="'+rowId+'" style="background:var(--accent-dim);border-radius:8px;padding:6px 4px;">'
-    +'<div class="fg" style="margin-bottom:0"><input type="text" id="part-edit-desc-'+idx+'-'+context+'" value="'+esc(p.description||'')+'" placeholder="Description"></div>'
+    +'<div class="fg" style="margin-bottom:0"><input type="text" id="part-edit-desc-'+idx+'-'+context+'" value="'+esc(p.description||p.desc||'')+'" placeholder="Description"></div>'
     +'<div class="fg" style="margin-bottom:0"><input type="number" id="part-edit-cost-'+idx+'-'+context+'" step="0.01" value="'+(p.cost||0)+'" style="width:90px"></div>'
     +'<button class="btn btn-p" style="padding:9px 12px;font-size:13px" onclick="'+saveFn+'">✓</button>'
     +'<button class="btn btn-s" style="padding:9px 10px;font-size:13px" onclick="'+cancelFn+'">✕</button>'
