@@ -270,7 +270,8 @@ nav:not(#bottom-nav){position:sticky;top:0;z-index:200;background:var(--surface)
 .pnl-row{display:flex;justify-content:space-between;padding:5px 0;font-size:13px;border-bottom:1px solid var(--border);}
 .pnl-row:last-child{border-bottom:none;}
 .pnl-row.total{font-weight:700;font-size:14px;margin-top:4px;padding-top:8px;}
-.search-dropdown{position:fixed;top:54px;left:0;width:340px;background:var(--surface);border:1px solid var(--border);border-radius:10px;box-shadow:0 8px 32px var(--shadow-md);z-index:9990;overflow:hidden;display:none;min-width:280px;max-width:400px;}
+.search-dropdown{position:fixed;top:54px;left:0;width:340px;background:var(--surface);border:1px solid var(--border);border-radius:10px;box-shadow:0 8px 32px var(--shadow-md);z-index:9990;overflow:hidden;display:none;min-width:280px;max-width:400px;pointer-events:none;}
+.search-dropdown.open{pointer-events:auto;}
 .search-dropdown.open{display:block;}
 .search-result{display:flex;align-items:center;gap:10px;padding:10px 14px;cursor:pointer;transition:background 0.1s;border-bottom:1px solid var(--border);}
 .search-result:last-child{border-bottom:none;}
@@ -1547,7 +1548,7 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
 <div class="search-dropdown" id="search-dropdown"></div>
 
 <!-- MOBILE SEARCH EXPAND — slides up from bottom nav, lives outside top nav so it's never hidden -->
-<div id="nav-search-backdrop" onclick="toggleNavSearch()" style="display:none;position:fixed;top:56px;left:0;right:0;bottom:0;z-index:249;"></div>
+<div id="nav-search-backdrop" onclick="toggleNavSearch()" style="display:none;position:fixed;top:56px;left:0;right:0;bottom:0;z-index:249;pointer-events:none;"></div>
 <div id="nav-search-expand">
   <div class="search-wrap">
     <span class="search-icon">
@@ -3531,6 +3532,15 @@ function goToTab(name,sourceEl){
   // Restore nav search wrap visibility (may have been hidden while on p-search)
   const _gttSW=document.querySelector('.nav-inner .search-wrap');
   if(_gttSW)_gttSW.style.visibility='';
+  // Close search dropdown — at z-index 9990 it blocks ALL taps if left open
+  if(typeof closeSearchDropdown==='function')closeSearchDropdown();
+  // Close mobile search expand panel + backdrop (z-249 sits over bottom nav z-200)
+  const _nse=document.getElementById('nav-search-expand');
+  const _nsb=document.getElementById('nav-search-backdrop');
+  const _nsbtn=document.getElementById('bnt-search');
+  if(_nse)_nse.classList.remove('open');
+  if(_nsb)_nsb.style.display='none';
+  if(_nsbtn)_nsbtn.classList.remove('on');
   // Dismiss any lingering overlays that could block nav taps
   if(typeof closeMoreSheet==='function')closeMoreSheet();
   const _fabDial=document.querySelector('.fab-dial');if(_fabDial)_fabDial.classList.remove('open');
@@ -3577,7 +3587,8 @@ let _monthOrigin='grid'; // 'grid' | 'summary' | other page id
 let _savedPanelState=null; // saved panel title+content+scroll for back-from-item-page
 
 function openItemPage(m,id,origin){
-  // Dismiss lingering overlays that could block nav buttons after return
+  // Dismiss lingering overlays — search dropdown at z-9990 blocks ALL taps if left open
+  if(typeof closeSearchDropdown==='function')closeSearchDropdown();
   if(typeof closeMoreSheet==='function')closeMoreSheet();
   if(typeof window._resetNavScrollState==='function')window._resetNavScrollState();
   _itemPageOrigin=origin||(document.querySelector('.page.on')?document.querySelector('.page.on').id:'p-summary');
@@ -4541,7 +4552,7 @@ function handleSearchKey(e){
 
 function closeSearchDropdown(){
   const dd=document.getElementById('search-dropdown');
-  dd.classList.remove('open');
+  if(dd){dd.classList.remove('open');dd.style.display='none';}
   _searchIdx=-1;
 }
 
@@ -4595,7 +4606,7 @@ function toggleNavSearch(){
     // panel slides into view.
     if(inp){inp.value='';inp.focus();}
     expand.classList.add('open');
-    if(backdrop)backdrop.style.display='block';
+    if(backdrop){backdrop.style.display='block';backdrop.style.pointerEvents='auto';}
     if(bntSearch)bntSearch.classList.add('on');
   }
 }
@@ -4607,7 +4618,7 @@ function clearMobileSearch(){
   const backdrop=document.getElementById('nav-search-backdrop');
   const bntSearch=document.getElementById('bnt-search');
   if(expand){expand.classList.remove('open');}
-  if(backdrop)backdrop.style.display='none';
+  if(backdrop){backdrop.style.display='none';backdrop.style.pointerEvents='none';}
   if(bntSearch)bntSearch.classList.remove('on');
   // Return to the page we were on before search
   const target=_preSearchPage||'p-summary';
@@ -11641,6 +11652,31 @@ function renderTax(){
   const chosenMethod=DB._taxMethod;
   const usingTA=chosenMethod==='ta';
 
+  // ── Pre-compute total tax early so monthly breakdown can show per-month set-aside ──
+  // Uses same rates as the main tax estimate section below.
+  // Separate lookup here so it runs BEFORE the html string is built.
+  var _TAX_RATES_EARLY={
+    2026:{pa:12570,basicBand:37700,basicRate:0.20,higherRate:0.40,addRate:0.45,addThresh:125140,c2weekly:3.45,c2spt:12570,c4low:0.06,c4high:0.02,c4upper:50270},
+    2025:{pa:12570,basicBand:37700,basicRate:0.20,higherRate:0.40,addRate:0.45,addThresh:125140,c2weekly:3.45,c2spt:12570,c4low:0.06,c4high:0.02,c4upper:50270},
+    2024:{pa:12570,basicBand:37700,basicRate:0.20,higherRate:0.40,addRate:0.45,addThresh:125140,c2weekly:3.45,c2spt:12570,c4low:0.06,c4high:0.02,c4upper:50270},
+    2023:{pa:12570,basicBand:37700,basicRate:0.20,higherRate:0.40,addRate:0.45,addThresh:125140,c2weekly:3.45,c2spt:12570,c4low:0.09,c4high:0.02,c4upper:50270},
+  };
+  const _re=_TAX_RATES_EARLY[selectedYear]||_TAX_RATES_EARLY[2025];
+  const _chosenBox23=usingTA?taxableTA:taxableActual;
+  const _taxableForEst=Math.max(0,_chosenBox23);
+  // Income tax — three bands: basic (20%), higher (40%), additional (45%)
+  // Higher rate: above (pa + basicBand) up to addThresh; additional: above addThresh
+  const _itTaxable=Math.max(0,_taxableForEst-_re.pa);
+  const _basicTaxable=Math.min(_itTaxable,_re.basicBand);
+  const _higherTop=Math.max(0,_re.addThresh-_re.pa-_re.basicBand);
+  const _higherTaxable=Math.max(0,Math.min(_itTaxable-_re.basicBand,_higherTop));
+  const _addTaxable=Math.max(0,_itTaxable-_re.basicBand-_higherTaxable);
+  const _itTax=+(_basicTaxable*_re.basicRate+_higherTaxable*_re.higherRate+_addTaxable*(_re.addRate||0.45)).toFixed(2);
+  const _c2=_taxableForEst>_re.c2spt?+(_re.c2weekly*52).toFixed(2):0;
+  const _c4base=Math.max(0,_taxableForEst-_re.pa);
+  const _c4=+(Math.min(_c4base,_re.c4upper-_re.pa)*_re.c4low+Math.max(0,_taxableForEst-_re.c4upper)*_re.c4high).toFixed(2);
+  const _totalTaxEarly=+(_itTax+_c2+_c4).toFixed(2);
+
   const box15=+totalIncome.toFixed(2);
   const box16=usingTA?+Math.min(TRADING_ALLOWANCE,totalIncome).toFixed(2):totalActualExpenses;
   const box23=usingTA?taxableTA:taxableActual;
@@ -11753,11 +11789,104 @@ function renderTax(){
     +'<div class="tax-box-val" style="font-weight:700;font-size:15px;font-family:var(--font-mono);color:'+(box23<0?'var(--accent)':box23<500?'var(--green)':'var(--text)')+';flex-shrink:0">'+(box23<0?'Loss of '+fmt(Math.abs(box23)):fmt(box23))+'</div>'
     +'</div></div>';
 
+  // ── Monthly breakdown ─────────────────────────────────────────────────────
+  // Build per-calendar-month P&L for the selected tax year (Apr–Mar)
+  // Months in UK tax year order: Apr, May, Jun, Jul, Aug, Sep, Oct, Nov, Dec, Jan, Feb, Mar
+  const _taxMonths=[];
+  for(let m=0;m<12;m++){
+    const mm=(3+m)%12; // 3=Apr, 4=May, ... 11=Mar (next year)
+    const yyyy=mm<3?(selectedYear+1):selectedYear;
+    _taxMonths.push({month:mm,year:yyyy});
+  }
+  const MONTH_NAMES=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+  // Pre-compute tiered trip costs once for the whole tax year, then split by month
+  const _tieredForMonth=calcTieredTrips(tripsInYear);
+  const monthlyRows=_taxMonths.map(function(tm){
+    // Sales items in this calendar month
+    const items=soldItems.filter(function(i){
+      const ds=i.dateSold||i.resaleDateSold;
+      if(!ds)return false;
+      const d=new Date(ds);
+      return d.getMonth()===tm.month&&d.getFullYear()===tm.year;
+    });
+    // Trips in this calendar month (mileage + trip extras)
+    const monthTrips=tripsInYear.filter(function(t,ti){
+      if(!t.date)return false;
+      const d=new Date(t.date+'T00:00:00');
+      return d.getMonth()===tm.month&&d.getFullYear()===tm.year;
+    });
+    const monthTripCosts=monthTrips.reduce(function(s,t,ti){
+      const tIdx=tripsInYear.indexOf(t);
+      const tc=_tieredForMonth[tIdx];
+      return s+(tc?(tc.mileageCost+tc.expensesCost):0);
+    },0);
+    // Standalone expenses in this calendar month
+    const monthExps=expensesInYear.filter(function(e){
+      if(!e.date)return false;
+      const d=new Date(e.date+'T00:00:00');
+      return d.getMonth()===tm.month&&d.getFullYear()===tm.year;
+    });
+    const monthExpsCost=monthExps.reduce(function(s,e){return s+(e.amount||0);},0);
+    if(!items.length&&!monthTrips.length&&!monthExps.length)return null;
+    const rev=items.reduce(function(s,i){return s+(i.salePrice||0)+(i.resaleSalePrice||0);},0);
+    const fees=items.reduce(function(s,i){return s+calcPlatformBPF(i,i.salePrice||0)+(i.resaleSalePrice?calcPlatformBPF(i,i.resaleSalePrice):0);},0);
+    const postage=items.reduce(function(s,i){return s+(i.shippingCost||0)+(i.resaleShippingCost||0);},0);
+    const packaging=items.reduce(function(s,i){return s+(i.packagingCost||0);},0);
+    const stock=items.reduce(function(s,i){return s+(i.costPrice||0);},0);
+    const parts=items.reduce(function(s,i){return s+calcPartsCost(i);},0);
+    const promo=items.reduce(function(s,i){var bpf=calcPlatformBPF(i,i.salePrice||0);return s+((i.salePrice||0)-bpf)*(i.promoPercent||0)*1.20;},0);
+    const costs=+(fees+postage+packaging+stock+parts+promo+monthTripCosts+monthExpsCost).toFixed(2);
+    const profit=+(rev-costs).toFixed(2);
+    return{label:MONTH_NAMES[tm.month]+' '+(tm.year).toString().slice(2),rev:+rev.toFixed(2),costs:costs,profit:profit,count:items.length};
+  }).filter(Boolean);
+
+  if(monthlyRows.length){
+    html+='<div class="sl">Monthly Breakdown</div>';
+    const _annualPositiveProfit=monthlyRows.reduce(function(s,r){return s+(r.profit>0?r.profit:0);},0);
+    html+='<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:20px;overflow-x:auto">';
+    // Header — 5 cols: Month | Revenue | Costs | Profit | Set aside
+    const _cols='55px 1fr 1fr 1fr 90px';
+    html+='<div style="display:grid;grid-template-columns:'+_cols+';column-gap:8px;padding:8px 14px;background:var(--surface2);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted)">';
+    html+='<div>Month</div><div style="text-align:right">Revenue</div><div style="text-align:right">Costs</div><div style="text-align:right">Profit</div><div style="text-align:right">Set aside</div>';
+    html+='</div>';
+    // Rows
+    monthlyRows.forEach(function(r,idx){
+      const profColor=r.profit>=0?'var(--green)':'var(--red)';
+      const bdr=idx>0?'border-top:1px solid var(--border)':'';
+      // Set-aside = this month's share of annual positive profit * total tax
+      // Only applies when month has positive profit; loss months show --
+      const _share=(_annualPositiveProfit>0&&r.profit>0)?r.profit/_annualPositiveProfit:0;
+      const _setAside=+(_share*_totalTaxEarly).toFixed(2);
+      html+='<div style="display:grid;grid-template-columns:'+_cols+';column-gap:8px;padding:10px 14px;'+bdr+';font-size:13px;align-items:center">';
+      html+='<div style="font-weight:600;color:var(--text-secondary)">'+r.label+'</div>';
+      html+='<div style="text-align:right;font-family:var(--font-mono)">'+fmt(r.rev)+'</div>';
+      html+='<div style="text-align:right;font-family:var(--font-mono);color:var(--red)">−'+fmt(r.costs)+'</div>';
+      html+='<div style="text-align:right;font-family:var(--font-mono);font-weight:700;color:'+profColor+'">'+( r.profit>=0?'+':'')+fmt(r.profit)+'</div>';
+      html+='<div style="text-align:right;font-family:var(--font-mono);font-size:12px;color:'+(_setAside>0?'var(--warn)':'var(--muted)')+'">'+(_setAside>0?fmt(_setAside):'—')+'</div>';
+      html+='</div>';
+    });
+    // Totals row
+    const totalRev=monthlyRows.reduce(function(s,r){return s+r.rev;},0);
+    const totalCosts=monthlyRows.reduce(function(s,r){return s+r.costs;},0);
+    const totalProfit2=monthlyRows.reduce(function(s,r){return s+r.profit;},0);
+    html+='<div style="display:grid;grid-template-columns:'+_cols+';column-gap:8px;padding:10px 14px;border-top:2px solid var(--border);font-size:13px;font-weight:700;background:var(--surface2);align-items:center">';
+    html+='<div style="color:var(--text-secondary)">Total</div>';
+    html+='<div style="text-align:right;font-family:var(--font-mono)">'+fmt(totalRev)+'</div>';
+    html+='<div style="text-align:right;font-family:var(--font-mono);color:var(--red)">−'+fmt(totalCosts)+'</div>';
+    html+='<div style="text-align:right;font-family:var(--font-mono);color:'+(totalProfit2>=0?'var(--green)':'var(--red)')+'">'+(totalProfit2>=0?'+':'')+fmt(totalProfit2)+'</div>';
+    html+='<div style="text-align:right;font-family:var(--font-mono);color:var(--warn)">'+(_totalTaxEarly>0?fmt(_totalTaxEarly):'—')+'</div>';
+    html+='</div>';
+    html+='<div style="padding:8px 14px;font-size:11px;color:var(--muted);background:var(--surface2);border-top:1px solid var(--border)">Costs include fees, postage, packaging, stock, parts, mileage, and expenses by month. Set aside = estimated tax split by profit share.</div>';
+    html+='</div>';
+  }
+
   // ── Tax Estimate (UK self-employed rates) ─────────────────────────────────
   var TAX_RATES={
-    2025:{pa:12570,basicBand:37700,basicRate:0.20,higherRate:0.40,addRate:0.45,c2weekly:3.45,c2spt:12570,c4low:0.06,c4high:0.02,c4upper:50270},
-    2024:{pa:12570,basicBand:37700,basicRate:0.20,higherRate:0.40,addRate:0.45,c2weekly:3.45,c2spt:12570,c4low:0.06,c4high:0.02,c4upper:50270},
-    2023:{pa:12570,basicBand:37700,basicRate:0.20,higherRate:0.40,addRate:0.45,c2weekly:3.45,c2spt:12570,c4low:0.09,c4high:0.02,c4upper:50270},
+    2026:{pa:12570,basicBand:37700,basicRate:0.20,higherRate:0.40,addRate:0.45,addThresh:125140,c2weekly:3.45,c2spt:12570,c4low:0.06,c4high:0.02,c4upper:50270},
+    2025:{pa:12570,basicBand:37700,basicRate:0.20,higherRate:0.40,addRate:0.45,addThresh:125140,c2weekly:3.45,c2spt:12570,c4low:0.06,c4high:0.02,c4upper:50270},
+    2024:{pa:12570,basicBand:37700,basicRate:0.20,higherRate:0.40,addRate:0.45,addThresh:125140,c2weekly:3.45,c2spt:12570,c4low:0.06,c4high:0.02,c4upper:50270},
+    2023:{pa:12570,basicBand:37700,basicRate:0.20,higherRate:0.40,addRate:0.45,addThresh:125140,c2weekly:3.45,c2spt:12570,c4low:0.09,c4high:0.02,c4upper:50270},
   };
   var r=TAX_RATES[selectedYear]||TAX_RATES[2025];
   // Tax estimate floors at 0 — a trading loss can't produce negative tax owed.
@@ -11765,7 +11894,10 @@ function renderTax(){
   var taxableForEst=Math.max(0,box23);
   var itTaxable=Math.max(0,taxableForEst-r.pa);
   var basicTaxable=Math.min(itTaxable,r.basicBand);
-  var higherTaxable=Math.max(0,Math.min(itTaxable-r.basicBand,r.c4upper-r.pa-r.basicBand));
+  // Higher rate: from (pa+basicBand) up to additional rate threshold (£125,140)
+  // Additional rate: above addThresh. No cap at c4upper — that is Class 4 NI only.
+  var higherTop=Math.max(0,(r.addThresh||125140)-r.pa-r.basicBand);
+  var higherTaxable=Math.max(0,Math.min(itTaxable-r.basicBand,higherTop));
   var addTaxable=Math.max(0,itTaxable-r.basicBand-higherTaxable);
   var incomeTax=+(basicTaxable*r.basicRate+higherTaxable*r.higherRate+addTaxable*r.addRate).toFixed(2);
   var class2=taxableForEst>r.c2spt?+(r.c2weekly*52).toFixed(2):0;
