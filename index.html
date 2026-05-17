@@ -1556,7 +1556,7 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
     </span>
     <input type="text" id="global-search-mobile" name="app-search-mobile" placeholder="Search items…"
            autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-form-type="other"
-           oninput="if(this.value.trim())showSearchDropdown(this.value);else closeSearchDropdown();"
+           oninput="handleSearch(this.value,false);if(this.value.trim())showSearchDropdown(this.value);else closeSearchDropdown();"
            onkeydown="if(event.key==='Enter'&&this.value.trim()){event.preventDefault();handleSearch(this.value,true);}">
     <button class="search-clear" id="search-clear-mobile" onclick="clearMobileSearch()">×</button>
   </div>
@@ -2952,6 +2952,8 @@ function _rowToItem(row, parts, returns){
     dateSourced:     row.date_sourced || null,
     sourcingRunId:   row.sourcing_run_id || null,
     estSalePrice:    row.est_sale_price != null ? Number(row.est_sale_price) : null,
+    defaultPlatform: row.default_platform || null,
+    soldOnPlatform:  row.sold_on_platform || null,
     _shippingMigrated: true,
     returnData:      null,
     parts: (parts||[]).map(p=>({id:p.id, description:p.description||'', cost:Number(p.cost)||0})),
@@ -3005,6 +3007,8 @@ function _itemToRow(i, month){
     date_sourced:     i.dateSourced || null,
     sourcing_run_id:  i.sourcingRunId || null,
     est_sale_price:   i.estSalePrice != null ? i.estSalePrice : null,
+    default_platform: i.defaultPlatform || null,
+    sold_on_platform: i.soldOnPlatform || null,
   };
 }
 
@@ -3581,6 +3585,11 @@ function goToTab(name,sourceEl){
 }
 
 let _itemPageOrigin='p-summary';
+let _currentRunId=null; // set when opening an item from within a run detail page
+function _openItemFromRun(m,id,runId){
+  _currentRunId=runId;
+  openItemPage(m,id,'p-run-detail');
+}
 let _preSearchPage='p-summary'; // page to return to when dismissing mobile search
 let _lastSearchQuery=''; // last search query — restored when back-navigating from item page
 let _monthOrigin='grid'; // 'grid' | 'summary' | other page id
@@ -3685,6 +3694,14 @@ function exitItemPage(){
       const _fbBnt=document.querySelector('#bottom-nav .bnt[data-tab="runs"]');
       if(_fbBnt)_fbBnt.classList.add('on');
       if(typeof renderRunsPage==='function')renderRunsPage();
+    }
+  }
+  else if(origin==='p-run-detail'){
+    // Return to the specific run the user came from, not just the runs list
+    if(_currentRunId){
+      openRunPageFromRuns(_currentRunId);
+    } else if(typeof renderRunsPage==='function'){
+      renderRunsPage();
     }
   }
   else if(origin==='p-runs'&&typeof renderRunsPage==='function')renderRunsPage();
@@ -4564,12 +4581,15 @@ function handleSearch(q,fromMobile){
       // Remember where we were before search
       const currentPage=document.querySelector('.page.on');
       if(currentPage&&currentPage.id!=='p-search')_preSearchPage=currentPage.id;
-      document.getElementById('nav-search-expand').classList.remove('open');
-      const backdrop=document.getElementById('nav-search-backdrop');
-      if(backdrop)backdrop.style.display='none';
-      const bntSearch=document.getElementById('bnt-search');
-      if(bntSearch)bntSearch.classList.remove('on');
-      openSearchPage(q);
+      // Live as-you-type: navigate to search page on 2+ chars without waiting for Enter
+      if(q.trim().length>=2){
+        document.getElementById('nav-search-expand').classList.remove('open');
+        const backdrop=document.getElementById('nav-search-backdrop');
+        if(backdrop){backdrop.style.display='none';backdrop.style.pointerEvents='none';}
+        const bntSearch=document.getElementById('bnt-search');
+        if(bntSearch)bntSearch.classList.remove('on');
+        openSearchPage(q);
+      }
     }
     return;
   }
@@ -5462,7 +5482,7 @@ function _renderRunPage(run){
     grpItems.forEach(function(i,idx){
       const gp=g.key==='sold'?calcGrossProfit(i):null;
       const profStr=gp!==null?('<span style="font-size:12px;color:'+(gp>=0?'var(--green)':'var(--red)')+';">\u00a3'+gp.toFixed(2)+'</span>'):'';
-      itemsHTML+='<div style="display:flex;align-items:center;gap:8px;padding:10px 14px;'+(idx>0?'border-top:1px solid var(--border)':'')+';cursor:pointer;" onclick="renderItemPage(\''+i._month+'\',\''+i.id+'\')">'
+      itemsHTML+='<div style="display:flex;align-items:center;gap:8px;padding:10px 14px;'+(idx>0?'border-top:1px solid var(--border)':'')+';cursor:pointer;" onclick="_openItemFromRun(\''+i._month+'\',\''+i.id+'\',\''+run.id+'\')">';
         +'<div style="flex:1;min-width:0;">'
           +'<div style="font-size:13px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(i.item||'Untitled')+'</div>'
           +'<div style="font-size:11px;color:var(--text-secondary);">\u00a3'+(i.costPrice||0).toFixed(2)+' cost'+(i.salePrice?' \u00b7 \u00a3'+i.salePrice.toFixed(2)+' ask':'')+'</div>'
@@ -5717,8 +5737,14 @@ function renderRunsPage(){
       '<div class="page-subtitle">Your sourcing events and their P&amp;L.</div>'+
     '</div>'+
     activeCardHTML+
+    // Start button pinned at top when no run active so it's never buried by past runs
+    (!_activeSourcingRun?
+      '<button class="btn btn-p" style="width:100%;justify-content:center;padding:14px;font-size:15px;margin-bottom:18px;gap:8px" onclick="openStartRunModal()">'+
+        '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="flex-shrink:0"><polygon points="5,3 19,12 5,21"/></svg>'+
+        'Start Sourcing Run'+
+      '</button>':'')+ 
     (hasRuns||_activeSourcingRun?pastHTML:emptyHTML)+
-    // Wide start pill (only when no active run) — fixed bottom-right
+    // Wide start pill also fixed bottom (secondary CTA, only when no active run)
     (!_activeSourcingRun?
       '<button class="runs-start-pill" onclick="openStartRunModal()" aria-label="Start Sourcing Run">'+
         '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg>'+
@@ -7471,7 +7497,7 @@ function showAvgDaysBreakdown(){
   });});
   if(!items.length){openPanel('Avg Days to Sell','<div style="padding:30px;text-align:center;color:var(--muted)">No sold items with listing dates in this period.</div>');return;}
   const avg=Math.round(items.reduce((s,i)=>s+i._days,0)/items.length);
-  const sorted=[...items].sort((a,b)=>a._days-b._days);
+  const sorted=[...items].sort((a,b)=>(a._days==null?999999:a._days)-(b._days==null?999999:b._days));
   const header=`<div style="margin-bottom:16px;background:var(--surface2);border-radius:10px;padding:14px">
     <div style="display:flex;align-items:center;gap:12px">
       <div class="stat-num" style="color:var(--accent)">${avg}d</div>
@@ -7536,7 +7562,7 @@ function showSellThroughBreakdown(){
     </div>
   </div>`;
   const soldRows=sold.length?`<div style="font-size:11px;font-weight:700;color:var(--green);text-transform:uppercase;letter-spacing:.08em;margin:0 0 8px">Sold (${sold.length})</div>`+
-    [...sold].sort((a,b)=>(a._days||999)-(b._days||999)).map(i=>{
+    [...sold].sort((a,b)=>(a._days===null||a._days===undefined?999999:a._days)-(b._days===null||b._days===undefined?999999:b._days)).map(i=>{
       const col=i._days!==null?(i._days<=14?'var(--green)':i._days<=30?'var(--warn)':'var(--red)'):'var(--muted)';
       return`<div style="padding:10px;background:var(--surface2);border-radius:8px;margin-bottom:8px;cursor:pointer;display:flex;align-items:center;gap:10px" onclick="openItemDetail('${i.month}','${i.id}')">
         <div style="flex:1"><div style="font-weight:600;font-size:13px">${esc(i.item)}</div>
@@ -8653,7 +8679,7 @@ function renderItemRow(m,i){
           '<div class="item-row-body">'+
             '<div class="item-row-name">'+esc(i.item||'Untitled stock item')+'</div>'+
             '<div class="item-row-meta">'+
-              '<span class="item-badge sourced">stock</span>'+
+              '<span class="item-badge sourced"></span>'+
               (stockMetaStr?'<span class="item-row-meta-sep">\u00b7</span><span>'+stockMetaStr+'</span>':'')+
             '</div>'+
           '</div>'+
@@ -8754,10 +8780,11 @@ function renderItemRow(m,i){
     '<div class="ddmenu">'+
       '<button onclick="event.stopPropagation();openItemPage(\''+m+'\',\''+i.id+'\',document.querySelector(\'.page.on\').id)">📄 Full page</button>'+
       '<button onclick="event.stopPropagation();editItem(\''+m+'\',\''+i.id+'\')">✏️ Edit</button>'+
-      (!i.dateSold&&!i.resaleSalePrice?'<button onclick="event.stopPropagation();markSold(\''+m+'\',\''+i.id+'\')"><svg width="14" height="14" viewBox="0 0 15 15" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M8.5 1.5h4a1 1 0 011 1v4a.5.5 0 01-.15.35l-6 6a1 1 0 01-1.41 0l-4-4a1 1 0 010-1.41l6-6A.5.5 0 018.5 1.5z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/><circle cx="11" cy="4" r="0.8" fill="currentColor"/></svg> Mark Sold</button>':'')+
-      ((i.dateSold||i.resaleSalePrice)&&!i.isReturned?'<button onclick="event.stopPropagation();openReturn(\''+m+'\',\''+i.id+'\')">↩️ Log Return</button>':'')+
-      '<button onclick="event.stopPropagation();duplicateItem(\''+m+'\',\''+i.id+'\')">📋 Duplicate</button>'+
-      '<button class="danger" onclick="event.stopPropagation();deleteItem(\''+m+'\',\''+i.id+'\')">🗑️ Delete</button>'+
+      (!i.dateSold&&!i.resaleSalePrice?'<button onclick="event.stopPropagation();markSold(\''+m+'\',\''+i.id+'\')">' + '<svg width="14" height="14" viewBox="0 0 15 15" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M8.5 1.5h4a1 1 0 011 1v4a.5.5 0 01-.15.35l-6 6a1 1 0 01-1.41 0l-4-4a1 1 0 010-1.41l6-6A.5.5 0 018.5 1.5z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/><circle cx="11" cy="4" r="0.8" fill="currentColor"/></svg> Mark Sold</button>':'')+
+      (!i.dateSold&&!i.resaleSalePrice&&i.state==='listed'?'<button onclick="event.stopPropagation();withdrawToSourced(\''+m+'\',\''+i.id+'\')" style="color:var(--warn)">↩ Withdraw</button>':'')+
+      ((i.dateSold||i.resaleSalePrice)&&!i.isReturned?'<button onclick="event.stopPropagation();openReturn(\''+m+'\',\''+i.id+'\')">' + '↩️ Log Return</button>':'')+
+      '<button onclick="event.stopPropagation();duplicateItem(\''+m+'\',\''+i.id+'\')">' + '📋 Duplicate</button>'+
+      '<button class="danger" onclick="event.stopPropagation();deleteItem(\''+m+'\',\''+i.id+'\')">' + '🗑️ Delete</button>'+
     '</div></div>';
 
   return'<div class="item-row'+(selected?' selected':'')+' '+(isStale?' stale':'')+'" '+rowClick+'>'+
@@ -8800,7 +8827,7 @@ function openItemDetail(m,id,noHistory){
       :'';
     const html=`
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px">
-        <span class="item-badge sourced" style="font-size:11px;padding:4px 9px">stock</span>
+        <span class="item-badge sourced" style="font-size:11px;padding:4px 9px"></span>
         ${i.gid?`<span style="font-size:11px;color:var(--muted);font-family:monospace">${i.gid}</span>`:''}
         ${i.category?`<span style="font-size:11px;color:var(--muted)">· ${esc(i.category)}</span>`:''}
       </div>
