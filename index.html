@@ -1495,6 +1495,14 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
             <svg width="11" height="11" viewBox="0 0 12 12" fill="none" style="color:var(--muted);"><path d="M4 2l4 4-4 4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
           </button>
           <div class="user-menu-divider"></div>
+          <button class="user-menu-item" onclick="event.stopPropagation();openDefaultPlatformPanel();closeUserMenu()">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+            <span style="flex:1;text-align:left;display:flex;flex-direction:column;gap:1px;">
+              <span style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;font-weight:700;">Default platform</span>
+              <span id="user-menu-defplat-label" style="font-size:13px;color:var(--text);font-weight:500;">eBay UK</span>
+            </span>
+          </button>
+          <div class="user-menu-divider"></div>
           <button class="user-menu-item danger" id="user-menu-signout" onclick="closeUserMenu();doSignOut()">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
             Sign out
@@ -2078,7 +2086,15 @@ const PLATFORMS={
   fb:        { id:'fb',        label:'Facebook Marketplace', short:'FB',     live:true,  pattern:'seller_receives', country:'uk' },
   amazon_uk: { id:'amazon_uk', label:'Amazon UK (used)',     short:'Amazon', live:true,  pattern:'listed_plus_fee', country:'uk' }
 };
-const DEFAULT_PLATFORM='ebay';
+// User-configurable default platform — persisted to localStorage
+function _getDefaultPlatform(){
+  try{ const v=localStorage.getItem('_rtrade_default_platform'); return(v&&PLATFORMS[v])?v:'ebay'; }catch(e){return'ebay';}
+}
+function _setDefaultPlatform(p){
+  try{ localStorage.setItem('_rtrade_default_platform',p); }catch(e){}
+}
+// Keep DEFAULT_PLATFORM as a live getter alias
+Object.defineProperty(window,'DEFAULT_PLATFORM',{get:_getDefaultPlatform,configurable:true});
 
 // Source of truth: which platform's fee formula applies to this item right now.
 // Sold/returned items use soldOnPlatform if set (D2 will set it); otherwise
@@ -2316,7 +2332,14 @@ function toggleMoreSheet(){
   overlay.style.display='block';
   document.getElementById('bnt-more').classList.add('on');
 }
+function _refreshDefaultPlatLabel(){
+  const el=document.getElementById('user-menu-defplat-label');
+  if(!el)return;
+  const p=_getDefaultPlatform();
+  el.textContent=(PLATFORMS[p]&&PLATFORMS[p].label)||'eBay UK';
+}
 function toggleUserMenu(){
+  _refreshDefaultPlatLabel();
   const menu=document.getElementById('user-menu');
   if(!menu)return;
   // Session E1 — close country panel when toggling main menu so we never
@@ -4432,14 +4455,14 @@ let _searchResults=[];
 let _mobileSearchItems=[]; // cache for delegated click in mobile search results
 // Recent search terms — session only, max 8, shown when search input focused empty
 let _searchHistory=(function(){
-  try{return JSON.parse(sessionStorage.getItem('_rtrade_srch_hist')||'[]');}catch(e){return [];}
+  try{return JSON.parse(localStorage.getItem('_rtrade_srch_hist')||'[]');}catch(e){return [];}
 })();
 function _addSearchHistory(q){
   if(!q||q.length<2)return;
   _searchHistory=_searchHistory.filter(function(s){return s!==q;});
   _searchHistory.unshift(q);
   if(_searchHistory.length>8)_searchHistory=_searchHistory.slice(0,8);
-  try{sessionStorage.setItem('_rtrade_srch_hist',JSON.stringify(_searchHistory));}catch(e){}
+  try{localStorage.setItem('_rtrade_srch_hist',JSON.stringify(_searchHistory));}catch(e){}
 }
 function showSearchHistoryDropdown(){
   if(!_searchHistory.length)return;
@@ -4556,6 +4579,8 @@ function setSearchActive(idx){
 function selectSearchResult(idx){
   const item=_searchResults[idx];
   if(!item)return;
+  // Save the item name (not partial query) — so history shows 'Nikon Camera' not 'nik'
+  if(item.item)_addSearchHistory(item.item);
   closeSearchDropdown();
   document.getElementById('global-search').value='';
   document.querySelector('.search-clear').classList.remove('show');
@@ -4620,6 +4645,7 @@ function handleMobileSearchInput(q){
     var ex=document.getElementById('nav-search-expand');if(ex)ex.classList.remove('open');
     var bd=document.getElementById('nav-search-backdrop');if(bd){bd.style.display='none';bd.style.pointerEvents='none';}
     var bs=document.getElementById('bnt-search');if(bs)bs.classList.remove('on');
+    if(it.item)_addSearchHistory(it.item); // save item name not query
     openItemPage(it.month,it.id,'p-search');
   };
 }
@@ -4655,6 +4681,22 @@ function clearSearch(){
   if(document.getElementById('p-search').classList.contains('on')){
     exitSearchPage();
   }
+}
+function openDefaultPlatformPanel(){
+  const cur=_getDefaultPlatform();
+  const opts=Object.values(PLATFORMS).filter(p=>p.live).map(p=>{
+    const active=p.id===cur;
+    return'<button class="btn'+(active?' btn-p':' btn-s')+'" style="text-align:left;justify-content:flex-start;gap:10px;width:100%;" onclick="_setDefaultPlatform(\''+p.id+'\');_refreshDefaultPlatLabel();closePanel();toast(\'Default: '+p.label+'\');">'
+      +'<span class="plat-badge '+(p.id==='ebay_biz'?'ebay':p.id)+'" style="font-size:10px;">'+p.short+'</span>'
+      +'<span style="flex:1;">'+p.label+'</span>'
+      +(active?'<span style="color:var(--green);font-size:13px;">✓</span>':'')
+      +'</button>';
+  }).join('');
+  const html='<div style="display:flex;flex-direction:column;gap:8px;">'
+    +'<div style="font-size:13px;color:var(--text-secondary);margin-bottom:4px;">New items and quick-adds will default to this platform. You can always override per item at listing or sale time.</div>'
+    +opts
+    +'</div>';
+  openPanel('Default Platform',html);
 }
 function toggleNavSearch(){
   const expand=document.getElementById('nav-search-expand');
@@ -5596,6 +5638,8 @@ function _renderRunPage(run){
       <div style="display:flex;gap:8px;margin-bottom:18px;flex-wrap:wrap;">
         ${isActive?'<button class="btn btn-p" style="font-size:13px;" onclick="endSourcingRun(\''+run.id+'\')">End run</button>':''}
         <button class="btn btn-s" style="font-size:13px;" onclick="openEditRun('${run.id}')">Edit</button>
+        <button class="btn btn-s" style="font-size:13px;" onclick="addRunExpense('${run.id}')">+ Expense</button>
+        <button class="btn btn-s" style="font-size:13px;" onclick="addRunTrip('${run.id}')">+ Trip</button>
         ${!isActive?'<button class="btn btn-s danger" style="font-size:13px;" onclick="deleteRun(\''+run.id+'\')">Delete</button>':''}
       </div>
       ${kpis}
@@ -8343,6 +8387,22 @@ function renderMonthlyGrid(){
              hasListedOnly?'0 sold · '+ms.listedCount+' active':
              ms.soldCount+' sold · '+ms.listedCount+' active'+(ms.avgDays!==null?' · '+ms.avgDays+'d avg':''))
           +'</div>'
+          +(function(){
+            if(trulyEmpty||ms.soldCount===0) return '';
+            // Count sales by non-eBay platform for this month
+            const platCounts={};
+            getSaleEventsInMonth(k).forEach(function(ev){
+              if(ev.isReturned) return;
+              const p=_itemPlatform(ev.item);
+              if(p&&p!=='ebay') platCounts[p]=(platCounts[p]||0)+1;
+            });
+            const badges=Object.keys(platCounts).map(function(p){
+              const pl=PLATFORMS[p]; if(!pl) return '';
+              const cls=p==='ebay_biz'?'ebay':p;
+              return '<span class="plat-badge '+cls+'" style="font-size:9px;padding:1px 5px;">'+esc(pl.short)+'</span>';
+            }).join('');
+            return badges?'<div style="display:flex;flex-wrap:wrap;gap:3px;margin-top:4px;">'+badges+'</div>':'';
+          })()
           +'</div>'
           +'<div class="mcard-body-right">'
           +cardContent
@@ -9840,6 +9900,60 @@ function _runDropdownHTML(fieldId, currentRunId){
     +'</div>';
 }
 
+// Open expense panel pre-tagged to a specific run
+function addRunExpense(runId){
+  const run=_sourcingRuns.find(r=>r.id===runId);
+  const today=new Date().toISOString().split('T')[0];
+  const html=`
+    <div class="fg"><label>Date</label><input type="date" id="exp-date" value="${today}"></div>
+    <div class="fg"><label>Description</label><input type="text" id="exp-desc" placeholder="e.g. Packaging, entry fee"></div>
+    <div class="fg"><label>Category</label><select id="exp-cat"><option value="">Select…</option>${EXPENSE_CATEGORIES.map(c=>`<option value="${c}">${c}</option>`).join('')}</select></div>
+    <div class="fg"><label>Amount (£)</label><input type="number" id="exp-amt" step="0.01" min="0" placeholder="0.00" inputmode="decimal"></div>
+    <div class="fg" style="background:var(--surface2);border-radius:8px;padding:8px 12px;font-size:12px;color:var(--text-secondary);">Tagged to run: <strong style="color:var(--text)">${esc(run?run.name:'Unknown')}</strong></div>
+    <button class="btn btn-p" style="width:100%;margin-top:16px" onclick="saveRunExpenseInline('${runId}')">Save Expense</button>
+  `;
+  openPanel('Add Expense to Run',html);
+  setTimeout(function(){const d=document.getElementById('exp-desc');if(d)d.focus();},80);
+}
+function saveRunExpenseInline(runId){
+  const desc=(document.getElementById('exp-desc').value||'').trim();
+  const amt=parseFloat(document.getElementById('exp-amt').value);
+  if(!desc){toast('Description required','error');document.getElementById('exp-desc').focus();return;}
+  if(!isFinite(amt)||amt<=0){toast('Amount must be positive','error');document.getElementById('exp-amt').focus();return;}
+  const exp={id:'exp_'+Date.now(),date:document.getElementById('exp-date').value,
+    description:desc,category:document.getElementById('exp-cat').value,amount:amt,sourcingRunId:runId};
+  if(!DB.expenses)DB.expenses=[];
+  DB.expenses.push(exp);
+  saveDB();closePanel();toast('Expense saved');
+  const run=_sourcingRuns.find(r=>r.id===runId);
+  if(run)openRunPageFromRuns(runId);
+}
+// Open trip panel pre-tagged to a specific run
+function addRunTrip(runId){
+  const run=_sourcingRuns.find(r=>r.id===runId);
+  const today=new Date().toISOString().split('T')[0];
+  const html=`
+    <div class="fg"><label>Date</label><input type="date" id="trip-date" value="${today}"></div>
+    <div class="fg"><label>Description</label><input type="text" id="trip-desc" placeholder="e.g. Car boot sale drive"></div>
+    <div class="fg"><label>Mileage (round trip)</label><input type="number" id="trip-miles" step="0.1" min="0" placeholder="0" inputmode="decimal"></div>
+    <div class="fg" style="background:var(--surface2);border-radius:8px;padding:8px 12px;font-size:12px;color:var(--text-secondary);">Tagged to run: <strong style="color:var(--text)">${esc(run?run.name:'Unknown')}</strong></div>
+    <button class="btn btn-p" style="width:100%;margin-top:16px" onclick="saveRunTripInline('${runId}')">Save Trip</button>
+  `;
+  openPanel('Add Trip to Run',html);
+  setTimeout(function(){const d=document.getElementById('trip-desc');if(d)d.focus();},80);
+}
+function saveRunTripInline(runId){
+  const desc=(document.getElementById('trip-desc').value||'').trim();
+  const miles=parseFloat(document.getElementById('trip-miles').value)||0;
+  if(!desc){toast('Description required','error');document.getElementById('trip-desc').focus();return;}
+  const trip={id:'trip_'+Date.now(),date:document.getElementById('trip-date').value,
+    description:desc,mileage:miles,ratePerMile:0.45,expenses:[],sourcingRunId:runId};
+  if(!DB.trips)DB.trips=[];
+  DB.trips.push(trip);
+  saveDB();closePanel();toast('Trip saved');
+  const run=_sourcingRuns.find(r=>r.id===runId);
+  if(run)openRunPageFromRuns(runId);
+}
 function addTrip(){
   const html=`
     <div class="fg">
