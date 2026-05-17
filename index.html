@@ -403,7 +403,7 @@ nav:not(#bottom-nav){position:sticky;top:0;z-index:200;background:var(--surface)
 .chip.chip-state-listed.active{background:rgba(96,165,250,0.13);color:var(--blue);border-color:rgba(96,165,250,0.35);}
 .chip.chip-state-all.active{background:var(--surface2);color:var(--text);border-color:var(--border);}
 .plat-badge{font-size:10px;padding:2px 6px;border-radius:5px;font-weight:600;letter-spacing:0.3px;background:var(--surface2);border:1px solid var(--border2);color:var(--text-secondary);white-space:nowrap;}
-.plat-badge.vinted{background:rgba(9,166,135,0.12);border-color:rgba(9,166,135,0.3);color:#09a687;}
+.plat-badge.vinted{background:var(--surface2);border-color:var(--border2);color:var(--text-secondary);}
 .plat-badge.depop{background:rgba(255,70,70,0.1);border-color:rgba(255,70,70,0.25);color:#e03030;}
 .plat-badge.fb{background:rgba(24,119,242,0.1);border-color:rgba(24,119,242,0.25);color:#1877f2;}
 .plat-badge.amazon_uk{background:rgba(255,153,0,0.12);border-color:rgba(255,153,0,0.3);color:#c45a00;}
@@ -1194,7 +1194,7 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
 .ip-field,.ip-field-select,.ip-field-date{font-size:15px;}
 #auth-screen-login,#auth-screen-reset{max-width:420px;border-radius:28px;padding:42px 36px!important;box-shadow:0 22px 60px rgba(0,0,0,.18);} 
 #auth-screen-login > div:first-child + div + div span{letter-spacing:.16em!important;}
-#auth-btn,#preview-btn{height:48px;border-radius:16px;}
+#auth-btn,
 .summary-shell{display:grid;grid-template-columns:minmax(0,1.84fr) minmax(0,.92fr);gap:18px;align-items:start;}
 .summary-main{display:flex;flex-direction:column;gap:18px;min-height:100%;min-width:0;}
 .summary-side{display:grid;grid-template-rows:auto auto auto;gap:18px;}
@@ -1747,7 +1747,7 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
       style="width:100%;padding:12px;background:var(--accent);color:#000;border:none;border-radius:8px;font-weight:700;font-size:15px;cursor:pointer;transition:background 0.15s;">
       Sign In
     </button>
-
+    
 
     <button onclick="showForgotPassword()"
       style="width:100%;padding:10px;background:none;border:none;color:var(--text-secondary);font-size:13px;cursor:pointer;margin-top:8px;text-decoration:underline;text-underline-offset:3px;">
@@ -3267,26 +3267,28 @@ async function deleteExpenseFromSupabase(id){
 
 function _runToRow(run){
   return {
-    id:           run.id,
-    user_id:      _currentUserId||null,
-    name:         run.name,
-    location:     run.location||null,
-    date_started: run.dateStarted,
-    date_ended:   run.dateEnded||null,
-    status:       run.status,
-    notes:        run.notes||null
+    id:             run.id,
+    user_id:        _currentUserId||null,
+    name:           run.name,
+    location:       run.location||null,
+    date_started:   run.dateStarted,
+    started_at_iso: run.startedAtIso||null,
+    date_ended:     run.dateEnded||null,
+    status:         run.status,
+    notes:          run.notes||null
   };
 }
 
 function _rowToRun(row){
   return {
-    id:          row.id,
-    name:        row.name,
-    location:    row.location||null,
-    dateStarted: row.date_started,
-    dateEnded:   row.date_ended||null,
-    status:      row.status,
-    notes:       row.notes||null
+    id:             row.id,
+    name:           row.name,
+    location:       row.location||null,
+    dateStarted:    row.date_started,
+    startedAtIso:   row.started_at_iso||null,
+    dateEnded:      row.date_ended||null,
+    status:         row.status,
+    notes:          row.notes||null
   };
 }
 
@@ -3586,6 +3588,7 @@ function goToTab(name,sourceEl){
 
 let _itemPageOrigin='p-summary';
 let _currentRunId=null; // set when opening an item from within a run detail page
+let _runTimerInterval=null; // live tick for active run elapsed display
 function _openItemFromRun(m,id,runId){
   _currentRunId=runId;
   openItemPage(m,id,'p-run-detail');
@@ -5183,6 +5186,7 @@ function submitStartRun(){
     name:name,
     location:location||null,
     dateStarted:date,
+    startedAtIso:new Date().toISOString(), // real start timestamp for duration calc
     dateEnded:null,
     status:'active',
     notes:notes||null
@@ -5252,15 +5256,19 @@ function renderActiveRunPage(){
   const spent=runItems.reduce(function(s,i){return s+(i.costPrice||0)+calcPartsCost(i);},0);
   const estItems=runItems.filter(function(i){return i.estSalePrice!=null;});
   const estProfit=estItems.reduce(function(s,i){return s+(i.estSalePrice-(i.costPrice||0)-calcPartsCost(i));},0);
+  // Seed session start time — use stored startedAtIso if available (survives reload)
+  if(!window._runSessionStartMs||window._runActiveId!==run.id){
+    window._runSessionStartMs=run.startedAtIso?new Date(run.startedAtIso).getTime():Date.now();
+    window._runActiveId=run.id;
+  }
   function _elapsed(){
-    const start=run.dateStarted?new Date(run.dateStarted+'T00:00:00').getTime():Date.now();
-    const diff=Date.now()-start;
-    const mins=Math.floor(diff/60000);
-    const hrs=Math.floor(mins/60);
-    if(mins<1) return 'just started';
-    if(mins<60) return mins+' minute'+(mins===1?'':'s')+' ago';
-    if(hrs<24) return hrs+'h '+(mins%60)+'m ago';
-    return 'Started '+run.dateStarted;
+    const diff=Date.now()-window._runSessionStartMs;
+    const s=Math.floor(diff/1000);
+    const h=Math.floor(s/3600),m=Math.floor((s%3600)/60),ss=s%60;
+    if(s<5) return 'just started';
+    if(h>0) return h+'h '+String(m).padStart(2,'0')+'m '+String(ss).padStart(2,'0')+'s';
+    if(m>0) return m+'m '+String(ss).padStart(2,'0')+'s';
+    return ss+'s';
   }
   function kc(label,val,sub,cls){
     return '<div class="kcard '+(cls||'')+'"><div class="klabel">'+label+'</div><div class="kval">'+val+'</div><div class="ksub">'+sub+'</div></div>';
@@ -5308,7 +5316,7 @@ function renderActiveRunPage(){
       +'</div>'
       +'<h1 style="font-family:var(--font-display);font-size:24px;font-weight:800;letter-spacing:-0.02em;margin:4px 0 2px;">'+esc(run.name)+'</h1>'
       +(run.location?'<div style="font-size:13px;color:var(--text-secondary);margin-bottom:2px;">'+esc(run.location)+'</div>':'')
-      +'<div style="font-size:12px;color:var(--muted);margin-bottom:20px;">'+_elapsed()+'</div>'
+      +'<div style="font-size:12px;color:var(--muted);margin-bottom:20px;"><span id="run-elapsed-live">'+_elapsed()+'</span></div>'
       +kpiHTML
       +'<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-secondary);margin-bottom:10px;">Items sourced this run</div>'
       +listHTML
@@ -5319,6 +5327,13 @@ function renderActiveRunPage(){
         +'<button class="btn btn-s" style="width:100%;justify-content:center;color:var(--red);border-color:rgba(220,55,55,0.3);" onclick="endSourcingRun()">End Run</button>'
       +'</div>'
     +'</div>';
+  // Live tick — updates elapsed every second while run is active
+  if(_runTimerInterval) clearInterval(_runTimerInterval);
+  _runTimerInterval=setInterval(function(){
+    const el=document.getElementById('run-elapsed-live');
+    if(el&&_activeSourcingRun) el.textContent=_elapsed();
+    else{ clearInterval(_runTimerInterval); _runTimerInterval=null; }
+  },1000);
 }
 
 function _removeFromActiveRun(m,id){
@@ -5342,6 +5357,8 @@ function endSourcingRun(runId){
     if(!ok)return;
     run.status='ended';
     run.dateEnded=new Date().toISOString();
+    if(_runTimerInterval){ clearInterval(_runTimerInterval); _runTimerInterval=null; }
+    window._runSessionStartMs=null; window._runActiveId=null;
     const _endedRunId=run.id;
     if(_activeSourcingRun&&_activeSourcingRun.id===run.id) _activeSourcingRun=null;
     saveDB();
@@ -5545,13 +5562,25 @@ function _renderRunPage(run){
 
   const dateStr=(run.dateStarted||'').slice(0,10);
   const endedStr=run.dateEnded?(' \u2014 ended '+(run.dateEnded||'').slice(0,10)):'';
+  function _fmtRunDuration(startIso,startDate,endIso){
+    if(!endIso) return null;
+    // Use real ISO start if available; fall back to midnight of dateStarted
+    const startMs=startIso?new Date(startIso).getTime():new Date((startDate||'')+'T00:00:00').getTime();
+    const ms=new Date(endIso).getTime()-startMs;
+    const totalSecs=Math.max(0,Math.floor(ms/1000));
+    const h=Math.floor(totalSecs/3600),m=Math.floor((totalSecs%3600)/60);
+    if(h>0) return h+'h '+m+'m';
+    if(m>0) return m+'m';
+    return '<1m';
+  }
+  const _runDuration=_fmtRunDuration(run.startedAtIso,run.dateStarted,run.dateEnded);
   const html=`
     <div style="max-width:560px;margin:0 auto;padding:18px 16px 80px;">
       <button class="btn btn-s" onclick="goToTab('stock',document.querySelector('[data-tab=\\'stock\\']'))" style="margin-bottom:12px;font-size:13px">\u2190 Stock</button>
       <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:6px;">
         <div>
           <h1 style="font-family:var(--font-display);font-size:24px;font-weight:800;letter-spacing:-0.02em;margin:0 0 4px;">${esc(run.name)}</h1>
-          <div style="font-size:12px;color:var(--text-secondary);">${run.location?esc(run.location)+' \u00b7 ':''} ${dateStr}${endedStr}</div>
+          <div style="font-size:12px;color:var(--text-secondary);">${run.location?esc(run.location)+' \u00b7 ':''} ${dateStr}${endedStr}${_runDuration?' \u00b7 '+_runDuration:''}${!run.dateEnded?' \u00b7 <span style="color:var(--green);font-weight:600;">\u25cf Live</span>':''}</div>
         </div>
         ${statusPill}
       </div>
@@ -8669,6 +8698,7 @@ function renderSaleEventRow(ev){
           '<div class="item-row-name">'+esc(i.item)+'</div>'+
           '<div class="item-row-meta">'+
             '<span class="item-badge '+status+'">'+badgeText+'</span>'+
+            platBadgeHTML(i)+
             (metaStr?'<span class="item-row-meta-sep">·</span><span>'+metaStr+'</span>':'')+
           '</div>'+
         '</div>'+
@@ -12069,7 +12099,8 @@ function calcYearlyStats(period){
       // (isReturned=false but returnHistory has a full return entry and dateSold is null).
       const _retSaleDate=(!i.dateSold)?(function(){
         const fe=(i.returnHistory||[]).find(r=>r.type==='full_seller'||r.type==='full_ebay');
-        return fe&&fe._dateSoldAtReturn||null;
+        // Fallback: use loggedAt if _dateSoldAtReturn snapshot is missing (pre-E4 data)
+        return (fe&&fe._dateSoldAtReturn)||(fe&&fe.loggedAt?fe.loggedAt.slice(0,10):null)||null;
       })():null;
       const saleDate=i.resaleSalePrice?i.resaleDateSold:(i.dateSold||_retSaleDate);
       const soldInRange=inRange(saleDate);
