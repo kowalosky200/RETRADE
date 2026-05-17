@@ -1556,7 +1556,7 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
     </span>
     <input type="text" id="global-search-mobile" name="app-search-mobile" placeholder="Search items…"
            autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-form-type="other"
-           oninput="handleSearch(this.value,false);if(this.value.trim())showSearchDropdown(this.value);else closeSearchDropdown();"
+           oninput="handleMobileSearchInput(this.value);" 
            onkeydown="if(event.key==='Enter'&&this.value.trim()){event.preventDefault();handleSearch(this.value,true);}">
     <button class="search-clear" id="search-clear-mobile" onclick="clearMobileSearch()">×</button>
   </div>
@@ -4426,6 +4426,7 @@ const CATEGORY_ICONS={
 };
 let _searchIdx=-1;
 let _searchResults=[];
+let _mobileSearchItems=[]; // cache for delegated click in mobile search results
 // Recent search terms — session only, max 8, shown when search input focused empty
 let _searchHistory=(function(){
   try{return JSON.parse(sessionStorage.getItem('_rtrade_srch_hist')||'[]');}catch(e){return [];}
@@ -4571,6 +4572,51 @@ function closeSearchDropdown(){
   const dd=document.getElementById('search-dropdown');
   if(dd){dd.classList.remove('open');dd.style.display='none';}
   _searchIdx=-1;
+}
+
+// Mobile search: shows live results inside the expand panel without navigating away.
+// On Enter or result tap → navigate to full p-search page.
+function handleMobileSearchInput(q){
+  const inp=document.getElementById('global-search-mobile');
+  const clearBtn=document.getElementById('search-clear-mobile');
+  if(clearBtn)clearBtn.style.display=q?'block':'none';
+  let resultsEl=document.getElementById('mobile-search-results');
+  if(!resultsEl){
+    resultsEl=document.createElement('div');
+    resultsEl.id='mobile-search-results';
+    resultsEl.style.cssText='max-height:55vh;overflow-y:auto;border-top:1px solid var(--border);';
+    const wrap=document.getElementById('nav-search-expand');
+    if(wrap)wrap.appendChild(resultsEl);
+  }
+  if(!q||q.trim().length<1){resultsEl.innerHTML='';return;}
+  const results=searchAllItems(q.trim()).slice(0,12);
+  if(!results.length){
+    resultsEl.innerHTML='<div style="padding:16px;text-align:center;color:var(--muted);font-size:13px;">No results for "'+esc(q)+'"</div>';
+    return;
+  }
+  // Delegated click — avoids inline quoting issues with dynamic data
+  _mobileSearchItems=results;
+  resultsEl.innerHTML=results.map(function(item,idx){
+    const status=item.isReturned?'returned':item.resaleSalePrice?'resold':item.dateSold?'sold':item.state==='sourced'?'sourced':'listed';
+    return '<div data-mob-idx="'+idx+'" style="display:flex;align-items:center;gap:10px;padding:11px 16px;'+(idx>0?'border-top:1px solid var(--border)':'')+';cursor:pointer;background:var(--surface);">'+
+      '<div style="flex:1;min-width:0;">'+
+        '<div style="font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(item.item)+'</div>'+
+        '<div style="font-size:11px;color:var(--muted);">'+status+(item.salePrice?' · '+fmt(item.salePrice):'')+'</div>'+
+      '</div>'+
+      '<span class="item-badge '+status+'" style="flex-shrink:0">'+status+'</span>'+
+    '</div>';
+  }).join('');
+  resultsEl.onclick=function(e){
+    var row=e.target.closest('[data-mob-idx]');
+    if(!row)return;
+    var it=_mobileSearchItems[parseInt(row.dataset.mobIdx)];
+    if(!it)return;
+    _lastSearchQuery=q;
+    var ex=document.getElementById('nav-search-expand');if(ex)ex.classList.remove('open');
+    var bd=document.getElementById('nav-search-backdrop');if(bd){bd.style.display='none';bd.style.pointerEvents='none';}
+    var bs=document.getElementById('bnt-search');if(bs)bs.classList.remove('on');
+    openItemPage(it.month,it.id,'p-search');
+  };
 }
 
 function handleSearch(q,fromMobile){
@@ -8647,7 +8693,7 @@ function renderItemRow(m,i){
     const ageStr=ageDays===null?'':ageDays+'d in stock';
     const dateStr=i.dateSourced||'';
     const stockMeta=[];
-    if(dateStr) stockMeta.push('sourced '+dateStr);
+    if(dateStr) stockMeta.push(dateStr); // removed 'sourced' prefix — orange dot already signals state
     if(ageStr) stockMeta.push(ageStr);
     if(i.gid) stockMeta.push(i.gid);
     const stockMetaStr=stockMeta.join(' \u00b7 ');
@@ -8679,25 +8725,22 @@ function renderItemRow(m,i){
           '<div class="item-row-body">'+
             '<div class="item-row-name">'+esc(i.item||'Untitled stock item')+'</div>'+
             '<div class="item-row-meta">'+
-              '<span class="item-badge sourced"></span>'+
+              '<span class="item-badge sourced">STOCK</span>'+
               (stockMetaStr?'<span class="item-row-meta-sep">\u00b7</span><span>'+stockMetaStr+'</span>':'')+
             '</div>'+
           '</div>'+
           '<div class="item-row-right">'+
-            (i.estSalePrice!=null?(function(){
-              const _ep=i.estSalePrice-(i.costPrice||0)-calcPartsCost(i);
+            (function(){
               const _tc=(i.costPrice||0)+calcPartsCost(i);
               const _hasParts=calcPartsCost(i)>0;
-              return '<div class="item-row-price" style="color:var(--text-secondary);font-size:13px;">'+fmt(_tc)+(_hasParts?' <span style="font-size:10px;opacity:0.6">all-in</span>':'')+'</div>'+
-                '<div class="item-row-roi" style="color:'+(_ep>=0?'var(--green)':'var(--red)')+';font-size:11px;">est '+(_ep>=0?'+':'')+fmt(_ep)+'</div>';
-            })():(
-              (function(){
-                const _tc=(i.costPrice||0)+calcPartsCost(i);
-                const _hasParts=calcPartsCost(i)>0;
-                return '<div class="item-row-price" style="color:var(--text-secondary);font-size:13px;">'+fmt(_tc)+(_hasParts?' <span style="font-size:10px;opacity:0.6">all-in</span>':'')+'</div>'+
-                  '<div class="item-row-roi" style="color:var(--text-secondary);">cost</div>';
-              })()
-            ))+
+              const _costStr='<div class="item-row-price">'+fmt(_tc)+(_hasParts?' <span style="font-size:10px;opacity:0.6">all-in</span>':'')+'</div>';
+              if(i.estSalePrice!=null){
+                const _ep=i.estSalePrice-_tc;
+                return _costStr+'<div class="item-row-profit est" style="color:'+(_ep>=0?'var(--green)':'var(--red)')+'">est '+(  _ep>=0?'+':'')+fmt(_ep)+'</div>';
+              }
+              return _costStr+'<div class="item-row-roi">cost</div>';
+            })()+
+            ''
           '</div>'+
         '</div>'+
       '</div>'+
@@ -8794,7 +8837,7 @@ function renderItemRow(m,i){
         '<div class="item-row-body">'+
           '<div class="item-row-name">'+esc(i.item)+'</div>'+
           '<div class="item-row-meta">'+
-            '<span class="item-badge '+badgeClass+'">'+badgeLabel+'</span>'+
+            (i.state==='sourced'?'<span class="item-badge sourced">STOCK</span>':'<span class="item-badge '+badgeClass+'">'+badgeLabel+'</span>')+
             platBadgeHTML(i)+
             (metaStr?'<span class="item-row-meta-sep">·</span><span>'+metaStr+'</span>':'')+
             actionHint+
