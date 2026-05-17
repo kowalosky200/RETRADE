@@ -4114,8 +4114,8 @@ function renderItemPage(m,id){
   if(_plat==='vinted')pb+=rcp('Buyer pays postage','(buyer covered)','var(--muted)');
   else if((i.postage||0)>0)pb+=rcp('+ Buyer postage','+'+fmt(i.postage),'var(--green)');
   if(_showFee)pb+=rcp(_feeLabel,'−'+fmt(bpf),'var(--red)');
-  if((i.shippingCost||0)>0)pb+=rcp('Shipping cost','−'+fmt(i.shippingCost),'var(--red)');
-  if((i.packagingCost||0)>0)pb+=rcp('Packaging','−'+fmt(i.packagingCost),'var(--red)');
+  if(_showPostage&&(i.shippingCost||0)>0)pb+=rcp('Shipping cost','−'+fmt(i.shippingCost),'var(--red)');
+  if(_showPostage&&(i.packagingCost||0)>0)pb+=rcp('Packaging','−'+fmt(i.packagingCost),'var(--red)');
   if(i.promoPercent)pb+=rcp((_plat==='ebay'?'Promo fee ('+((i.promoPercent*100).toFixed(0))+'% +VAT)':'Boost fee ('+((i.promoPercent*100).toFixed(0))+'%)'),'−'+fmt(promoCost),'var(--red)');
   pb+=rcp('Item cost','−'+fmt(i.costPrice||0),'var(--red)');
   if(partsCost>0){
@@ -12641,7 +12641,10 @@ function calcGrossProfit(i){
     return s+(r.returnPostage||0);
   },0);
   const partsCost=calcPartsCost(i);
-  const cost=(i.costPrice||0)+_s1Shipping+_s1Packaging+promoCost+returnCost+partsCost;
+  // Vinted (and any future buyer-pays-postage-only platform): seller pays nothing to ship
+  const _platForCost=_itemPlatform(i);
+  const _sellerPaysShipping=(_platForCost!=='vinted'&&_platForCost!=='fb');
+  const cost=(i.costPrice||0)+(_sellerPaysShipping?_s1Shipping:0)+(_sellerPaysShipping?_s1Packaging:0)+promoCost+returnCost+partsCost;
   let profit=rev-cost;
   // Second sale (resold after return)
   if(i.resaleSalePrice){
