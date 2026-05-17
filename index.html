@@ -3677,9 +3677,9 @@ function exitItemPage(){
   else if(origin==='p-stock')renderStock();
   else if(origin==='p-summary')renderSummary();
   else if(origin==='p-search'){
-    // Hide nav search wrap again (we're back on p-search)
+    // Hide nav search wrap on mobile only (desktop nav bar always stays visible)
     const _navSW2=document.querySelector('.nav-inner .search-wrap');
-    if(_navSW2)_navSW2.style.visibility='hidden';
+    if(_navSW2&&window.innerWidth<=600)_navSW2.style.visibility='hidden';
     // Restore the search input and results from before the user opened the item page
     const _si=document.getElementById('global-search');
     if(_si&&_lastSearchQuery){_si.value=_lastSearchQuery;const _sc=document.querySelector('.search-clear');if(_sc)_sc.classList.add('show');}
@@ -4446,6 +4446,7 @@ function showSearchHistoryDropdown(){
   const dd=document.getElementById('search-dropdown');
   const input=document.getElementById('global-search');
   if(!dd||!input)return;
+  dd.style.display=''; // clear inline display:none
   const r=input.getBoundingClientRect();
   dd.style.top=(r.bottom+6)+'px';
   dd.style.left=r.left+'px';
@@ -4504,6 +4505,7 @@ function showSearchDropdown(q){
   const dd=document.getElementById('search-dropdown');
   const input=document.getElementById('global-search');
   if(!q.trim()){dd.classList.remove('open');dd.innerHTML='';return;}
+  dd.style.display=''; // clear any inline display:none before adding .open class
   // Position dropdown below the input using fixed coords
   if(input){
     const r=input.getBoundingClientRect();
@@ -4573,7 +4575,7 @@ function handleSearchKey(e){
 
 function closeSearchDropdown(){
   const dd=document.getElementById('search-dropdown');
-  if(dd){dd.classList.remove('open');dd.style.display='none';}
+  if(dd){dd.classList.remove('open');dd.style.display='';} // clear inline style — CSS .open{display:block} handles show/hide
   _searchIdx=-1;
 }
 
@@ -4703,9 +4705,9 @@ function openSearchPage(q){
   if(currentPage&&currentPage.id!=='p-search')_preSearchPage=currentPage.id;
   document.getElementById('global-search').value=q;
   document.querySelector('.search-clear').classList.add('show');
-  // Hide the desktop nav search wrap — it sits over p-search content otherwise
+  // Hide the nav search wrap on mobile only (desktop it sits in the nav and should stay)
   const _navSW=document.querySelector('.nav-inner .search-wrap');
-  if(_navSW)_navSW.style.visibility='hidden';
+  if(_navSW&&window.innerWidth<=600)_navSW.style.visibility='hidden';
   // Switch to search page without using goToTab (no tab element to highlight)
   document.querySelectorAll('.tab').forEach(t=>t.classList.remove('on'));
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('on'));
@@ -5224,8 +5226,14 @@ function openActiveRunPage(){
     return;
   }
   document.querySelectorAll('.page').forEach(function(p){p.classList.remove('on');});
+  document.querySelectorAll('.tab').forEach(function(t){t.classList.remove('on');});
+  document.querySelectorAll('.bnt').forEach(function(b){b.classList.remove('on');});
   const page=document.getElementById('p-active-run');
   if(page) page.classList.add('on');
+  const _art=document.querySelector('[data-tab="runs"]');
+  if(_art)_art.classList.add('on');
+  const _arb=document.querySelector('#bottom-nav .bnt[data-tab="runs"]');
+  if(_arb)_arb.classList.add('on');
   _syncFabVisibility();
   renderActiveRunPage();
 }
@@ -5866,7 +5874,14 @@ function openRunPageFromRuns(runId){
   // Use p-item as run detail page (existing pattern), set origin to p-runs
   _itemPageOrigin='p-runs';
   document.querySelectorAll('.page').forEach(function(p){p.classList.remove('on');});
+  document.querySelectorAll('.tab').forEach(function(t){t.classList.remove('on');});
+  document.querySelectorAll('.bnt').forEach(function(b){b.classList.remove('on');});
   document.getElementById('p-item').classList.add('on');
+  // Mark runs tab active in both navs so bottom nav stays tappable
+  const _rt=document.querySelector('[data-tab="runs"]');
+  if(_rt)_rt.classList.add('on');
+  const _rb=document.querySelector('#bottom-nav .bnt[data-tab="runs"]');
+  if(_rb)_rb.classList.add('on');
   _syncFabVisibility();
   _renderRunPage(run);
 }
@@ -11946,9 +11961,12 @@ function renderTax(){
     const _annualPositiveProfit=monthlyRows.reduce(function(s,r){return s+(r.profit>0?r.profit:0);},0);
     html+='<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:20px;overflow-x:auto">';
     // Header — 5 cols: Month | Revenue | Costs | Profit | Set aside
-    const _cols='55px 1fr 1fr 1fr 90px';
-    html+='<div style="display:grid;grid-template-columns:'+_cols+';column-gap:8px;padding:8px 14px;background:var(--surface2);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted)">';
-    html+='<div>Month</div><div style="text-align:right">Revenue</div><div style="text-align:right">Costs</div><div style="text-align:right">Profit</div><div style="text-align:right">Set aside</div>';
+    const _isMobTax=window.innerWidth<=600;
+    const _cols=_isMobTax?'44px 1fr 1fr 70px':'48px 1fr 1fr 1fr 78px';
+    html+='<div style="display:grid;grid-template-columns:'+_cols+';column-gap:4px;padding:8px 10px;background:var(--surface2);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted)">';
+    html+=_isMobTax
+      ?'<div>Mon</div><div style="text-align:right">Revenue</div><div style="text-align:right">Profit</div><div style="text-align:right">Set aside</div>'
+      :'<div>Mon</div><div style="text-align:right">Revenue</div><div style="text-align:right">Costs</div><div style="text-align:right">Profit</div><div style="text-align:right">Set aside</div>';
     html+='</div>';
     // Rows
     monthlyRows.forEach(function(r,idx){
@@ -11958,24 +11976,25 @@ function renderTax(){
       // Only applies when month has positive profit; loss months show --
       const _share=(_annualPositiveProfit>0&&r.profit>0)?r.profit/_annualPositiveProfit:0;
       const _setAside=+(_share*_totalTaxEarly).toFixed(2);
-      html+='<div style="display:grid;grid-template-columns:'+_cols+';column-gap:8px;padding:10px 14px;'+bdr+';font-size:13px;align-items:center">';
-      html+='<div style="font-weight:600;color:var(--text-secondary)">'+r.label+'</div>';
-      html+='<div style="text-align:right;font-family:var(--font-mono)">'+fmt(r.rev)+'</div>';
-      html+='<div style="text-align:right;font-family:var(--font-mono);color:var(--red)">−'+fmt(r.costs)+'</div>';
-      html+='<div style="text-align:right;font-family:var(--font-mono);font-weight:700;color:'+profColor+'">'+( r.profit>=0?'+':'')+fmt(r.profit)+'</div>';
-      html+='<div style="text-align:right;font-family:var(--font-mono);font-size:12px;color:'+(_setAside>0?'var(--warn)':'var(--muted)')+'">'+(_setAside>0?fmt(_setAside):'—')+'</div>';
+      html+='<div style="display:grid;grid-template-columns:'+_cols+';column-gap:4px;padding:9px 10px;'+bdr+';font-size:12px;align-items:center">';
+      html+='<div style="font-weight:600;color:var(--text-secondary);font-size:11px">'+r.label+'</div>';
+      html+='<div style="text-align:right;font-family:var(--font-mono);font-size:12px">'+fmt(r.rev)+'</div>';
+      if(!_isMobTax) html+='<div style="text-align:right;font-family:var(--font-mono);font-size:12px;color:var(--red)">−'+fmt(r.costs)+'</div>';
+      html+='<div style="text-align:right;font-family:var(--font-mono);font-size:12px;font-weight:700;color:'+profColor+'">'+( r.profit>=0?'+':'')+fmt(r.profit)+'</div>';
+      html+='<div style="text-align:right;font-family:var(--font-mono);font-size:11px;color:'+(_setAside>0?'var(--warn)':'var(--muted)')+'">'+(_setAside>0?fmt(_setAside):'—')+'</div>';
       html+='</div>';
     });
     // Totals row
+    const _isMobTaxTot=window.innerWidth<=600;
     const totalRev=monthlyRows.reduce(function(s,r){return s+r.rev;},0);
     const totalCosts=monthlyRows.reduce(function(s,r){return s+r.costs;},0);
     const totalProfit2=monthlyRows.reduce(function(s,r){return s+r.profit;},0);
-    html+='<div style="display:grid;grid-template-columns:'+_cols+';column-gap:8px;padding:10px 14px;border-top:2px solid var(--border);font-size:13px;font-weight:700;background:var(--surface2);align-items:center">';
-    html+='<div style="color:var(--text-secondary)">Total</div>';
-    html+='<div style="text-align:right;font-family:var(--font-mono)">'+fmt(totalRev)+'</div>';
-    html+='<div style="text-align:right;font-family:var(--font-mono);color:var(--red)">−'+fmt(totalCosts)+'</div>';
-    html+='<div style="text-align:right;font-family:var(--font-mono);color:'+(totalProfit2>=0?'var(--green)':'var(--red)')+'">'+(totalProfit2>=0?'+':'')+fmt(totalProfit2)+'</div>';
-    html+='<div style="text-align:right;font-family:var(--font-mono);color:var(--warn)">'+(_totalTaxEarly>0?fmt(_totalTaxEarly):'—')+'</div>';
+    html+='<div style="display:grid;grid-template-columns:'+_cols+';column-gap:4px;padding:10px 10px;border-top:2px solid var(--border);font-size:12px;font-weight:700;background:var(--surface2);align-items:center">';
+    html+='<div style="color:var(--text-secondary);font-size:11px">Total</div>';
+    html+='<div style="text-align:right;font-family:var(--font-mono);font-size:12px">'+fmt(totalRev)+'</div>';
+    if(!_isMobTaxTot) html+='<div style="text-align:right;font-family:var(--font-mono);font-size:12px;color:var(--red)">−'+fmt(totalCosts)+'</div>';
+    html+='<div style="text-align:right;font-family:var(--font-mono);font-size:12px;color:'+(totalProfit2>=0?'var(--green)':'var(--red)')+'">'+(totalProfit2>=0?'+':'')+fmt(totalProfit2)+'</div>';
+    html+='<div style="text-align:right;font-family:var(--font-mono);font-size:11px;color:var(--warn)">'+(_totalTaxEarly>0?fmt(_totalTaxEarly):'—')+'</div>';
     html+='</div>';
     html+='<div style="padding:8px 14px;font-size:11px;color:var(--muted);background:var(--surface2);border-top:1px solid var(--border)">Costs include fees, postage, packaging, stock, parts, mileage, and expenses by month. Set aside = estimated tax split by profit share.</div>';
     html+='</div>';
