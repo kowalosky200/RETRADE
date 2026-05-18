@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>Retrade</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,300;0,14..32,400;0,14..32,500;0,14..32,600;0,14..32,700;0,14..32,800;0,14..32,900;1,14..32,400&family=Space+Grotesk:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -506,8 +506,9 @@ input,select,textarea{touch-action:manipulation;user-select:text;-webkit-user-se
 .item-checkbox{display:flex;align-items:center;padding:0 6px;}
 .ddbtn{padding:8px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;cursor:pointer;font-size:14px;color:var(--text);transition:all 0.15s;display:flex;align-items:center;gap:6px;}
 .ddbtn:hover{border-color:var(--accent);background:var(--accent);color:#000;}
-.ddmenu{display:none;position:absolute;top:calc(100% + 4px);right:0;min-width:180px;background:var(--surface);border:1px solid var(--border);border-radius:8px;box-shadow:0 4px 20px var(--shadow-md);z-index:100;overflow:hidden;}
+.ddmenu{display:none;position:absolute;top:calc(100% + 4px);right:0;min-width:180px;background:var(--surface);border:1px solid var(--border);border-radius:8px;box-shadow:0 4px 20px var(--shadow-md);z-index:400;overflow:hidden;}
 .ddwrap.open .ddmenu{display:block;}
+.ddmenu.up{top:auto;bottom:calc(100% + 4px);box-shadow:0 -4px 20px var(--shadow-md);}
 .ddmenu button{width:100%;padding:12px 16px;background:none;border:none;text-align:left;cursor:pointer;font-size:14px;color:var(--text);transition:background 0.15s;display:flex;align-items:center;gap:8px;}
 .ddmenu button:hover{background:var(--surface2);}
 .ddmenu button.danger{color:var(--red);}
@@ -2314,10 +2315,32 @@ function updateThemeIcon(theme){
   const ulbl=document.getElementById('user-menu-theme-label');
   if(ulbl)ulbl.textContent=theme==='dark'?'Light mode':'Dark mode';
 }
+// Close every nav-level dropdown — called before opening any new one
+// so two dropdowns can never be open simultaneously.
+function closeAllDropdowns(){
+  // User menu
+  const _um=document.getElementById('user-menu');
+  if(_um)_um.classList.remove('open','country-open');
+  // Desktop nav-more dropdown (hamburger)
+  const _nm=document.querySelector('.nav-more');
+  if(_nm)_nm.classList.remove('open');
+  const _nmt=document.getElementById('nav-more-trigger');
+  if(_nmt)_nmt.classList.remove('on');
+  // Mobile more sheet
+  closeMoreSheet();
+  // Item 3-dot menus
+  document.querySelectorAll('.ddwrap.open').forEach(d=>d.classList.remove('open'));
+  // Filter pill dropdowns
+  document.querySelectorAll('.filter-pill-dd.open').forEach(d=>d.classList.remove('open'));
+  // Search dropdown
+  closeSearchDropdown();
+}
+
 function toggleMoreSheet(){
   const sheet=document.getElementById('more-sheet');
   const overlay=document.getElementById('more-sheet-overlay');
   const isOpen=sheet.style.display!=='none';
+  if(!isOpen) closeAllDropdowns(); // close others before opening
   if(isOpen){closeMoreSheet();return;}
   // Sync theme label
   const theme=document.documentElement.getAttribute('data-theme')||'light';
@@ -2342,11 +2365,9 @@ function toggleUserMenu(){
   _refreshDefaultPlatLabel();
   const menu=document.getElementById('user-menu');
   if(!menu)return;
-  // Session E1 — close country panel when toggling main menu so we never
-  // leave it dangling without its parent dropdown.
+  const willOpen=!menu.classList.contains('open');
+  if(willOpen) closeAllDropdowns(); // close others before opening
   menu.classList.remove('country-open');
-  // Refresh trigger row (label + small flag) and the panel list itself, so
-  // active states stay current without a hard reload.
   refreshCountryTrigger();
   renderCountrySubmenu();
   menu.classList.toggle('open');
@@ -3864,7 +3885,6 @@ function openTokenEdit(m,id,field,_alreadyAsync){
       if(field==='promoPercent'){i.promoPercent=+(v/100).toFixed(4);}
       else{i[field]=+v.toFixed(2);}
       if(i.dateSold||i.isReturned||i.resaleSalePrice)i.grossProfit=calcGrossProfit(i);
-      DB._userOwned=true;
       saveDB();
     }
     const pending=_nextTokenField;
@@ -8477,7 +8497,11 @@ function toggleFilterPill(id){
   const el=document.getElementById(id);
   if(!el)return;
   const wasOpen=el.classList.contains('open');
-  // Close any other open filter pills first so we never have two at once.
+  if(!wasOpen){
+    const _um=document.getElementById('user-menu');
+    if(_um)_um.classList.remove('open','country-open');
+    closeMoreSheet();
+  }
   document.querySelectorAll('.filter-pill-dd.open').forEach(other=>{
     if(other!==el)other.classList.remove('open');
   });
@@ -8500,6 +8524,184 @@ function setMonthFilter(f){
   renderMonth();
 }
 function setMonthSort(s){MONTH_SORT=s;renderMonth();}
+
+function downloadAnnualStatement(fyStart){
+  const keys=_fyKeys(fyStart);
+  const label=_getFYLabel(fyStart);
+  const rows=[['Month','Revenue (£)','Costs (£)','Gross Profit (£)','Items Sold','Returns','Avg ROI %']];
+  let totRev=0,totCost=0,totProfit=0,totSold=0,totRet=0,roiSum=0,roiCount=0;
+  keys.forEach(function(k){
+    const ms=calcMonthStatsBySale(k);
+    const evs=getSaleEventsInMonth(k);
+    const costs=ms.totalRev-ms.realisedProfit;
+    const monthROI=ms.avgROI!==null?ms.avgROI.toFixed(1):'';
+    if(ms.avgROI!==null){roiSum+=ms.avgROI;roiCount++;}
+    totRev+=ms.totalRev;totCost+=costs;totProfit+=ms.realisedProfit;
+    totSold+=ms.soldCount;totRet+=ms.returnedCount||0;
+    rows.push([keyName(k),ms.totalRev.toFixed(2),costs.toFixed(2),ms.realisedProfit.toFixed(2),
+      ms.soldCount,ms.returnedCount||0,monthROI]);
+  });
+  rows.push([]);
+  rows.push(['TOTAL FY '+label,totRev.toFixed(2),totCost.toFixed(2),totProfit.toFixed(2),
+    totSold,totRet,roiCount>0?(roiSum/roiCount).toFixed(1):'']);
+  const csv=rows.map(function(r){return r.map(function(c){const s=String(c==null?'':c);return(s.includes(',')||s.includes('"'))?'"'+s.replace(/"/g,'""')+'"':s;}).join(',');}).join('\n');
+  const blob=new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);
+  a.download='RETRADE_FY'+label.replace('/','-')+'_Annual.csv';
+  document.body.appendChild(a);a.click();document.body.removeChild(a);
+  URL.revokeObjectURL(a.href);toast('Downloaded FY '+label+' annual statement');
+}
+
+function downloadStockSnapshot(){
+  const today=new Date().toISOString().split('T')[0];
+  const rows=[['Item','GID','State','Cost (£)','Parts Cost (£)','Total In (£)','Est Sale (£)','Est Profit (£)','Est ROI %','Days Held','Run ID','Source','Month']];
+  let hasItems=false;
+  allDBKeys().forEach(function(k){
+    (DB[k]||[]).forEach(function(i){
+      if((i.item||'').trim().toUpperCase()==='MONTH END') return;
+      if(i.dateSold||i.isReturned||i.resaleSalePrice) return; // sold/returned — skip
+      hasItems=true;
+      const parts=calcPartsCost(i);
+      const totalIn=(i.costPrice||0)+parts;
+      const estP=i.estSalePrice!=null?i.estSalePrice-(totalIn+(i.shippingCost||0)+(i.packagingCost||0)):'';
+      const estROI=estP!==''&&totalIn>0?((estP/totalIn)*100).toFixed(1):'';
+      const days=i.dateSourced||i.dateListed?daysBetween(i.dateSourced||i.dateListed,today):'';
+      rows.push([
+        (i.item||'').replace(/,/g,' '),
+        i.gid||'',
+        i.state||'listed',
+        (i.costPrice||0).toFixed(2),
+        parts.toFixed(2),
+        totalIn.toFixed(2),
+        i.estSalePrice!=null?i.estSalePrice.toFixed(2):i.salePrice!=null?i.salePrice.toFixed(2):'',
+        estP!==''?Number(estP).toFixed(2):'',
+        estROI,
+        days,
+        i.sourcingRunId||'',
+        i.source||'',
+        k
+      ]);
+    });
+  });
+  if(!hasItems){toast('No active stock to export','error');return;}
+  const csv=rows.map(function(r){return r.map(function(c){const s=String(c==null?'':c);return(s.includes(',')||s.includes('"'))?'"'+s.replace(/"/g,'""')+'"':s;}).join(',');}).join('\n');
+  const blob=new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);
+  a.download='RETRADE_Stock_'+today+'.csv';
+  document.body.appendChild(a);a.click();document.body.removeChild(a);
+  URL.revokeObjectURL(a.href);toast('Downloaded stock snapshot');
+}
+
+// ── Excel variants of the three download functions ───────────────────────────
+function _csvRowsToExcel(rows, sheetName, filename){
+  if(!window.XLSX){
+    const s=document.createElement('script');
+    s.src='./xlsx.min.js';
+    s.onload=function(){_writeExcel(rows,sheetName,filename);};
+    s.onerror=function(){toast('Failed to load Excel library','error');};
+    document.head.appendChild(s);
+  }else{_writeExcel(rows,sheetName,filename);}
+}
+function _writeExcel(rows,sheetName,filename){
+  const ws=XLSX.utils.aoa_to_sheet(rows);
+  // Auto-width: max char length per column
+  const colWidths=rows[0].map((_,ci)=>({wch:Math.min(40,Math.max(10,...rows.map(r=>String(r[ci]??'').length)))}));
+  ws['!cols']=colWidths;
+  const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,ws,sheetName);
+  XLSX.writeFile(wb,filename);
+  toast('Downloaded '+filename);
+}
+
+function downloadMonthlyExcel(m){
+  const events=getSaleEventsInMonth(m);
+  if(!events.length){toast('No sales in '+m,'error');return;}
+  const rows=[['Date','Item','GID','Platform','Sale Price','Postage Received','Net Profit','ROI %','Status']];
+  events.forEach(function(ev){
+    const i=ev.item;
+    const pl=(PLATFORMS[_itemPlatform(i)]&&PLATFORMS[_itemPlatform(i)].short)||_itemPlatform(i);
+    rows.push([ev.saleDate||'',i.item||'',i.gid||'',pl,
+      ev.salePrice||0,i.postage||0,
+      ev.profit!=null?Number(ev.profit):0,
+      ev.roi!=null?Number(ev.roi.toFixed(1)):0,
+      ev.isReturned?'Returned':'Sold']);
+  });
+  const totProfit=events.reduce(function(s,e){return s+(e.profit||0);},0);
+  const totRev=events.filter(function(e){return!e.isReturned;}).reduce(function(s,e){return s+(e.salePrice||0);},0);
+  rows.push([]);
+  rows.push(['TOTALS','','','',totRev,'',totProfit,'','']);
+  _csvRowsToExcel(rows,'Sales','RETRADE_'+m+'_Statement.xlsx');
+}
+
+function downloadAnnualExcel(fyStart){
+  const keys=_fyKeys(fyStart);
+  const label=_getFYLabel(fyStart);
+  const rows=[['Month','Revenue (£)','Costs (£)','Gross Profit (£)','Items Sold','Returns','Avg ROI %']];
+  let totRev=0,totCost=0,totProfit=0,totSold=0,totRet=0,roiSum=0,roiCount=0;
+  keys.forEach(function(k){
+    const ms=calcMonthStatsBySale(k);
+    const costs=ms.totalRev-ms.realisedProfit;
+    if(ms.avgROI!==null){roiSum+=ms.avgROI;roiCount++;}
+    totRev+=ms.totalRev;totCost+=costs;totProfit+=ms.realisedProfit;
+    totSold+=ms.soldCount;totRet+=ms.returnedCount||0;
+    rows.push([keyName(k),ms.totalRev,costs,ms.realisedProfit,ms.soldCount,ms.returnedCount||0,ms.avgROI!=null?Number(ms.avgROI.toFixed(1)):0]);
+  });
+  rows.push([]);
+  rows.push(['TOTAL FY '+label,totRev,totCost,totProfit,totSold,totRet,roiCount>0?Number((roiSum/roiCount).toFixed(1)):0]);
+  _csvRowsToExcel(rows,'Annual P&L','RETRADE_FY'+label.replace('/','-')+'_Annual.xlsx');
+}
+
+function downloadStockExcel(){
+  const today=new Date().toISOString().split('T')[0];
+  const rows=[['Item','GID','State','Cost (£)','Parts Cost (£)','Total In (£)','Est Sale (£)','Est Profit (£)','Est ROI %','Days Held','Run ID','Source','Month']];
+  let hasItems=false;
+  allDBKeys().forEach(function(k){
+    (DB[k]||[]).forEach(function(i){
+      if((i.item||'').trim().toUpperCase()==='MONTH END')return;
+      if(i.dateSold||i.isReturned||i.resaleSalePrice)return;
+      hasItems=true;
+      const parts=calcPartsCost(i);
+      const totalIn=(i.costPrice||0)+parts;
+      const estP=i.estSalePrice!=null?i.estSalePrice-totalIn-(i.shippingCost||0)-(i.packagingCost||0):null;
+      const estROI=estP!=null&&totalIn>0?Number(((estP/totalIn)*100).toFixed(1)):null;
+      const days=i.dateSourced||i.dateListed?daysBetween(i.dateSourced||i.dateListed,today):null;
+      rows.push([i.item||'',i.gid||'',i.state||'listed',
+        i.costPrice||0,parts,totalIn,
+        i.estSalePrice!=null?i.estSalePrice:i.salePrice||0,
+        estP!=null?Number(estP.toFixed(2)):'',
+        estROI!=null?estROI:'',days||'',
+        i.sourcingRunId||'',i.source||'',k]);
+    });
+  });
+  if(!hasItems){toast('No active stock to export','error');return;}
+  _csvRowsToExcel(rows,'Stock','RETRADE_Stock_'+today+'.xlsx');
+}
+
+function downloadMonthlyStatement(m){
+  const events=getSaleEventsInMonth(m);
+  if(!events.length){toast('No sales in '+m,'error');return;}
+  const rows=[['Date','Item','GID','Platform','Sale Price','Postage Received','Net Profit','ROI %','Status']];
+  events.forEach(function(ev){
+    const i=ev.item;
+    const p=_itemPlatform(i);
+    const pl=(PLATFORMS[p]&&PLATFORMS[p].short)||p;
+    const profit=ev.profit!=null?Number(ev.profit).toFixed(2):'';
+    const roi=ev.roi!=null?ev.roi.toFixed(1)+'%':'';
+    rows.push([ev.saleDate||'',(i.item||'').replace(/,/g,' '),i.gid||'',pl,
+      (ev.salePrice||0).toFixed(2),(i.postage||0).toFixed(2),profit,roi,
+      ev.isReturned?'Returned':'Sold']);
+  });
+  const totProfit=events.reduce(function(s,e){return s+(e.profit||0);},0);
+  const totRev=events.filter(function(e){return!e.isReturned;}).reduce(function(s,e){return s+(e.salePrice||0);},0);
+  rows.push([]);
+  rows.push(['TOTALS','','','',totRev.toFixed(2),'',totProfit.toFixed(2),'','']);
+  const csv=rows.map(function(r){return r.map(function(c){const s=String(c==null?'':c);return(s.includes(',')||s.includes('"'))?'"'+s.replace(/"/g,'""')+'"':s;}).join(',');}).join('\n');
+  const blob=new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);
+  a.download='RETRADE_'+m+'_Statement.csv';
+  document.body.appendChild(a);a.click();document.body.removeChild(a);
+  URL.revokeObjectURL(a.href);toast('Downloaded '+m+' statement');
+}
 
 function renderMonth(){
   const m=SELECTED_MONTH;
@@ -10218,45 +10420,183 @@ async function deleteExpense(idx){
 
 // DATA PAGE
 function renderData(){
+  // Build FY list for annual export selector
+  const fySet=new Set([_currentFYStart()-1,_currentFYStart(),_currentFYStart()+1]);
+  allDBKeys().forEach(function(k){
+    const mo=MONTHS.indexOf(keyCode(k)),yr=keyYear(k);
+    if(mo>=0) fySet.add(mo>=3?yr:yr-1);
+  });
+  const fyYears=Array.from(fySet).sort((a,b)=>b-a);
+  const _curFY=_currentFYStart();
+  const fyOpts=fyYears.map(function(fy){
+    return '<option value="'+fy+'"'+(fy===_curFY?' selected':'')+'>FY '+_getFYLabel(fy)+(fy===_curFY?' (current)':'')+'</option>';
+  }).join('');
+
+  // Build month list for monthly export selector
+  const _curMonthKey=currentMonthKey();
+  const allMonths=allDBKeys().filter(function(k){
+    const ms=calcMonthStatsBySale(k);
+    return ms.soldCount>0||ms.eventCount>0;
+  }).sort((a,b)=>{
+    const ya=keyYear(a),yb=keyYear(b),ma=MONTHS.indexOf(keyCode(a)),mb=MONTHS.indexOf(keyCode(b));
+    if(ya!==yb)return yb-ya; return mb-ma;
+  });
+  // Default to current month if it has data, else most recent month with sales
+  const _defaultMonth=allMonths.includes(_curMonthKey)?_curMonthKey:(allMonths[0]||'');
+  const monthOpts=allMonths.map(function(k){
+    return '<option value="'+k+'"'+(k===_defaultMonth?' selected':'')+'>'+keyName(k)+'</option>';
+  }).join('');
 
   const html=`
-    <div style="margin-bottom:24px">
-      <div class="page-header"><div><div class="page-title">Data</div><div class="page-subtitle">Back up, restore and manage your records.</div></div></div>
-      <div style="color:var(--text-secondary);font-size:14px">Backup and restore your data</div>
-    </div>
+    <div style="padding-bottom:80px">
+      <div class="page-header"><div><div class="page-title">Data</div>
+        <div class="page-subtitle">Exports, backups and data management.</div></div></div>
 
-    <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px;margin-bottom:24px">
-      <h3 style="font-weight:600;margin-bottom:12px">Export Data</h3>
-      <p style="color:var(--text-secondary);margin-bottom:16px;font-size:14px">Download your complete database as JSON</p>
-      <button class="btn btn-p" onclick="exportDB()">📥 Export Database</button>
-    </div>
+      <!-- ── DOWNLOADS ───────────────────────────────────────────── -->
+      <div class="sl">Downloads</div>
 
-    <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px;margin-bottom:24px">
-      <h3 style="font-weight:600;margin-bottom:12px">Import Data</h3>
-      <p style="color:var(--text-secondary);margin-bottom:16px;font-size:14px">Merge from a previous JSON export — new items added, duplicates flagged for review, nothing deleted</p>
-      <input type="file" id="import-file" accept=".json" style="display:none" onchange="importDB(event)">
-      <button class="btn btn-s" onclick="document.getElementById('import-file').click()">📤 Import JSON</button>
-    </div>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;margin-bottom:24px;">
 
-    <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px">
-      <h3 style="font-weight:600;margin-bottom:12px">Import from Excel</h3>
-      <p style="color:var(--text-secondary);margin-bottom:16px;font-size:14px">Import from your EBAY_ACCOUNTS_2026.xlsx file (merges with existing data)</p>
-      <input type="file" id="import-excel" accept=".xlsx" style="display:none" onchange="importExcel(event)">
-      <button class="btn btn-p" onclick="document.getElementById('import-excel').click()">📊 Import Excel File</button>
-    </div>
+        <!-- Monthly Statement -->
+        <div style="padding:16px 18px;border-bottom:1px solid var(--border);">
+          <div style="font-size:14px;font-weight:600;margin-bottom:3px;">Monthly Statement</div>
+          <div style="font-size:12px;color:var(--text-secondary);margin-bottom:12px;">Sales, profit and ROI for a single month — one row per transaction.</div>
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+            <select id="dl-month-sel" style="font-size:13px;padding:7px 10px;border-radius:8px;border:1px solid var(--border);background:var(--surface2);color:var(--text);flex:1;min-width:120px;max-width:220px;">
+              ${monthOpts||'<option value="">No sales yet</option>'}
+            </select>
+            <div class="ddwrap" id="dd-dl-month" style="position:relative;">
+                  <button class="btn btn-s" style="font-size:13px;display:flex;align-items:center;gap:6px;padding:8px 14px;" onclick="event.stopPropagation();toggleDD('dd-dl-month')">
+                    Download <svg width="11" height="11" viewBox="0 0 12 12" fill="none"><path d="M2 4l4 4 4-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                  </button>
+                  <div class="ddmenu up" style="min-width:140px;right:0;left:auto;">
+                    <button onclick="event.stopPropagation();toggleDD('dd-dl-month');(function(){const m=document.getElementById('dl-month-sel')?.value;if(m)downloadMonthlyStatement(m);else toast('No month selected','error');})()"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> CSV</button><button onclick="event.stopPropagation();toggleDD('dd-dl-month');(function(){const m=document.getElementById('dl-month-sel')?.value;if(m)downloadMonthlyExcel(m);else toast('No month selected','error');})()"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg> Excel</button>
+                  </div>
+                </div>
+          </div>
+        </div>
 
-    <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px;margin-bottom:24px">
-      <h3 style="font-weight:600;margin-bottom:12px">Relist data audit</h3>
-      <p style="color:var(--text-secondary);margin-bottom:16px;font-size:14px">Finds items relisted before the lifetime-P&amp;L fix where sale 1 shipping / packaging / promo are no longer recoverable from the system. Run the audit, fill in any sale 1 values you remember, save to correct lifetime profit on those items.</p>
-      <button class="btn btn-p" onclick="renderRelistAudit()">🔍 Run audit</button>
-      <div id="relist-audit-out" style="margin-top:16px"></div>
-    </div>
+        <!-- Annual FY P&L -->
+        <div style="padding:16px 18px;border-bottom:1px solid var(--border);">
+          <div style="font-size:14px;font-weight:600;margin-bottom:3px;">Annual P&amp;L Summary</div>
+          <div style="font-size:12px;color:var(--text-secondary);margin-bottom:12px;">Full tax year Apr–Mar — revenue, costs and profit. Useful for SA103.</div>
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+            <select id="dl-fy-sel" style="font-size:13px;padding:7px 10px;border-radius:8px;border:1px solid var(--border);background:var(--surface2);color:var(--text);flex:1;min-width:120px;max-width:220px;">
+              ${fyOpts}
+            </select>
+            <div class="ddwrap" id="dd-dl-annual" style="position:relative;">
+                  <button class="btn btn-s" style="font-size:13px;display:flex;align-items:center;gap:6px;padding:8px 14px;" onclick="event.stopPropagation();toggleDD('dd-dl-annual')">
+                    Download <svg width="11" height="11" viewBox="0 0 12 12" fill="none"><path d="M2 4l4 4 4-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                  </button>
+                  <div class="ddmenu up" style="min-width:140px;right:0;left:auto;">
+                    <button onclick="event.stopPropagation();toggleDD('dd-dl-annual');(function(){const fy=parseInt(document.getElementById('dl-fy-sel')?.value);if(fy)downloadAnnualStatement(fy);else toast('No year selected','error');})()"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> CSV</button><button onclick="event.stopPropagation();toggleDD('dd-dl-annual');(function(){const fy=parseInt(document.getElementById('dl-fy-sel')?.value);if(fy)downloadAnnualExcel(fy);else toast('No year selected','error');})()"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg> Excel</button>
+                  </div>
+                </div>
+          </div>
+        </div>
 
-    <div class="sl" style="margin-top:8px">Danger Zone</div>
-    <div class="section-card danger">
-      <div class="section-card-title">Clear All Data</div>
-      <div class="section-card-desc">Permanently delete every item and expense. This cannot be undone.</div>
-      <button class="btn btn-danger" onclick="clearAllData()">⚠️ Clear Database</button>
+        <!-- Stock Snapshot -->
+        <div style="padding:16px 18px;">
+          <div style="font-size:14px;font-weight:600;margin-bottom:3px;">Stock Snapshot</div>
+          <div style="font-size:12px;color:var(--text-secondary);margin-bottom:12px;">All current sourced and listed items — cost, est. price, days held, run tag.</div>
+          <div class="ddwrap" id="dd-dl-stock" style="position:relative;display:inline-block;">
+                  <button class="btn btn-s" style="font-size:13px;display:flex;align-items:center;gap:6px;padding:8px 14px;" onclick="event.stopPropagation();toggleDD('dd-dl-stock')">
+                    Download <svg width="11" height="11" viewBox="0 0 12 12" fill="none"><path d="M2 4l4 4 4-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                  </button>
+                  <div class="ddmenu up" style="min-width:140px;right:0;left:auto;">
+                    <button onclick="event.stopPropagation();toggleDD('dd-dl-stock');downloadStockSnapshot()"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> CSV</button><button onclick="event.stopPropagation();toggleDD('dd-dl-stock');downloadStockExcel()"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg> Excel</button>
+                  </div>
+                </div>
+        </div>
+
+      </div>
+
+      <!-- ── BACKUP / RESTORE ────────────────────────────────────── -->
+      <div class="sl">Backup &amp; Restore</div>
+
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;margin-bottom:24px;">
+        <div style="padding:18px 20px;border-bottom:1px solid var(--border);">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+            <div>
+              <div style="font-size:14px;font-weight:600;margin-bottom:2px;">Export full backup</div>
+              <div style="font-size:12px;color:var(--text-secondary);">Full lossless backup as JSON, or all items as an Excel spreadsheet.</div>
+            </div>
+            <div class="ddwrap" id="dd-export-backup" style="position:relative;">
+              <button class="btn btn-p" style="font-size:13px;display:flex;align-items:center;gap:6px;" onclick="event.stopPropagation();toggleDD('dd-export-backup')">
+                Export
+                <svg width="11" height="11" viewBox="0 0 12 12" fill="none"><path d="M2 4l4 4 4-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </button>
+              <div class="ddmenu up" style="min-width:160px;right:0;left:auto;">
+                <button onclick="event.stopPropagation();toggleDD('dd-export-backup');exportDB()">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                  JSON backup
+                </button>
+                <button onclick="event.stopPropagation();toggleDD('dd-export-backup');exportItemsAsExcel()">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+                  Excel spreadsheet
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div style="padding:18px 20px;border-bottom:1px solid var(--border);">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+            <div>
+              <div style="font-size:14px;font-weight:600;margin-bottom:2px;">Import JSON backup</div>
+              <div style="font-size:12px;color:var(--text-secondary);">Restore from a JSON backup, or import from an Excel spreadsheet.</div>
+            </div>
+            <input type="file" id="import-file" accept=".json" style="display:none" onchange="importDB(event)">
+            <input type="file" id="import-file-xlsx-backup" accept=".xlsx" style="display:none" onchange="importExcel(event)">
+            <div class="ddwrap" id="dd-import-backup" style="position:relative;">
+              <button class="btn btn-s" style="font-size:13px;display:flex;align-items:center;gap:6px;" onclick="event.stopPropagation();toggleDD('dd-import-backup')">
+                Import
+                <svg width="11" height="11" viewBox="0 0 12 12" fill="none"><path d="M2 4l4 4 4-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </button>
+              <div class="ddmenu up" style="min-width:160px;right:0;left:auto;">
+                <button onclick="event.stopPropagation();toggleDD('dd-import-backup');document.getElementById('import-file').click()">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                  JSON backup
+                </button>
+                <button onclick="event.stopPropagation();toggleDD('dd-import-backup');document.getElementById('import-file-xlsx-backup').click()">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+                  Excel spreadsheet
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div style="padding:18px 20px;">
+          <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+            <div style="flex:1;min-width:0;">
+              <div style="font-size:14px;font-weight:600;margin-bottom:2px;">Import / Export via Excel</div>
+              <div style="font-size:12px;color:var(--text-secondary);margin-bottom:10px;">Download a blank template, fill it in, and import it back. Or export your current items as a spreadsheet you can open and edit.</div>
+              <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                <input type="file" id="import-excel" accept=".xlsx" style="display:none" onchange="importExcel(event)">
+                <button class="btn btn-s" style="font-size:12px;" onclick="downloadExcelTemplate()">⬇ Template</button>
+                <button class="btn btn-s" style="font-size:12px;" onclick="exportItemsAsExcel()">⬇ Export items</button>
+                <button class="btn btn-p" style="font-size:12px;" onclick="document.getElementById('import-excel').click()">⬆ Import xlsx</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── TOOLS ───────────────────────────────────────────────── -->
+      <div class="sl">Tools</div>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:24px;">
+        <div style="font-size:14px;font-weight:600;margin-bottom:4px;">Relist data audit</div>
+        <div style="font-size:12px;color:var(--text-secondary);margin-bottom:14px;">Finds items relisted before the lifetime-P&amp;L fix. Fill in any sale 1 values to correct lifetime profit.</div>
+        <button class="btn btn-p" style="font-size:13px;" onclick="renderRelistAudit()">Run audit</button>
+        <div id="relist-audit-out" style="margin-top:16px"></div>
+      </div>
+
+      <!-- ── DANGER ──────────────────────────────────────────────── -->
+      <div class="sl">Danger Zone</div>
+      <div class="section-card danger">
+        <div class="section-card-title">Clear All Data</div>
+        <div class="section-card-desc">Permanently delete every item and expense. Cannot be undone.</div>
+        <button class="btn btn-danger" onclick="clearAllData()">⚠️ Clear Database</button>
+      </div>
     </div>
   `;
   document.getElementById('p-data').innerHTML=html;
@@ -10588,12 +10928,126 @@ async function _confirmJSONImport(){
   saveDB();
 }
 
+// ── Universal Excel template — single "Items" sheet, RETRADE column schema ──
+function _retradeExcelColumns(){
+  return ['Month','Item Name','GID','Date Listed','Date Sold','State',
+    'Cost Price','Sale Price','Postage Received','Shipping Cost','Packaging Cost',
+    'Promo %','Location','Source','Category','Notes','Est Sale Price','Default Platform'];
+}
+
+function downloadExcelTemplate(){
+  if(!window.XLSX){
+    const s=document.createElement('script');
+    s.src='./xlsx.min.js';
+    s.onload=function(){_buildExcelTemplate();};
+    s.onerror=function(){toast('Failed to load Excel library','error');};
+    document.head.appendChild(s);
+  }else{_buildExcelTemplate();}
+}
+
+function _buildExcelTemplate(){
+  const cols=_retradeExcelColumns();
+  // Three example rows to show the expected format
+  const examples=[
+    [currentMonthKey(),'Example Camera','','2026-01-15','','listed',15,'45','',3.5,0.5,0,'Home','Car Boot Sale','Electronics','Good condition','55','ebay'],
+    [currentMonthKey(),'Example Trainers','','2026-01-20','2026-02-01','sold',8,25,'',2.8,0,'',0,'Charity Shop','Clothing','','','vinted'],
+    ['','(Leave Month blank to auto-detect from Date Listed)','','','','(sourced/listed/sold)','','','','','','','','','','','','(ebay/vinted/depop/fb/amazon_uk)']
+  ];
+  const ws=XLSX.utils.aoa_to_sheet([cols,...examples]);
+  // Column widths
+  ws['!cols']=cols.map(function(c,i){return{wch:i===1?35:i===0||i===2?12:16};});
+  // Header row style
+  const range=XLSX.utils.decode_range(ws['!ref']);
+  for(let C=range.s.c;C<=range.e.c;C++){
+    const addr=XLSX.utils.encode_cell({r:0,c:C});
+    if(!ws[addr])continue;
+    ws[addr].s={font:{bold:true},fill:{fgColor:{rgb:'1A1A2E'}},alignment:{horizontal:'center'}};
+  }
+  const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,ws,'Items');
+  // Notes sheet
+  const notes=[
+    ['Column','Required','Notes'],
+    ['Month','No','e.g. APR-26. Auto-derived from Date Listed if blank.'],
+    ['Item Name','Yes','The item title.'],
+    ['GID','No','Leave blank — auto-assigned on import.'],
+    ['Date Listed','Yes (listed/sold)','YYYY-MM-DD format.'],
+    ['Date Sold','No','YYYY-MM-DD. Only for sold items.'],
+    ['State','No','sourced / listed / sold. Defaults to listed.'],
+    ['Cost Price','No','What you paid for the item (£).'],
+    ['Sale Price','No','Listed or sold price (£).'],
+    ['Postage Received','No','What buyer paid for postage (£).'],
+    ['Shipping Cost','No','What you paid to ship (£).'],
+    ['Packaging Cost','No','Packaging materials cost (£).'],
+    ['Promo %','No','eBay promotion as decimal, e.g. 0.02 for 2%.'],
+    ['Location','No','Where you stored/found it.'],
+    ['Source','No','e.g. Car Boot Sale, Charity Shop.'],
+    ['Category','No','Auto-detected if blank.'],
+    ['Notes','No','Free text notes.'],
+    ['Est Sale Price','No','Your target sale price for sourced items (£).'],
+    ['Default Platform','No','ebay / vinted / depop / fb / amazon_uk']
+  ];
+  const ws2=XLSX.utils.aoa_to_sheet(notes);
+  ws2['!cols']=[{wch:20},{wch:12},{wch:60}];
+  XLSX.utils.book_append_sheet(wb,ws2,'Notes');
+  XLSX.writeFile(wb,'RETRADE_Import_Template.xlsx');
+  toast('Template downloaded');
+}
+
+function exportItemsAsExcel(){
+  if(!window.XLSX){
+    const s=document.createElement('script');
+    s.src='./xlsx.min.js';
+    s.onload=function(){_buildItemsExcel();};
+    s.onerror=function(){toast('Failed to load Excel library','error');};
+    document.head.appendChild(s);
+  }else{_buildItemsExcel();}
+}
+
+function _buildItemsExcel(){
+  const cols=_retradeExcelColumns();
+  const rows=[cols];
+  allDBKeys().forEach(function(k){
+    (DB[k]||[]).forEach(function(i){
+      if((i.item||'').trim().toUpperCase()==='MONTH END') return;
+      rows.push([
+        k,
+        i.item||'',
+        i.gid||'',
+        i.dateListed||'',
+        i.dateSold||'',
+        i.state||'listed',
+        i.costPrice||0,
+        i.salePrice||0,
+        i.postage||0,
+        i.shippingCost||0,
+        i.packagingCost||0,
+        i.promoPercent||0,
+        i.location||'',
+        i.source||'',
+        i.category||'',
+        i.notes||'',
+        i.estSalePrice||'',
+        i.defaultPlatform||''
+      ]);
+    });
+  });
+  if(rows.length<2){toast('No items to export','error');return;}
+  const ws=XLSX.utils.aoa_to_sheet(rows);
+  ws['!cols']=cols.map(function(c,i){return{wch:i===1?35:i===0||i===2?12:16};});
+  const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,ws,'Items');
+  const today=new Date().toISOString().split('T')[0];
+  XLSX.writeFile(wb,'RETRADE_Items_'+today+'.xlsx');
+  toast('Items exported to Excel');
+}
+
 function importExcel(e){
   const file=e.target.files[0];
   if(!file)return;
   if(!window.XLSX){
     const script=document.createElement('script');
-    script.src='https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js';
+    script.src='./xlsx.min.js';
     script.onload=function(){processExcelFile(file);};
     script.onerror=function(){toast('Failed to load Excel library','err');};
     document.head.appendChild(script);
@@ -10634,6 +11088,74 @@ function processExcelFile(file){
         return null;
       }
 
+      // Detect format: universal 'Items' sheet vs legacy month-named sheets
+      const hasItemsSheet=workbook.SheetNames.includes('Items');
+      if(hasItemsSheet){
+        // ── Universal RETRADE format ──────────────────────────────────────
+        const ws=workbook.Sheets['Items'];
+        const rows=XLSX.utils.sheet_to_json(ws,{header:1,raw:true,defval:''});
+        const headerRow=rows[0]||[];
+        const dataRows=rows.slice(1);
+        const col={}; headerRow.forEach(function(h,i){if(h)col[String(h).trim()]=i;});
+        if(!col['Item Name']){toast('Template format not recognised — missing Item Name column','error');return;}
+        dataRows.forEach(function(row){
+          if(!row||row.length===0) return;
+          const itemName=String(row[col['Item Name']]||'').trim();
+          if(!itemName||itemName.startsWith('(')) return; // skip example/note rows
+          const dateListed=toDateStr(row[col['Date Listed']])||null;
+          const dateSold=toDateStr(row[col['Date Sold']])||null;
+          // Derive month from Date Listed, or from Month column, or current month
+          let month=String(row[col['Month']]||'').trim().toUpperCase();
+          if(!month||!MONTHS.includes(month.split('-')[0])){
+            month=dateListed?_monthKeyFromDate(dateListed):currentMonthKey();
+          }
+          const stateRaw=String(row[col['State']]||'listed').trim().toLowerCase();
+          const state=['sourced','listed','sold'].includes(stateRaw)?stateRaw:'listed';
+          const incoming={
+            dateListed,dateSold,state,item:itemName,
+            gid:String(row[col['GID']]||'').trim()||null,
+            costPrice:safeFloat(row[col['Cost Price']]),
+            salePrice:safeFloat(row[col['Sale Price']]),
+            postage:safeFloat(row[col['Postage Received']]),
+            shippingCost:safeFloat(row[col['Shipping Cost']]),
+            packagingCost:safeFloat(row[col['Packaging Cost']]),
+            promoPercent:safeFloat(row[col['Promo %']]),
+            location:String(row[col['Location']]||'').trim(),
+            source:String(row[col['Source']]||'').trim(),
+            category:String(row[col['Category']]||'').trim()||autoCategory(itemName),
+            notes:String(row[col['Notes']]||'').trim(),
+            estSalePrice:row[col['Est Sale Price']]!==''?safeFloat(row[col['Est Sale Price']]):null,
+            defaultPlatform:String(row[col['Default Platform']]||'').trim()||null,
+          };
+          if(!Array.isArray(DB[month]))DB[month]=[];
+          if(!monthResults[month])monthResults[month]={added:0,updated:0,skipped:0};
+          const existIdx=DB[month].findIndex(function(i){
+            return (incoming.gid&&i.gid===incoming.gid)||(i.item===itemName&&i.dateListed===dateListed);
+          });
+          if(existIdx>=0){
+            const ex=DB[month][existIdx];
+            const FIELDS=['salePrice','costPrice','dateSold','shippingCost','postage','packagingCost','promoPercent','location','state','estSalePrice','defaultPlatform'];
+            const changed=FIELDS.some(function(f){return String(ex[f]??'')!==String(incoming[f]??'');});
+            if(!changed){monthResults[month].skipped++;skippedItems.push({m:month,item:itemName});return;}
+            Object.assign(ex,{costPrice:incoming.costPrice,salePrice:incoming.salePrice,
+              postage:incoming.postage,shippingCost:incoming.shippingCost,packagingCost:incoming.packagingCost,
+              promoPercent:incoming.promoPercent,dateSold:incoming.dateSold,state:incoming.state,
+              estSalePrice:incoming.estSalePrice,defaultPlatform:incoming.defaultPlatform});
+            if(incoming.location)ex.location=incoming.location;
+            if(incoming.notes)ex.notes=incoming.notes;
+            ex.category=incoming.category||autoCategory(ex.item);
+            monthResults[month].updated++;updatedItems.push({m:month,item:itemName,dateListed});
+          }else{
+            const newGid=incoming.gid||('R-'+String(getNextGID()).padStart(4,'0'));
+            DB[month].push(Object.assign({
+              id:'xl_'+Date.now()+'_'+Math.random().toString(36).substr(2,6),
+              gid:newGid,returnData:null,returnHistory:[],isReturned:false,parts:[]
+            },incoming,{gid:newGid}));
+            monthResults[month].added++;addedItems.push({m:month,item:itemName,dateListed});
+          }
+        });
+      } else {
+      // ── Legacy month-sheet format (APR-26 etc.) ───────────────────────
       const sheetMonthKeys=[];
       workbook.SheetNames.forEach(function(sn){
         const parts=sn.split('-');
@@ -10716,6 +11238,7 @@ function processExcelFile(file){
           }
         });
       });
+      } // end legacy format
 
       DB._userOwned=true;
       saveDB();
@@ -12951,8 +13474,20 @@ function toggleDD(id){
   const el=document.getElementById(id);
   if(!el)return;
   const isOpen=el.classList.contains('open');
+  const _um=document.getElementById('user-menu');
+  if(_um)_um.classList.remove('open','country-open');
+  closeMoreSheet();
   document.querySelectorAll('.ddwrap.open').forEach(d=>d.classList.remove('open'));
-  if(!isOpen)el.classList.add('open');
+  if(!isOpen){
+    el.classList.add('open');
+    // Auto-flip upward if dropdown would overflow viewport bottom
+    const menu=el.querySelector('.ddmenu');
+    if(menu){
+      menu.classList.remove('up');
+      const r=menu.getBoundingClientRect();
+      if(r.bottom>window.innerHeight-8) menu.classList.add('up');
+    }
+  }
 }
 
 document.addEventListener('click',function(e){
@@ -12973,6 +13508,8 @@ document.addEventListener('click',function(e){
 function toggleNavMore(){
   const wrap=document.querySelector('.nav-more');
   if(!wrap) return;
+  const willOpen=!wrap.classList.contains('open');
+  if(willOpen) closeAllDropdowns();
   wrap.classList.toggle('open');
   const trigger=document.getElementById('nav-more-trigger');
   if(trigger) trigger.classList.toggle('on', wrap.classList.contains('open') || ['expenses','tax','data'].includes((document.querySelector('.page.on')?.id||'').replace('p-','')));
