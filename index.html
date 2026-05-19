@@ -1195,7 +1195,7 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
 .ip-field,.ip-field-select,.ip-field-date{font-size:15px;}
 #auth-screen-login,#auth-screen-reset{max-width:420px;border-radius:28px;padding:42px 36px!important;box-shadow:0 22px 60px rgba(0,0,0,.18);} 
 #auth-screen-login > div:first-child + div + div span{letter-spacing:.16em!important;}
-#auth-btn{height:48px;border-radius:16px;}
+#auth-btn,#preview-btn{height:48px;border-radius:16px;}
 .summary-shell{display:grid;grid-template-columns:minmax(0,1.84fr) minmax(0,.92fr);gap:18px;align-items:start;}
 .summary-main{display:flex;flex-direction:column;gap:18px;min-height:100%;min-width:0;}
 .summary-side{display:grid;grid-template-rows:auto auto auto;gap:18px;}
@@ -8530,99 +8530,22 @@ function setMonthSort(s){MONTH_SORT=s;renderMonth();}
 function downloadAnnualStatement(fyStart){
   const keys=_fyKeys(fyStart);
   const label=_getFYLabel(fyStart);
-  const generated=new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'long',year:'numeric'});
-  // FY date bounds for trip/expense filtering
-  const fyFrom=(fyStart)+'−04−06';  // Apr 6
-  const fyTo=(fyStart+1)+'−04−05';  // Apr 5 next year
-  const fyFromStr=String(fyStart)+'-04-06';
-  const fyToStr=String(fyStart+1)+'-04-05';
-  const fyTrips=(DB.trips||[]).filter(function(t){return t.date&&t.date>=fyFromStr&&t.date<=fyToStr;});
-  const fyExps=(DB.expenses||[]).filter(function(e){return e.date&&e.date>=fyFromStr&&e.date<=fyToStr;});
-  const fyTiered=calcTieredTrips(fyTrips);
-  const fyMileageCost=+fyTiered.reduce(function(s,r){return s+r.mileageCost;},0).toFixed(2);
-  const fyTripExtras=+fyTiered.reduce(function(s,r){return s+r.expensesCost;},0).toFixed(2);
-  const fyOtherExp=+fyExps.reduce(function(s,e){return s+(e.amount||0);},0).toFixed(2);
-  const fyTotalDeductions=+(fyMileageCost+fyTripExtras+fyOtherExp).toFixed(2);
-  const fyTotalMiles=fyTrips.reduce(function(s,t){return s+(t.mileage||0);},0);
-
-  let totRev=0,totCost=0,totGrossProfit=0,totSold=0,totRet=0,roiSum=0,roiCount=0;
-  const monthData=[];
+  const rows=[['Month','Revenue (£)','Costs (£)','Gross Profit (£)','Items Sold','Returns','Avg ROI %']];
+  let totRev=0,totCost=0,totProfit=0,totSold=0,totRet=0,roiSum=0,roiCount=0;
   keys.forEach(function(k){
     const ms=calcMonthStatsBySale(k);
-    const mDeduct=_getMonthTripExpenseCosts(k);
+    const evs=getSaleEventsInMonth(k);
     const costs=ms.totalRev-ms.realisedProfit;
     const monthROI=ms.avgROI!==null?ms.avgROI.toFixed(1):'';
     if(ms.avgROI!==null){roiSum+=ms.avgROI;roiCount++;}
-    totRev+=ms.totalRev;totCost+=costs;totGrossProfit+=ms.realisedProfit;
+    totRev+=ms.totalRev;totCost+=costs;totProfit+=ms.realisedProfit;
     totSold+=ms.soldCount;totRet+=ms.returnedCount||0;
-    monthData.push({k,ms,costs,monthROI,mDeduct});
-  });
-  const totNetProfit=+(totGrossProfit-fyTotalDeductions).toFixed(2);
-
-  const rows=[];
-  // Header
-  rows.push(['RETRADE — Annual P&L Statement']);
-  rows.push(['Tax Year (UK):', 'FY '+label+' (6 Apr '+fyStart+' – 5 Apr '+(fyStart+1)+')']);
-  rows.push(['Generated:', generated]);
-  rows.push([]);
-  // Executive summary
-  rows.push(['ANNUAL SUMMARY']);
-  rows.push(['Gross Revenue (SA103 Box 15)',totRev.toFixed(2)]);
-  rows.push(['Total Item Costs & Fees',totCost.toFixed(2)]);
-  rows.push(['Gross Profit',totGrossProfit.toFixed(2)]);
-  rows.push(['  Mileage ('+fyTotalMiles+' miles)','−'+fyMileageCost.toFixed(2)]);
-  rows.push(['  Trip extras (parking, entry fees etc.)','−'+fyTripExtras.toFixed(2)]);
-  rows.push(['  Other business expenses','−'+fyOtherExp.toFixed(2)]);
-  rows.push(['NET PROFIT',totNetProfit.toFixed(2)]);
-  rows.push(['Items Sold',totSold]);
-  rows.push(['Returns',totRet]);
-  rows.push(['Average ROI %',roiCount>0?(roiSum/roiCount).toFixed(1)+'%':'n/a']);
-  rows.push([]);
-  // Monthly breakdown
-  rows.push(['MONTHLY BREAKDOWN']);
-  rows.push(['Month','Revenue (£)','Item Costs (£)','Gross Profit (£)','Mileage (£)','Trip Extras (£)','Other Exp (£)','Net Profit (£)','Items Sold','Returns','Avg ROI %']);
-  monthData.forEach(function(d){
-    if(d.ms.soldCount===0&&d.ms.returnedCount===0&&d.mDeduct.totalDeductions===0)return;
-    const mNet=+(d.ms.realisedProfit-d.mDeduct.totalDeductions).toFixed(2);
-    rows.push([keyName(d.k),d.ms.totalRev.toFixed(2),d.costs.toFixed(2),d.ms.realisedProfit.toFixed(2),
-      d.mDeduct.mileageCost>0?d.mDeduct.mileageCost.toFixed(2):'',
-      d.mDeduct.tripExtras>0?d.mDeduct.tripExtras.toFixed(2):'',
-      d.mDeduct.otherExpenses>0?d.mDeduct.otherExpenses.toFixed(2):'',
-      mNet.toFixed(2),
-      d.ms.soldCount,d.ms.returnedCount||0,d.monthROI]);
+    rows.push([keyName(k),ms.totalRev.toFixed(2),costs.toFixed(2),ms.realisedProfit.toFixed(2),
+      ms.soldCount,ms.returnedCount||0,monthROI]);
   });
   rows.push([]);
-  rows.push(['TOTALS',totRev.toFixed(2),totCost.toFixed(2),totGrossProfit.toFixed(2),
-    fyMileageCost>0?fyMileageCost.toFixed(2):'',
-    fyTripExtras>0?fyTripExtras.toFixed(2):'',
-    fyOtherExp>0?fyOtherExp.toFixed(2):'',
-    totNetProfit.toFixed(2),totSold,totRet,roiCount>0?(roiSum/roiCount).toFixed(1):'']);
-  rows.push([]);
-  // Trips detail
-  if(fyTrips.length>0){
-    rows.push(['TRIPS & MILEAGE DETAIL']);
-    rows.push(['Date','Description','Miles','Rate (£/mi)','Mileage (£)','Extras (£)','Total (£)']);
-    fyTrips.forEach(function(t,idx){
-      const r=fyTiered[idx]||{mileageCost:0,expensesCost:0,totalCost:0,ratePerMile:0.45};
-      rows.push([t.date||'',t.description||'Sourcing trip',t.mileage||0,
-        r.ratePerMile.toFixed(2),r.mileageCost.toFixed(2),r.expensesCost.toFixed(2),r.totalCost.toFixed(2)]);
-    });
-    rows.push(['Trips total','','','',(fyMileageCost+fyTripExtras).toFixed(2)]);
-    rows.push([]);
-  }
-  // Other expenses detail
-  if(fyExps.length>0){
-    rows.push(['OTHER EXPENSES DETAIL']);
-    rows.push(['Date','Description','Category','Amount (£)']);
-    fyExps.forEach(function(e){
-      rows.push([e.date||'',e.description||'Expense',e.category||'',(e.amount||0).toFixed(2)]);
-    });
-    rows.push(['Expenses total','','',fyOtherExp.toFixed(2)]);
-    rows.push([]);
-  }
-  rows.push(['Generated by RETRADE · doubleowseer.com']);
-  rows.push(['Note: SA103 Box 15 uses Gross Revenue above. Net Profit = Gross Profit minus all allowable deductions.']);
-
+  rows.push(['TOTAL FY '+label,totRev.toFixed(2),totCost.toFixed(2),totProfit.toFixed(2),
+    totSold,totRet,roiCount>0?(roiSum/roiCount).toFixed(1):'']);
   const csv=rows.map(function(r){return r.map(function(c){const s=String(c==null?'':c);return(s.includes(',')||s.includes('"'))?'"'+s.replace(/"/g,'""')+'"':s;}).join(',');}).join('\n');
   const blob=new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8'});
   const a=document.createElement('a');a.href=URL.createObjectURL(blob);
@@ -8695,188 +8618,39 @@ function _writeExcel(rows,sheetName,filename){
 function downloadMonthlyExcel(m){
   const events=getSaleEventsInMonth(m);
   if(!events.length){toast('No sales in '+m,'error');return;}
-  const mName=keyName(m);
-  const generated=new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'long',year:'numeric'});
-  const deductions=_getMonthTripExpenseCosts(m);
+  const rows=[['Date','Item','GID','Platform','Sale Price','Postage Received','Net Profit','ROI %','Status']];
+  events.forEach(function(ev){
+    const i=ev.item;
+    const pl=(PLATFORMS[_itemPlatform(i)]&&PLATFORMS[_itemPlatform(i)].short)||_itemPlatform(i);
+    rows.push([ev.saleDate||'',i.item||'',i.gid||'',pl,
+      ev.salePrice||0,i.postage||0,
+      ev.profit!=null?Number(ev.profit):0,
+      ev.roi!=null?Number(ev.roi.toFixed(1)):0,
+      ev.isReturned?'Returned':'Sold']);
+  });
+  const totProfit=events.reduce(function(s,e){return s+(e.profit||0);},0);
   const totRev=events.filter(function(e){return!e.isReturned;}).reduce(function(s,e){return s+(e.salePrice||0);},0);
-  const totPostage=events.filter(function(e){return!e.isReturned;}).reduce(function(s,e){return s+(e.item.postage||0);},0);
-  const totGrossProfit=events.reduce(function(s,e){return s+(e.profit||0);},0);
-  const totNetProfit=+(totGrossProfit-deductions.totalDeductions).toFixed(2);
-  const soldCount=events.filter(function(e){return!e.isReturned;}).length;
-  const retCount=events.filter(function(e){return e.isReturned;}).length;
-
-  function _loadXLSXandBuild(){
-    if(!window.XLSX){const s=document.createElement('script');s.src='./xlsx.min.js';s.onload=_buildMonthlyXLSX;s.onerror=function(){toast('Failed to load Excel library','error');};document.head.appendChild(s);}else{_buildMonthlyXLSX();}
-  }
-  function _buildMonthlyXLSX(){
-    const wb=XLSX.utils.book_new();
-    // Sheet 1: Summary
-    const sumRows=[
-      ['RETRADE — Monthly Statement'],
-      ['Period', mName],
-      ['Generated', generated],
-      [],
-      ['SUMMARY'],
-      ['Gross Revenue (sales only)', totRev],
-      ['Items Sold', soldCount],
-      ['Returns', retCount],
-      ['Gross Profit (after fees & item costs)', totGrossProfit],
-      ['  Mileage deduction', deductions.mileageCost>0?-deductions.mileageCost:'—'],
-      ['  Trip extras', deductions.tripExtras>0?-deductions.tripExtras:'—'],
-      ['  Other business expenses', deductions.otherExpenses>0?-deductions.otherExpenses:'—'],
-      ['NET PROFIT', totNetProfit],
-    ];
-    const ws1=XLSX.utils.aoa_to_sheet(sumRows);
-    ws1['!cols']=[{wch:38},{wch:18}];
-    XLSX.utils.book_append_sheet(wb,ws1,'Summary');
-    // Sheet 2: Transactions
-    const txRows=[['Date','Item','GID','Platform','Sale Price (£)','Postage Rec. (£)','Gross Profit (£)','ROI %','Status']];
-    events.sort(function(a,b){return(a.saleDate||'').localeCompare(b.saleDate||'');}).forEach(function(ev){
-      const i=ev.item;
-      const pl=(PLATFORMS[_itemPlatform(i)]&&PLATFORMS[_itemPlatform(i)].short)||_itemPlatform(i);
-      txRows.push([ev.saleDate||'',i.item||'',i.gid||'',pl,
-        ev.salePrice||0,i.postage||0,
-        ev.profit!=null?Number(ev.profit.toFixed(2)):0,
-        ev.roi!=null?Number(ev.roi.toFixed(1)):0,
-        ev.isReturned?'Returned':'Sold']);
-    });
-    txRows.push([]);
-    txRows.push(['TOTALS','','','',totRev,totPostage,totGrossProfit,'','']);
-    const ws2=XLSX.utils.aoa_to_sheet(txRows);
-    ws2['!cols']=[{wch:12},{wch:35},{wch:10},{wch:12},{wch:14},{wch:16},{wch:16},{wch:8},{wch:10}];
-    XLSX.utils.book_append_sheet(wb,ws2,'Transactions');
-    // Sheet 3: Business Costs (if any)
-    if(deductions.trips.length>0||deductions.expenses.length>0){
-      const costRows=[['BUSINESS COSTS — '+mName],[]];
-      if(deductions.trips.length>0){
-        costRows.push(['TRIPS / MILEAGE']);
-        costRows.push(['Date','Description','Miles','Rate (£/mi)','Mileage (£)','Extras (£)','Total (£)']);
-        const tiered=calcTieredTrips(deductions.trips);
-        deductions.trips.forEach(function(t,idx){
-          const r=tiered[idx]||{mileageCost:0,expensesCost:0,totalCost:0,ratePerMile:0.45};
-          costRows.push([t.date||'',t.description||'Sourcing trip',t.mileage||0,
-            r.ratePerMile,r.mileageCost,r.expensesCost,r.totalCost]);
-        });
-        costRows.push(['','Subtotal','','',+(deductions.mileageCost).toFixed(2),
-          +(deductions.tripExtras).toFixed(2),+(deductions.mileageCost+deductions.tripExtras).toFixed(2)]);
-        costRows.push([]);
-      }
-      if(deductions.expenses.length>0){
-        costRows.push(['OTHER EXPENSES']);
-        costRows.push(['Date','Description','Category','Amount (£)']);
-        deductions.expenses.forEach(function(e){
-          costRows.push([e.date||'',e.description||'',e.category||'',e.amount||0]);
-        });
-        costRows.push(['','Subtotal','',deductions.otherExpenses]);
-        costRows.push([]);
-      }
-      costRows.push(['TOTAL DEDUCTIONS','','','',deductions.totalDeductions]);
-      const ws3=XLSX.utils.aoa_to_sheet(costRows);
-      ws3['!cols']=[{wch:12},{wch:35},{wch:8},{wch:12},{wch:14},{wch:12},{wch:12}];
-      XLSX.utils.book_append_sheet(wb,ws3,'Business Costs');
-    }
-    XLSX.writeFile(wb,'RETRADE_'+m+'_Statement.xlsx');
-    toast('Downloaded '+m+' Excel statement');
-  }
-  _loadXLSXandBuild();
+  rows.push([]);
+  rows.push(['TOTALS','','','',totRev,'',totProfit,'','']);
+  _csvRowsToExcel(rows,'Sales','RETRADE_'+m+'_Statement.xlsx');
 }
 
 function downloadAnnualExcel(fyStart){
   const keys=_fyKeys(fyStart);
   const label=_getFYLabel(fyStart);
-  const generated=new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'long',year:'numeric'});
-  const fyFromStr=String(fyStart)+'-04-06';
-  const fyToStr=String(fyStart+1)+'-04-05';
-  const fyTrips=(DB.trips||[]).filter(function(t){return t.date&&t.date>=fyFromStr&&t.date<=fyToStr;});
-  const fyExps=(DB.expenses||[]).filter(function(e){return e.date&&e.date>=fyFromStr&&e.date<=fyToStr;});
-  const fyTiered=calcTieredTrips(fyTrips);
-  const fyMileageCost=+fyTiered.reduce(function(s,r){return s+r.mileageCost;},0).toFixed(2);
-  const fyTripExtras=+fyTiered.reduce(function(s,r){return s+r.expensesCost;},0).toFixed(2);
-  const fyOtherExp=+fyExps.reduce(function(s,e){return s+(e.amount||0);},0).toFixed(2);
-  const fyTotalDeductions=+(fyMileageCost+fyTripExtras+fyOtherExp).toFixed(2);
-  const fyTotalMiles=fyTrips.reduce(function(s,t){return s+(t.mileage||0);},0);
-
-  function _buildAnnualXLSX(){
-    const wb=XLSX.utils.book_new();
-    let totRev=0,totCost=0,totGrossProfit=0,totSold=0,totRet=0,roiSum=0,roiCount=0;
-    const monthData=[];
-    keys.forEach(function(k){
-      const ms=calcMonthStatsBySale(k);
-      const mDeduct=_getMonthTripExpenseCosts(k);
-      const costs=ms.totalRev-ms.realisedProfit;
-      if(ms.avgROI!==null){roiSum+=ms.avgROI;roiCount++;}
-      totRev+=ms.totalRev;totCost+=costs;totGrossProfit+=ms.realisedProfit;
-      totSold+=ms.soldCount;totRet+=ms.returnedCount||0;
-      monthData.push({k,ms,costs,mDeduct});
-    });
-    const totNetProfit=+(totGrossProfit-fyTotalDeductions).toFixed(2);
-
-    // Sheet 1: Summary
-    const sumRows=[
-      ['RETRADE — Annual P&L Statement'],
-      ['Tax Year (UK)','FY '+label+' (6 Apr '+fyStart+' – 5 Apr '+(fyStart+1)+')'],
-      ['Generated',generated],
-      [],
-      ['ANNUAL SUMMARY'],
-      ['Gross Revenue (SA103 Box 15)',totRev],
-      ['Total Item Costs & Fees',totCost],
-      ['Gross Profit',totGrossProfit],
-      ['  Mileage ('+fyTotalMiles+' miles)',-fyMileageCost],
-      ['  Trip extras (parking, entry fees)',fyTripExtras>0?-fyTripExtras:'—'],
-      ['  Other business expenses',fyOtherExp>0?-fyOtherExp:'—'],
-      ['NET PROFIT',totNetProfit],
-      ['Items Sold',totSold],
-      ['Returns',totRet],
-      ['Average ROI %',roiCount>0?Number((roiSum/roiCount).toFixed(1)):'n/a'],
-    ];
-    const ws1=XLSX.utils.aoa_to_sheet(sumRows);
-    ws1['!cols']=[{wch:40},{wch:20}];
-    XLSX.utils.book_append_sheet(wb,ws1,'Summary');
-
-    // Sheet 2: Monthly Breakdown
-    const mRows=[['Month','Revenue (£)','Costs (£)','Gross Profit (£)','Mileage (£)','Trip Extras (£)','Other Exp (£)','Net Profit (£)','Items Sold','Returns','Avg ROI %']];
-    monthData.forEach(function(d){
-      const mNet=+(d.ms.realisedProfit-d.mDeduct.totalDeductions).toFixed(2);
-      mRows.push([keyName(d.k),d.ms.totalRev,d.costs,d.ms.realisedProfit,
-        d.mDeduct.mileageCost||0,d.mDeduct.tripExtras||0,d.mDeduct.otherExpenses||0,
-        mNet,d.ms.soldCount,d.ms.returnedCount||0,
-        d.ms.avgROI!=null?Number(d.ms.avgROI.toFixed(1)):null]);
-    });
-    mRows.push([]);
-    mRows.push(['TOTALS',totRev,totCost,totGrossProfit,fyMileageCost,fyTripExtras,fyOtherExp,totNetProfit,totSold,totRet,roiCount>0?Number((roiSum/roiCount).toFixed(1)):null]);
-    const ws2=XLSX.utils.aoa_to_sheet(mRows);
-    ws2['!cols']=[{wch:14},{wch:14},{wch:14},{wch:16},{wch:14},{wch:14},{wch:14},{wch:14},{wch:12},{wch:10},{wch:10}];
-    XLSX.utils.book_append_sheet(wb,ws2,'Monthly Breakdown');
-
-    // Sheet 3: Trips & Expenses (if any)
-    if(fyTrips.length>0||fyExps.length>0){
-      const costRows=[['TRIPS, MILEAGE & EXPENSES — FY '+label],[]];
-      if(fyTrips.length>0){
-        costRows.push(['TRIPS / MILEAGE']);
-        costRows.push(['Date','Description','Miles','Rate (£/mi)','Mileage (£)','Extras (£)','Total (£)']);
-        fyTrips.forEach(function(t,idx){
-          const r=fyTiered[idx]||{mileageCost:0,expensesCost:0,totalCost:0,ratePerMile:0.45};
-          costRows.push([t.date||'',t.description||'Sourcing trip',t.mileage||0,r.ratePerMile,r.mileageCost,r.expensesCost,r.totalCost]);
-        });
-        costRows.push(['','Subtotal','','',fyMileageCost,fyTripExtras,+(fyMileageCost+fyTripExtras).toFixed(2)]);
-        costRows.push([]);
-      }
-      if(fyExps.length>0){
-        costRows.push(['OTHER EXPENSES']);
-        costRows.push(['Date','Description','Category','Amount (£)']);
-        fyExps.forEach(function(e){costRows.push([e.date||'',e.description||'',e.category||'',e.amount||0]);});
-        costRows.push(['','Subtotal','',fyOtherExp]);
-        costRows.push([]);
-      }
-      costRows.push(['TOTAL DEDUCTIONS','','','','','',fyTotalDeductions]);
-      const ws3=XLSX.utils.aoa_to_sheet(costRows);
-      ws3['!cols']=[{wch:12},{wch:35},{wch:8},{wch:12},{wch:14},{wch:12},{wch:12}];
-      XLSX.utils.book_append_sheet(wb,ws3,'Business Costs');
-    }
-    XLSX.writeFile(wb,'RETRADE_FY'+label.replace('/','-')+'_Annual.xlsx');
-    toast('Downloaded FY '+label+' Excel statement');
-  }
-  if(!window.XLSX){const s=document.createElement('script');s.src='./xlsx.min.js';s.onload=_buildAnnualXLSX;s.onerror=function(){toast('Failed to load Excel library','error');};document.head.appendChild(s);}else{_buildAnnualXLSX();}
+  const rows=[['Month','Revenue (£)','Costs (£)','Gross Profit (£)','Items Sold','Returns','Avg ROI %']];
+  let totRev=0,totCost=0,totProfit=0,totSold=0,totRet=0,roiSum=0,roiCount=0;
+  keys.forEach(function(k){
+    const ms=calcMonthStatsBySale(k);
+    const costs=ms.totalRev-ms.realisedProfit;
+    if(ms.avgROI!==null){roiSum+=ms.avgROI;roiCount++;}
+    totRev+=ms.totalRev;totCost+=costs;totProfit+=ms.realisedProfit;
+    totSold+=ms.soldCount;totRet+=ms.returnedCount||0;
+    rows.push([keyName(k),ms.totalRev,costs,ms.realisedProfit,ms.soldCount,ms.returnedCount||0,ms.avgROI!=null?Number(ms.avgROI.toFixed(1)):0]);
+  });
+  rows.push([]);
+  rows.push(['TOTAL FY '+label,totRev,totCost,totProfit,totSold,totRet,roiCount>0?Number((roiSum/roiCount).toFixed(1)):0]);
+  _csvRowsToExcel(rows,'Annual P&L','RETRADE_FY'+label.replace('/','-')+'_Annual.xlsx');
 }
 
 function downloadStockExcel(){
@@ -8905,60 +8679,11 @@ function downloadStockExcel(){
   _csvRowsToExcel(rows,'Stock','RETRADE_Stock_'+today+'.xlsx');
 }
 
-function _getMonthTripExpenseCosts(m){
-  // Returns {mileageCost, tripExtras, otherExpenses, totalDeductions, trips, expenses}
-  // trips and expenses filtered to calendar month matching key m (e.g. APR-26 → 2026-04)
-  const MONTH_MAP={JAN:'01',FEB:'02',MAR:'03',APR:'04',MAY:'05',JUN:'06',
-                   JUL:'07',AUG:'08',SEP:'09',OCT:'10',NOV:'11',DEC:'12'};
-  const parts=(m||'').split('-');
-  if(parts.length!==2)return{mileageCost:0,tripExtras:0,otherExpenses:0,totalDeductions:0,trips:[],expenses:[]};
-  const mo=MONTH_MAP[parts[0]];
-  const yr='20'+parts[1];
-  const prefix=yr+'-'+mo; // e.g. 2026-04
-  const monthTrips=(DB.trips||[]).filter(function(t){return (t.date||'').startsWith(prefix);});
-  const monthExps=(DB.expenses||[]).filter(function(e){return (e.date||'').startsWith(prefix);});
-  const tiered=calcTieredTrips(monthTrips);
-  const mileageCost=+tiered.reduce(function(s,r){return s+r.mileageCost;},0).toFixed(2);
-  const tripExtras=+tiered.reduce(function(s,r){return s+r.expensesCost;},0).toFixed(2);
-  const otherExpenses=+monthExps.reduce(function(s,e){return s+(e.amount||0);},0).toFixed(2);
-  const totalDeductions=+(mileageCost+tripExtras+otherExpenses).toFixed(2);
-  return{mileageCost,tripExtras,otherExpenses,totalDeductions,trips:monthTrips,expenses:monthExps};
-}
-
 function downloadMonthlyStatement(m){
   const events=getSaleEventsInMonth(m);
   if(!events.length){toast('No sales in '+m,'error');return;}
-  const mName=keyName(m);
-  const generated=new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'long',year:'numeric'});
-  const deductions=_getMonthTripExpenseCosts(m);
-  const totRev=events.filter(function(e){return!e.isReturned;}).reduce(function(s,e){return s+(e.salePrice||0);},0);
-  const totPostage=events.filter(function(e){return!e.isReturned;}).reduce(function(s,e){return s+(e.item.postage||0);},0);
-  const totGrossProfit=events.reduce(function(s,e){return s+(e.profit||0);},0);
-  const totNetProfit=+(totGrossProfit-deductions.totalDeductions).toFixed(2);
-  const soldCount=events.filter(function(e){return!e.isReturned;}).length;
-  const retCount=events.filter(function(e){return e.isReturned;}).length;
-
-  const rows=[];
-  // Header block
-  rows.push(['RETRADE — Monthly Statement']);
-  rows.push(['Period:', mName]);
-  rows.push(['Generated:', generated]);
-  rows.push([]);
-  // Summary KPIs
-  rows.push(['SUMMARY']);
-  rows.push(['Gross Revenue (sales only)',totRev.toFixed(2)]);
-  rows.push(['Items Sold',soldCount]);
-  if(retCount>0)rows.push(['Returns / Refunds',retCount]);
-  rows.push(['Gross Profit (after fees & item costs)',totGrossProfit.toFixed(2)]);
-  if(deductions.mileageCost>0)rows.push(['  Mileage deduction ('+deductions.trips.reduce(function(s,t){return s+(t.mileage||0);},0)+' miles)','−'+deductions.mileageCost.toFixed(2)]);
-  if(deductions.tripExtras>0)rows.push(['  Trip extras (parking, entry fees)','−'+deductions.tripExtras.toFixed(2)]);
-  if(deductions.otherExpenses>0)rows.push(['  Other business expenses','−'+deductions.otherExpenses.toFixed(2)]);
-  rows.push(['NET PROFIT',totNetProfit.toFixed(2)]);
-  rows.push([]);
-  // Transactions
-  rows.push(['TRANSACTIONS']);
-  rows.push(['Date','Item','GID','Platform','Sale Price (£)','Postage Received (£)','Gross Profit (£)','ROI %','Status']);
-  events.sort(function(a,b){return(a.saleDate||'').localeCompare(b.saleDate||'');}).forEach(function(ev){
+  const rows=[['Date','Item','GID','Platform','Sale Price','Postage Received','Net Profit','ROI %','Status']];
+  events.forEach(function(ev){
     const i=ev.item;
     const p=_itemPlatform(i);
     const pl=(PLATFORMS[p]&&PLATFORMS[p].short)||p;
@@ -8968,39 +8693,10 @@ function downloadMonthlyStatement(m){
       (ev.salePrice||0).toFixed(2),(i.postage||0).toFixed(2),profit,roi,
       ev.isReturned?'Returned':'Sold']);
   });
+  const totProfit=events.reduce(function(s,e){return s+(e.profit||0);},0);
+  const totRev=events.filter(function(e){return!e.isReturned;}).reduce(function(s,e){return s+(e.salePrice||0);},0);
   rows.push([]);
-  rows.push(['TOTALS','','','',totRev.toFixed(2),totPostage.toFixed(2),totGrossProfit.toFixed(2),'','']);
-  rows.push([]);
-  // Trips & expenses detail (if any)
-  if(deductions.trips.length>0||deductions.expenses.length>0){
-    rows.push(['BUSINESS COSTS THIS MONTH']);
-    if(deductions.trips.length>0){
-      rows.push(['Trips / Mileage']);
-      rows.push(['Date','Description','Miles','Rate (£/mi)','Mileage Cost (£)','Extras (£)','Total (£)']);
-      const tiered=calcTieredTrips(deductions.trips);
-      deductions.trips.forEach(function(t,idx){
-        const r=tiered[idx]||{mileageCost:0,expensesCost:0,totalCost:0,ratePerMile:0.45};
-        rows.push([t.date||'',t.description||'Sourcing trip',t.mileage||0,
-          r.ratePerMile.toFixed(2),r.mileageCost.toFixed(2),r.expensesCost.toFixed(2),r.totalCost.toFixed(2)]);
-      });
-      rows.push(['','Trips subtotal','','','','',(deductions.mileageCost+deductions.tripExtras).toFixed(2)]);
-      rows.push([]);
-    }
-    if(deductions.expenses.length>0){
-      rows.push(['Other Expenses']);
-      rows.push(['Date','Description','Category','Amount (£)']);
-      deductions.expenses.forEach(function(e){
-        rows.push([e.date||'',e.description||'Expense',e.category||'',
-          (e.amount||0).toFixed(2)]);
-      });
-      rows.push(['','Expenses subtotal','',deductions.otherExpenses.toFixed(2)]);
-      rows.push([]);
-    }
-    rows.push(['Total deductions','','','',deductions.totalDeductions.toFixed(2)]);
-    rows.push([]);
-  }
-  rows.push(['Generated by RETRADE · doubleowseer.com']);
-
+  rows.push(['TOTALS','','','',totRev.toFixed(2),'',totProfit.toFixed(2),'','']);
   const csv=rows.map(function(r){return r.map(function(c){const s=String(c==null?'':c);return(s.includes(',')||s.includes('"'))?'"'+s.replace(/"/g,'""')+'"':s;}).join(',');}).join('\n');
   const blob=new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8'});
   const a=document.createElement('a');a.href=URL.createObjectURL(blob);
@@ -10253,6 +9949,7 @@ function renderExpenses(){
 
   const _editSVG='<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>';
   const _delSVG='<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>';
+  const _dotsSVG='<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="12" cy="19" r="1.8"/></svg>';
   function _tripRow({t,origIdx}){
     const r=_tieredById[t.id]||{totalCost:0,mileageCost:0,expensesCost:0,isSplit:false,tier2Miles:0,ratePerMile:t.ratePerMile||0.45};
     const expCount=Array.isArray(t.expenses)?t.expenses.length:0;
@@ -10262,23 +9959,59 @@ function renderExpenses(){
     else if(r.tier2Miles>0)metaParts.push('<span style="color:var(--accent)">tier 2</span>');
     if(expCount>0)metaParts.push(expCount+' extra'+(expCount!==1?'s':''));
     if(t.date)metaParts.push(t.date);
+    const ddId='dd-trip-'+origIdx;
     return `<div class="expense-item clickable" onclick="showTripBreakdown(${origIdx})">
       <div class="exp-dot trip"></div>
       <div class="expense-main"><div class="expense-label">${esc(t.description||'Sourcing trip')}</div><div class="expense-meta">${metaParts.join('<span style="color:var(--border2)">&nbsp;·&nbsp;</span>')}</div></div>
       <div class="expense-right"><div class="expense-amount">${r.totalCost>0?fmt(r.totalCost):'<span style="color:var(--muted)">—</span>'}</div></div>
       <div class="expense-actions" onclick="event.stopPropagation()">
-        <button class="btn btn-s" style="padding:5px 10px;font-size:12px" onclick="editTrip(${origIdx})">${_editSVG}</button>
-        <button class="btn btn-s" style="padding:5px 10px;font-size:12px;color:var(--red);border-color:rgba(248,113,113,0.3)" onclick="deleteTrip(${origIdx})">${_delSVG}</button>
+        <div class="ddwrap" id="${ddId}" style="position:relative;">
+          <button class="ddbtn" onclick="event.stopPropagation();toggleDD('${ddId}',this)" title="Options" style="width:32px;height:32px;display:flex;align-items:center;justify-content:center;">${_dotsSVG}</button>
+          <div class="ddmenu" style="min-width:170px;right:0;left:auto;">
+            <button onclick="event.stopPropagation();toggleDD('${ddId}');showTripBreakdown(${origIdx})">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+              View breakdown
+            </button>
+            <button onclick="event.stopPropagation();toggleDD('${ddId}');editTrip(${origIdx})">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+              Edit
+            </button>
+            <button onclick="event.stopPropagation();toggleDD('${ddId}');duplicateTrip(${origIdx})">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+              Duplicate
+            </button>
+            <button class="danger" onclick="event.stopPropagation();toggleDD('${ddId}');deleteTrip(${origIdx})">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>
+              Delete
+            </button>
+          </div>
+        </div>
       </div></div>`;
   }
   function _expRow({e,idx}){
+    const ddId='dd-exp-'+idx;
     return `<div class="expense-item">
       <div class="exp-dot expense"></div>
       <div class="expense-main"><div class="expense-label">${esc(e.description||'Expense')}</div><div class="expense-meta">${[e.date,e.category?esc(e.category):''].filter(Boolean).join('<span style="color:var(--border2)">&nbsp;·&nbsp;</span>')}</div></div>
       <div class="expense-right"><div class="expense-amount">${(e.amount||0)>0?fmt(e.amount):'<span style="color:var(--muted)">—</span>'}</div></div>
       <div class="expense-actions">
-        <button class="btn btn-s" style="padding:5px 10px;font-size:12px" onclick="editExpense(${idx})">${_editSVG}</button>
-        <button class="btn btn-s" style="padding:5px 10px;font-size:12px;color:var(--red);border-color:rgba(248,113,113,0.3)" onclick="deleteExpense(${idx})">${_delSVG}</button>
+        <div class="ddwrap" id="${ddId}" style="position:relative;">
+          <button class="ddbtn" onclick="event.stopPropagation();toggleDD('${ddId}',this)" title="Options" style="width:32px;height:32px;display:flex;align-items:center;justify-content:center;">${_dotsSVG}</button>
+          <div class="ddmenu" style="min-width:160px;right:0;left:auto;">
+            <button onclick="event.stopPropagation();toggleDD('${ddId}');editExpense(${idx})">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+              Edit
+            </button>
+            <button onclick="event.stopPropagation();toggleDD('${ddId}');duplicateExpense(${idx})">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+              Duplicate
+            </button>
+            <button class="danger" onclick="event.stopPropagation();toggleDD('${ddId}');deleteExpense(${idx})">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>
+              Delete
+            </button>
+          </div>
+        </div>
       </div></div>`;
   }
   const _curMonthKey=new Date().toISOString().slice(0,7);
@@ -10724,6 +10457,53 @@ async function deleteExpense(idx){
   (DB.expenses=DB.expenses||[]).splice(idx,1);saveDB();toast('Expense deleted');renderExpenses();
 }
 
+function _nextDupeName(existingNames, baseName){
+  const clean=baseName.replace(/\s*-\s*\d+$/, '').trim();
+  const used=new Set();
+  existingNames.forEach(function(n){
+    const m=(n||'').match(/^(.+?)\s*-\s*(\d+)$/);
+    if(m&&m[1].trim()===clean)used.add(parseInt(m[2],10));
+  });
+  let n=2;
+  while(used.has(n))n++;
+  return clean+' - '+n;
+}
+
+function duplicateTrip(idx){
+  const trips=DB.trips||[];
+  const t=trips[idx];
+  if(!t)return;
+  const allNames=trips.map(function(x){return x.description||'';});
+  const newName=_nextDupeName(allNames,t.description||'Sourcing trip');
+  const copy=Object.assign({},t,{
+    id:'trip_'+Date.now(),
+    description:newName,
+    expenses:Array.isArray(t.expenses)?t.expenses.map(function(e){return Object.assign({},e);}):[]  });
+  trips.splice(idx+1,0,copy);
+  DB.trips=trips;
+  saveDB();
+  toast('Trip duplicated');
+  renderExpenses();
+}
+
+function duplicateExpense(idx){
+  const expenses=DB.expenses||[];
+  const e=expenses[idx];
+  if(!e)return;
+  const allNames=expenses.map(function(x){return x.description||'';});
+  const newName=_nextDupeName(allNames,e.description||'Expense');
+  const copy=Object.assign({},e,{
+    id:'exp_'+Date.now(),
+    description:newName
+  });
+  expenses.splice(idx+1,0,copy);
+  DB.expenses=expenses;
+  saveDB();
+  toast('Expense duplicated');
+  renderExpenses();
+}
+
+
 // DATA PAGE
 function renderData(){
   // Build FY list for annual export selector
@@ -10738,7 +10518,7 @@ function renderData(){
     return '<option value="'+fy+'"'+(fy===_curFY?' selected':'')+'>FY '+_getFYLabel(fy)+(fy===_curFY?' (current)':'')+'</option>';
   }).join('');
 
-  // Build month list for monthly export selector — only months with sales
+  // Build month list for monthly export selector
   const _curMonthKey=currentMonthKey();
   const allMonths=allDBKeys().filter(function(k){
     const ms=calcMonthStatsBySale(k);
@@ -10747,200 +10527,160 @@ function renderData(){
     const ya=keyYear(a),yb=keyYear(b),ma=MONTHS.indexOf(keyCode(a)),mb=MONTHS.indexOf(keyCode(b));
     if(ya!==yb)return yb-ya; return mb-ma;
   });
+  // Default to current month if it has data, else most recent month with sales
   const _defaultMonth=allMonths.includes(_curMonthKey)?_curMonthKey:(allMonths[0]||'');
   const monthOpts=allMonths.map(function(k){
     return '<option value="'+k+'"'+(k===_defaultMonth?' selected':'')+'>'+keyName(k)+'</option>';
   }).join('');
 
-  // Quick stats for backup section info
-  let totalItems=0;
-  allDBKeys().forEach(function(k){totalItems+=(DB[k]||[]).filter(function(i){return(i.item||'').trim().toUpperCase()!=='MONTH END';}).length;});
-  const tripCount=(DB.trips||[]).length;
-  const expCount=(DB.expenses||[]).length;
-
-  // Icon helpers
-  const dlIcon='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>';
-  const csvIcon='<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>';
-  const xlsxIcon='<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>';
-  const jsonIcon='<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>';
-  const upIcon='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>';
-  const auditIcon='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>';
-  const chevronIcon='<svg width="10" height="10" viewBox="0 0 12 12" fill="none"><path d="M2 4l4 4 4-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
-
   const html=`
-    <div style="padding-bottom:100px">
-      <div class="page-header">
-        <div>
-          <div class="page-title">Data</div>
-          <div class="page-subtitle">Exports, backups and data tools.</div>
-        </div>
-      </div>
+    <div style="padding-bottom:80px">
+      <div class="page-header"><div><div class="page-title">Data</div>
+        <div class="page-subtitle">Exports, backups and data management.</div></div></div>
 
-      <!-- ─────────────────────────── DOWNLOADS ───────────────────────── -->
+      <!-- ── DOWNLOADS ───────────────────────────────────────────── -->
       <div class="sl">Downloads</div>
-      <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;margin-bottom:24px;overflow:hidden;">
+
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;margin-bottom:24px;">
 
         <!-- Monthly Statement -->
-        <div style="padding:18px 20px;border-bottom:1px solid var(--border);">
-          <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap;">
-            <div style="flex:1;min-width:0;">
-              <div style="font-size:14px;font-weight:600;color:var(--text);margin-bottom:4px;">Monthly Statement</div>
-              <div style="font-size:12px;color:var(--text-secondary);line-height:1.5;">Sales, profit, ROI and business costs for a single calendar month. Includes net profit after mileage and expenses.</div>
-            </div>
-          </div>
-          <div style="display:flex;align-items:center;gap:8px;margin-top:14px;flex-wrap:wrap;">
-            <select id="dl-month-sel" style="font-size:13px;padding:8px 10px;border-radius:8px;border:1px solid var(--border);background:var(--surface2);color:var(--text);flex:1;min-width:130px;max-width:200px;height:38px;">
+        <div style="padding:16px 18px;border-bottom:1px solid var(--border);">
+          <div style="font-size:14px;font-weight:600;margin-bottom:3px;">Monthly Statement</div>
+          <div style="font-size:12px;color:var(--text-secondary);margin-bottom:12px;">Sales, profit and ROI for a single month — one row per transaction.</div>
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+            <select id="dl-month-sel" style="font-size:13px;padding:7px 10px;border-radius:8px;border:1px solid var(--border);background:var(--surface2);color:var(--text);flex:1;min-width:120px;max-width:220px;">
               ${monthOpts||'<option value="">No sales yet</option>'}
             </select>
             <div class="ddwrap" id="dd-dl-month" style="position:relative;">
-              <button class="btn btn-s" style="height:38px;font-size:13px;display:flex;align-items:center;gap:6px;padding:0 14px;white-space:nowrap;" onclick="event.stopPropagation();toggleDD('dd-dl-month',this)">
-                ${dlIcon} Download ${chevronIcon}
-              </button>
-              <div class="ddmenu" style="min-width:150px;right:0;left:auto;">
-                <button onclick="event.stopPropagation();toggleDD('dd-dl-month');(function(){const m=document.getElementById('dl-month-sel')?.value;if(m)downloadMonthlyStatement(m);else toast('Select a month first','error');})()">${csvIcon} CSV</button>
-                <button onclick="event.stopPropagation();toggleDD('dd-dl-month');(function(){const m=document.getElementById('dl-month-sel')?.value;if(m)downloadMonthlyExcel(m);else toast('Select a month first','error');})()">${xlsxIcon} Excel (multi-sheet)</button>
-              </div>
-            </div>
+                  <button class="btn btn-s" style="font-size:13px;display:flex;align-items:center;gap:6px;padding:8px 14px;" onclick="event.stopPropagation();toggleDD('dd-dl-month',this)">
+                    Download <svg width="11" height="11" viewBox="0 0 12 12" fill="none"><path d="M2 4l4 4 4-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                  </button>
+                  <div class="ddmenu up" style="min-width:140px;right:0;left:auto;">
+                    <button onclick="event.stopPropagation();toggleDD('dd-dl-month');(function(){const m=document.getElementById('dl-month-sel')?.value;if(m)downloadMonthlyStatement(m);else toast('No month selected','error');})()"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> CSV</button><button onclick="event.stopPropagation();toggleDD('dd-dl-month');(function(){const m=document.getElementById('dl-month-sel')?.value;if(m)downloadMonthlyExcel(m);else toast('No month selected','error');})()"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg> Excel</button>
+                  </div>
+                </div>
           </div>
         </div>
 
         <!-- Annual FY P&L -->
-        <div style="padding:18px 20px;border-bottom:1px solid var(--border);">
-          <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap;">
-            <div style="flex:1;min-width:0;">
-              <div style="font-size:14px;font-weight:600;color:var(--text);margin-bottom:4px;">Annual P&amp;L</div>
-              <div style="font-size:12px;color:var(--text-secondary);line-height:1.5;">Full tax year Apr–Mar with net profit after all deductions. Includes monthly breakdown, trips and expenses. Useful for SA103.</div>
-            </div>
-          </div>
-          <div style="display:flex;align-items:center;gap:8px;margin-top:14px;flex-wrap:wrap;">
-            <select id="dl-fy-sel" style="font-size:13px;padding:8px 10px;border-radius:8px;border:1px solid var(--border);background:var(--surface2);color:var(--text);flex:1;min-width:130px;max-width:200px;height:38px;">
+        <div style="padding:16px 18px;border-bottom:1px solid var(--border);">
+          <div style="font-size:14px;font-weight:600;margin-bottom:3px;">Annual P&amp;L Summary</div>
+          <div style="font-size:12px;color:var(--text-secondary);margin-bottom:12px;">Full tax year Apr–Mar — revenue, costs and profit. Useful for SA103.</div>
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+            <select id="dl-fy-sel" style="font-size:13px;padding:7px 10px;border-radius:8px;border:1px solid var(--border);background:var(--surface2);color:var(--text);flex:1;min-width:120px;max-width:220px;">
               ${fyOpts}
             </select>
             <div class="ddwrap" id="dd-dl-annual" style="position:relative;">
-              <button class="btn btn-s" style="height:38px;font-size:13px;display:flex;align-items:center;gap:6px;padding:0 14px;white-space:nowrap;" onclick="event.stopPropagation();toggleDD('dd-dl-annual',this)">
-                ${dlIcon} Download ${chevronIcon}
-              </button>
-              <div class="ddmenu" style="min-width:150px;right:0;left:auto;">
-                <button onclick="event.stopPropagation();toggleDD('dd-dl-annual');(function(){const fy=parseInt(document.getElementById('dl-fy-sel')?.value);if(fy)downloadAnnualStatement(fy);else toast('Select a year first','error');})()">${csvIcon} CSV</button>
-                <button onclick="event.stopPropagation();toggleDD('dd-dl-annual');(function(){const fy=parseInt(document.getElementById('dl-fy-sel')?.value);if(fy)downloadAnnualExcel(fy);else toast('Select a year first','error');})()">${xlsxIcon} Excel (multi-sheet)</button>
-              </div>
-            </div>
+                  <button class="btn btn-s" style="font-size:13px;display:flex;align-items:center;gap:6px;padding:8px 14px;" onclick="event.stopPropagation();toggleDD('dd-dl-annual',this)">
+                    Download <svg width="11" height="11" viewBox="0 0 12 12" fill="none"><path d="M2 4l4 4 4-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                  </button>
+                  <div class="ddmenu up" style="min-width:140px;right:0;left:auto;">
+                    <button onclick="event.stopPropagation();toggleDD('dd-dl-annual');(function(){const fy=parseInt(document.getElementById('dl-fy-sel')?.value);if(fy)downloadAnnualStatement(fy);else toast('No year selected','error');})()"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> CSV</button><button onclick="event.stopPropagation();toggleDD('dd-dl-annual');(function(){const fy=parseInt(document.getElementById('dl-fy-sel')?.value);if(fy)downloadAnnualExcel(fy);else toast('No year selected','error');})()"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg> Excel</button>
+                  </div>
+                </div>
           </div>
         </div>
 
         <!-- Stock Snapshot -->
-        <div style="padding:18px 20px;">
-          <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap;">
-            <div style="flex:1;min-width:0;">
-              <div style="font-size:14px;font-weight:600;color:var(--text);margin-bottom:4px;">Stock Snapshot</div>
-              <div style="font-size:12px;color:var(--text-secondary);line-height:1.5;">All current sourced and listed items — cost, estimated sale price, days held and run tag. Exported as today's date.</div>
-            </div>
-          </div>
-          <div style="margin-top:14px;">
-            <div class="ddwrap" id="dd-dl-stock" style="position:relative;display:inline-flex;">
-              <button class="btn btn-s" style="height:38px;font-size:13px;display:flex;align-items:center;gap:6px;padding:0 14px;white-space:nowrap;" onclick="event.stopPropagation();toggleDD('dd-dl-stock',this)">
-                ${dlIcon} Download ${chevronIcon}
-              </button>
-              <div class="ddmenu" style="min-width:140px;right:0;left:auto;">
-                <button onclick="event.stopPropagation();toggleDD('dd-dl-stock');downloadStockSnapshot()">${csvIcon} CSV</button>
-                <button onclick="event.stopPropagation();toggleDD('dd-dl-stock');downloadStockExcel()">${xlsxIcon} Excel</button>
-              </div>
-            </div>
-          </div>
+        <div style="padding:16px 18px;">
+          <div style="font-size:14px;font-weight:600;margin-bottom:3px;">Stock Snapshot</div>
+          <div style="font-size:12px;color:var(--text-secondary);margin-bottom:12px;">All current sourced and listed items — cost, est. price, days held, run tag.</div>
+          <div class="ddwrap" id="dd-dl-stock" style="position:relative;display:inline-block;">
+                  <button class="btn btn-s" style="font-size:13px;display:flex;align-items:center;gap:6px;padding:8px 14px;" onclick="event.stopPropagation();toggleDD('dd-dl-stock',this)">
+                    Download <svg width="11" height="11" viewBox="0 0 12 12" fill="none"><path d="M2 4l4 4 4-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                  </button>
+                  <div class="ddmenu up" style="min-width:140px;right:0;left:auto;">
+                    <button onclick="event.stopPropagation();toggleDD('dd-dl-stock');downloadStockSnapshot()"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> CSV</button><button onclick="event.stopPropagation();toggleDD('dd-dl-stock');downloadStockExcel()"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg> Excel</button>
+                  </div>
+                </div>
         </div>
+
       </div>
 
-      <!-- ─────────────────────────── BACKUP & RESTORE ─────────────────── -->
+      <!-- ── BACKUP / RESTORE ────────────────────────────────────── -->
       <div class="sl">Backup &amp; Restore</div>
-      <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;margin-bottom:24px;overflow:hidden;">
 
-        <!-- Export backup -->
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;margin-bottom:24px;">
         <div style="padding:18px 20px;border-bottom:1px solid var(--border);">
           <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
-            <div style="flex:1;min-width:0;">
-              <div style="font-size:14px;font-weight:600;margin-bottom:3px;">Export Backup</div>
-              <div style="font-size:12px;color:var(--text-secondary);">${totalItems} items · ${tripCount} trips · ${expCount} expenses. Full lossless backup (JSON) or all items as Excel.</div>
+            <div>
+              <div style="font-size:14px;font-weight:600;margin-bottom:2px;">Export full backup</div>
+              <div style="font-size:12px;color:var(--text-secondary);">Full lossless backup as JSON, or all items as an Excel spreadsheet.</div>
             </div>
-            <div class="ddwrap" id="dd-export-backup" style="position:relative;flex-shrink:0;">
-              <button class="btn btn-p" style="height:38px;font-size:13px;display:flex;align-items:center;gap:6px;padding:0 16px;white-space:nowrap;" onclick="event.stopPropagation();toggleDD('dd-export-backup',this)">
-                Export ${chevronIcon}
+            <div class="ddwrap" id="dd-export-backup" style="position:relative;">
+              <button class="btn btn-p" style="font-size:13px;display:flex;align-items:center;gap:6px;" onclick="event.stopPropagation();toggleDD('dd-export-backup',this)">
+                Export
+                <svg width="11" height="11" viewBox="0 0 12 12" fill="none"><path d="M2 4l4 4 4-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
               </button>
-              <div class="ddmenu" style="min-width:170px;right:0;left:auto;">
-                <button onclick="event.stopPropagation();toggleDD('dd-export-backup');exportDB()">${jsonIcon} JSON backup</button>
-                <button onclick="event.stopPropagation();toggleDD('dd-export-backup');exportItemsAsExcel()">${xlsxIcon} Excel spreadsheet</button>
+              <div class="ddmenu up" style="min-width:160px;right:0;left:auto;">
+                <button onclick="event.stopPropagation();toggleDD('dd-export-backup');exportDB()">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                  JSON backup
+                </button>
+                <button onclick="event.stopPropagation();toggleDD('dd-export-backup');exportItemsAsExcel()">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+                  Excel spreadsheet
+                </button>
               </div>
             </div>
           </div>
         </div>
-
-        <!-- Import backup -->
         <div style="padding:18px 20px;border-bottom:1px solid var(--border);">
           <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
-            <div style="flex:1;min-width:0;">
-              <div style="font-size:14px;font-weight:600;margin-bottom:3px;">Import Backup</div>
-              <div style="font-size:12px;color:var(--text-secondary);">Restore from a JSON backup file, or import items from an Excel spreadsheet.</div>
+            <div>
+              <div style="font-size:14px;font-weight:600;margin-bottom:2px;">Import JSON backup</div>
+              <div style="font-size:12px;color:var(--text-secondary);">Restore from a JSON backup, or import from an Excel spreadsheet.</div>
             </div>
             <input type="file" id="import-file" accept=".json" style="display:none" onchange="importDB(event)">
             <input type="file" id="import-file-xlsx-backup" accept=".xlsx" style="display:none" onchange="importExcel(event)">
-            <div class="ddwrap" id="dd-import-backup" style="position:relative;flex-shrink:0;">
-              <button class="btn btn-s" style="height:38px;font-size:13px;display:flex;align-items:center;gap:6px;padding:0 16px;white-space:nowrap;" onclick="event.stopPropagation();toggleDD('dd-import-backup',this)">
-                ${upIcon} Import ${chevronIcon}
+            <div class="ddwrap" id="dd-import-backup" style="position:relative;">
+              <button class="btn btn-s" style="font-size:13px;display:flex;align-items:center;gap:6px;" onclick="event.stopPropagation();toggleDD('dd-import-backup',this)">
+                Import
+                <svg width="11" height="11" viewBox="0 0 12 12" fill="none"><path d="M2 4l4 4 4-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
               </button>
-              <div class="ddmenu" style="min-width:170px;right:0;left:auto;">
-                <button onclick="event.stopPropagation();toggleDD('dd-import-backup');document.getElementById('import-file').click()">${jsonIcon} JSON backup</button>
-                <button onclick="event.stopPropagation();toggleDD('dd-import-backup');document.getElementById('import-file-xlsx-backup').click()">${xlsxIcon} Excel spreadsheet</button>
+              <div class="ddmenu up" style="min-width:160px;right:0;left:auto;">
+                <button onclick="event.stopPropagation();toggleDD('dd-import-backup');document.getElementById('import-file').click()">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                  JSON backup
+                </button>
+                <button onclick="event.stopPropagation();toggleDD('dd-import-backup');document.getElementById('import-file-xlsx-backup').click()">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+                  Excel spreadsheet
+                </button>
               </div>
             </div>
           </div>
         </div>
-
-        <!-- Excel template -->
         <div style="padding:18px 20px;">
-          <div style="font-size:14px;font-weight:600;margin-bottom:4px;">Excel Template</div>
-          <div style="font-size:12px;color:var(--text-secondary);margin-bottom:14px;line-height:1.5;">Download a blank template, fill it in, and import it back. All standard fields supported. The Notes sheet in the template explains each column.</div>
-          <input type="file" id="import-excel" accept=".xlsx" style="display:none" onchange="importExcel(event)">
-          <div style="display:flex;gap:8px;flex-wrap:wrap;">
-            <button class="btn btn-s" style="height:36px;font-size:13px;display:flex;align-items:center;gap:6px;padding:0 14px;" onclick="downloadExcelTemplate()">${dlIcon} Template</button>
-            <button class="btn btn-s" style="height:36px;font-size:13px;display:flex;align-items:center;gap:6px;padding:0 14px;" onclick="exportItemsAsExcel()">${dlIcon} Export all items</button>
-            <button class="btn btn-p" style="height:36px;font-size:13px;display:flex;align-items:center;gap:6px;padding:0 14px;" onclick="document.getElementById('import-excel').click()">${upIcon} Import xlsx</button>
+          <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+            <div style="flex:1;min-width:0;">
+              <div style="font-size:14px;font-weight:600;margin-bottom:2px;">Import / Export via Excel</div>
+              <div style="font-size:12px;color:var(--text-secondary);margin-bottom:10px;">Download a blank template, fill it in, and import it back. Or export your current items as a spreadsheet you can open and edit.</div>
+              <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                <input type="file" id="import-excel" accept=".xlsx" style="display:none" onchange="importExcel(event)">
+                <button class="btn btn-s" style="font-size:12px;" onclick="downloadExcelTemplate()">⬇ Template</button>
+                <button class="btn btn-s" style="font-size:12px;" onclick="exportItemsAsExcel()">⬇ Export items</button>
+                <button class="btn btn-p" style="font-size:12px;" onclick="document.getElementById('import-excel').click()">⬆ Import xlsx</button>
+              </div>
+            </div>
           </div>
         </div>
       </div>
 
-      <!-- ─────────────────────────── AUDIT TOOLS ──────────────────────── -->
-      <div class="sl">Data Audit</div>
-      <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;margin-bottom:24px;overflow:hidden;">
-
-        <!-- Relist audit -->
-        <div style="padding:18px 20px;border-bottom:1px solid var(--border);">
-          <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:4px;">
-            <div style="flex:1;min-width:0;">
-              <div style="font-size:14px;font-weight:600;margin-bottom:3px;">Relist Snapshot Audit</div>
-              <div style="font-size:12px;color:var(--text-secondary);">Finds relisted items missing Sale 1 snapshot data — fill in values to correct lifetime profit calculations.</div>
-            </div>
-            <button class="btn btn-s" style="height:36px;font-size:13px;display:flex;align-items:center;gap:6px;padding:0 14px;flex-shrink:0;" onclick="renderRelistAudit()">${auditIcon} Run audit</button>
-          </div>
-          <div id="relist-audit-out" style="margin-top:4px;"></div>
-        </div>
-
-        <!-- Data integrity check -->
-        <div style="padding:18px 20px;">
-          <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:4px;">
-            <div style="flex:1;min-width:0;">
-              <div style="font-size:14px;font-weight:600;margin-bottom:3px;">Data Integrity Check</div>
-              <div style="font-size:12px;color:var(--text-secondary);">Scans all items for missing dates, state inconsistencies and calculation anomalies.</div>
-            </div>
-            <button class="btn btn-s" style="height:36px;font-size:13px;display:flex;align-items:center;gap:6px;padding:0 14px;flex-shrink:0;" onclick="renderDataIntegrityCheck()">${auditIcon} Run check</button>
-          </div>
-          <div id="integrity-check-out" style="margin-top:4px;"></div>
-        </div>
+      <!-- ── TOOLS ───────────────────────────────────────────────── -->
+      <div class="sl">Tools</div>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:24px;">
+        <div style="font-size:14px;font-weight:600;margin-bottom:4px;">Relist data audit</div>
+        <div style="font-size:12px;color:var(--text-secondary);margin-bottom:14px;">Finds items relisted before the lifetime-P&amp;L fix. Fill in any sale 1 values to correct lifetime profit.</div>
+        <button class="btn btn-p" style="font-size:13px;" onclick="renderRelistAudit()">Run audit</button>
+        <div id="relist-audit-out" style="margin-top:16px"></div>
       </div>
 
-      <!-- ─────────────────────────── DANGER ZONE ──────────────────────── -->
+      <!-- ── DANGER ──────────────────────────────────────────────── -->
       <div class="sl">Danger Zone</div>
-      <div class="section-card danger" style="border-radius:14px;">
+      <div class="section-card danger">
         <div class="section-card-title">Clear All Data</div>
-        <div class="section-card-desc">Permanently deletes every item, trip and expense. This cannot be undone — export a backup first.</div>
+        <div class="section-card-desc">Permanently delete every item and expense. Cannot be undone.</div>
         <button class="btn btn-danger" onclick="clearAllData()">⚠️ Clear Database</button>
       </div>
     </div>
@@ -11030,122 +10770,6 @@ function saveRelistAuditEdits(){
   saveDB();
   toast('Saved '+written+' snapshot'+(written!==1?'s':''));
   renderRelistAudit();
-}
-
-// Data Integrity Check — scans all items for common data problems and surfaces actionable issues
-function renderDataIntegrityCheck(){
-  const out=document.getElementById('integrity-check-out');
-  if(!out)return;
-  out.innerHTML='<div style="font-size:13px;color:var(--text-secondary);padding:8px 0;">Scanning…</div>';
-
-  const issues=[];
-  const warnings=[];
-  let checkedItems=0;
-
-  allDBKeys().forEach(function(k){
-    (DB[k]||[]).forEach(function(i){
-      if((i.item||'').trim().toUpperCase()==='MONTH END')return;
-      checkedItems++;
-      const name=i.item||'(unnamed)';
-      const ref=i.gid||i.id.slice(0,8);
-
-      // Missing item name
-      if(!i.item||!i.item.trim()){
-        issues.push({severity:'error',msg:'Item has no name',ref,id:i.id,month:k});
-      }
-
-      // Sold item missing sale price
-      if(i.dateSold&&!(i.salePrice>0)){
-        issues.push({severity:'error',msg:name+' — sold but sale price is £0 or missing',ref,id:i.id,month:k});
-      }
-
-      // Sold item missing dateSold (state=sold but no date)
-      if(i.state==='sold'&&!i.dateSold&&!i.resaleSalePrice&&!i.isReturned){
-        issues.push({severity:'error',msg:name+' — state is "sold" but no date sold recorded',ref,id:i.id,month:k});
-      }
-
-      // Listed item missing dateListed
-      if((i.state==='listed'||i.dateSold)&&!i.dateListed){
-        warnings.push({severity:'warning',msg:name+' — no date listed (affects days-to-sell and ROI calculations)',ref,id:i.id,month:k});
-      }
-
-      // dateSold before dateListed
-      if(i.dateSold&&i.dateListed&&i.dateSold<i.dateListed){
-        issues.push({severity:'error',msg:name+' — date sold is before date listed ('+i.dateSold+' < '+i.dateListed+')',ref,id:i.id,month:k});
-      }
-
-      // Negative cost price
-      if(i.costPrice<0){
-        issues.push({severity:'error',msg:name+' — cost price is negative (£'+i.costPrice.toFixed(2)+')',ref,id:i.id,month:k});
-      }
-
-      // Suspiciously high promo percent (stored as decimal — >0.5 = >50% promo)
-      if(i.promoPercent>0.5){
-        warnings.push({severity:'warning',msg:name+' — promo % is '+((i.promoPercent||0)*100).toFixed(0)+'% (over 50%). If entered as a whole number e.g. 5 instead of 0.05, fees will be miscalculated.',ref,id:i.id,month:k});
-      }
-
-      // Returned item — full return but no _dateSoldAtReturn snapshot
-      const fullRet=(i.returnHistory||[]).find(function(r){return r.type==='full_seller'||r.type==='full_ebay';});
-      if(fullRet&&!fullRet._dateSoldAtReturn){
-        warnings.push({severity:'warning',msg:name+' — full return logged but no sale-date snapshot (_dateSoldAtReturn missing). Revenue may be mis-attributed to the wrong month.',ref,id:i.id,month:k});
-      }
-
-      // Resold item missing resale date
-      if(i.resaleSalePrice&&!(i.resaleSalePrice<=0)&&!i.resaleDateSold){
-        issues.push({severity:'error',msg:name+' — has a resale price but no resale date sold',ref,id:i.id,month:k});
-      }
-
-      // Listed items with no cost and no sale price (ghost listings)
-      if(!i.dateSold&&!i.isReturned&&!i.resaleSalePrice&&!i.costPrice&&!i.salePrice&&!i.estSalePrice){
-        warnings.push({severity:'warning',msg:name+' — no cost, sale or est. price set. Item may have been created accidentally.',ref,id:i.id,month:k});
-      }
-    });
-  });
-
-  // Trip checks
-  (DB.trips||[]).forEach(function(t,idx){
-    if(!t.mileage||t.mileage<=0){
-      warnings.push({severity:'warning',msg:'Trip "'+(t.description||'trip '+idx)+'" has 0 miles — mileage cost will be £0.',ref:t.id||('trip-'+idx),id:null,month:null});
-    }
-    if(!t.date){
-      warnings.push({severity:'warning',msg:'Trip "'+(t.description||'trip '+idx)+'" has no date — will not appear in monthly or annual statements.',ref:t.id||('trip-'+idx),id:null,month:null});
-    }
-  });
-
-  const totalIssues=issues.length+warnings.length;
-
-  if(!totalIssues){
-    out.innerHTML='<div style="background:rgba(34,197,94,0.08);border:1px solid rgba(34,197,94,0.25);border-radius:10px;padding:14px 16px;display:flex;align-items:center;gap:10px;">'
-      +'<span style="font-size:18px;">✓</span>'
-      +'<div><div style="font-size:13px;font-weight:600;color:var(--green)">All clear</div>'
-      +'<div style="font-size:12px;color:var(--text-secondary);margin-top:2px;">'+checkedItems+' items checked — no issues found.</div></div>'
-      +'</div>';
-    return;
-  }
-
-  function _row(item,isError){
-    const col=isError?'var(--red)':'var(--accent)';
-    const badge=isError
-      ?'<span style="font-size:10px;font-weight:700;background:rgba(248,113,113,0.15);color:var(--red);padding:2px 6px;border-radius:4px;white-space:nowrap;">ERROR</span>'
-      :'<span style="font-size:10px;font-weight:700;background:rgba(212,136,10,0.15);color:var(--accent);padding:2px 6px;border-radius:4px;white-space:nowrap;">WARNING</span>';
-    return '<div style="display:flex;align-items:flex-start;gap:10px;padding:10px 14px;border-bottom:1px solid var(--border);font-size:12px;">'
-      +badge
-      +'<div style="flex:1;min-width:0;line-height:1.5;color:var(--text)">'+item.msg
-      +(item.month?'<span style="color:var(--muted)"> · '+item.month+(item.ref?' · '+item.ref:'')+'</span>':'')
-      +'</div>'
-      +(item.id&&item.month?'<button class="btn btn-s" style="font-size:11px;padding:3px 8px;flex-shrink:0;" onclick="openItemDetail(\'' +item.month+ '\',\'' +item.id+ '\')">View</button>':'')
-      +'</div>';
-  }
-
-  let html='<div style="border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-top:8px;">';
-  html+='<div style="padding:10px 14px;background:var(--surface2);display:flex;justify-content:space-between;align-items:center;">'
-    +'<span style="font-size:12px;font-weight:600;">'+totalIssues+' issue'+(totalIssues!==1?'s':'')+' found across '+checkedItems+' items</span>'
-    +'<button class="btn btn-s" style="font-size:11px;padding:3px 10px;" onclick="renderDataIntegrityCheck()">↻ Re-run</button>'
-    +'</div>';
-  issues.forEach(function(i){html+=_row(i,true);});
-  warnings.forEach(function(w){html+=_row(w,false);});
-  html+='</div>';
-  out.innerHTML=html;
 }
 
 function exportDB(){
