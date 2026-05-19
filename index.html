@@ -2993,6 +2993,8 @@ function _rowToItem(row, parts, returns){
     resaleDateSold:     row.resale_date_sold || null,
     resaleShippingCost: row.resale_shipping_cost ? Number(row.resale_shipping_cost) : null,
     resalePromoPercent: row.resale_promo_percent ? Number(row.resale_promo_percent) : null,
+    resalePostage:      row.resale_postage      ? Number(row.resale_postage)      : null,
+    resalePackagingCost:row.resale_packaging_cost?Number(row.resale_packaging_cost):null,
     grossProfit:     row.gross_profit != null ? Number(row.gross_profit) : null,
     state:           row.state || null,
     dateSourced:     row.date_sourced || null,
@@ -3048,6 +3050,8 @@ function _itemToRow(i, month){
     resale_date_sold:     i.resaleDateSold || null,
     resale_shipping_cost: i.resaleShippingCost || null,
     resale_promo_percent: i.resalePromoPercent || null,
+    resale_postage:       i.resalePostage      != null ? i.resalePostage      : null,
+    resale_packaging_cost:i.resalePackagingCost!= null ? i.resalePackagingCost: null,
     gross_profit:     i.grossProfit || null,
     state:            i.state || 'listed',
     date_sourced:     i.dateSourced || null,
@@ -3865,7 +3869,13 @@ function openTokenEdit(m,id,field,_alreadyAsync){
   if(tok.classList.contains('editing'))return;
   tok.classList.add('editing');
   const valEl=tok.querySelector('.ip-token-val');
-  const currentVal=field==='promoPercent'?+((i.promoPercent||0)*100).toFixed(2):(i[field]||0);
+  // For resold items, read the effective (sale-2) field value for display
+  const _isResold_cv = !!i.resaleSalePrice;
+  const _sale2FieldMap_cv = {promoPercent:'resalePromoPercent', packagingCost:'resalePackagingCost'};
+  const _cvField = _isResold_cv && _sale2FieldMap_cv[field] ? _sale2FieldMap_cv[field] : field;
+  const currentVal=_cvField==='promoPercent'||_cvField==='resalePromoPercent'
+    ?+((i[_cvField]||0)*100).toFixed(2)
+    :(i[_cvField]||0);
   valEl.innerHTML='<input type="number" step="0.01" min="0" value="'+currentVal+'" autocomplete="off">';
   const inp=valEl.querySelector('input');
 
@@ -3878,14 +3888,23 @@ function openTokenEdit(m,id,field,_alreadyAsync){
   focusAndSelect();
   setTimeout(focusAndSelect,50);
 
+  // Determine if this token should write to a sale-2 (resale) field instead
+  // of the base item field. Applies when item has been resold (resaleSalePrice set).
+  const _isResold = !!i.resaleSalePrice;
+  const _sale2FieldMap = {promoPercent:'resalePromoPercent', packagingCost:'resalePackagingCost'};
+  const _effectiveField = _isResold && _sale2FieldMap[field] ? _sale2FieldMap[field] : field;
+
   let committed=false;
   function commit(save){
     if(committed)return;
     committed=true;
     if(save){
       const v=parseFloat(inp.value)||0;
-      if(field==='promoPercent'){i.promoPercent=+(v/100).toFixed(4);}
-      else{i[field]=+v.toFixed(2);}
+      if(_effectiveField==='promoPercent'||_effectiveField==='resalePromoPercent'){
+        i[_effectiveField]=+(v/100).toFixed(4);
+      } else {
+        i[_effectiveField]=+v.toFixed(2);
+      }
       if(i.dateSold||i.isReturned||i.resaleSalePrice)i.grossProfit=calcGrossProfit(i);
       saveDB();
     }
@@ -4195,10 +4214,12 @@ function renderItemPage(m,id){
     const rBPF=calcPlatformBPF(i,i.resaleSalePrice);
     const rGrossInc=i.resaleSalePrice-rBPF;
     const rPromoCost=rGrossInc*(i.resalePromoPercent||0)*1.20;
-    const rRev=i.resaleSalePrice-rBPF-(i.resaleShippingCost||0)-rPromoCost;
+    const rPostageReceived2=i.resalePostage!=null?i.resalePostage:0;
+    const rRev=i.resaleSalePrice-rBPF+rPostageReceived2-(i.resaleShippingCost||0)-rPromoCost;
     const lifetimeProfit=profit;
     let s2b='';
     s2b+=rcp('Sale price',fmt(i.resaleSalePrice),'var(--green)');
+    if(rPostageReceived2>0)s2b+=rcp('Postage received','+'+fmt(rPostageReceived2),'var(--green)');
     s2b+=rcp(_showFee?_feeLabel:'Platform fee (£0)','−'+fmt(rBPF),_showFee?'var(--red)':'var(--muted)');
     if((i.resaleShippingCost||0)>0)s2b+=rcp('Shipping cost','−'+fmt(i.resaleShippingCost),'var(--red)');
     if(rPromoCost>0)s2b+=rcp((_plat==='ebay'?'Promo fee ('+((i.resalePromoPercent||0)*100).toFixed(1)+'% +VAT)':'Boost fee ('+((i.resalePromoPercent||0)*100).toFixed(1)+'%)'),'−'+fmt(rPromoCost),'var(--red)');
@@ -4352,12 +4373,26 @@ function renderItemPage(m,id){
   html+='<div class="ip-token-sub">Tap to edit</div>';
   html+='</div>';
 
-  // Promo %
-  html+='<div class="ip-token" id="tok-promoPercent-'+id+'" onpointerdown="tokenPointerDown(\''+m+'\',\''+id+'\',\'promoPercent\')" onclick="openTokenEdit(\''+m+'\',\''+id+'\',\'promoPercent\')">';
-  html+='<div class="ip-token-label">'+_promoLabel+'</div>';
-  html+='<div class="ip-token-val">'+promoStr+'%</div>';
-  html+='<div class="ip-token-sub">Tap to edit · Fee: '+fmt(promoCost)+'</div>';
-  html+='</div>';
+  // Promo % — for resold items, show sale 2 promo (resalePromoPercent) with lock indicator on sale 1
+  if(i.resaleSalePrice){
+    // Sale 2 promo token — editable, routes to resalePromoPercent via openTokenEdit redirect
+    const _s2PromoDisplay=((i.resalePromoPercent||0)*100);
+    const _s2PromoStr=_s2PromoDisplay%1===0?_s2PromoDisplay.toFixed(0):_s2PromoDisplay.toFixed(1);
+    const _s2BPF2=calcPlatformBPF(i,i.resaleSalePrice);
+    const _s2GrossInc2=i.resaleSalePrice-_s2BPF2;
+    const _s2PromoCost2=+(_s2GrossInc2*(i.resalePromoPercent||0)*1.20).toFixed(2);
+    html+='<div class="ip-token" id="tok-promoPercent-'+id+'" onpointerdown="tokenPointerDown(\''+m+'\',\''+id+'\',\'promoPercent\')" onclick="openTokenEdit(\''+m+'\',\''+id+'\',\'promoPercent\')">'+
+      '<div class="ip-token-label">Sale 2 '+_promoLabel+'</div>'+
+      '<div class="ip-token-val">'+_s2PromoStr+'%</div>'+
+      '<div class="ip-token-sub">✏️ Tap · Fee: '+fmt(_s2PromoCost2)+'</div>'+
+      '</div>';
+  } else {
+    html+='<div class="ip-token" id="tok-promoPercent-'+id+'" onpointerdown="tokenPointerDown(\''+m+'\',\''+id+'\',\'promoPercent\')" onclick="openTokenEdit(\''+m+'\',\''+id+'\',\'promoPercent\')">';
+    html+='<div class="ip-token-label">'+_promoLabel+'</div>';
+    html+='<div class="ip-token-val">'+promoStr+'%</div>';
+    html+='<div class="ip-token-sub">Tap to edit · Fee: '+fmt(promoCost)+'</div>';
+    html+='</div>';
+  }
 
   // Net Profit + ROI — read only, auto calculated
   html+='<div class="ip-token locked '+profitClass+'">';
@@ -4369,17 +4404,43 @@ function renderItemPage(m,id){
   html+='</div>'; // ip-tokens
 
   if(_showPostage){
-    html+='<div class="ip-postage-row">';
-    html+='<span class="ip-postage-label">Postage</span>';
-    if(_showSimpleDelivery){
-      html+='<div class="ip-postage-mode">';
-      html+='<button class="ip-postage-mode-btn'+(postageMode==='simple'?' active':'')+'" onclick="savePostageMode(\''+m+'\',\''+id+'\',\'simple\')">Simple Delivery</button>';
-      html+='<button class="ip-postage-mode-btn'+(postageMode==='custom'?' active':'')+'" onclick="savePostageMode(\''+m+'\',\''+id+'\',\'custom\')">Custom</button>';
+    if(i.resaleSalePrice){
+      // Resold item: sale 1 postage is locked (snapshot); sale 2 postage is editable
+      const _s1PostLocked=(function(){
+        const _fr=(i.returnHistory||[]).slice().reverse().find(r=>r.type==='full_seller'||r.type==='full_ebay');
+        if(_fr&&_fr._postageAtRelist!==undefined)return _fr._postageAtRelist;
+        return i.postage||0;
+      })();
+      const _s2Post=i.resalePostage!=null?i.resalePostage:0;
+      html+='<div class="ip-postage-row">';
+      html+='<span class="ip-postage-label" style="color:var(--muted);font-size:11px;">Sale 1 postage (locked)</span>';
+      html+='<div class="ip-postage-custom">';
+      html+='<div class="ip-postage-custom-field"><label style="color:var(--muted)">Buyer paid</label>';
+      html+='<input type="number" step="0.01" value="'+_s1PostLocked.toFixed(2)+'" disabled style="opacity:0.5;cursor:not-allowed;"></div>';
       html+='</div>';
-      html+='<div class="ip-postage-divider"></div>';
+      html+='</div>';
+      html+='<div class="ip-postage-row">';
+      html+='<span class="ip-postage-label">Sale 2 postage</span>';
+      html+='<div class="ip-postage-custom">';
+      html+='<div class="ip-postage-custom-field"><label>You pay</label>';
+      html+='<input type="number" step="0.01" value="'+(i.resaleShippingCost||0).toFixed(2)+'" onchange="ipSaveNum(\''+m+'\',\''+id+'\',\'resaleShippingCost\',this.value)" onkeydown="if(event.key===\'Enter\')this.blur()"></div>';
+      html+='<div class="ip-postage-custom-field"><label>Buyer pays</label>';
+      html+='<input type="number" step="0.01" value="'+_s2Post.toFixed(2)+'" onchange="ipSaveNum(\''+m+'\',\''+id+'\',\'resalePostage\',this.value)" onkeydown="if(event.key===\'Enter\')this.blur()"></div>';
+      html+='</div>';
+      html+='</div>';
+    } else {
+      html+='<div class="ip-postage-row">';
+      html+='<span class="ip-postage-label">Postage</span>';
+      if(_showSimpleDelivery){
+        html+='<div class="ip-postage-mode">';
+        html+='<button class="ip-postage-mode-btn'+(postageMode==='simple'?' active':'')+'" onclick="savePostageMode(\''+m+'\',\''+id+'\',\'simple\')">Simple Delivery</button>';
+        html+='<button class="ip-postage-mode-btn'+(postageMode==='custom'?' active':'')+'" onclick="savePostageMode(\''+m+'\',\''+id+'\',\'custom\')">Custom</button>';
+        html+='</div>';
+        html+='<div class="ip-postage-divider"></div>';
+      }
+      html+=postageRowInner;
+      html+='</div>';
     }
-    html+=postageRowInner;
-    html+='</div>';
   }
 
   // Body sections
@@ -9949,7 +10010,6 @@ function renderExpenses(){
 
   const _editSVG='<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>';
   const _delSVG='<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>';
-  const _dotsSVG='<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="12" cy="19" r="1.8"/></svg>';
   function _tripRow({t,origIdx}){
     const r=_tieredById[t.id]||{totalCost:0,mileageCost:0,expensesCost:0,isSplit:false,tier2Miles:0,ratePerMile:t.ratePerMile||0.45};
     const expCount=Array.isArray(t.expenses)?t.expenses.length:0;
@@ -9959,59 +10019,23 @@ function renderExpenses(){
     else if(r.tier2Miles>0)metaParts.push('<span style="color:var(--accent)">tier 2</span>');
     if(expCount>0)metaParts.push(expCount+' extra'+(expCount!==1?'s':''));
     if(t.date)metaParts.push(t.date);
-    const ddId='dd-trip-'+origIdx;
     return `<div class="expense-item clickable" onclick="showTripBreakdown(${origIdx})">
       <div class="exp-dot trip"></div>
       <div class="expense-main"><div class="expense-label">${esc(t.description||'Sourcing trip')}</div><div class="expense-meta">${metaParts.join('<span style="color:var(--border2)">&nbsp;·&nbsp;</span>')}</div></div>
       <div class="expense-right"><div class="expense-amount">${r.totalCost>0?fmt(r.totalCost):'<span style="color:var(--muted)">—</span>'}</div></div>
       <div class="expense-actions" onclick="event.stopPropagation()">
-        <div class="ddwrap" id="${ddId}" style="position:relative;">
-          <button class="ddbtn" onclick="event.stopPropagation();toggleDD('${ddId}',this)" title="Options" style="width:32px;height:32px;display:flex;align-items:center;justify-content:center;">${_dotsSVG}</button>
-          <div class="ddmenu" style="min-width:170px;right:0;left:auto;">
-            <button onclick="event.stopPropagation();toggleDD('${ddId}');showTripBreakdown(${origIdx})">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-              View breakdown
-            </button>
-            <button onclick="event.stopPropagation();toggleDD('${ddId}');editTrip(${origIdx})">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-              Edit
-            </button>
-            <button onclick="event.stopPropagation();toggleDD('${ddId}');duplicateTrip(${origIdx})">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-              Duplicate
-            </button>
-            <button class="danger" onclick="event.stopPropagation();toggleDD('${ddId}');deleteTrip(${origIdx})">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>
-              Delete
-            </button>
-          </div>
-        </div>
+        <button class="btn btn-s" style="padding:5px 10px;font-size:12px" onclick="editTrip(${origIdx})">${_editSVG}</button>
+        <button class="btn btn-s" style="padding:5px 10px;font-size:12px;color:var(--red);border-color:rgba(248,113,113,0.3)" onclick="deleteTrip(${origIdx})">${_delSVG}</button>
       </div></div>`;
   }
   function _expRow({e,idx}){
-    const ddId='dd-exp-'+idx;
     return `<div class="expense-item">
       <div class="exp-dot expense"></div>
       <div class="expense-main"><div class="expense-label">${esc(e.description||'Expense')}</div><div class="expense-meta">${[e.date,e.category?esc(e.category):''].filter(Boolean).join('<span style="color:var(--border2)">&nbsp;·&nbsp;</span>')}</div></div>
       <div class="expense-right"><div class="expense-amount">${(e.amount||0)>0?fmt(e.amount):'<span style="color:var(--muted)">—</span>'}</div></div>
       <div class="expense-actions">
-        <div class="ddwrap" id="${ddId}" style="position:relative;">
-          <button class="ddbtn" onclick="event.stopPropagation();toggleDD('${ddId}',this)" title="Options" style="width:32px;height:32px;display:flex;align-items:center;justify-content:center;">${_dotsSVG}</button>
-          <div class="ddmenu" style="min-width:160px;right:0;left:auto;">
-            <button onclick="event.stopPropagation();toggleDD('${ddId}');editExpense(${idx})">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-              Edit
-            </button>
-            <button onclick="event.stopPropagation();toggleDD('${ddId}');duplicateExpense(${idx})">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-              Duplicate
-            </button>
-            <button class="danger" onclick="event.stopPropagation();toggleDD('${ddId}');deleteExpense(${idx})">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>
-              Delete
-            </button>
-          </div>
-        </div>
+        <button class="btn btn-s" style="padding:5px 10px;font-size:12px" onclick="editExpense(${idx})">${_editSVG}</button>
+        <button class="btn btn-s" style="padding:5px 10px;font-size:12px;color:var(--red);border-color:rgba(248,113,113,0.3)" onclick="deleteExpense(${idx})">${_delSVG}</button>
       </div></div>`;
   }
   const _curMonthKey=new Date().toISOString().slice(0,7);
@@ -10456,53 +10480,6 @@ async function deleteExpense(idx){
   if(!await showConfirm('Delete this expense?','This expense will be permanently removed.'))return;
   (DB.expenses=DB.expenses||[]).splice(idx,1);saveDB();toast('Expense deleted');renderExpenses();
 }
-
-function _nextDupeName(existingNames, baseName){
-  const clean=baseName.replace(/\s*-\s*\d+$/, '').trim();
-  const used=new Set();
-  existingNames.forEach(function(n){
-    const m=(n||'').match(/^(.+?)\s*-\s*(\d+)$/);
-    if(m&&m[1].trim()===clean)used.add(parseInt(m[2],10));
-  });
-  let n=2;
-  while(used.has(n))n++;
-  return clean+' - '+n;
-}
-
-function duplicateTrip(idx){
-  const trips=DB.trips||[];
-  const t=trips[idx];
-  if(!t)return;
-  const allNames=trips.map(function(x){return x.description||'';});
-  const newName=_nextDupeName(allNames,t.description||'Sourcing trip');
-  const copy=Object.assign({},t,{
-    id:'trip_'+Date.now(),
-    description:newName,
-    expenses:Array.isArray(t.expenses)?t.expenses.map(function(e){return Object.assign({},e);}):[]  });
-  trips.splice(idx+1,0,copy);
-  DB.trips=trips;
-  saveDB();
-  toast('Trip duplicated');
-  renderExpenses();
-}
-
-function duplicateExpense(idx){
-  const expenses=DB.expenses||[];
-  const e=expenses[idx];
-  if(!e)return;
-  const allNames=expenses.map(function(x){return x.description||'';});
-  const newName=_nextDupeName(allNames,e.description||'Expense');
-  const copy=Object.assign({},e,{
-    id:'exp_'+Date.now(),
-    description:newName
-  });
-  expenses.splice(idx+1,0,copy);
-  DB.expenses=expenses;
-  saveDB();
-  toast('Expense duplicated');
-  renderExpenses();
-}
-
 
 // DATA PAGE
 function renderData(){
@@ -12052,9 +12029,23 @@ function confirmRelist(m,id){
   i.isReturned=false;
   i.state='listed';
   i.dateSold=null;
+  // Seed sale 2 fields with the relist values — these are what the item page
+  // will display and edit as sale 2 inputs. Sale 1 values are locked in the
+  // _*AtRelist snapshot on the returnHistory entry above.
+  i.resalePromoPercent = promoInput/100;
+  i.resalePackagingCost = newPackaging;
+  // Seed sale 2 postage from the relist modal values
+  if(postMode==='simple'){
+    const _buyerPays2=!document.getElementById('relist-sd-free-postage').checked;
+    const _rateCost2=_sdRateFor(parseInt(document.getElementById('relist-sd-rate').value)||1,price);
+    i.resaleShippingCost = _rateCost2;
+    i.resalePostage = _buyerPays2 ? _rateCost2 : 0;
+  } else {
+    i.resaleShippingCost = parseFloat(document.getElementById('relist-shipping-cost').value)||0;
+    i.resalePostage = parseFloat(document.getElementById('relist-postage').value)||0;
+  }
+  // Keep i.promoPercent, i.packagingCost, i.postage, i.shippingCost as sale 1 values (already snapshotted).
   i.salePrice=price;
-  i.promoPercent=promoInput/100;
-  i.packagingCost=newPackaging;
   i.condition=condition==='working'?undefined:'spares';
   i.grossProfit=null;
   // Log relist in returnHistory for audit trail
@@ -12269,6 +12260,9 @@ function undoResale(m,id){
   // E3 P1 #6 — clean orphan resale fields so toggling resale state
   // doesn't leave stale data attached.
   delete i.resalePromoPercent;
+  delete i.resalePostage;
+  delete i.resaleShippingCost;
+  delete i.resalePackagingCost;
   delete i.resalePackagingCost;
   i.isReturned=true;
   i.state='returned';
@@ -13393,7 +13387,10 @@ function calcGrossProfit(i){
     const rBPF=calcPlatformBPF(i,i.resaleSalePrice);
     const rGrossInc=i.resaleSalePrice-rBPF;
     const rPromoCost=rGrossInc*(i.resalePromoPercent||0)*1.20;
-    const rRev=i.resaleSalePrice-rBPF-(i.resaleShippingCost||0)-(i.resalePackagingCost||0)-rPromoCost;
+    // resalePostage = postage received from buyer on resale (income)
+    // resaleShippingCost = what seller paid to ship on resale (cost)
+    const rPostageReceived = i.resalePostage != null ? i.resalePostage : 0;
+    const rRev=i.resaleSalePrice-rBPF+rPostageReceived-(i.resaleShippingCost||0)-(i.resalePackagingCost||0)-rPromoCost;
     profit+=rRev;
   }
   return+profit.toFixed(2);
@@ -14191,6 +14188,8 @@ function _restoreAuthInputs(){
 //   resale_date_sold DATE,
 //   resale_shipping_cost NUMERIC(10,2),
 //   resale_promo_percent NUMERIC(6,4),
+//   resale_postage NUMERIC(10,2),
+//   resale_packaging_cost NUMERIC(10,2),
 //   gross_profit NUMERIC(10,2),
 //   created_at TIMESTAMPTZ DEFAULT NOW(),
 //   updated_at TIMESTAMPTZ DEFAULT NOW()
@@ -14264,6 +14263,7 @@ function exportForSupabase(){
         postage_mode:i._postageMode||'simple', sd_rate_idx:i._sdRateIdx!=null?i._sdRateIdx:1, sd_buyer_pays:i._sdBuyerPays===true,
         resale_sale_price:i.resaleSalePrice||null, resale_date_sold:i.resaleDateSold||null,
         resale_shipping_cost:i.resaleShippingCost||null, resale_promo_percent:i.resalePromoPercent||null,
+        resale_postage:i.resalePostage!=null?i.resalePostage:null, resale_packaging_cost:i.resalePackagingCost!=null?i.resalePackagingCost:null,
         gross_profit:i.grossProfit||null
       });
       (i.parts||[]).forEach(function(p,pi){
