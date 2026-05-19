@@ -507,7 +507,7 @@ input,select,textarea{touch-action:manipulation;user-select:text;-webkit-user-se
 .ddbtn{padding:8px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;cursor:pointer;font-size:14px;color:var(--text);transition:all 0.15s;display:flex;align-items:center;gap:6px;}
 .ddbtn:hover{border-color:var(--accent);background:var(--accent);color:#000;}
 .ddmenu{display:none;position:absolute;top:calc(100% + 4px);right:0;min-width:180px;background:var(--surface);border:1px solid var(--border);border-radius:8px;box-shadow:0 4px 20px var(--shadow-md);z-index:400;overflow:hidden;}
-.ddwrap.open .ddmenu{display:block;}
+.ddwrap.open .ddmenu{display:none;}/* portal handles rendering */
 .ddmenu.up{top:auto;bottom:calc(100% + 4px);box-shadow:0 -4px 20px var(--shadow-md);}
 .ddmenu button{width:100%;padding:12px 16px;background:none;border:none;text-align:left;cursor:pointer;font-size:14px;color:var(--text);transition:background 0.15s;display:flex;align-items:center;gap:8px;}
 .ddmenu button:hover{background:var(--surface2);}
@@ -1195,7 +1195,7 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
 .ip-field,.ip-field-select,.ip-field-date{font-size:15px;}
 #auth-screen-login,#auth-screen-reset{max-width:420px;border-radius:28px;padding:42px 36px!important;box-shadow:0 22px 60px rgba(0,0,0,.18);} 
 #auth-screen-login > div:first-child + div + div span{letter-spacing:.16em!important;}
-#auth-btn,
+#auth-btn{height:48px;border-radius:16px;}
 .summary-shell{display:grid;grid-template-columns:minmax(0,1.84fr) minmax(0,.92fr);gap:18px;align-items:start;}
 .summary-main{display:flex;flex-direction:column;gap:18px;min-height:100%;min-width:0;}
 .summary-side{display:grid;grid-template-rows:auto auto auto;gap:18px;}
@@ -1340,6 +1340,7 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
 #p-summary .insights{display:grid!important}
 #p-summary .chart-wrap{display:block!important}
 #p-summary .item-table{display:block!important}
+#p-stock .item-table{display:block!important}
 #p-summary .section-card{display:block!important}
 #p-summary .kcard,
 #p-summary .insight-card,
@@ -1756,8 +1757,6 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
       style="width:100%;padding:12px;background:var(--accent);color:#000;border:none;border-radius:8px;font-weight:700;font-size:15px;cursor:pointer;transition:background 0.15s;">
       Sign In
     </button>
-    
-
     <button onclick="showForgotPassword()"
       style="width:100%;padding:10px;background:none;border:none;color:var(--text-secondary);font-size:13px;cursor:pointer;margin-top:8px;text-decoration:underline;text-underline-offset:3px;">
       Forgot password?
@@ -2329,7 +2328,8 @@ function closeAllDropdowns(){
   // Mobile more sheet
   closeMoreSheet();
   // Item 3-dot menus
-  document.querySelectorAll('.ddwrap.open').forEach(d=>d.classList.remove('open'));
+  _ddPclose();
+  document.querySelectorAll('.ddwrap.open').forEach(function(d){d.classList.remove('open');});
   // Filter pill dropdowns
   document.querySelectorAll('.filter-pill-dd.open').forEach(d=>d.classList.remove('open'));
   // Search dropdown
@@ -2501,7 +2501,7 @@ const _previewParam = new URLSearchParams(window.location.search).get('preview')
 const PREVIEW_STORAGE_KEY='retrade_preview_mode';
 const LEGACY_PREVIEW_STORAGE_KEYS=['general_preview_mode'];
 const _previewStored = localStorage.getItem(PREVIEW_STORAGE_KEY) === '1' || LEGACY_PREVIEW_STORAGE_KEYS.some(function(k){ return localStorage.getItem(k) === '1'; });
-const PREVIEW_MODE_ENABLED = false; // DEV ONLY — set false in push file. Controls preview-btn visibility.
+const PREVIEW_MODE_ENABLED=false; // DEV ONLY — set false in push file. Controls preview-btn visibility.
 
 function _buildPreviewDB(){
   const MONTHS_=['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
@@ -10466,7 +10466,7 @@ function renderData(){
               ${monthOpts||'<option value="">No sales yet</option>'}
             </select>
             <div class="ddwrap" id="dd-dl-month" style="position:relative;">
-                  <button class="btn btn-s" style="font-size:13px;display:flex;align-items:center;gap:6px;padding:8px 14px;" onclick="event.stopPropagation();toggleDD('dd-dl-month')">
+                  <button class="btn btn-s" style="font-size:13px;display:flex;align-items:center;gap:6px;padding:8px 14px;" onclick="event.stopPropagation();toggleDD('dd-dl-month',this)">
                     Download <svg width="11" height="11" viewBox="0 0 12 12" fill="none"><path d="M2 4l4 4 4-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
                   </button>
                   <div class="ddmenu up" style="min-width:140px;right:0;left:auto;">
@@ -10485,7 +10485,7 @@ function renderData(){
               ${fyOpts}
             </select>
             <div class="ddwrap" id="dd-dl-annual" style="position:relative;">
-                  <button class="btn btn-s" style="font-size:13px;display:flex;align-items:center;gap:6px;padding:8px 14px;" onclick="event.stopPropagation();toggleDD('dd-dl-annual')">
+                  <button class="btn btn-s" style="font-size:13px;display:flex;align-items:center;gap:6px;padding:8px 14px;" onclick="event.stopPropagation();toggleDD('dd-dl-annual',this)">
                     Download <svg width="11" height="11" viewBox="0 0 12 12" fill="none"><path d="M2 4l4 4 4-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
                   </button>
                   <div class="ddmenu up" style="min-width:140px;right:0;left:auto;">
@@ -10500,7 +10500,7 @@ function renderData(){
           <div style="font-size:14px;font-weight:600;margin-bottom:3px;">Stock Snapshot</div>
           <div style="font-size:12px;color:var(--text-secondary);margin-bottom:12px;">All current sourced and listed items — cost, est. price, days held, run tag.</div>
           <div class="ddwrap" id="dd-dl-stock" style="position:relative;display:inline-block;">
-                  <button class="btn btn-s" style="font-size:13px;display:flex;align-items:center;gap:6px;padding:8px 14px;" onclick="event.stopPropagation();toggleDD('dd-dl-stock')">
+                  <button class="btn btn-s" style="font-size:13px;display:flex;align-items:center;gap:6px;padding:8px 14px;" onclick="event.stopPropagation();toggleDD('dd-dl-stock',this)">
                     Download <svg width="11" height="11" viewBox="0 0 12 12" fill="none"><path d="M2 4l4 4 4-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
                   </button>
                   <div class="ddmenu up" style="min-width:140px;right:0;left:auto;">
@@ -10522,7 +10522,7 @@ function renderData(){
               <div style="font-size:12px;color:var(--text-secondary);">Full lossless backup as JSON, or all items as an Excel spreadsheet.</div>
             </div>
             <div class="ddwrap" id="dd-export-backup" style="position:relative;">
-              <button class="btn btn-p" style="font-size:13px;display:flex;align-items:center;gap:6px;" onclick="event.stopPropagation();toggleDD('dd-export-backup')">
+              <button class="btn btn-p" style="font-size:13px;display:flex;align-items:center;gap:6px;" onclick="event.stopPropagation();toggleDD('dd-export-backup',this)">
                 Export
                 <svg width="11" height="11" viewBox="0 0 12 12" fill="none"><path d="M2 4l4 4 4-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
               </button>
@@ -10548,7 +10548,7 @@ function renderData(){
             <input type="file" id="import-file" accept=".json" style="display:none" onchange="importDB(event)">
             <input type="file" id="import-file-xlsx-backup" accept=".xlsx" style="display:none" onchange="importExcel(event)">
             <div class="ddwrap" id="dd-import-backup" style="position:relative;">
-              <button class="btn btn-s" style="font-size:13px;display:flex;align-items:center;gap:6px;" onclick="event.stopPropagation();toggleDD('dd-import-backup')">
+              <button class="btn btn-s" style="font-size:13px;display:flex;align-items:center;gap:6px;" onclick="event.stopPropagation();toggleDD('dd-import-backup',this)">
                 Import
                 <svg width="11" height="11" viewBox="0 0 12 12" fill="none"><path d="M2 4l4 4 4-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
               </button>
@@ -13470,29 +13470,85 @@ function calcDaysToSell(i){
   return null;
 }
 
-function toggleDD(id){
-  const el=document.getElementById(id);
+// ── DD PORTAL ─────────────────────────────────────────────────────────────────
+// Body-level absolute portal — immune to overflow/stacking-context on all sizes.
+// Alignment rule: right edge of menu tracks right edge of button.
+// If that would push menu off-screen LEFT, fall back to left-align instead.
+var _ddP=null,_ddPsrc=null;
+function _ddPclose(){
+  if(_ddP)_ddP.style.display='none';
+  if(_ddPsrc){var w=document.getElementById(_ddPsrc);if(w)w.classList.remove('open');}
+  document.querySelectorAll('.ddwrap.open').forEach(function(d){d.classList.remove('open');});
+  _ddPsrc=null;
+}
+function _ddPget(){
+  if(!_ddP){
+    _ddP=document.createElement('div');
+    _ddP.id='dd-portal';
+    _ddP.style.cssText='position:absolute;z-index:9999;display:none;background:var(--surface);border:1px solid var(--border);border-radius:8px;box-shadow:0 4px 20px var(--shadow-md);overflow:hidden;min-width:160px;';
+    var s=document.createElement('style');
+    s.textContent='#dd-portal button{width:100%;padding:12px 16px;background:none;border:none;text-align:left;cursor:pointer;font-size:14px;color:var(--text);transition:background 0.15s;display:flex;align-items:center;gap:8px;font-family:inherit;white-space:nowrap;}#dd-portal button:hover{background:var(--surface2);}#dd-portal button.danger{color:var(--red);}';
+    document.head.appendChild(s);
+    document.body.appendChild(_ddP);
+    document.addEventListener('click',function(e){
+      if(_ddP.style.display!=='none'&&!_ddP.contains(e.target)&&!e.target.closest('.ddwrap')){_ddPclose();}
+    },true);
+  }
+  return _ddP;
+}
+function _ddPlace(p,btn,menu){
+  // All coords in page space (viewport + scroll offset)
+  var br=btn.getBoundingClientRect();
+  var sy=window.pageYOffset||document.documentElement.scrollTop||0;
+  var sx=window.pageXOffset||document.documentElement.scrollLeft||0;
+  var vpW=window.innerWidth,vpH=window.innerHeight;
+  var mW=Math.max(parseInt(menu.style.minWidth)||160,160);
+  var mH=p.offsetHeight||100;
+  // Horizontal: right-align (menu right = button right).
+  // If that puts left edge off-screen, left-align instead (menu left = button left).
+  var byRight=(br.right+sx)-mW;  // left pos if right-aligned
+  var byLeft=br.left+sx;          // left pos if left-aligned
+  var lx;
+  if(byRight>=sx+8){
+    lx=byRight; // right-align fits
+  } else {
+    lx=byLeft;  // fall back to left-align
+  }
+  // Final clamp: never let right edge escape viewport
+  if(lx+mW>sx+vpW-8)lx=sx+vpW-mW-8;
+  if(lx<sx+8)lx=sx+8;
+  // Vertical: below by default; flip up if tighter below than above
+  var ty=(vpH-br.bottom-8>=mH)?br.bottom+sy+4:br.top+sy-mH-4;
+  p.style.left=lx+'px';
+  p.style.top=ty+'px';
+  p.style.width=mW+'px';
+}
+function toggleDD(id,triggerBtn){
+  var el=document.getElementById(id);
   if(!el)return;
-  const isOpen=el.classList.contains('open');
-  const _um=document.getElementById('user-menu');
+  var wasOpen=(_ddPsrc===id&&_ddP&&_ddP.style.display!=='none')||el.classList.contains('open');
+  var _um=document.getElementById('user-menu');
   if(_um)_um.classList.remove('open','country-open');
   closeMoreSheet();
-  document.querySelectorAll('.ddwrap.open').forEach(d=>d.classList.remove('open'));
-  if(!isOpen){
-    el.classList.add('open');
-    // Auto-flip upward if dropdown would overflow viewport bottom
-    const menu=el.querySelector('.ddmenu');
-    if(menu){
-      menu.classList.remove('up');
-      const r=menu.getBoundingClientRect();
-      if(r.bottom>window.innerHeight-8) menu.classList.add('up');
-    }
-  }
+  _ddPclose();
+  document.querySelectorAll('.ddwrap.open').forEach(function(d){d.classList.remove('open');});
+  if(wasOpen)return;
+  var menu=el.querySelector('.ddmenu');
+  if(!menu)return;
+  var btn=triggerBtn||(el.querySelector('.ddbtn')||el.querySelector('button'));
+  if(!btn)return;
+  var p=_ddPget();
+  p.innerHTML=menu.innerHTML;
+  p.style.display='block';
+  _ddPlace(p,btn,menu);
+  _ddPsrc=id;
+  el.classList.add('open'); // tracking only; inline ddmenu stays hidden via CSS
 }
 
 document.addEventListener('click',function(e){
-  if(!e.target.closest('.ddwrap')){
-    document.querySelectorAll('.ddwrap.open').forEach(d=>d.classList.remove('open'));
+  if(!e.target.closest('.ddwrap')&&!e.target.closest('#dd-portal')){
+    _ddPclose();
+    document.querySelectorAll('.ddwrap.open').forEach(function(d){d.classList.remove('open');});
   }
   if(!e.target.closest('.nav-more')){
     document.querySelector('.nav-more')?.classList.remove('open');
