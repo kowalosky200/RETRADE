@@ -1195,7 +1195,7 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
 .ip-field,.ip-field-select,.ip-field-date{font-size:15px;}
 #auth-screen-login,#auth-screen-reset{max-width:420px;border-radius:28px;padding:42px 36px!important;box-shadow:0 22px 60px rgba(0,0,0,.18);} 
 #auth-screen-login > div:first-child + div + div span{letter-spacing:.16em!important;}
-#auth-btn,#preview-btn{height:48px;border-radius:16px;}
+#auth-btn{height:48px;border-radius:16px;}
 .summary-shell{display:grid;grid-template-columns:minmax(0,1.84fr) minmax(0,.92fr);gap:18px;align-items:start;}
 .summary-main{display:flex;flex-direction:column;gap:18px;min-height:100%;min-width:0;}
 .summary-side{display:grid;grid-template-rows:auto auto auto;gap:18px;}
@@ -1341,7 +1341,7 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
 #p-summary .chart-wrap{display:block!important}
 #p-summary .item-table{display:block!important}
 #p-stock .item-table{display:block!important;width:100%;}
-#p-stock .item-table .item-row{display:block!important;width:100%;box-sizing:border-box;}
+#p-stock .item-table .item-row{display:grid!important;width:100%;box-sizing:border-box;}
 #p-summary .section-card{display:block!important}
 #p-summary .kcard,
 #p-summary .insight-card,
@@ -1758,7 +1758,7 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
       style="width:100%;padding:12px;background:var(--accent);color:#000;border:none;border-radius:8px;font-weight:700;font-size:15px;cursor:pointer;transition:background 0.15s;">
       Sign In
     </button>
-
+    
 
     <button onclick="showForgotPassword()"
       style="width:100%;padding:10px;background:none;border:none;color:var(--text-secondary);font-size:13px;cursor:pointer;margin-top:8px;text-decoration:underline;text-underline-offset:3px;">
@@ -1929,7 +1929,7 @@ function _migrateItemStates(){
     });
   });
   if(touchedState>0 || touchedSourced>0){
-
+    try{ console.log('[Patch A] Migration: state on',touchedState,'items, dateSourced on',touchedSourced,'items'); }catch(e){}
   }
 }
 
@@ -2992,8 +2992,10 @@ function _rowToItem(row, parts, returns){
     _sdBuyerPays:    row.sd_buyer_pays === true,
     resaleSalePrice:    row.resale_sale_price ? Number(row.resale_sale_price) : null,
     resaleDateSold:     row.resale_date_sold || null,
-    resaleShippingCost: row.resale_shipping_cost ? Number(row.resale_shipping_cost) : null,
-    resalePromoPercent: row.resale_promo_percent ? Number(row.resale_promo_percent) : null,
+    resaleShippingCost:  row.resale_shipping_cost  ? Number(row.resale_shipping_cost)  : null,
+    resalePromoPercent:  row.resale_promo_percent  ? Number(row.resale_promo_percent)  : null,
+    resalePackagingCost: row.resale_packaging_cost ? Number(row.resale_packaging_cost) : null,
+    resalePostage:       row.resale_postage        ? Number(row.resale_postage)        : null,
     grossProfit:     row.gross_profit != null ? Number(row.gross_profit) : null,
     state:           row.state || null,
     dateSourced:     row.date_sourced || null,
@@ -3045,10 +3047,12 @@ function _itemToRow(i, month){
     postage_mode:     i._postageMode || 'simple',
     sd_rate_idx:      i._sdRateIdx != null ? i._sdRateIdx : 1,
     sd_buyer_pays:    i._sdBuyerPays === true,
-    resale_sale_price:    i.resaleSalePrice || null,
-    resale_date_sold:     i.resaleDateSold || null,
+    resale_sale_price:    i.resaleSalePrice    || null,
+    resale_date_sold:     i.resaleDateSold     || null,
     resale_shipping_cost: i.resaleShippingCost || null,
     resale_promo_percent: i.resalePromoPercent || null,
+    resale_packaging_cost:i.resalePackagingCost|| null,
+    resale_postage:       i.resalePostage      || null,
     gross_profit:     i.grossProfit || null,
     state:            i.state || 'listed',
     date_sourced:     i.dateSourced || null,
@@ -3179,7 +3183,6 @@ async function _backfillDateSoldAtReturn(){
     });
   });
   if(dirty>0){
-    console.log('[backfill] Filled _dateSoldAtReturn on '+dirty+' return entries');
     try{
       // Re-save every item that has returnHistory so the column gets pushed up
       // for ALL of them in a single sync. saveDB's debounced diff engine will
@@ -4051,7 +4054,7 @@ function renderItemPage(m,id){
         const fe=(i.returnHistory||[]).filter(r=>r.type==='full_seller'||r.type==='full_ebay');
         if(!fe.length)return i.salePrice||0;
         const last=fe[fe.length-1];
-        return last._salePriceAtReturn||last.refundAmount||i.salePrice||0;
+        return last._salePriceAtRelist||last._salePriceAtReturn||last.refundAmount||i.salePrice||0;
       })()
     : (i.salePrice||0);
   const bpf=calcPlatformBPF(i,_origSalePrice);
@@ -4400,7 +4403,8 @@ function renderItemPage(m,id){
   // snapshot is captured or falling back to live values.
   const _s1FullReturn=(i.returnHistory||[]).slice().reverse().find(function(r){return (r.type==='full_seller'||r.type==='full_ebay')&&r._relistedAt;});
   if(_s1FullReturn){
-    const _s1HasSnap=_s1FullReturn._shippingCostAtRelist!==undefined;
+    const _s1HasSnap=_s1FullReturn._salePriceAtRelist!==undefined&&_s1FullReturn._shippingCostAtRelist!==undefined;
+    const _s1Price=(_s1FullReturn._salePriceAtRelist!==undefined)?_s1FullReturn._salePriceAtRelist:(_s1FullReturn._salePriceAtReturn||_s1FullReturn.refundAmount||i.salePrice||0);
     const _s1Ship=(_s1FullReturn._shippingCostAtRelist!==undefined)?_s1FullReturn._shippingCostAtRelist:(i.shippingCost||0);
     const _s1Post=(_s1FullReturn._postageAtRelist!==undefined)?_s1FullReturn._postageAtRelist:(i.postage||0);
     const _s1Pkg=(_s1FullReturn._packagingCostAtRelist!==undefined)?_s1FullReturn._packagingCostAtRelist:(i.packagingCost||0);
@@ -4410,16 +4414,18 @@ function renderItemPage(m,id){
     const _s1Body=
       '<div style="font-size:12px;color:var(--text-secondary);margin:4px 0 12px">'+
         (_s1HasSnap?
-          '<span style="color:var(--green)">✓ Sale 1 values captured.</span> Edit if you spot a mistake.':
-          '<span style="color:var(--warn)">⚠ No sale 1 snapshot.</span> These fields show <em>current</em> values — likely sale 2 (relist) values. Enter the real sale 1 values to fix lifetime P&L.'
+          '<span style="color:var(--green)">\u2713 Sale 1 values captured.</span> Edit if you spot a mistake.':
+          '<span style="color:var(--warn)">\u26a0 No sale 1 snapshot.</span> These fields show <em>current</em> values \u2014 likely sale 2 values. Enter the real sale 1 values to fix lifetime P&L.'
         )+
       '</div>'+
       '<div class="ip-details-grid">'+
-        '<div class="ip-row"><div class="ip-label">Sale 1 shipping (£)</div>'+
+        '<div class="ip-row"><div class="ip-label">Sale 1 price (\u00a3)</div>'+
+          '<input class="ip-field" type="number" step="0.01" min="0" value="'+(+_s1Price).toFixed(2)+'" onchange="ipSaveSale1(\''+m+'\',\''+i.id+'\',\'salePrice\',this.value)" onkeydown="if(event.key===\'Enter\')this.blur()" style="'+_s1FieldStyle+'"></div>'+
+        '<div class="ip-row"><div class="ip-label">Sale 1 shipping (\u00a3)</div>'+
           '<input class="ip-field" type="number" step="0.01" min="0" value="'+(+_s1Ship).toFixed(2)+'" onchange="ipSaveSale1(\''+m+'\',\''+i.id+'\',\'shipping\',this.value)" onkeydown="if(event.key===\'Enter\')this.blur()" style="'+_s1FieldStyle+'"></div>'+
-        '<div class="ip-row"><div class="ip-label">Sale 1 postage charged (£)</div>'+
+        '<div class="ip-row"><div class="ip-label">Sale 1 postage charged (\u00a3)</div>'+
           '<input class="ip-field" type="number" step="0.01" min="0" value="'+(+_s1Post).toFixed(2)+'" onchange="ipSaveSale1(\''+m+'\',\''+i.id+'\',\'postage\',this.value)" onkeydown="if(event.key===\'Enter\')this.blur()" style="'+_s1FieldStyle+'"></div>'+
-        '<div class="ip-row"><div class="ip-label">Sale 1 packaging (£)</div>'+
+        '<div class="ip-row"><div class="ip-label">Sale 1 packaging (\u00a3)</div>'+
           '<input class="ip-field" type="number" step="0.01" min="0" value="'+(+_s1Pkg).toFixed(2)+'" onchange="ipSaveSale1(\''+m+'\',\''+i.id+'\',\'packaging\',this.value)" onkeydown="if(event.key===\'Enter\')this.blur()" style="'+_s1FieldStyle+'"></div>'+
         '<div class="ip-row"><div class="ip-label">Sale 1 promo (%)</div>'+
           '<input class="ip-field" type="number" step="0.1" min="0" max="20" value="'+_s1PromoPct+'" onchange="ipSaveSale1(\''+m+'\',\''+i.id+'\',\'promoPercent\',this.value)" onkeydown="if(event.key===\'Enter\')this.blur()" style="'+_s1FieldStyle+'"></div>'+
@@ -7255,7 +7261,8 @@ function showCategoryItems(cat,_fromBack){
       const status=i.isReturned?'returned':i.resaleSalePrice?'resold':i.dateSold?'sold':i.condition==='spares'?'spares':'listed';
       const prof=(i.dateSold||i.resaleSalePrice)&&!i.isReturned?calcGrossProfit(i):null;
       const daysToSell=!i.isReturned&&(i.dateSold||i.resaleSalePrice)?calcDaysToSell(i):null;
-      const daysListed=!i.dateSold&&!i.isReturned&&!i.resaleSalePrice&&i.dateListed?daysBetween(i.dateListed,_today):null;
+      const _eld=_effectiveListDate(i);
+      const daysListed=!i.dateSold&&!i.isReturned&&!i.resaleSalePrice&&_eld?daysBetween(_eld,_today):null;
       const returnedAt=i.isReturned&&i.returnHistory&&i.returnHistory.length?i.returnHistory[i.returnHistory.length-1].loggedAt:null;
       const daysSinceReturn=i.isReturned&&(returnedAt||i.dateListed)?daysBetween(returnedAt||i.dateListed,_today):null;
       const isStale=daysListed!==null&&daysListed>=90;
@@ -9054,24 +9061,32 @@ function renderItemRow(m,i){
           '</div>'+
         '</div>'+
       '</div>'+
-      stockActions+
+      '<div class="item-actions">'+stockActions+'</div>'+
     '</div>';
   }
   const status=i.isReturned?'returned':i.resaleSalePrice?'resold':i.dateSold?'sold':i.condition==='spares'?'spares':'listed';
   const today=new Date().toISOString().split('T')[0];
   // daysListed: for active items only (stale detection). For sold/resold use calcDaysToSell.
+  // Relisted items use _relistedAt as the clock-reset point via _effectiveListDate.
+  const _effListDate=_effectiveListDate(i);
   const daysListed=(!i.dateSold&&!i.isReturned&&!i.resaleSalePrice)?daysBetween(i.dateListed,today):0;
+  const daysThisCycle=(!i.dateSold&&!i.resaleSalePrice)?daysBetween(_effListDate,today):0;
   const daysToSellVal=(i.dateSold||i.resaleSalePrice)&&!i.isReturned?calcDaysToSell(i):null;
   const profit=calcGrossProfit(i);
   const roi=calcROI(i);
   const isRelisted=i.isReturned&&(i.returnHistory||[]).some(r=>r.type==='full_seller'||r.type==='full_ebay')&&!i.resaleSalePrice&&!!i.salePrice;
   const badgeClass=isRelisted?'relisted':status;
   const badgeLabel=isRelisted?'relisted':status;
+  // Stale uses original daysListed so an item can't dodge the stale flag by being relisted
   const isStale=!i.dateSold&&!i.isReturned&&!i.resaleSalePrice&&daysListed>=90;
 
   // Status-aware meta — minimum useful info per status
   const metaParts=[];
-  if(status==='listed'){
+  if(isRelisted){
+    // Show relist date + days since relist for this cycle
+    if(_effListDate)metaParts.push('relisted '+_effListDate);
+    metaParts.push(daysThisCycle+'d');
+  }else if(status==='listed'){
     if(i.dateListed)metaParts.push(i.dateListed);
     metaParts.push(daysListed+'d');
   }else if(status==='sold'){
@@ -9088,13 +9103,13 @@ function renderItemRow(m,i){
 
   const metaStr=metaParts.join(' · ');
 
-  // Progressive action hint — shown only on active listings, escalates with age.
-  // Mirrors the four-bucket model from the Stock page so behaviour is consistent.
+  // Progressive action hint — uses this-cycle age for relisted items.
   let actionHint='';
-  if(status==='listed'&&daysListed>30){
-    if(daysListed<=60){
+  const _hintDays=isRelisted?daysThisCycle:daysListed;
+  if((status==='listed'||isRelisted)&&_hintDays>30){
+    if(_hintDays<=60){
       actionHint='<span class="row-hint hint-maturing" title="31–60 days listed. Algorithm freshness is fading — consider a small price nudge or photo refresh.">refresh</span>';
-    }else if(daysListed<90){
+    }else if(_hintDays<90){
       actionHint='<span class="row-hint hint-slow" title="61–90 days listed. Action overdue — relist, drop price, or use Sell Similar to reset the listing.">relist</span>';
     }else{
       actionHint='<span class="row-hint hint-stale" title="90+ days listed. Decision time — keep, bundle, deep-discount, or accept the loss.">review</span>';
@@ -9234,10 +9249,10 @@ function openItemDetail(m,id,noHistory){
         const fe=(i.returnHistory||[]).filter(r=>r.type==='full_seller'||r.type==='full_ebay');
         if(!fe.length)return i.salePrice||0;
         const last=fe[fe.length-1];
-        // _salePriceAtReturn is snapshotted at return time but may be absent on
-        // items loaded fresh from Supabase before the column was added.
-        // refundAmount equals the original sale price for full returns, so use it as fallback.
-        return last._salePriceAtReturn||last.refundAmount||i.salePrice||0;
+        // _salePriceAtRelist is snapshotted at relist time (most reliable).
+        // _salePriceAtReturn is snapshotted at return time (older items).
+        // refundAmount equals the original sale price for full returns — last fallback.
+        return last._salePriceAtRelist||last._salePriceAtReturn||last.refundAmount||i.salePrice||0;
       })()
     : (i.salePrice||0);
   const bpf=calcPlatformBPF(i,_origSalePrice);
@@ -9435,10 +9450,10 @@ function selectAllStockVisible(){
   // daysBetween returns ~20,000 (epoch fallthrough) and the item incorrectly
   // lands in 'stale'. Treat missing date as 'no time-bucket' — item still
   // shows under 'all' but is excluded from fresh/maturing/slow/stale.
-  if(STOCK_FILTER==='stale')items=allListed.filter(i=>i.dateListed&&daysBetween(i.dateListed,today)>=90);
-  else if(STOCK_FILTER==='slow')items=allListed.filter(i=>{if(!i.dateListed)return false;const d=daysBetween(i.dateListed,today);return d>60&&d<90;});
-  else if(STOCK_FILTER==='maturing')items=allListed.filter(i=>{if(!i.dateListed)return false;const d=daysBetween(i.dateListed,today);return d>30&&d<=60;});
-  else if(STOCK_FILTER==='fresh')items=allListed.filter(i=>i.dateListed&&daysBetween(i.dateListed,today)<=30);
+  if(STOCK_FILTER==='stale')items=allListed.filter(i=>{const d=_effectiveListDate(i);return d&&daysBetween(d,today)>=90;});
+  else if(STOCK_FILTER==='slow')items=allListed.filter(i=>{const d=_effectiveListDate(i);if(!d)return false;const n=daysBetween(d,today);return n>60&&n<90;});
+  else if(STOCK_FILTER==='maturing')items=allListed.filter(i=>{const d=_effectiveListDate(i);if(!d)return false;const n=daysBetween(d,today);return n>30&&n<=60;});
+  else if(STOCK_FILTER==='fresh')items=allListed.filter(i=>{const d=_effectiveListDate(i);return d&&daysBetween(d,today)<=30;});
   selectAllStock(items);
 }
 
@@ -9501,7 +9516,7 @@ function renderStock(){
   let pop = isStockOnly ? allStock : allListed;
   const cAll=pop.length;
   const cAllListed=allListed.length, cAllStock=allStock.length;
-  const cStale=allListed.filter(i=>i.dateListed&&daysBetween(i.dateListed,today)>=90).length;
+  const cStale=allListed.filter(i=>{const d=_effectiveListDate(i);return d&&daysBetween(d,today)>=90;}).length;
 
   // Sourced age buckets: New 0–3d · List soon 4–7d · Overdue 8–14d · Stagnant 15d+
   // Used for both the filter chips and the per-row colour dot.
@@ -9522,8 +9537,8 @@ function renderStock(){
     if(STOCK_SOURCED_FILTER!=='all') items=pop.filter(i=>_sourcedBucket(i)===STOCK_SOURCED_FILTER);
   } else {
     // E3 P2 #10 — guard against missing dateListed
-    if(STOCK_FILTER==='stale')items=pop.filter(i=>i.dateListed&&daysBetween(i.dateListed,today)>=90);
-    else if(STOCK_FILTER==='slow')items=pop.filter(i=>{if(!i.dateListed)return false;const d=daysBetween(i.dateListed,today);return d>60&&d<90;});
+    if(STOCK_FILTER==='stale')items=pop.filter(i=>{const d=_effectiveListDate(i);return d&&daysBetween(d,today)>=90;});
+    else if(STOCK_FILTER==='slow')items=pop.filter(i=>{const d=_effectiveListDate(i);if(!d)return false;const n=daysBetween(d,today);return n>60&&n<90;});
     else if(STOCK_FILTER==='maturing')items=pop.filter(i=>{if(!i.dateListed)return false;const d=daysBetween(i.dateListed,today);return d>30&&d<=60;});
     else if(STOCK_FILTER==='fresh')items=pop.filter(i=>i.dateListed&&daysBetween(i.dateListed,today)<=30);
   }
@@ -10586,9 +10601,54 @@ function renderData(){
 
       <!-- ── TOOLS ───────────────────────────────────────────────── -->
       <div class="sl">Tools</div>
+
+      <!-- DATA INTEGRITY CHECKER -->
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:16px;">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:4px;">
+          <div style="flex:1;min-width:0;">
+            <div style="font-size:14px;font-weight:600;margin-bottom:4px;">Data Integrity Check</div>
+            <div style="font-size:12px;color:var(--text-secondary);margin-bottom:6px;">Scans every item in your database for common problems — missing data, suspicious values, and state inconsistencies that could affect your P&L or exports.</div>
+            <details style="margin-bottom:12px;">
+              <summary style="font-size:12px;color:var(--accent);cursor:pointer;user-select:none;list-style:none;display:flex;align-items:center;gap:4px;">
+                <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style="transition:transform 0.2s" class="ic-chev"><path d="M2 4l4 4 4-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                What does it check?
+              </summary>
+              <div style="margin-top:8px;padding:12px;background:var(--surface2);border-radius:8px;font-size:12px;color:var(--text-secondary);line-height:1.7;">
+                <div style="margin-bottom:6px;"><strong style="color:var(--red)">ERRORS</strong> — problems that are definitely wrong and will cause incorrect P&L or exports:</div>
+                <div>• <strong>Missing item name</strong> — item has no title, will show as blank in exports</div>
+                <div>• <strong>Sold with £0 sale price</strong> — marked sold but no price recorded; profit will be wrong</div>
+                <div>• <strong>Sold without a sale date</strong> — can't be placed on the monthly calendar or tax reports</div>
+                <div>• <strong>Negative cost price</strong> — cost recorded as a negative number (probably a typo)</div>
+                <div>• <strong>Listed without a list date</strong> — age calculations and aging bar will be wrong</div>
+                <div>• <strong>Sourced without a source date</strong> — days-in-stock counter can't work</div>
+                <div style="margin-top:8px;margin-bottom:6px;"><strong style="color:var(--accent)">WARNINGS</strong> — unusual values that may be intentional but are worth reviewing:</div>
+                <div>• <strong>Promo % looks like a whole number</strong> — e.g. 5 instead of 0.05 (stored as decimal); can massively inflate fee calculations</div>
+                <div>• <strong>Very high sale price</strong> — over £500; just a sanity flag, not necessarily wrong</div>
+                <div>• <strong>Very high cost price</strong> — over £200; same as above</div>
+                <div>• <strong>Resold item missing postage snapshot</strong> — sale 1 postage wasn't captured at relist time, so lifetime P&L may be slightly off</div>
+              </div>
+            </details>
+          </div>
+        </div>
+        <button class="btn btn-p" style="font-size:13px;" onclick="runIntegrityCheck()">Run check</button>
+        <div id="integrity-check-out" style="margin-top:16px"></div>
+      </div>
+
+      <!-- RELIST DATA AUDIT -->
       <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:24px;">
-        <div style="font-size:14px;font-weight:600;margin-bottom:4px;">Relist data audit</div>
-        <div style="font-size:12px;color:var(--text-secondary);margin-bottom:14px;">Finds items relisted before the lifetime-P&amp;L fix. Fill in any sale 1 values to correct lifetime profit.</div>
+        <div style="font-size:14px;font-weight:600;margin-bottom:4px;">Relist Data Audit</div>
+        <div style="font-size:12px;color:var(--text-secondary);margin-bottom:6px;">Finds relisted items missing their original sale 1 snapshot — shipping, postage, promo, and now sale price.</div>
+        <details style="margin-bottom:14px;">
+          <summary style="font-size:12px;color:var(--accent);cursor:pointer;user-select:none;list-style:none;display:flex;align-items:center;gap:4px;">
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 4l4 4 4-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            How does this work?
+          </summary>
+          <div style="margin-top:8px;padding:12px;background:var(--surface2);border-radius:8px;font-size:12px;color:var(--text-secondary);line-height:1.7;">
+            <div style="margin-bottom:8px;">When an item sells, gets returned, and you relist it, RETRADE tracks the full <strong style="color:var(--text)">lifetime P&L</strong> across both sales. To do this correctly it snapshots the original sale 1 values at relist time.</div>
+            <div style="margin-bottom:8px;">Items relisted before the snapshot feature was added are called <strong style="color:var(--warn)">orphans</strong> — their sale 1 values were never captured, so lifetime P&L may be wrong.</div>
+            <div>Fill in the missing values and hit Save. <strong style="color:var(--red)">Resold orphans</strong> have wrong lifetime P&L right now. <strong style="color:var(--accent)">Pending orphans</strong> should be fixed before the second sale completes. You can also open any item directly and edit Sale 1 details from there.</div>
+          </div>
+        </details>
         <button class="btn btn-p" style="font-size:13px;" onclick="renderRelistAudit()">Run audit</button>
         <div id="relist-audit-out" style="margin-top:16px"></div>
       </div>
@@ -10606,6 +10666,9 @@ function renderData(){
 }
 
 // E4 P2 — Render the orphan audit results into the Data tab.
+
+
+// ── RELIST AUDIT UI ───────────────────────────────────────────────────────
 function renderRelistAudit(){
   const out=document.getElementById('relist-audit-out');
   if(!out)return;
@@ -10613,20 +10676,19 @@ function renderRelistAudit(){
   const totalOrphans=audit.resold.length+audit.pending.length;
   if(!totalOrphans){
     out.innerHTML='<div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:16px;color:var(--text-secondary);font-size:14px">'+
-      '<strong style="color:var(--text)">✓ All clean.</strong> No relisted items missing sale 1 snapshot data. '+
+      '<strong style="color:var(--text)">✓ All clean.</strong> No relisted items missing snapshot data. '+
       (audit.healthy?audit.healthy+' relisted item'+(audit.healthy!==1?'s':'')+' verified.':'No relisted items in your data.')+
       '</div>';
     return;
   }
   function renderRow(row,bucket){
     const i=row.item;
-    const e=row.entry;
-    // Pre-fill from current item values where possible. These are the relist
-    // (sale 2) values — user must overwrite with sale 1 if they differ.
     const curShip=(i.shippingCost||0).toFixed(2);
     const curPost=(i.postage||0).toFixed(2);
     const curPkg=(i.packagingCost||0).toFixed(2);
     const curPromo=((i.promoPercent||0)*100).toFixed(0);
+    const fullReturn=(i.returnHistory||[]).slice().reverse().find(function(r){return r.type==='full_seller'||r.type==='full_ebay';});
+    const curPrice=(fullReturn&&fullReturn._salePriceAtReturn)?fullReturn._salePriceAtReturn.toFixed(2):(fullReturn&&fullReturn.refundAmount?fullReturn.refundAmount.toFixed(2):(i.salePrice||0).toFixed(2));
     const inputStyle='width:80px;padding:6px 8px;background:var(--surface);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;font-family:inherit';
     return '<div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:10px" data-orphan-row="'+row.m+'|'+row.id+'">'+
       '<div style="display:flex;justify-content:space-between;align-items:start;gap:12px;margin-bottom:10px;flex-wrap:wrap">'+
@@ -10636,9 +10698,10 @@ function renderRelistAudit(){
           (bucket==='resold'?' · sale 2 sold '+esc(i.resaleDateSold||'?'):'')+
           '</div>'+
         '</div>'+
-        '<button class="btn btn-s" style="padding:4px 10px;font-size:12px" onclick="openItemDetail(\''+row.m+'\',\''+row.id+'\')">Open item</button>'+
+        '<button class="btn btn-s" style="padding:4px 10px;font-size:12px" onclick="openItemPage(\''+row.m+'\',\''+row.id+'\',\'p-data\')">Open item</button>'+
       '</div>'+
       '<div style="display:flex;flex-wrap:wrap;gap:14px;align-items:end;font-size:12px;color:var(--text-secondary)">'+
+        '<label style="display:flex;flex-direction:column;gap:3px">Sale 1 price (£)<input type="number" step="0.01" min="0" data-orphan-field="salePrice" value="'+curPrice+'" style="'+inputStyle+'"></label>'+
         '<label style="display:flex;flex-direction:column;gap:3px">Sale 1 shipping (£)<input type="number" step="0.01" min="0" data-orphan-field="shipping" value="'+curShip+'" style="'+inputStyle+'"></label>'+
         '<label style="display:flex;flex-direction:column;gap:3px">Sale 1 postage (£)<input type="number" step="0.01" min="0" data-orphan-field="postage" value="'+curPost+'" style="'+inputStyle+'"></label>'+
         '<label style="display:flex;flex-direction:column;gap:3px">Sale 1 packaging (£)<input type="number" step="0.01" min="0" data-orphan-field="packaging" value="'+curPkg+'" style="'+inputStyle+'"></label>'+
@@ -10656,9 +10719,8 @@ function renderRelistAudit(){
     html+='<div style="margin:'+(audit.resold.length?'16px':'0')+' 0 8px;font-weight:600;font-size:13px;color:var(--accent)">Pending relists ('+audit.pending.length+') — fix before next sale</div>';
     html+=audit.pending.map(function(r){return renderRow(r,'pending');}).join('');
   }
-  if(audit.healthy){
+  if(audit.healthy)
     html+='<div style="margin-top:12px;font-size:12px;color:var(--text-secondary)">Plus '+audit.healthy+' relisted item'+(audit.healthy!==1?'s':'')+' already healthy.</div>';
-  }
   html+='<div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap">'+
     '<button class="btn btn-p" onclick="saveRelistAuditEdits()">💾 Save all snapshots</button>'+
     '<button class="btn btn-s" onclick="renderRelistAudit()">↻ Re-run audit</button>'+
@@ -10666,7 +10728,6 @@ function renderRelistAudit(){
   out.innerHTML=html;
 }
 
-// E4 P2 — Read every orphan row's inputs, write snapshots, persist, re-render.
 function saveRelistAuditEdits(){
   const rows=document.querySelectorAll('[data-orphan-row]');
   let written=0;
@@ -10683,10 +10744,135 @@ function saveRelistAuditEdits(){
     });
     if(applyRelistSnapshot(m,id,values))written++;
   });
-  if(!written){toast('Nothing to save','err');return;}
+  if(!written){toast('Nothing to save','error');return;}
   saveDB();
   toast('Saved '+written+' snapshot'+(written!==1?'s':''));
   renderRelistAudit();
+}
+
+// ── DATA INTEGRITY CHECKER ─────────────────────────────────────────────────
+// Scans all items for errors and warnings. Returns {errors:[], warnings:[], clean:0}.
+// Each finding: {severity:'error'|'warning', code:string, label:string, desc:string, m:string, id:string, name:string}
+function _runIntegrityScanner(){
+  const findings=[];
+  let clean=0;
+  allDBKeys().forEach(function(m){
+    (DB[m]||[]).forEach(function(i){
+      if((i.item||'').trim().toUpperCase()==='MONTH END')return;
+      const name=i.item||'(no name)';
+      const itemFindings=[];
+
+      // ERRORS
+      if(!(i.item||'').trim())
+        itemFindings.push({severity:'error',code:'no-name',label:'Missing item name',desc:'This item has no title. It will appear blank in all exports and reports.'});
+
+      if(i.dateSold&&!i.resaleSalePrice&&!(i.salePrice>0))
+        itemFindings.push({severity:'error',code:'sold-zero',label:'Sold at £0',desc:'Marked as sold but sale price is £0 or missing. Profit and revenue figures for this item are wrong.'});
+
+      if(i.dateSold&&!i.resaleSalePrice&&!i.isReturned&&!i.dateSold.match&&typeof i.dateSold==='string'&&i.dateSold.length<8)
+        itemFindings.push({severity:'error',code:'bad-date',label:'Invalid sale date format',desc:'Sale date looks malformed. Monthly reports and tax calculations rely on this date.'});
+
+      if(i.dateSold&&!i.isReturned&&!i.resaleSalePrice&&!i.dateListed&&i.state!=='sourced')
+        itemFindings.push({severity:'error',code:'sold-no-listed-date',label:'Sold but no list date',desc:'Item is marked sold but has no listing date. Age and days-to-sell calculations will be wrong.'});
+
+      if((i.costPrice||0)<0)
+        itemFindings.push({severity:'error',code:'neg-cost',label:'Negative cost price',desc:'Cost price is a negative number ('+fmt(i.costPrice)+'). This is almost certainly a data entry error and will inflate profit figures.'});
+
+      if(i.state!=='sourced'&&!i.dateSold&&!i.isReturned&&!i.resaleSalePrice&&!i.dateListed)
+        itemFindings.push({severity:'error',code:'listed-no-date',label:'Listed but no list date',desc:'Active listing has no listing date. The aging bar, age filters, and "days listed" counter all depend on this.'});
+
+      if(i.state==='sourced'&&!i.dateSourced)
+        itemFindings.push({severity:'error',code:'sourced-no-date',label:'Sourced but no source date',desc:'Stock item has no date sourced. Days-in-stock counter and run duration calculations need this.'});
+
+      // WARNINGS
+      if((i.promoPercent||0)>1)
+        itemFindings.push({severity:'warning',code:'promo-whole',label:'Promo % looks like a whole number',desc:'Promo % is stored as a decimal (e.g. 5% = 0.05). This item has '+((i.promoPercent||0)*100).toFixed(0)+'% which may mean it was entered as '+fmt(i.promoPercent)+' instead of '+(i.promoPercent/100).toFixed(4)+'. Check the item — if it really is '+(i.promoPercent*100).toFixed(0)+'% this warning can be ignored.'});
+
+      if((i.salePrice||0)>500&&!i.dateSold&&!i.resaleSalePrice)
+        itemFindings.push({severity:'warning',code:'high-price',label:'Very high asking price ('+fmt(i.salePrice)+')',desc:'Asking price is over £500. Just a sanity check — if intentional, ignore this.'});
+
+      if((i.costPrice||0)>200)
+        itemFindings.push({severity:'warning',code:'high-cost',label:'Very high cost price ('+fmt(i.costPrice)+')',desc:'Cost price is over £200. Sanity check only — ignore if correct.'});
+
+      if(i.resaleSalePrice){
+        const hasPostageSnap=(i.returnHistory||[]).some(function(r){
+          return (r.type==='full_seller'||r.type==='full_ebay')&&r._postageAtRelist!==undefined;
+        });
+        if(!hasPostageSnap)
+          itemFindings.push({severity:'warning',code:'relist-no-snap',label:'Resold — missing postage snapshot',desc:'This item was relisted and sold twice, but the original sale 1 postage was not captured at relist time. Lifetime P&L may be slightly inaccurate. Open the item and check the Sale 1 details section to fill in the missing values.'});
+      }
+
+      if(itemFindings.length){
+        itemFindings.forEach(function(f){findings.push(Object.assign({m:m,id:i.id,name:name},f));});
+      } else {
+        clean++;
+      }
+    });
+  });
+  return {findings:findings,clean:clean};
+}
+
+function runIntegrityCheck(){
+  const out=document.getElementById('integrity-check-out');
+  if(!out)return;
+  const {findings,clean}=_runIntegrityScanner();
+  const errors=findings.filter(function(f){return f.severity==='error';});
+  const warnings=findings.filter(function(f){return f.severity==='warning';});
+
+  if(!findings.length){
+    out.innerHTML='<div style="background:var(--green-dim);border:1px solid var(--green);border-radius:10px;padding:14px 16px;display:flex;align-items:center;gap:10px;">'
+      +'<svg width="18" height="18" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="9" stroke="var(--green)" stroke-width="1.6"/><path d="M6 10.5l3 3 5-5.5" stroke="var(--green)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>'
+      +'<div><div style="font-weight:700;font-size:14px;color:var(--green)">All clear</div>'
+      +'<div style="font-size:12px;color:var(--text-secondary);margin-top:1px">'+clean+' item'+(clean!==1?'s':'')+' checked — no errors or warnings found.</div></div></div>';
+    return;
+  }
+
+  // Summary bar
+  let html='<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;">';
+  if(errors.length) html+='<div style="display:flex;align-items:center;gap:6px;background:var(--red-dim,rgba(192,57,43,0.12));border:1px solid var(--red);border-radius:8px;padding:7px 12px;font-size:13px;font-weight:700;color:var(--red);">'+
+    '<svg width="14" height="14" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="9" stroke="currentColor" stroke-width="1.6"/><line x1="10" y1="6" x2="10" y2="11" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="10" cy="14" r="0.8" fill="currentColor"/></svg>'+
+    errors.length+' error'+(errors.length!==1?'s':'')+'</div>';
+  if(warnings.length) html+='<div style="display:flex;align-items:center;gap:6px;background:var(--accent-dim);border:1px solid var(--accent);border-radius:8px;padding:7px 12px;font-size:13px;font-weight:700;color:var(--accent);">'+
+    '<svg width="14" height="14" viewBox="0 0 20 20" fill="none"><path d="M10 2L18 17H2L10 2Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><line x1="10" y1="8" x2="10" y2="12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="10" cy="15" r="0.8" fill="currentColor"/></svg>'+
+    warnings.length+' warning'+(warnings.length!==1?'s':'')+'</div>';
+  if(clean) html+='<div style="display:flex;align-items:center;gap:6px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:7px 12px;font-size:12px;color:var(--text-secondary);">'+clean+' clean</div>';
+  html+='</div>';
+
+  // Group by severity then by item (so multiple issues on one item are grouped)
+  function renderGroup(group,severity){
+    if(!group.length)return '';
+    const color=severity==='error'?'var(--red)':'var(--accent)';
+    const label=severity==='error'?'Errors':'Warnings';
+    let s='<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:'+color+';margin-bottom:8px;">'+label+'</div>';
+    // Group by item id
+    const byItem={};
+    group.forEach(function(f){
+      if(!byItem[f.m+'|'+f.id])byItem[f.m+'|'+f.id]={m:f.m,id:f.id,name:f.name,issues:[]};
+      byItem[f.m+'|'+f.id].issues.push(f);
+    });
+    Object.values(byItem).forEach(function(item){
+      s+='<div style="background:var(--surface2);border:1px solid '+(severity==='error'?'rgba(192,57,43,0.25)':'rgba(212,136,10,0.25)')+';border-radius:10px;padding:12px 14px;margin-bottom:8px;">';
+      s+='<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px;flex-wrap:wrap;">';
+      s+='<div style="font-weight:600;font-size:13px;color:var(--text);">'+esc(item.name)+'</div>';
+      s+='<button class="btn btn-s" style="padding:3px 10px;font-size:11px;flex-shrink:0;" onclick="openItemPage(\''+item.m+'\',\''+item.id+'\',\'p-data\')">View item →</button>';
+      s+='</div>';
+      item.issues.forEach(function(f){
+        s+='<div style="display:flex;gap:8px;align-items:flex-start;margin-bottom:6px;padding:8px 10px;background:var(--surface);border-radius:7px;border:1px solid var(--border);">';
+        s+='<span style="font-size:11px;font-weight:700;padding:2px 6px;border-radius:4px;background:'+(severity==='error'?'var(--red)':'var(--accent)')+';color:#fff;flex-shrink:0;margin-top:1px;">'+(severity==='error'?'ERR':'WARN')+'</span>';
+        s+='<div><div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:2px;">'+f.label+'</div>';
+        s+='<div style="font-size:12px;color:var(--text-secondary);line-height:1.5;">'+f.desc+'</div></div>';
+        s+='</div>';
+      });
+      s+='</div>';
+    });
+    return s;
+  }
+
+  html+=renderGroup(errors,'error');
+  if(errors.length&&warnings.length) html+='<div style="margin:12px 0"></div>';
+  html+=renderGroup(warnings,'warning');
+  html+='<div style="margin-top:12px;display:flex;gap:8px;"><button class="btn btn-s" style="font-size:12px;" onclick="runIntegrityCheck()">↻ Re-run</button></div>';
+  out.innerHTML=html;
 }
 
 function exportDB(){
@@ -11949,6 +12135,7 @@ function confirmRelist(m,id){
       if(_lastEntry._promoPercentAtRelist===undefined)_lastEntry._promoPercentAtRelist=i.promoPercent||0;
       if(_lastEntry._sdRateIdxAtRelist===undefined)_lastEntry._sdRateIdxAtRelist=(i._sdRateIdx!=null?i._sdRateIdx:1);
       if(_lastEntry._sdBuyerPaysAtRelist===undefined)_lastEntry._sdBuyerPaysAtRelist=!!i._sdBuyerPays;
+      if(_lastEntry._salePriceAtRelist===undefined)_lastEntry._salePriceAtRelist=i.salePrice||0;
     }
   }
   // Apply postage settings
@@ -13259,7 +13446,7 @@ function calcGrossProfit(i){
   const _hasResale=!!i.resaleSalePrice;
   const _fullReturnEntry=(i.returnHistory||[]).slice().reverse().find(r=>r.type==='full_seller'||r.type==='full_ebay');
   const _snap=(_hasResale&&_fullReturnEntry)?_fullReturnEntry:null;
-  const _s1SalePrice=_snap?(_fullReturnEntry._salePriceAtReturn||i.salePrice||0):(i.salePrice||0);
+  const _s1SalePrice=_snap?(_fullReturnEntry._salePriceAtRelist||_fullReturnEntry._salePriceAtReturn||i.salePrice||0):(i.salePrice||0);
   const _s1Postage=(_snap&&_fullReturnEntry._postageAtRelist!==undefined)?_fullReturnEntry._postageAtRelist:(i.postage||0);
   const _s1Shipping=(_snap&&_fullReturnEntry._shippingCostAtRelist!==undefined)?_fullReturnEntry._shippingCostAtRelist:(i.shippingCost||0);
   const _s1Packaging=(_snap&&_fullReturnEntry._packagingCostAtRelist!==undefined)?_fullReturnEntry._packagingCostAtRelist:(i.packagingCost||0);
@@ -13379,7 +13566,7 @@ function calcROI(i){
 // and can be re-run any time.
 function auditRelistOrphans(){
   const result={resold:[],pending:[],healthy:0};
-  const SNAPSHOT_FIELDS=['_shippingCostAtRelist','_postageAtRelist','_packagingCostAtRelist','_promoPercentAtRelist','_sdRateIdxAtRelist','_sdBuyerPaysAtRelist'];
+  const SNAPSHOT_FIELDS=['_shippingCostAtRelist','_postageAtRelist','_packagingCostAtRelist','_promoPercentAtRelist','_sdRateIdxAtRelist','_sdBuyerPaysAtRelist','_salePriceAtRelist'];
   allDBKeys().forEach(function(m){
     (DB[m]||[]).forEach(function(item){
       const fullReturn=(item.returnHistory||[]).slice().reverse().find(function(r){return r.type==='full_seller'||r.type==='full_ebay';});
@@ -13408,6 +13595,7 @@ function applyRelistSnapshot(m,id,values){
   if(values.promoPercent!==undefined)entry._promoPercentAtRelist=+values.promoPercent||0;
   if(values.sdRateIdx!==undefined)entry._sdRateIdxAtRelist=+values.sdRateIdx;
   if(values.sdBuyerPays!==undefined)entry._sdBuyerPaysAtRelist=!!values.sdBuyerPays;
+  if(values.salePrice!==undefined)entry._salePriceAtRelist=+values.salePrice||0;
   // Resold items cache grossProfit on the item — refresh it
   if(item.resaleSalePrice)item.grossProfit=calcGrossProfit(item);
   return true;
@@ -13432,6 +13620,19 @@ function daysBetween(d1,d2){
 // either date is missing — call sites that average should filter null out.
 // Items created via List Quick Add post-Patch-A will return 0 here (sourced
 // and listed same day). Migrated legacy items also return 0 (dateSourced
+// Returns the date from which listing age should be counted.
+// For a relisted item (returned + relisted, not yet resold) the clock resets
+// to _relistedAt so age reflects the current listing cycle, not the original.
+// For all other items this is just dateListed.
+function _effectiveListDate(i){
+  if(!i)return null;
+  if(i.isReturned&&!i.resaleSalePrice){
+    const r=(i.returnHistory||[]).slice().reverse().find(function(r){return(r.type==='full_seller'||r.type==='full_ebay')&&r._relistedAt;});
+    if(r&&r._relistedAt)return r._relistedAt;
+  }
+  return i.dateListed||null;
+}
+
 // was backfilled to dateListed). Only items created via Stock Quick Add and
 // later transitioned to listed will have meaningful non-zero values.
 function _timeToList(i){
@@ -13720,6 +13921,7 @@ function ipSaveSale1(m,id,field,val){
   else if(field==='postage')values.postage=v;
   else if(field==='packaging')values.packaging=v;
   else if(field==='promoPercent')values.promoPercent=v/100;
+  else if(field==='salePrice')values.salePrice=v;
   else return;
   if(!applyRelistSnapshot(m,id,values))return;
   saveDB();
@@ -14181,6 +14383,7 @@ function exportForSupabase(){
         postage_mode:i._postageMode||'simple', sd_rate_idx:i._sdRateIdx!=null?i._sdRateIdx:1, sd_buyer_pays:i._sdBuyerPays===true,
         resale_sale_price:i.resaleSalePrice||null, resale_date_sold:i.resaleDateSold||null,
         resale_shipping_cost:i.resaleShippingCost||null, resale_promo_percent:i.resalePromoPercent||null,
+        resale_packaging_cost:i.resalePackagingCost||null, resale_postage:i.resalePostage||null,
         gross_profit:i.grossProfit||null
       });
       (i.parts||[]).forEach(function(p,pi){
@@ -14198,9 +14401,6 @@ function exportForSupabase(){
   const trips=(DB.trips||[]).map(function(t){return{id:t.id||String(Date.now()),date:t.date,description:t.description||'',mileage:t.mileage||0,rate_per_mile:t.ratePerMile||0.45};});
   const expenses=(DB.expenses||[]).map(function(e){return{id:e.id||String(Date.now()),date:e.date,description:e.description||'',amount:e.amount||0,category:e.category||null};});
   const out={items,item_parts:parts,item_returns:returns,trips,expenses};
-  console.log('=== SUPABASE EXPORT ===');
-  console.log(JSON.stringify(out,null,2));
-  console.log('Items:',items.length,'Parts:',parts.length,'Returns:',returns.length,'Trips:',trips.length,'Expenses:',expenses.length);
   return out;
 }
 // Usage: open browser console and run: exportForSupabase()
