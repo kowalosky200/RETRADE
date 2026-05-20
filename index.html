@@ -1037,8 +1037,6 @@ input,select,textarea{touch-action:manipulation;user-select:text;-webkit-user-se
    elements (.fab-dial-options, .fab-main) within the same stacking context
    so the buttons always appear bright/active above the dim. The FAB container
    itself is z-index:300 which lifts the whole group above the page. */
-.fab-dial-backdrop{position:fixed;inset:0;z-index:-1;background:var(--overlay);opacity:0;pointer-events:none;transition:opacity 0.18s ease;}
-.fab-dial.open .fab-dial-backdrop{opacity:1;pointer-events:auto;}
 /* Option list container — positioned relative + z-index:1 to sit above backdrop */
 #fab-dial-options{display:flex;flex-direction:column;align-items:flex-end;gap:10px;pointer-events:none;position:relative;z-index:1;}
 .fab-dial.open #fab-dial-options{pointer-events:auto;}
@@ -1195,7 +1193,7 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
 .ip-field,.ip-field-select,.ip-field-date{font-size:15px;}
 #auth-screen-login,#auth-screen-reset{max-width:420px;border-radius:28px;padding:42px 36px!important;box-shadow:0 22px 60px rgba(0,0,0,.18);} 
 #auth-screen-login > div:first-child + div + div span{letter-spacing:.16em!important;}
-#auth-btn{height:48px;border-radius:16px;}
+#auth-btn,#preview-btn{height:48px;border-radius:16px;}
 .summary-shell{display:grid;grid-template-columns:minmax(0,1.84fr) minmax(0,.92fr);gap:18px;align-items:start;}
 .summary-main{display:flex;flex-direction:column;gap:18px;min-height:100%;min-width:0;}
 .summary-side{display:grid;grid-template-rows:auto auto auto;gap:18px;}
@@ -1341,7 +1339,7 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
 #p-summary .chart-wrap{display:block!important}
 #p-summary .item-table{display:block!important}
 #p-stock .item-table{display:block!important;width:100%;}
-#p-stock .item-table .item-row{display:grid!important;width:100%;box-sizing:border-box;}
+#p-stock .item-table .item-row{display:grid!important;grid-template-columns:1fr auto!important;width:100%;box-sizing:border-box;}
 #p-summary .section-card{display:block!important}
 #p-summary .kcard,
 #p-summary .insight-card,
@@ -1623,8 +1621,8 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
   </div>
 </div>
 
+<div id="fab-backdrop" onclick="closeFabDial()" style="display:none;position:fixed;inset:0;z-index:299;background:var(--overlay);backdrop-filter:blur(2px);-webkit-backdrop-filter:blur(2px);opacity:0;transition:opacity 0.18s ease;pointer-events:none;"></div>
 <div id="fab-dial" class="fab-dial" style="display:none">
-  <div class="fab-dial-backdrop" onclick="closeFabDial()"></div>
   <!-- Patch A — option list is populated per-page by buildFabOptions(); items render top-down (most-used closest to FAB) -->
   <div id="fab-dial-options"></div>
   <button class="fab-main" onclick="onFabClick()" title="Add" aria-label="Add new item">
@@ -1758,7 +1756,6 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
       style="width:100%;padding:12px;background:var(--accent);color:#000;border:none;border-radius:8px;font-weight:700;font-size:15px;cursor:pointer;transition:background 0.15s;">
       Sign In
     </button>
-    
 
     <button onclick="showForgotPassword()"
       style="width:100%;padding:10px;background:none;border:none;color:var(--text-secondary);font-size:13px;cursor:pointer;margin-top:8px;text-decoration:underline;text-underline-offset:3px;">
@@ -3600,7 +3597,7 @@ function goToTab(name,sourceEl){
   // Dismiss any lingering overlays that could block nav taps
   if(typeof closeMoreSheet==='function')closeMoreSheet();
   const _fabDial=document.querySelector('.fab-dial');if(_fabDial)_fabDial.classList.remove('open');
-  const _fabBackdrop=document.querySelector('.fab-dial-backdrop');if(_fabBackdrop){_fabBackdrop.style.opacity='0';_fabBackdrop.style.pointerEvents='none';}
+  const _fabBackdrop=document.getElementById('fab-backdrop');if(_fabBackdrop){_fabBackdrop.style.opacity='0';_fabBackdrop.style.pointerEvents='none';setTimeout(function(){_fabBackdrop.style.display='none';},180);}
   document.querySelectorAll('.tab').forEach(t=>t.classList.remove('on'));
   document.querySelectorAll('.bnt').forEach(b=>b.classList.remove('on'));
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('on'));
@@ -5176,11 +5173,21 @@ function onFabClick(){
   const dial=document.getElementById('fab-dial');
   if(!dial)return;
   if(dial.classList.contains('open')){ closeFabDial(); }
-  else { dial.classList.add('open'); }
+  else {
+    dial.classList.add('open');
+    const bd=document.getElementById('fab-backdrop');
+    if(bd){ bd.style.display='block'; bd.style.pointerEvents='auto'; requestAnimationFrame(function(){ bd.style.opacity='1'; }); }
+  }
 }
 function closeFabDial(){
   const dial=document.getElementById('fab-dial');
   if(dial)dial.classList.remove('open');
+  const bd=document.getElementById('fab-backdrop');
+  if(bd){
+    bd.style.opacity='0';
+    bd.style.pointerEvents='none';
+    setTimeout(function(){ bd.style.display='none'; },180);
+  }
 }
 
 // Patch A — Esc dismisses the FAB dial (desktop). Mobile uses backdrop tap.
@@ -5903,24 +5910,21 @@ function renderRunsPage(){
   }
 
   const html=
-    '<div class="page-header">'+
-      '<div class="page-title">Runs</div>'+
-      '<div class="page-subtitle">Your sourcing events and their P&amp;L.</div>'+
+    '<div class="page-header" style="display:flex;align-items:center;justify-content:space-between;">'+
+      '<div><div class="page-title">Runs</div>'+
+      '<div class="page-subtitle">Sourcing events &amp; per-run P&amp;L.</div></div>'+
+      (!_activeSourcingRun?
+        '<button class="btn btn-p" style="flex-shrink:0;gap:6px;padding:9px 16px;font-size:13px;" onclick="openStartRunModal()">'+
+          '<svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg>'+
+          'Start Run'+
+        '</button>':
+        '<button class="btn btn-p" style="flex-shrink:0;gap:6px;padding:9px 16px;font-size:13px;background:var(--green);border-color:var(--green);color:#fff;" onclick="openActiveRunPage()">'+
+          '<span style="width:8px;height:8px;border-radius:50%;background:#fff;display:inline-block;flex-shrink:0;animation:navDotPulse 2s ease-in-out infinite;"></span>'+
+          'Active run ›'+
+        '</button>')+
     '</div>'+
     activeCardHTML+
-    // Start button pinned at top when no run active so it's never buried by past runs
-    (!_activeSourcingRun?
-      '<button class="btn btn-p" style="width:100%;justify-content:center;padding:14px;font-size:15px;margin-bottom:18px;gap:8px" onclick="openStartRunModal()">'+
-        '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="flex-shrink:0"><polygon points="5,3 19,12 5,21"/></svg>'+
-        'Start Sourcing Run'+
-      '</button>':'')+ 
-    (hasRuns||_activeSourcingRun?pastHTML:emptyHTML)+
-    // Wide start pill also fixed bottom (secondary CTA, only when no active run)
-    (!_activeSourcingRun?
-      '<button class="runs-start-pill" onclick="openStartRunModal()" aria-label="Start Sourcing Run">'+
-        '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg>'+
-        'Start Sourcing Run'+
-      '</button>':'');
+    (hasRuns||_activeSourcingRun?pastHTML:emptyHTML);
 
   page.innerHTML=html;
 }
@@ -9705,9 +9709,18 @@ function renderStock(){
           <div class="page-title">Stock Room</div>
           <div class="page-subtitle">Live listings and sourced items — your full inventory.</div>
         </div>
-        <button class="btn btn-s${STOCK_GROUPED?' active':''}" style="margin-top:4px;padding:7px 12px;font-size:12px;white-space:nowrap;flex-shrink:0;${STOCK_GROUPED?'background:var(--accent);color:#000;border-color:var(--accent);':''}" onclick="toggleStockGrouped()" title="Group items by listing month">
-          <svg width="13" height="13" viewBox="0 0 15 15" fill="none" style="vertical-align:-1px;margin-right:4px"><rect x="1" y="1" width="5.5" height="5.5" rx="1" stroke="currentColor" stroke-width="1.3"/><rect x="8.5" y="1" width="5.5" height="5.5" rx="1" stroke="currentColor" stroke-width="1.3"/><rect x="1" y="8.5" width="5.5" height="5.5" rx="1" stroke="currentColor" stroke-width="1.3"/><rect x="8.5" y="8.5" width="5.5" height="5.5" rx="1" stroke="currentColor" stroke-width="1.3"/></svg>By month
-        </button>
+        <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;margin-top:4px;">
+          <button class="btn btn-s${STOCK_GROUPED?' active':''}" style="padding:7px 12px;font-size:12px;white-space:nowrap;${STOCK_GROUPED?'background:var(--accent);color:#000;border-color:var(--accent);':''}" onclick="toggleStockGrouped()" title="Group items by listing month">
+            <svg width="13" height="13" viewBox="0 0 15 15" fill="none" style="vertical-align:-1px;margin-right:4px"><rect x="1" y="1" width="5.5" height="5.5" rx="1" stroke="currentColor" stroke-width="1.3"/><rect x="8.5" y="1" width="5.5" height="5.5" rx="1" stroke="currentColor" stroke-width="1.3"/><rect x="1" y="8.5" width="5.5" height="5.5" rx="1" stroke="currentColor" stroke-width="1.3"/><rect x="8.5" y="8.5" width="5.5" height="5.5" rx="1" stroke="currentColor" stroke-width="1.3"/></svg>By month
+          </button>
+          <div class="ddwrap" id="dd-stock-add" style="position:relative;">
+            <button class="btn btn-p" style="padding:7px 12px;font-size:12px;gap:5px;" onclick="toggleDD('dd-stock-add')">Add ▾</button>
+            <div class="ddmenu" style="right:0;min-width:160px;">
+              <button onclick="toggleDD('dd-stock-add');openQuickAdd()">📋 List Item</button>
+              <button onclick="toggleDD('dd-stock-add');openStockQuickAdd()">📦 Add to Stock</button>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
     <div class="kgrid kgrid-4">${kpiHTML}</div>
@@ -9987,23 +10000,38 @@ function renderExpenses(){
     else if(r.tier2Miles>0)metaParts.push('<span style="color:var(--accent)">tier 2</span>');
     if(expCount>0)metaParts.push(expCount+' extra'+(expCount!==1?'s':''));
     if(t.date)metaParts.push(t.date);
+    const ddId='dd-trip-'+origIdx;
     return `<div class="expense-item clickable" onclick="showTripBreakdown(${origIdx})">
       <div class="exp-dot trip"></div>
       <div class="expense-main"><div class="expense-label">${esc(t.description||'Sourcing trip')}</div><div class="expense-meta">${metaParts.join('<span style="color:var(--border2)">&nbsp;·&nbsp;</span>')}</div></div>
       <div class="expense-right"><div class="expense-amount">${r.totalCost>0?fmt(r.totalCost):'<span style="color:var(--muted)">—</span>'}</div></div>
       <div class="expense-actions" onclick="event.stopPropagation()">
-        <button class="btn btn-s" style="padding:5px 10px;font-size:12px" onclick="editTrip(${origIdx})">${_editSVG}</button>
-        <button class="btn btn-s" style="padding:5px 10px;font-size:12px;color:var(--red);border-color:rgba(248,113,113,0.3)" onclick="deleteTrip(${origIdx})">${_delSVG}</button>
+        <div class="ddwrap" id="${ddId}" style="position:relative">
+          <button class="ddbtn" onclick="event.stopPropagation();toggleDD('${ddId}')" title="Actions">⋮</button>
+          <div class="ddmenu">
+            <button onclick="event.stopPropagation();toggleDD('${ddId}');showTripBreakdown(${origIdx})">📊 View breakdown</button>
+            <button onclick="event.stopPropagation();toggleDD('${ddId}');editTrip(${origIdx})">✏️ Edit</button>
+            <button onclick="event.stopPropagation();toggleDD('${ddId}');duplicateTrip(${origIdx})">📋 Duplicate</button>
+            <button class="danger" onclick="event.stopPropagation();toggleDD('${ddId}');deleteTrip(${origIdx})">🗑️ Delete</button>
+          </div>
+        </div>
       </div></div>`;
   }
   function _expRow({e,idx}){
+    const ddId='dd-exp-'+idx;
     return `<div class="expense-item">
       <div class="exp-dot expense"></div>
       <div class="expense-main"><div class="expense-label">${esc(e.description||'Expense')}</div><div class="expense-meta">${[e.date,e.category?esc(e.category):''].filter(Boolean).join('<span style="color:var(--border2)">&nbsp;·&nbsp;</span>')}</div></div>
       <div class="expense-right"><div class="expense-amount">${(e.amount||0)>0?fmt(e.amount):'<span style="color:var(--muted)">—</span>'}</div></div>
-      <div class="expense-actions">
-        <button class="btn btn-s" style="padding:5px 10px;font-size:12px" onclick="editExpense(${idx})">${_editSVG}</button>
-        <button class="btn btn-s" style="padding:5px 10px;font-size:12px;color:var(--red);border-color:rgba(248,113,113,0.3)" onclick="deleteExpense(${idx})">${_delSVG}</button>
+      <div class="expense-actions" onclick="event.stopPropagation()">
+        <div class="ddwrap" id="${ddId}" style="position:relative">
+          <button class="ddbtn" onclick="event.stopPropagation();toggleDD('${ddId}')" title="Actions">⋮</button>
+          <div class="ddmenu">
+            <button onclick="event.stopPropagation();toggleDD('${ddId}');editExpense(${idx})">✏️ Edit</button>
+            <button onclick="event.stopPropagation();toggleDD('${ddId}');duplicateExpense(${idx})">📋 Duplicate</button>
+            <button class="danger" onclick="event.stopPropagation();toggleDD('${ddId}');deleteExpense(${idx})">🗑️ Delete</button>
+          </div>
+        </div>
       </div></div>`;
   }
   const _curMonthKey=new Date().toISOString().slice(0,7);
@@ -10034,6 +10062,13 @@ function renderExpenses(){
       <div>
         <div class="page-title">Costs &amp; Trips</div>
         <div class="page-subtitle">Log mileage, sourcing runs and business spend</div>
+      </div>
+      <div class="ddwrap" id="dd-exp-add" style="position:relative;flex-shrink:0">
+        <button class="btn btn-p" style="gap:6px;padding:9px 14px;font-size:13px" onclick="toggleDD('dd-exp-add')">Add ▾</button>
+        <div class="ddmenu" style="right:0;min-width:160px">
+          <button onclick="toggleDD('dd-exp-add');addTrip()">🚗 Log Trip</button>
+          <button onclick="toggleDD('dd-exp-add');addExpense()">💼 Add Expense</button>
+        </div>
       </div>
     </div>
 
@@ -10187,6 +10222,50 @@ function saveRunTripInline(runId){
   const run=_sourcingRuns.find(r=>r.id===runId);
   if(run)openRunPageFromRuns(runId);
 }
+function _nextDupeName(existingNames, baseName){
+  // Strip any existing " - N" suffix to get the clean base
+  const clean=baseName.replace(/\s*-\s*\d+$/, '').trim();
+  const used=new Set();
+  existingNames.forEach(function(n){
+    const m=(n||'').match(/^(.+?)\s*-\s*(\d+)$/);
+    if(m&&m[1].trim()===clean)used.add(parseInt(m[2],10));
+  });
+  let n=2; while(used.has(n))n++;
+  return clean+' - '+n;
+}
+
+function duplicateTrip(idx){
+  const trips=DB.trips||[];
+  const t=trips[idx];
+  if(!t)return;
+  const allNames=trips.map(function(x){return x.description||'';});
+  const newName=_nextDupeName(allNames,t.description||'Sourcing trip');
+  const copy=Object.assign({},t,{
+    id:'trip_'+Date.now(),
+    description:newName,
+    expenses:Array.isArray(t.expenses)?t.expenses.map(function(e){return Object.assign({},e);}):[]
+  });
+  trips.splice(idx+1,0,copy);
+  DB.trips=trips;
+  saveDB();
+  toast('Trip duplicated');
+  renderExpenses();
+}
+
+function duplicateExpense(idx){
+  const expenses=DB.expenses||[];
+  const e=expenses[idx];
+  if(!e)return;
+  const allNames=expenses.map(function(x){return x.description||'';});
+  const newName=_nextDupeName(allNames,e.description||'Expense');
+  const copy=Object.assign({},e,{id:'exp_'+Date.now(),description:newName});
+  expenses.splice(idx+1,0,copy);
+  DB.expenses=expenses;
+  saveDB();
+  toast('Expense duplicated');
+  renderExpenses();
+}
+
 function addTrip(){
   const html=`
     <div class="fg">
@@ -12588,8 +12667,11 @@ function renderTax(){
   // tax-year scope (already filtered above).
   const totalTripExtras=+_tieredYr.reduce(function(s,r){return s+r.expensesCost;},0).toFixed(2);
   const expensesInYear=(DB.expenses||[]).filter(function(e){return inTaxYear(e.date);});
-  const totalOtherExpenses=expensesInYear.reduce(function(s,e){return s+(e.amount||0);},0);
-  const totalActualExpenses=+(totalBPF+totalPromo+totalPostage+totalPackaging+totalStockCost+totalMileage+totalTripExtras+totalOtherExpenses+totalParts).toFixed(2);
+  // Split expenses into named categories so they surface as distinct lines on SA103.
+  // 'Packaging Materials' and 'Shipping Supplies' are claimable packing/dispatch costs.
+  const totalPackagingExpenses=expensesInYear.filter(function(e){return e.category==='Packaging Materials'||e.category==='Shipping Supplies';}).reduce(function(s,e){return s+(e.amount||0);},0);
+  const totalOtherExpenses=expensesInYear.filter(function(e){return e.category!=='Packaging Materials'&&e.category!=='Shipping Supplies';}).reduce(function(s,e){return s+(e.amount||0);},0);
+  const totalActualExpenses=+(totalBPF+totalPromo+totalPostage+totalPackaging+totalPackagingExpenses+totalStockCost+totalMileage+totalTripExtras+totalOtherExpenses+totalParts).toFixed(2);
   const TRADING_ALLOWANCE=1000;
   // Trading allowance path — can never produce a loss (allowance is capped at income).
   const taxableTA=Math.max(0,+(totalIncome-TRADING_ALLOWANCE).toFixed(2));
@@ -12640,7 +12722,8 @@ function renderTax(){
     ['eBay fees (BPF)',totalBPF],
     ['Promo fees (inc. VAT)',totalPromo],
     ['Postage paid',totalPostage],
-    ['Packaging costs',totalPackaging],
+    ['Packaging costs (per item)',totalPackaging],
+    ['Packing & shipping supplies',totalPackagingExpenses],
     ['Stock cost (sold items)',totalStockCost],
     ['Parts & item expenses',totalParts]
   ].map(function(row){
@@ -12836,7 +12919,7 @@ function renderTax(){
     html+='<div style="text-align:right;font-family:var(--font-mono);font-size:12px;color:'+(totalProfit2>=0?'var(--green)':'var(--red)')+'">'+(totalProfit2>=0?'+':'')+fmt(totalProfit2)+'</div>';
     html+='<div style="text-align:right;font-family:var(--font-mono);font-size:11px;color:var(--warn)">'+(_totalTaxEarly>0?fmt(_totalTaxEarly):'—')+'</div>';
     html+='</div>';
-    html+='<div style="padding:8px 14px;font-size:11px;color:var(--muted);background:var(--surface2);border-top:1px solid var(--border)">Costs include fees, postage, packaging, stock, parts, mileage, and expenses by month. Set aside = estimated tax split by profit share.</div>';
+    html+='<div style="padding:8px 14px;font-size:11px;color:var(--muted);background:var(--surface2);border-top:1px solid var(--border)">Costs include fees, postage, packaging (per item + supplies), stock, parts, mileage, and expenses by month. Set aside = estimated tax split by profit share.</div>';
     html+='</div>';
   }
 
