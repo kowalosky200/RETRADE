@@ -387,7 +387,7 @@ nav:not(#bottom-nav){position:sticky;top:0;z-index:200;background:var(--surface)
 .item-row.selected{background:var(--accent-dim);border-left:3px solid var(--accent);padding-left:11px;}
 .item-row.stale{background:rgba(240,168,48,0.03);}
 .item-row.stale:hover{background:rgba(240,168,48,0.07);}
-.item-main{display:flex;flex-direction:column;gap:0;min-width:0;}
+.item-main{display:flex;flex-direction:column;gap:0;min-width:0;overflow:hidden;}
 .item-header{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
 .item-name{font-weight:600;font-size:15px;color:var(--text);}
 .item-badge{font-size:10px;padding:3px 8px;border-radius:6px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;}
@@ -412,13 +412,13 @@ nav:not(#bottom-nav){position:sticky;top:0;z-index:200;background:var(--surface)
 .item-actions{display:flex;align-items:center;gap:8px;flex-shrink:0;}
 
 /* ITEM ROW INTERNALS */
-.item-row-inner{display:flex;align-items:center;gap:10px;min-width:0;}
-.item-row-body{flex:1;min-width:0;}
+.item-row-inner{display:flex;align-items:center;gap:10px;min-width:0;width:100%;overflow:hidden;}
+.item-row-body{flex:1;min-width:0;overflow:hidden;}
 .item-row-name{font-family:var(--font-body);font-weight:600;font-size:14px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.3;}
 .item-row-meta{font-size:12px;color:var(--muted);margin-top:3px;display:flex;align-items:center;gap:6px;flex-wrap:wrap;line-height:1.4;}
 .item-row-gid{font-family:var(--font-mono);font-size:10px;color:var(--muted);opacity:0.6;font-weight:400;}
 .item-row-meta-sep{color:var(--border2);}
-.item-row-right{display:flex;flex-direction:column;align-items:flex-end;gap:2px;flex-shrink:0;min-width:72px;}
+.item-row-right{display:flex;flex-direction:column;align-items:flex-end;gap:2px;flex-shrink:0;flex-grow:0;min-width:68px;max-width:96px;}
 .item-row-price{font-size:14px;font-weight:700;font-family:"Inter",system-ui,sans-serif;color:var(--text);letter-spacing:-0.03em;font-variant-numeric:tabular-nums lining-nums;}
 .item-row-profit{font-size:12px;font-weight:600;font-family:"Inter",system-ui,sans-serif;font-variant-numeric:tabular-nums lining-nums;}
 .item-row-profit.pos{color:var(--green);}
@@ -1335,7 +1335,7 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
 #p-summary .chart-wrap{display:block!important}
 #p-summary .item-table{display:block!important}
 #p-stock .item-table{display:block!important;width:100%;}
-#p-stock .item-table .item-row{display:grid!important;grid-template-columns:1fr auto!important;width:100%;box-sizing:border-box;}
+#p-stock .item-table .item-row{display:grid!important;grid-template-columns:1fr auto!important;align-items:center!important;gap:6px!important;width:100%;box-sizing:border-box;}
 #p-summary .section-card{display:block!important}
 #p-summary .kcard,
 #p-summary .insight-card,
@@ -8761,6 +8761,11 @@ function renderItemRow(m,i){
         '<button class="danger" onclick="event.stopPropagation();deleteItem(\''+m+'\',\''+i.id+'\')">\ud83d\uddd1\ufe0f Delete</button>'+
       '</div></div>';
     const photoHTML=i.photo?'<div class="stock-row-thumb" style="width:38px;height:38px;border-radius:6px;background:#0007 center/cover no-repeat url(\''+i.photo+'\');flex-shrink:0;border:1px solid var(--border);"></div>':'';
+    const _tc=(i.costPrice||0)+calcPartsCost(i);
+    const _hasParts=calcPartsCost(i)>0;
+    const _costStr='<div class="item-row-price">'+fmt(_tc)+(_hasParts?' <span style="font-size:10px;opacity:0.6">all-in</span>':'')+'</div>';
+    const _ep=i.estSalePrice!=null?i.estSalePrice-_tc:null;
+    const _profitEl=_ep!=null?'<div class="item-row-profit est" style="color:'+(_ep>=0?'var(--green)':'var(--red)')+'">est '+(_ep>=0?'+':'')+fmt(_ep)+'</div>':'<div class="item-row-roi">cost</div>';
     return '<div class="item-row sourced-row'+(selected?' selected':'')+'" '+stockRowClick+'>'+
       '<div class="item-main">'+
         '<div class="item-row-inner">'+
@@ -8774,17 +8779,8 @@ function renderItemRow(m,i){
             '</div>'+
           '</div>'+
           '<div class="item-row-right">'+
-            (function(){
-              const _tc=(i.costPrice||0)+calcPartsCost(i);
-              const _hasParts=calcPartsCost(i)>0;
-              const _costStr='<div class="item-row-price">'+fmt(_tc)+(_hasParts?' <span style="font-size:10px;opacity:0.6">all-in</span>':'')+'</div>';
-              if(i.estSalePrice!=null){
-                const _ep=i.estSalePrice-_tc;
-                return _costStr+'<div class="item-row-profit est" style="color:'+(_ep>=0?'var(--green)':'var(--red)')+'">est '+(  _ep>=0?'+':'')+fmt(_ep)+'</div>';
-              }
-              return _costStr+'<div class="item-row-roi">cost</div>';
-            })()+
-            ''
+            _costStr+
+            _profitEl+
           '</div>'+
         '</div>'+
       '</div>'+
@@ -14164,6 +14160,9 @@ function exportForSupabase(){
   const trips=(DB.trips||[]).map(function(t){return{id:t.id||String(Date.now()),date:t.date,description:t.description||'',mileage:t.mileage||0,rate_per_mile:t.ratePerMile||0.45};});
   const expenses=(DB.expenses||[]).map(function(e){return{id:e.id||String(Date.now()),date:e.date,description:e.description||'',amount:e.amount||0,category:e.category||null};});
   const out={items,item_parts:parts,item_returns:returns,trips,expenses};
+  console.log('=== SUPABASE EXPORT ===');
+  console.log(JSON.stringify(out,null,2));
+  console.log('Items:',items.length,'Parts:',parts.length,'Returns:',returns.length,'Trips:',trips.length,'Expenses:',expenses.length);
   return out;
 }
 // Usage: open browser console and run: exportForSupabase()
