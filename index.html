@@ -1340,7 +1340,8 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
 #p-summary .insights{display:grid!important}
 #p-summary .chart-wrap{display:block!important}
 #p-summary .item-table{display:block!important}
-#p-stock .item-table{display:block!important}
+#p-stock .item-table{display:block!important;width:100%;}
+#p-stock .item-table .item-row{display:block!important;width:100%;box-sizing:border-box;}
 #p-summary .section-card{display:block!important}
 #p-summary .kcard,
 #p-summary .insight-card,
@@ -2993,8 +2994,6 @@ function _rowToItem(row, parts, returns){
     resaleDateSold:     row.resale_date_sold || null,
     resaleShippingCost: row.resale_shipping_cost ? Number(row.resale_shipping_cost) : null,
     resalePromoPercent: row.resale_promo_percent ? Number(row.resale_promo_percent) : null,
-    resalePostage:      row.resale_postage      ? Number(row.resale_postage)      : null,
-    resalePackagingCost:row.resale_packaging_cost?Number(row.resale_packaging_cost):null,
     grossProfit:     row.gross_profit != null ? Number(row.gross_profit) : null,
     state:           row.state || null,
     dateSourced:     row.date_sourced || null,
@@ -3050,8 +3049,6 @@ function _itemToRow(i, month){
     resale_date_sold:     i.resaleDateSold || null,
     resale_shipping_cost: i.resaleShippingCost || null,
     resale_promo_percent: i.resalePromoPercent || null,
-    resale_postage:       i.resalePostage      != null ? i.resalePostage      : null,
-    resale_packaging_cost:i.resalePackagingCost!= null ? i.resalePackagingCost: null,
     gross_profit:     i.grossProfit || null,
     state:            i.state || 'listed',
     date_sourced:     i.dateSourced || null,
@@ -3869,13 +3866,7 @@ function openTokenEdit(m,id,field,_alreadyAsync){
   if(tok.classList.contains('editing'))return;
   tok.classList.add('editing');
   const valEl=tok.querySelector('.ip-token-val');
-  // For resold items, read the effective (sale-2) field value for display
-  const _isResold_cv = !!i.resaleSalePrice;
-  const _sale2FieldMap_cv = {promoPercent:'resalePromoPercent', packagingCost:'resalePackagingCost'};
-  const _cvField = _isResold_cv && _sale2FieldMap_cv[field] ? _sale2FieldMap_cv[field] : field;
-  const currentVal=_cvField==='promoPercent'||_cvField==='resalePromoPercent'
-    ?+((i[_cvField]||0)*100).toFixed(2)
-    :(i[_cvField]||0);
+  const currentVal=field==='promoPercent'?+((i.promoPercent||0)*100).toFixed(2):(i[field]||0);
   valEl.innerHTML='<input type="number" step="0.01" min="0" value="'+currentVal+'" autocomplete="off">';
   const inp=valEl.querySelector('input');
 
@@ -3888,23 +3879,14 @@ function openTokenEdit(m,id,field,_alreadyAsync){
   focusAndSelect();
   setTimeout(focusAndSelect,50);
 
-  // Determine if this token should write to a sale-2 (resale) field instead
-  // of the base item field. Applies when item has been resold (resaleSalePrice set).
-  const _isResold = !!i.resaleSalePrice;
-  const _sale2FieldMap = {promoPercent:'resalePromoPercent', packagingCost:'resalePackagingCost'};
-  const _effectiveField = _isResold && _sale2FieldMap[field] ? _sale2FieldMap[field] : field;
-
   let committed=false;
   function commit(save){
     if(committed)return;
     committed=true;
     if(save){
       const v=parseFloat(inp.value)||0;
-      if(_effectiveField==='promoPercent'||_effectiveField==='resalePromoPercent'){
-        i[_effectiveField]=+(v/100).toFixed(4);
-      } else {
-        i[_effectiveField]=+v.toFixed(2);
-      }
+      if(field==='promoPercent'){i.promoPercent=+(v/100).toFixed(4);}
+      else{i[field]=+v.toFixed(2);}
       if(i.dateSold||i.isReturned||i.resaleSalePrice)i.grossProfit=calcGrossProfit(i);
       saveDB();
     }
@@ -4214,12 +4196,10 @@ function renderItemPage(m,id){
     const rBPF=calcPlatformBPF(i,i.resaleSalePrice);
     const rGrossInc=i.resaleSalePrice-rBPF;
     const rPromoCost=rGrossInc*(i.resalePromoPercent||0)*1.20;
-    const rPostageReceived2=i.resalePostage!=null?i.resalePostage:0;
-    const rRev=i.resaleSalePrice-rBPF+rPostageReceived2-(i.resaleShippingCost||0)-rPromoCost;
+    const rRev=i.resaleSalePrice-rBPF-(i.resaleShippingCost||0)-rPromoCost;
     const lifetimeProfit=profit;
     let s2b='';
     s2b+=rcp('Sale price',fmt(i.resaleSalePrice),'var(--green)');
-    if(rPostageReceived2>0)s2b+=rcp('Postage received','+'+fmt(rPostageReceived2),'var(--green)');
     s2b+=rcp(_showFee?_feeLabel:'Platform fee (£0)','−'+fmt(rBPF),_showFee?'var(--red)':'var(--muted)');
     if((i.resaleShippingCost||0)>0)s2b+=rcp('Shipping cost','−'+fmt(i.resaleShippingCost),'var(--red)');
     if(rPromoCost>0)s2b+=rcp((_plat==='ebay'?'Promo fee ('+((i.resalePromoPercent||0)*100).toFixed(1)+'% +VAT)':'Boost fee ('+((i.resalePromoPercent||0)*100).toFixed(1)+'%)'),'−'+fmt(rPromoCost),'var(--red)');
@@ -4373,26 +4353,12 @@ function renderItemPage(m,id){
   html+='<div class="ip-token-sub">Tap to edit</div>';
   html+='</div>';
 
-  // Promo % — for resold items, show sale 2 promo (resalePromoPercent) with lock indicator on sale 1
-  if(i.resaleSalePrice){
-    // Sale 2 promo token — editable, routes to resalePromoPercent via openTokenEdit redirect
-    const _s2PromoDisplay=((i.resalePromoPercent||0)*100);
-    const _s2PromoStr=_s2PromoDisplay%1===0?_s2PromoDisplay.toFixed(0):_s2PromoDisplay.toFixed(1);
-    const _s2BPF2=calcPlatformBPF(i,i.resaleSalePrice);
-    const _s2GrossInc2=i.resaleSalePrice-_s2BPF2;
-    const _s2PromoCost2=+(_s2GrossInc2*(i.resalePromoPercent||0)*1.20).toFixed(2);
-    html+='<div class="ip-token" id="tok-promoPercent-'+id+'" onpointerdown="tokenPointerDown(\''+m+'\',\''+id+'\',\'promoPercent\')" onclick="openTokenEdit(\''+m+'\',\''+id+'\',\'promoPercent\')">'+
-      '<div class="ip-token-label">Sale 2 '+_promoLabel+'</div>'+
-      '<div class="ip-token-val">'+_s2PromoStr+'%</div>'+
-      '<div class="ip-token-sub">✏️ Tap · Fee: '+fmt(_s2PromoCost2)+'</div>'+
-      '</div>';
-  } else {
-    html+='<div class="ip-token" id="tok-promoPercent-'+id+'" onpointerdown="tokenPointerDown(\''+m+'\',\''+id+'\',\'promoPercent\')" onclick="openTokenEdit(\''+m+'\',\''+id+'\',\'promoPercent\')">';
-    html+='<div class="ip-token-label">'+_promoLabel+'</div>';
-    html+='<div class="ip-token-val">'+promoStr+'%</div>';
-    html+='<div class="ip-token-sub">Tap to edit · Fee: '+fmt(promoCost)+'</div>';
-    html+='</div>';
-  }
+  // Promo %
+  html+='<div class="ip-token" id="tok-promoPercent-'+id+'" onpointerdown="tokenPointerDown(\''+m+'\',\''+id+'\',\'promoPercent\')" onclick="openTokenEdit(\''+m+'\',\''+id+'\',\'promoPercent\')">';
+  html+='<div class="ip-token-label">'+_promoLabel+'</div>';
+  html+='<div class="ip-token-val">'+promoStr+'%</div>';
+  html+='<div class="ip-token-sub">Tap to edit · Fee: '+fmt(promoCost)+'</div>';
+  html+='</div>';
 
   // Net Profit + ROI — read only, auto calculated
   html+='<div class="ip-token locked '+profitClass+'">';
@@ -4404,43 +4370,17 @@ function renderItemPage(m,id){
   html+='</div>'; // ip-tokens
 
   if(_showPostage){
-    if(i.resaleSalePrice){
-      // Resold item: sale 1 postage is locked (snapshot); sale 2 postage is editable
-      const _s1PostLocked=(function(){
-        const _fr=(i.returnHistory||[]).slice().reverse().find(r=>r.type==='full_seller'||r.type==='full_ebay');
-        if(_fr&&_fr._postageAtRelist!==undefined)return _fr._postageAtRelist;
-        return i.postage||0;
-      })();
-      const _s2Post=i.resalePostage!=null?i.resalePostage:0;
-      html+='<div class="ip-postage-row">';
-      html+='<span class="ip-postage-label" style="color:var(--muted);font-size:11px;">Sale 1 postage (locked)</span>';
-      html+='<div class="ip-postage-custom">';
-      html+='<div class="ip-postage-custom-field"><label style="color:var(--muted)">Buyer paid</label>';
-      html+='<input type="number" step="0.01" value="'+_s1PostLocked.toFixed(2)+'" disabled style="opacity:0.5;cursor:not-allowed;"></div>';
+    html+='<div class="ip-postage-row">';
+    html+='<span class="ip-postage-label">Postage</span>';
+    if(_showSimpleDelivery){
+      html+='<div class="ip-postage-mode">';
+      html+='<button class="ip-postage-mode-btn'+(postageMode==='simple'?' active':'')+'" onclick="savePostageMode(\''+m+'\',\''+id+'\',\'simple\')">Simple Delivery</button>';
+      html+='<button class="ip-postage-mode-btn'+(postageMode==='custom'?' active':'')+'" onclick="savePostageMode(\''+m+'\',\''+id+'\',\'custom\')">Custom</button>';
       html+='</div>';
-      html+='</div>';
-      html+='<div class="ip-postage-row">';
-      html+='<span class="ip-postage-label">Sale 2 postage</span>';
-      html+='<div class="ip-postage-custom">';
-      html+='<div class="ip-postage-custom-field"><label>You pay</label>';
-      html+='<input type="number" step="0.01" value="'+(i.resaleShippingCost||0).toFixed(2)+'" onchange="ipSaveNum(\''+m+'\',\''+id+'\',\'resaleShippingCost\',this.value)" onkeydown="if(event.key===\'Enter\')this.blur()"></div>';
-      html+='<div class="ip-postage-custom-field"><label>Buyer pays</label>';
-      html+='<input type="number" step="0.01" value="'+_s2Post.toFixed(2)+'" onchange="ipSaveNum(\''+m+'\',\''+id+'\',\'resalePostage\',this.value)" onkeydown="if(event.key===\'Enter\')this.blur()"></div>';
-      html+='</div>';
-      html+='</div>';
-    } else {
-      html+='<div class="ip-postage-row">';
-      html+='<span class="ip-postage-label">Postage</span>';
-      if(_showSimpleDelivery){
-        html+='<div class="ip-postage-mode">';
-        html+='<button class="ip-postage-mode-btn'+(postageMode==='simple'?' active':'')+'" onclick="savePostageMode(\''+m+'\',\''+id+'\',\'simple\')">Simple Delivery</button>';
-        html+='<button class="ip-postage-mode-btn'+(postageMode==='custom'?' active':'')+'" onclick="savePostageMode(\''+m+'\',\''+id+'\',\'custom\')">Custom</button>';
-        html+='</div>';
-        html+='<div class="ip-postage-divider"></div>';
-      }
-      html+=postageRowInner;
-      html+='</div>';
+      html+='<div class="ip-postage-divider"></div>';
     }
+    html+=postageRowInner;
+    html+='</div>';
   }
 
   // Body sections
@@ -12029,23 +11969,9 @@ function confirmRelist(m,id){
   i.isReturned=false;
   i.state='listed';
   i.dateSold=null;
-  // Seed sale 2 fields with the relist values — these are what the item page
-  // will display and edit as sale 2 inputs. Sale 1 values are locked in the
-  // _*AtRelist snapshot on the returnHistory entry above.
-  i.resalePromoPercent = promoInput/100;
-  i.resalePackagingCost = newPackaging;
-  // Seed sale 2 postage from the relist modal values
-  if(postMode==='simple'){
-    const _buyerPays2=!document.getElementById('relist-sd-free-postage').checked;
-    const _rateCost2=_sdRateFor(parseInt(document.getElementById('relist-sd-rate').value)||1,price);
-    i.resaleShippingCost = _rateCost2;
-    i.resalePostage = _buyerPays2 ? _rateCost2 : 0;
-  } else {
-    i.resaleShippingCost = parseFloat(document.getElementById('relist-shipping-cost').value)||0;
-    i.resalePostage = parseFloat(document.getElementById('relist-postage').value)||0;
-  }
-  // Keep i.promoPercent, i.packagingCost, i.postage, i.shippingCost as sale 1 values (already snapshotted).
   i.salePrice=price;
+  i.promoPercent=promoInput/100;
+  i.packagingCost=newPackaging;
   i.condition=condition==='working'?undefined:'spares';
   i.grossProfit=null;
   // Log relist in returnHistory for audit trail
@@ -12260,9 +12186,6 @@ function undoResale(m,id){
   // E3 P1 #6 — clean orphan resale fields so toggling resale state
   // doesn't leave stale data attached.
   delete i.resalePromoPercent;
-  delete i.resalePostage;
-  delete i.resaleShippingCost;
-  delete i.resalePackagingCost;
   delete i.resalePackagingCost;
   i.isReturned=true;
   i.state='returned';
@@ -13387,10 +13310,7 @@ function calcGrossProfit(i){
     const rBPF=calcPlatformBPF(i,i.resaleSalePrice);
     const rGrossInc=i.resaleSalePrice-rBPF;
     const rPromoCost=rGrossInc*(i.resalePromoPercent||0)*1.20;
-    // resalePostage = postage received from buyer on resale (income)
-    // resaleShippingCost = what seller paid to ship on resale (cost)
-    const rPostageReceived = i.resalePostage != null ? i.resalePostage : 0;
-    const rRev=i.resaleSalePrice-rBPF+rPostageReceived-(i.resaleShippingCost||0)-(i.resalePackagingCost||0)-rPromoCost;
+    const rRev=i.resaleSalePrice-rBPF-(i.resaleShippingCost||0)-(i.resalePackagingCost||0)-rPromoCost;
     profit+=rRev;
   }
   return+profit.toFixed(2);
@@ -14188,8 +14108,6 @@ function _restoreAuthInputs(){
 //   resale_date_sold DATE,
 //   resale_shipping_cost NUMERIC(10,2),
 //   resale_promo_percent NUMERIC(6,4),
-//   resale_postage NUMERIC(10,2),
-//   resale_packaging_cost NUMERIC(10,2),
 //   gross_profit NUMERIC(10,2),
 //   created_at TIMESTAMPTZ DEFAULT NOW(),
 //   updated_at TIMESTAMPTZ DEFAULT NOW()
@@ -14263,7 +14181,6 @@ function exportForSupabase(){
         postage_mode:i._postageMode||'simple', sd_rate_idx:i._sdRateIdx!=null?i._sdRateIdx:1, sd_buyer_pays:i._sdBuyerPays===true,
         resale_sale_price:i.resaleSalePrice||null, resale_date_sold:i.resaleDateSold||null,
         resale_shipping_cost:i.resaleShippingCost||null, resale_promo_percent:i.resalePromoPercent||null,
-        resale_postage:i.resalePostage!=null?i.resalePostage:null, resale_packaging_cost:i.resalePackagingCost!=null?i.resalePackagingCost:null,
         gross_profit:i.grossProfit||null
       });
       (i.parts||[]).forEach(function(p,pi){
