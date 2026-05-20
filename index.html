@@ -4049,7 +4049,11 @@ function renderItemPage(m,id){
 
   const _wasRelistedDetect = !i.isReturned && !i.dateSold && !i.resaleSalePrice &&
     (i.returnHistory||[]).some(r=>r.type==='full_seller'||r.type==='full_ebay');
-  const _origSalePrice = _wasRelistedDetect
+  // _origSalePrice = the Sale 1 price. For any item that went through a full return
+  // (active relist OR completed resale), read from the snapshot on the return entry.
+  // i.salePrice is now the sale 2 price for resold items so we cannot use it for sale 1.
+  const _hasFullReturn=(i.returnHistory||[]).some(r=>r.type==='full_seller'||r.type==='full_ebay');
+  const _origSalePrice = (_wasRelistedDetect||i.resaleSalePrice)&&_hasFullReturn
     ? (function(){
         const fe=(i.returnHistory||[]).filter(r=>r.type==='full_seller'||r.type==='full_ebay');
         if(!fe.length)return i.salePrice||0;
@@ -4057,14 +4061,23 @@ function renderItemPage(m,id){
         return last._salePriceAtRelist||last._salePriceAtReturn||last.refundAmount||i.salePrice||0;
       })()
     : (i.salePrice||0);
+  // For resold items, resolve sale 1 costs from snapshot so the receipt shows
+  // the correct sale 1 values, not the current (sale 2) values.
+  const _s1Snap=(_hasFullReturn&&i.resaleSalePrice)
+    ?(i.returnHistory||[]).slice().reverse().find(r=>r.type==='full_seller'||r.type==='full_ebay')
+    :null;
+  const _rcptPostage=_s1Snap&&_s1Snap._postageAtRelist!==undefined?_s1Snap._postageAtRelist:(i.postage||0);
+  const _rcptShipping=_s1Snap&&_s1Snap._shippingCostAtRelist!==undefined?_s1Snap._shippingCostAtRelist:(i.shippingCost||0);
+  const _rcptPackaging=_s1Snap&&_s1Snap._packagingCostAtRelist!==undefined?_s1Snap._packagingCostAtRelist:(i.packagingCost||0);
+  const _rcptPromo=_s1Snap&&_s1Snap._promoPercentAtRelist!==undefined?_s1Snap._promoPercentAtRelist:(i.promoPercent||0);
   const bpf=calcPlatformBPF(i,_origSalePrice);
   const grossInc=_origSalePrice-bpf;
-  const promoCost=grossInc*(i.promoPercent||0)*1.20;
+  const promoCost=grossInc*_rcptPromo*1.20;
   const profit=calcGrossProfit(i);
   const roi=calcROI(i);
   // T-06: display guard for £0-cost items — calcROI returns null when totalInvested<=0
   // (mathematically correct), but the render layer should show ∞ rather than nothing.
-  const _isZeroCost=(i.costPrice==null||i.costPrice===0)&&!(i.shippingCost>0)&&!(i.packagingCost>0)&&!calcPartsCost(i);
+  const _isZeroCost=(i.costPrice==null||i.costPrice===0)&&!(_rcptShipping>0)&&!(_rcptPackaging>0)&&!calcPartsCost(i);
   const roiDisplay=_isZeroCost&&profit!==null?'∞':(roi!==null?roi.toFixed(1)+'%':null);
   const status=i.isReturned?'returned':i.resaleSalePrice?'resold':i.dateSold?'sold':i.condition==='spares'?'spares':'active';
   const hasReturn=(i.returnHistory||[]).length>0;
@@ -4151,21 +4164,23 @@ function renderItemPage(m,id){
   const _psTotal=(i.returnHistory||[]).filter(function(r){return r.type==='partial_seller';}).reduce(function(s,r){return s+(r.refundAmount||0);},0);
   const _effSale=Math.max(0,_origSalePrice-_psTotal);
   const _effBPF=calcPlatformBPF(i,_effSale);
-  const _effPromo=(_effSale-_effBPF)*(i.promoPercent||0)*1.20;
+  const _effPromo=(_effSale-_effBPF)*_rcptPromo*1.20;
   const _bpfCredit=+(bpf-_effBPF).toFixed(2);
   const _promoCredit=+(promoCost-_effPromo).toFixed(2);
   function rcp(label,val,color,indent){
     return'<div class="ip-receipt-row'+(indent?' indent':'')+'"><span style="flex:1;color:'+(color&&color.includes('--text')?color:'var(--text-secondary)')+'">'+label+'</span><span class="ip-receipt-val" style="color:'+(color||'var(--text)')+'">'+val+'</span></div>';
   }
+  const _isResoldItem=!!i.resaleSalePrice;
   let pb='';
-  pb+=rcp(_wasRelistedDetect?'Sale price (original)':'Sale price',fmt(_origSalePrice),'var(--green)');
+  pb+=rcp(_wasRelistedDetect||_isResoldItem?'Sale price (Sale 1)':'Sale price',fmt(_origSalePrice),'var(--green)');
   if(_wasRelistedDetect)pb+=rcp('↳ Relisted at',fmt(i.salePrice||0),'var(--muted)',true);
+  if(_isResoldItem)pb+=rcp('↳ Sale 2 price',fmt(i.resaleSalePrice||0),'var(--muted)',true);
   if(_plat==='vinted')pb+=rcp('Buyer pays postage','(buyer covered)','var(--muted)');
-  else if((i.postage||0)>0)pb+=rcp('+ Buyer postage','+'+fmt(i.postage),'var(--green)');
+  else if(_rcptPostage>0)pb+=rcp('+ Buyer postage','+'+fmt(_rcptPostage),'var(--green)');
   if(_showFee)pb+=rcp(_feeLabel,'−'+fmt(bpf),'var(--red)');
-  if(_showPostage&&(i.shippingCost||0)>0)pb+=rcp('Shipping cost','−'+fmt(i.shippingCost),'var(--red)');
-  if(_showPostage&&(i.packagingCost||0)>0)pb+=rcp('Packaging','−'+fmt(i.packagingCost),'var(--red)');
-  if(i.promoPercent)pb+=rcp((_plat==='ebay'?'Promo fee ('+((i.promoPercent*100).toFixed(0))+'% +VAT)':'Boost fee ('+((i.promoPercent*100).toFixed(0))+'%)'),'−'+fmt(promoCost),'var(--red)');
+  if(_showPostage&&_rcptShipping>0)pb+=rcp('Shipping cost','−'+fmt(_rcptShipping),'var(--red)');
+  if(_showPostage&&_rcptPackaging>0)pb+=rcp('Packaging','−'+fmt(_rcptPackaging),'var(--red)');
+  if(_rcptPromo)pb+=rcp((_plat==='ebay'?'Promo fee ('+((_rcptPromo*100).toFixed(0))+'% +VAT)':'Boost fee ('+((_rcptPromo*100).toFixed(0))+'%)'),'−'+fmt(promoCost),'var(--red)');
   pb+=rcp('Item cost','−'+fmt(i.costPrice||0),'var(--red)');
   if(partsCost>0){
     const pts=i.parts||[];
@@ -9240,18 +9255,16 @@ function openItemDetail(m,id,noHistory){
   }
 
   // When an item has been returned and relisted, confirmRelist overwrites i.salePrice
-  // with the new asking price. For the P&L receipt we need the ORIGINAL sale price.
-  // _salePriceAtReturn is snapshotted on the return entry at the time of the return log.
+  // with the new asking price (sale 2). For the Sale 1 P&L receipt we always need
+  // the original sale price — read from snapshot on the return entry.
   const _wasRelistedDetect = !i.isReturned && !i.dateSold && !i.resaleSalePrice &&
     (i.returnHistory||[]).some(r=>r.type==='full_seller'||r.type==='full_ebay');
-  const _origSalePrice = _wasRelistedDetect
+  const _hasFullReturn=(i.returnHistory||[]).some(r=>r.type==='full_seller'||r.type==='full_ebay');
+  const _origSalePrice = (_wasRelistedDetect||i.resaleSalePrice)&&_hasFullReturn
     ? (function(){
         const fe=(i.returnHistory||[]).filter(r=>r.type==='full_seller'||r.type==='full_ebay');
         if(!fe.length)return i.salePrice||0;
         const last=fe[fe.length-1];
-        // _salePriceAtRelist is snapshotted at relist time (most reliable).
-        // _salePriceAtReturn is snapshotted at return time (older items).
-        // refundAmount equals the original sale price for full returns — last fallback.
         return last._salePriceAtRelist||last._salePriceAtReturn||last.refundAmount||i.salePrice||0;
       })()
     : (i.salePrice||0);
