@@ -236,7 +236,7 @@ nav:not(#bottom-nav){position:sticky;top:0;z-index:200;background:var(--surface)
   nav:not(#bottom-nav){display:none!important;}
   body{padding-bottom:60px;}
   .fab{bottom:72px!important;}
-  .fab-dial{bottom:72px!important;}
+  .fab-dial{bottom:72px;}
 }
 /* Landscape on mobile: keep bottom nav visible, shift FAB above it */
 @media(max-width:900px) and (orientation:landscape) and (max-height:500px){
@@ -244,7 +244,7 @@ nav:not(#bottom-nav){position:sticky;top:0;z-index:200;background:var(--surface)
   #bottom-nav{display:flex!important;align-items:stretch;gap:0;}
   body{padding-bottom:60px;}
   .fab{bottom:72px!important;right:16px!important;}
-  .fab-dial{bottom:72px!important;right:16px!important;}
+  .fab-dial{bottom:72px;right:16px;}
 }
 /* MORE SHEET */
 .more-sheet-row{display:flex;align-items:center;gap:16px;width:100%;padding:14px 22px;background:none;border:none;text-align:left;cursor:pointer;font-size:15px;font-weight:500;color:var(--text);-webkit-tap-highlight-color:transparent;transition:background 0.12s;}
@@ -426,7 +426,7 @@ nav:not(#bottom-nav){position:sticky;top:0;z-index:200;background:var(--surface)
 .item-row-profit{font-size:12px;font-weight:600;font-family:"Inter",system-ui,sans-serif;font-variant-numeric:tabular-nums lining-nums;}
 .item-row-profit.pos{color:var(--green);}
 .item-row-profit.neg{color:var(--red);}
-.item-row-profit.est{color:var(--muted);}
+.item-row-profit.est{}
 .item-row-roi{font-size:11px;color:var(--muted);font-weight:500;}
 
 /* STATUS DOT */
@@ -634,7 +634,11 @@ input,select,textarea{touch-action:manipulation;user-select:text;-webkit-user-se
    Smooth opacity + height transition means it disappears without layout jump. */
 .page-subtitle{color:var(--text-secondary);font-size:clamp(12px,3vw,14px);margin-top:3px;line-height:1.4;
   transition:opacity 0.2s,max-height 0.2s;max-height:3em;overflow:hidden;}
-@media(max-width:420px){.page-subtitle{opacity:0;max-height:0;margin:0;}}
+@media(max-width:420px){
+  .page-subtitle{opacity:0;max-height:0;margin:0;}
+  .page-header{align-items:center!important;}
+  .page-title{font-size:clamp(22px,6.5vw,28px);white-space:normal!important;overflow:visible!important;text-overflow:unset!important;}
+}
 .page-actions{display:flex;gap:6px;align-items:center;flex-wrap:wrap;}
 
 /* SECTION CARD */
@@ -1001,7 +1005,7 @@ input,select,textarea{touch-action:manipulation;user-select:text;-webkit-user-se
 #auth-screen-login,#auth-screen-reset{background:#1a1a24!important;border-color:#2e2e3e!important;}
 
 /* FAB — double ring on hover (target motif) */
-.fab-dial{position:fixed;bottom:24px;right:24px;z-index:300;display:flex;flex-direction:column;align-items:flex-end;gap:10px;pointer-events:none;}
+.fab-dial{position:fixed;bottom:24px;right:24px;z-index:300;display:flex;flex-direction:column;align-items:flex-end;gap:10px;pointer-events:none;transition:bottom 0.22s cubic-bezier(0.34,1.38,0.64,1);}
 .fab-dial.open .fab-dial-item{opacity:1;transform:translateY(0);pointer-events:auto;}
 .fab-dial-item{display:flex;align-items:center;gap:10px;opacity:0;transform:translateY(12px);transition:opacity 0.18s,transform 0.18s;pointer-events:none;}
 .fab-dial-item:nth-child(2){transition-delay:0.04s;}
@@ -1324,7 +1328,7 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
   .nav-right{justify-self:end!important;padding-left:0!important;flex-shrink:0;min-width:0;}
 }
 .nav-more-btn,.tab,.bnt{position:relative}
-.page-header{align-items:flex-end!important}
+.page-header{align-items:center!important}
 /* Summary title uses the same clamp as other pages — no hard override needed */
 #p-summary .kgrid,
 #p-summary .kgrid-4,
@@ -1424,6 +1428,22 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
 .cms-profit{font-size:12px;color:var(--profit,#4ade80);text-align:right;margin-top:2px;}
 .cms-empty{font-size:13px;color:var(--text-secondary);padding:8px 0;}
 
+.fy-label-short{display:none;}
+.fy-label-long{display:inline;}
+@media(max-width:400px){.fy-label-long{display:none;}.fy-label-short{display:inline;}}
+/* Search FAB — mobile only, bottom edge aligned with + FAB */
+@media(max-width:600px){
+  #search-fab{
+    display:flex!important;
+    align-items:center;justify-content:center;
+    bottom:calc(72px + env(safe-area-inset-bottom));
+    right:calc(24px + 52px + 12px);
+    width:37px;height:37px;
+  }
+  #search-fab.active{color:var(--accent);border-color:var(--accent);box-shadow:0 4px 20px rgba(212,136,10,0.25);}
+  #search-fab:active{transform:scale(0.93);}
+  #search-fab svg{width:17px;height:17px;}
+}
 </style>
 </head>
 <body>
@@ -1547,10 +1567,6 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h3l3-8 4 16 3-8h5"/></svg>
     <span class="bnt-label">Runs</span>
   </button>
-    <button class="bnt" id="bnt-search" onclick="toggleNavSearch()">
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-    Search
-  </button>
   <button class="bnt" id="bnt-more" onclick="toggleMoreSheet()">
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
     Menu
@@ -1561,7 +1577,6 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
 <div class="search-dropdown" id="search-dropdown"></div>
 
 <!-- MOBILE SEARCH EXPAND — slides up from bottom nav, lives outside top nav so it's never hidden -->
-<div id="nav-search-backdrop" onclick="toggleNavSearch()" style="display:none;position:fixed;top:56px;left:0;right:0;bottom:0;z-index:249;pointer-events:none;"></div>
 <div id="nav-search-expand">
   <div class="search-wrap">
     <span class="search-icon">
@@ -1626,6 +1641,10 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
 </div>
 
 <div id="fab-backdrop" onclick="closeFabDial()" style="display:none;position:fixed;inset:0;z-index:299;background:var(--overlay);backdrop-filter:blur(2px);-webkit-backdrop-filter:blur(2px);opacity:0;transition:opacity 0.18s ease;pointer-events:none;"></div>
+<div id="search-backdrop" onclick="toggleNavSearch()" style="display:none;position:fixed;inset:0;z-index:249;background:var(--overlay);backdrop-filter:blur(2px);-webkit-backdrop-filter:blur(2px);opacity:0;transition:opacity 0.18s ease;pointer-events:none;"></div>
+<button id="search-fab" onclick="toggleNavSearch()" aria-label="Search" style="display:none;position:fixed;z-index:300;background:var(--surface);border:1px solid var(--border);color:var(--text-secondary);border-radius:50%;width:37px;height:37px;cursor:pointer;box-shadow:0 4px 16px var(--shadow-md);-webkit-tap-highlight-color:transparent;transition:bottom 0.22s cubic-bezier(0.34,1.38,0.64,1),transform 0.15s,box-shadow 0.15s,color 0.15s;">
+  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5 L21 21"/></svg>
+</button>
 <div id="fab-dial" class="fab-dial" style="display:none">
   <!-- Patch A — option list is populated per-page by buildFabOptions(); items render top-down (most-used closest to FAB) -->
   <div id="fab-dial-options"></div>
@@ -2321,7 +2340,7 @@ function closeAllDropdowns(){
   const _nm=document.querySelector('.nav-more');
   if(_nm)_nm.classList.remove('open');
   const _nmt=document.getElementById('nav-more-trigger');
-  if(_nmt)_nmt.classList.remove('on');
+  if(_nmt)_nmt.classList.remove('active');
   // Mobile more sheet
   closeMoreSheet();
   // Item 3-dot menus
@@ -2435,7 +2454,7 @@ document.addEventListener('click',(e)=>{
 function closeMoreSheet(){
   document.getElementById('more-sheet').style.display='none';
   document.getElementById('more-sheet-overlay').style.display='none';
-  document.getElementById('bnt-more').classList.remove('on');
+  document.getElementById('bnt-more').classList.remove('active');
   // Reset the sheet back to its main pane so next open starts clean
   moreSheetShowMain();
 }
@@ -3355,11 +3374,11 @@ function goToTab(name,sourceEl){
   if(typeof closeSearchDropdown==='function')closeSearchDropdown();
   // Close mobile search expand panel + backdrop (z-249 sits over bottom nav z-200)
   const _nse=document.getElementById('nav-search-expand');
-  const _nsb=document.getElementById('nav-search-backdrop');
-  const _nsbtn=document.getElementById('bnt-search');
+  const _nsb=document.getElementById('search-backdrop');
+  const _nsbtn=document.getElementById('search-fab');
   if(_nse)_nse.classList.remove('open');
   if(_nsb)_nsb.style.display='none';
-  if(_nsbtn)_nsbtn.classList.remove('on');
+  if(_nsbtn)_nsbtn.classList.remove('active');
   // Dismiss any lingering overlays that could block nav taps
   if(typeof closeMoreSheet==='function')closeMoreSheet();
   const _fabDial=document.querySelector('.fab-dial');if(_fabDial)_fabDial.classList.remove('open');
@@ -4438,8 +4457,8 @@ function handleMobileSearchInput(q){
     if(!it)return;
     _lastSearchQuery=q;
     var ex=document.getElementById('nav-search-expand');if(ex)ex.classList.remove('open');
-    var bd=document.getElementById('nav-search-backdrop');if(bd){bd.style.display='none';bd.style.pointerEvents='none';}
-    var bs=document.getElementById('bnt-search');if(bs)bs.classList.remove('on');
+    var bd=document.getElementById('search-backdrop');if(bd){bd.style.display='none';bd.style.pointerEvents='none';}
+    var bs=document.getElementById('search-fab');if(bs)bs.classList.remove('active');
     if(it.item)_addSearchHistory(it.item); // save item name not query
     openItemPage(it.month,it.id,'p-search');
   };
@@ -4456,10 +4475,10 @@ function handleSearch(q,fromMobile){
       // Live as-you-type: navigate to search page on 2+ chars without waiting for Enter
       if(q.trim().length>=2){
         document.getElementById('nav-search-expand').classList.remove('open');
-        const backdrop=document.getElementById('nav-search-backdrop');
+        const backdrop=document.getElementById('search-backdrop');
         if(backdrop){backdrop.style.display='none';backdrop.style.pointerEvents='none';}
-        const bntSearch=document.getElementById('bnt-search');
-        if(bntSearch)bntSearch.classList.remove('on');
+        const bntSearch=document.getElementById('search-fab');
+        if(bntSearch)bntSearch.classList.remove('active');
         openSearchPage(q);
       }
     }
@@ -4495,40 +4514,33 @@ function openDefaultPlatformPanel(){
 }
 function toggleNavSearch(){
   const expand=document.getElementById('nav-search-expand');
-  const backdrop=document.getElementById('nav-search-backdrop');
-  const bntSearch=document.getElementById('bnt-search');
+  const backdrop=document.getElementById('search-backdrop');
+  const searchFab=document.getElementById('search-fab');
   if(!expand)return;
   const isOpen=expand.classList.contains('open');
   if(isOpen){
     expand.classList.remove('open');
-    if(backdrop)backdrop.style.display='none';
-    if(bntSearch)bntSearch.classList.remove('on');
+    if(searchFab)searchFab.classList.remove('active');
+    if(backdrop){backdrop.style.opacity='0';backdrop.style.pointerEvents='none';setTimeout(function(){backdrop.style.display='none';},180);}
     const inp=document.getElementById('global-search-mobile');
     if(inp)inp.value='';
   } else {
     const inp=document.getElementById('global-search-mobile');
-    // Mirror openQuickAdd: focus synchronously BEFORE the panel animates open.
-    // iOS only honours .focus() within the tap gesture chain — any async delay
-    // breaks it. Input is off-screen (transform:-110%) but NOT visibility:hidden
-    // or display:none, so iOS can focus it and will raise the keyboard as the
-    // panel slides into view.
     if(inp){inp.value='';inp.focus();}
     expand.classList.add('open');
-    if(backdrop){backdrop.style.display='block';backdrop.style.pointerEvents='auto';}
-    if(bntSearch)bntSearch.classList.add('on');
+    if(searchFab)searchFab.classList.add('active');
+    if(backdrop){backdrop.style.display='block';backdrop.style.pointerEvents='auto';requestAnimationFrame(function(){backdrop.style.opacity='1';});}
   }
 }
 function clearMobileSearch(){
   const inp=document.getElementById('global-search-mobile');
   if(inp){inp.value='';}
-  // Close panel
   const expand=document.getElementById('nav-search-expand');
-  const backdrop=document.getElementById('nav-search-backdrop');
-  const bntSearch=document.getElementById('bnt-search');
+  const backdrop=document.getElementById('search-backdrop');
+  const searchFab=document.getElementById('search-fab');
   if(expand){expand.classList.remove('open');}
-  if(backdrop){backdrop.style.display='none';backdrop.style.pointerEvents='none';}
-  if(bntSearch)bntSearch.classList.remove('on');
-  // Return to the page we were on before search
+  if(searchFab)searchFab.classList.remove('active');
+  if(backdrop){backdrop.style.opacity='0';backdrop.style.pointerEvents='none';setTimeout(function(){backdrop.style.display='none';},180);}
   const target=_preSearchPage||'p-summary';
   const tabName=target.replace('p-','');
   const tabEl=document.querySelector('[data-tab="'+tabName+'"]');
@@ -4714,9 +4726,9 @@ function openPanel(title,content,pushHistory,_meta){
 }
 function closePanel(){
   const panel=document.getElementById('slide-panel');
-  document.getElementById('panel-overlay').classList.remove('on');
+  document.getElementById('panel-overlay').classList.remove('active');
   panel.classList.remove('dragging');
-  panel.classList.remove('on');
+  panel.classList.remove('active');
   PANEL_STACK=[];
   unlockBodyScroll();
   updatePanelNav();
@@ -5067,9 +5079,9 @@ function openActiveRunPage(){
     goToTab('stock',document.querySelector('[data-tab="stock"]'));
     return;
   }
-  document.querySelectorAll('.page').forEach(function(p){p.classList.remove('on');});
-  document.querySelectorAll('.tab').forEach(function(t){t.classList.remove('on');});
-  document.querySelectorAll('.bnt').forEach(function(b){b.classList.remove('on');});
+  document.querySelectorAll('.page').forEach(function(p){p.classList.remove('active');});
+  document.querySelectorAll('.tab').forEach(function(t){t.classList.remove('active');});
+  document.querySelectorAll('.bnt').forEach(function(b){b.classList.remove('active');});
   const page=document.getElementById('p-active-run');
   if(page) page.classList.add('on');
   const _art=document.querySelector('[data-tab="runs"]');
@@ -5085,7 +5097,7 @@ function renderActiveRunPage(){
   if(!page) return;
   const run=_activeSourcingRun;
   if(!run){
-    page.classList.remove('on');
+    page.classList.remove('active');
     STOCK_STATE_FILTER='sourced';
     goToTab('stock',document.querySelector('[data-tab="stock"]'));
     toast('No active run','error');
@@ -5771,7 +5783,7 @@ function renderRunsPage(){
             +'<span style="font-weight:700;font-size:14px;">'+_fmtRunMK(mk)+'</span>'
             +'<span style="font-size:12px;color:var(--muted);">'+runs.length+' run'+(runs.length!==1?'s':'')+'</span>'
           +'</div>'
-          +'<span style="font-family:var(--font-mono);font-weight:600;font-size:13px;color:'+(mkProfit>=0?'var(--green)':'var(--red)')+';">'+'£'+mkProfit.toFixed(2)+'</span>'
+          +'<span style="font-weight:700;font-size:13px;color:'+(mkProfit>=0?'var(--green)':'var(--red)')+';">'+'£'+mkProfit.toFixed(2)+'</span>'
         +'</div>'
         +'<div class="exp-month-body">'+rows+'</div>'
       +'</div>';
@@ -5870,9 +5882,9 @@ function openRunPageFromRuns(runId){
   if(!run){toast('Run not found','error');return;}
   // Use p-item as run detail page (existing pattern), set origin to p-runs
   _itemPageOrigin='p-runs';
-  document.querySelectorAll('.page').forEach(function(p){p.classList.remove('on');});
-  document.querySelectorAll('.tab').forEach(function(t){t.classList.remove('on');});
-  document.querySelectorAll('.bnt').forEach(function(b){b.classList.remove('on');});
+  document.querySelectorAll('.page').forEach(function(p){p.classList.remove('active');});
+  document.querySelectorAll('.tab').forEach(function(t){t.classList.remove('active');});
+  document.querySelectorAll('.bnt').forEach(function(b){b.classList.remove('active');});
   document.getElementById('p-item').classList.add('on');
   // Mark runs tab active in both navs so bottom nav stays tappable
   const _rt=document.querySelector('[data-tab="runs"]');
@@ -8230,10 +8242,13 @@ function backToMonthlyGrid(){
 // Track collapsed state of FY sections — default: current year expanded, others collapsed
 const _fyCollapsed={};
 
+
 function _getFYLabel(fyStart){
-  // fyStart = year the FY begins (e.g. 2025 for 2025-26)
-  return fyStart+'–'+(fyStart+1);
+  const long=fyStart+'–'+(fyStart+1);
+  const short=String(fyStart).slice(-2)+'–'+String(fyStart+1).slice(-2);
+  return '<span class="fy-label-long">'+long+'</span><span class="fy-label-short">'+short+'</span>';
 }
+
 
 function toggleFYSection(fyStart){
   _fyCollapsed[fyStart]=!_fyCollapsed[fyStart];
@@ -8290,7 +8305,7 @@ function renderMonthlyGrid(){
     const chevronRot=isCollapsed?'0deg':'180deg';
     const borderCol=isCurrentFY?'var(--accent)':'var(--border)';
     const labelCol=isCurrentFY?'var(--accent)':'var(--text)';
-    const currentBadge=isCurrentFY?'<span style="font-size:10px;font-weight:700;background:var(--accent);color:#000;border-radius:4px;padding:2px 7px;letter-spacing:0.5px;">CURRENT</span>':'';
+    const currentBadge=isCurrentFY?'<span style="font-size:10px;font-weight:700;background:var(--accent);color:#000;border-radius:4px;padding:2px 7px;letter-spacing:0.5px;flex-shrink:0;">CURRENT</span>':'';
     const roiSpan=fyAvgROI!==null?'<span style="color:var(--text-secondary)">'+fyAvgROI.toFixed(1)+'% avg ROI</span>':'';
 
     let gridHTML='';
@@ -8357,8 +8372,8 @@ function renderMonthlyGrid(){
 
     html+='<div class="fy-section" style="margin-bottom:'+(isCollapsed?'12px':'20px')+'">'
       +'<div onclick="toggleFYSection('+fy+')" style="display:flex;align-items:center;justify-content:space-between;padding:12px 18px;background:var(--surface);border:1.5px solid '+borderCol+';border-radius:10px;cursor:pointer;user-select:none;transition:border-color 0.15s;">'
-      +'<div style="display:flex;align-items:center;gap:10px;">'
-      +'<span style="font-size:13px;font-weight:700;letter-spacing:0.02em;color:'+labelCol+'">FY '+fyLabel+'</span>'
+      +'<div style="display:flex;align-items:center;gap:8px;flex-wrap:nowrap;min-width:0;">'
+      +'<span style="font-size:13px;font-weight:700;letter-spacing:0.02em;color:'+labelCol+';white-space:nowrap;">FY '+fyLabel+'</span>'
       +currentBadge+'</div>'
       +'<div style="display:flex;align-items:center;gap:20px;">'
       +'<div style="display:flex;gap:16px;align-items:center;font-size:13px;">'
@@ -9044,7 +9059,8 @@ function renderItemRow(m,i){
     // listings this equals calcGrossProfit, but for relisted-after-return items
     // it includes the hypothetical sale-2 so the headline is "lifetime P&L if sold".
     const estP=calcEstProfit(i);
-    profitEl='<div class="item-row-profit est">est. profit '+fmt(estP)+'</div>';
+    const estCol=estP>=0?'var(--green)':'var(--red)';
+    profitEl='<div class="item-row-profit est" style="color:'+estCol+';">'+(estP>=0?'+':'')+fmt(estP)+'</div>';
   }else if(i.isReturned){
     const cls=profit>=0?'pos':'neg';
     profitEl='<div class="item-row-profit '+cls+'">net '+fmt(profit)+'</div>';
@@ -13730,7 +13746,7 @@ document.addEventListener('click',function(e){
     if(!['expenses','tax','data'].includes(active)){
       const activeTab=document.querySelector('.tab[data-tab="'+active+'"]');
       if(activeTab){document.querySelectorAll('.tab').forEach(t=>t.classList.remove('on')); activeTab.classList.add('on');}
-      document.getElementById('nav-more-trigger')?.classList.remove('on');
+      document.getElementById('nav-more-trigger')?.classList.remove('active');
     }
   }
 });
@@ -13770,10 +13786,25 @@ window.addEventListener('load',handleNavResize);
   var _raf = null;
 
   function _bnav(){return document.getElementById('bottom-nav');}
-  function _show(){var b=_bnav();if(!b||!_navHidden)return;b.classList.remove('nav-hidden');_navHidden=false;}
-  function _hide(){var b=_bnav();if(!b||_navHidden)return;b.classList.add('nav-hidden');_navHidden=true;}
+  function _fabsDrop(){
+    var fd=document.getElementById('fab-dial');
+    var sf=document.getElementById('search-fab');
+    if(fd)fd.style.bottom='24px';
+    if(sf)sf.style.bottom='24px';
+  }
+  function _fabsRaise(){
+    var fd=document.getElementById('fab-dial');
+    var sf=document.getElementById('search-fab');
+    var raised=window.innerWidth<=600?'72px':'24px';
+    if(fd)fd.style.bottom=raised;
+    if(sf)sf.style.bottom=raised;
+  }
+  function _show(){var b=_bnav();if(!b||!_navHidden)return;b.classList.remove('nav-hidden');_navHidden=false;_fabsRaise();}
+  function _hide(){var b=_bnav();if(!b||_navHidden)return;b.classList.add('nav-hidden');_navHidden=true;_fabsDrop();}
   // Called by goToTab to reset scroll state so tab switch never triggers auto-hide
-  window._resetNavScrollState=function(){_lastScrollY=0;_navHidden=false;var b=_bnav();if(b)b.classList.remove('nav-hidden');};
+  window._resetNavScrollState=function(){_lastScrollY=0;_navHidden=false;var b=_bnav();if(b)b.classList.remove('nav-hidden');_fabsRaise();};
+  _fabsRaise();
+  window.addEventListener('resize',function(){_fabsRaise();});
 
   window.addEventListener('scroll',function(){
     if(_raf)return;
