@@ -8346,22 +8346,6 @@ function renderMonthlyGrid(){
              hasListedOnly?'0 sold · '+ms.listedCount+' active':
              ms.soldCount+' sold · '+ms.listedCount+' active'+(ms.avgDays!==null?' · '+ms.avgDays+'d avg':''))
           +'</div>'
-          +(function(){
-            if(trulyEmpty||ms.soldCount===0) return '';
-            // Count sales by non-eBay platform for this month
-            const platCounts={};
-            getSaleEventsInMonth(k).forEach(function(ev){
-              if(ev.isReturned) return;
-              const p=_itemPlatform(ev.item);
-              if(p&&p!=='ebay') platCounts[p]=(platCounts[p]||0)+1;
-            });
-            const badges=Object.keys(platCounts).map(function(p){
-              const pl=PLATFORMS[p]; if(!pl) return '';
-              const cls=p==='ebay_biz'?'ebay':p;
-              return '<span class="plat-badge '+cls+'" style="font-size:9px;padding:1px 5px;">'+esc(pl.short)+'</span>';
-            }).join('');
-            return badges?'<div style="display:flex;flex-wrap:wrap;gap:3px;margin-top:4px;">'+badges+'</div>':'';
-          })()
           +'</div>'
           +'<div class="mcard-body-right">'
           +cardContent
