@@ -1431,6 +1431,13 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
 .fy-label-short{display:none;}
 .fy-label-long{display:inline;}
 @media(max-width:400px){.fy-label-long{display:none;}.fy-label-short{display:inline;}}
+/* Run detail page — responsive 2-col layout */
+.run-detail-layout{display:grid;grid-template-columns:1fr;gap:0;}
+.run-detail-left{min-width:0;}
+.run-detail-right{min-width:0;}
+@media(min-width:900px){
+  .run-detail-layout{grid-template-columns:1fr 1fr;gap:28px;align-items:start;}
+}
 /* Search FAB — mobile only, bottom edge aligned with + FAB */
 @media(max-width:600px){
   #search-fab{
@@ -5567,7 +5574,7 @@ function _renderRunPage(run){
   const dur=_fmtRunDuration(run.startedAtIso,run.dateStarted,run.dateEnded);
 
   const html=`
-    <div style="max-width:560px;margin:0 auto;padding:18px 16px 80px;">
+    <div class="item-full-page">
       <button class="btn btn-s" onclick="goToTab('runs',document.querySelector('[data-tab=\\'runs\\']'))" style="margin-bottom:14px;font-size:13px;">\u2190 Runs</button>
       <div class="page-header" style="margin-bottom:6px;">
         <div>
@@ -5578,25 +5585,32 @@ function _renderRunPage(run){
       </div>
       ${run.notes?`<div style="font-size:13px;color:var(--text-secondary);margin-bottom:12px;padding:8px 12px;background:var(--surface2);border-radius:8px;">${esc(run.notes)}</div>`:''}
       <div style="display:flex;gap:8px;margin-bottom:18px;flex-wrap:wrap;">
-        ${isActive?'<button class="btn btn-p" style="font-size:13px;" onclick="endSourcingRun(\''+run.id+'\')">End run</button>':''}
+        ${isActive?'<button class="btn btn-p" style="font-size:13px;" onclick="endSourcingRun(\''+run.id+'\')"  >End run</button>':''}
         <button class="btn btn-s" style="font-size:13px;" onclick="openEditRun('${run.id}')">Edit</button>
         <button class="btn btn-s" style="font-size:13px;" onclick="addRunExpense('${run.id}')">+ Expense</button>
         <button class="btn btn-s" style="font-size:13px;" onclick="addRunTrip('${run.id}')">+ Trip</button>
-        ${!isActive?'<button class="btn btn-s danger" style="font-size:13px;" onclick="deleteRun(\''+run.id+'\')">Delete</button>':''}
+        ${!isActive?'<button class="btn btn-s danger" style="font-size:13px;" onclick="deleteRun(\''+run.id+'\')"  >Delete</button>':''}
       </div>
-      ${hero}
-      ${eff}
-      ${recoveryBar}
-      ${pipeSection}
-      ${costsHTML}
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
-        <div style="font-size:13px;font-weight:600;">Items in this run</div>
-        <button class="btn btn-s" style="font-size:12px;padding:6px 10px;" onclick="openBulkAssignModal('${run.id}')">+ Add existing</button>
+      <div class="run-detail-layout">
+        <div class="run-detail-left">
+          ${hero}
+          ${eff}
+          ${recoveryBar}
+          ${pipeSection}
+          ${costsHTML}
+        </div>
+        <div class="run-detail-right">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+            <div style="font-size:13px;font-weight:600;">Items in this run</div>
+            <button class="btn btn-s" style="font-size:12px;padding:6px 10px;" onclick="openBulkAssignModal('${run.id}')">+ Add existing</button>
+          </div>
+          ${itemsHTML}
+        </div>
       </div>
-      ${itemsHTML}
     </div>`;
   page.innerHTML=html;
 }
+
 
 function removeItemFromRun(m,itemId,runId){
   const i=(DB[m]||[]).find(x=>x.id===itemId);
