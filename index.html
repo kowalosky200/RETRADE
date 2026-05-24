@@ -2973,7 +2973,6 @@ async function _backfillDateSoldAtReturn(){
     });
   });
   if(dirty>0){
-    console.log('[backfill] Filled _dateSoldAtReturn on '+dirty+' return entries');
     try{
       // Re-save every item that has returnHistory so the column gets pushed up
       // for ALL of them in a single sync. saveDB's debounced diff engine will
@@ -3394,10 +3393,9 @@ function goToTab(name,sourceEl){
   document.getElementById('p-'+name).classList.add('on');
   SELECTION_MODE=false;SELECTED_ITEMS.clear();
   STOCK_SELECTION_MODE=false;STOCK_SELECTED.clear();
-  // Mark More button active if on a "more" tab (Expenses/Tax/Data)
-  const morePages=['expenses','tax','data'];
+  // More button never highlights — it's a menu trigger, not a page
   const moreTrigger=document.getElementById('nav-more-trigger');
-  if(moreTrigger)moreTrigger.classList.toggle('on',morePages.includes(name));
+  if(moreTrigger)moreTrigger.classList.remove('on');
   // Sync More menu items active state
   document.querySelectorAll('#nav-more-menu button[data-tab]').forEach(b=>{
     b.classList.toggle('on', b.dataset.tab===name);
@@ -4726,9 +4724,11 @@ function openPanel(title,content,pushHistory,_meta){
 }
 function closePanel(){
   const panel=document.getElementById('slide-panel');
+  document.getElementById('panel-overlay').classList.remove('on');
   document.getElementById('panel-overlay').classList.remove('active');
   panel.classList.remove('dragging');
   panel.classList.remove('active');
+  panel.classList.remove('on');
   PANEL_STACK=[];
   unlockBodyScroll();
   updatePanelNav();
@@ -5738,7 +5738,8 @@ function renderRunsPage(){
 
     const MNTHS_R=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
     function _runMK(run){
-      const d=new Date((run.dateEnded||run.dateStarted||'')+'T00:00:00');
+      const raw=(run.dateEnded||run.dateStarted||'').slice(0,10);
+      const d=new Date(raw+'T00:00:00');
       return isNaN(d.getTime())?'Unknown':String(d.getFullYear())+'-'+String(d.getMonth()+1).padStart(2,'0');
     }
     function _fmtRunMK(mk){
@@ -10153,15 +10154,16 @@ function duplicateTrip(idx){
   const copy=Object.assign({},t,{
     id:'trip_'+Date.now(),
     description:newName,
+    date:new Date().toISOString().split('T')[0],
     expenses:Array.isArray(t.expenses)?t.expenses.map(function(e){return Object.assign({},e);}):[]
   });
   trips.splice(idx+1,0,copy);
   DB.trips=trips;
   saveDB();
-  toast('Trip duplicated');
   renderExpenses();
+  const newIdx=trips.indexOf(copy);
+  if(newIdx!==-1)editTrip(newIdx);
 }
-
 function duplicateExpense(idx){
   const expenses=DB.expenses||[];
   const e=expenses[idx];
@@ -13763,20 +13765,17 @@ function toggleNavMore(){
 
 // Handle responsive navigation
 function handleNavResize(){
-  // Static nav layout — Summary/Monthly/Stock always visible, More menu is always present.
-  // No dynamic overflow calculation needed.
+  const isMobile=window.innerWidth<=600;
+  const nav=document.getElementById('nav');
+  const bnav=document.getElementById('bottom-nav');
+  const appVisible=document.getElementById('main-content')?.style.display!=='none';
+  if(!appVisible)return;
+  if(nav)nav.style.display=isMobile?'none':'';
+  if(bnav){bnav.style.display=isMobile?'flex':'none';bnav.classList.toggle('nav-shown',isMobile);}
+  if(typeof _fabsRaise==='undefined'&&window._resetNavScrollState)window._resetNavScrollState();
 }
 
 window.addEventListener('resize',handleNavResize);
-window.addEventListener('resize',function(){
-  const isMobile = window.innerWidth <= 600;
-  const nav = document.getElementById('nav');
-  const bnav = document.getElementById('bottom-nav');
-  const appVisible = document.getElementById('main-content')?.style.display !== 'none';
-  if(!appVisible) return; // not logged in, don't touch
-  if(nav) nav.style.display = isMobile ? 'none' : '';
-  if(bnav) bnav.style.display = isMobile ? 'flex' : 'none';
-});
 window.addEventListener('load',handleNavResize);
 
 // Bottom nav scroll-hide — position-based, not delta-based
