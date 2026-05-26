@@ -46,7 +46,7 @@ nav:not(#bottom-nav){position:sticky;top:0;z-index:200;background:var(--surface)
 .brand-text{display:flex;flex-direction:column;gap:0;line-height:1;}
 .brand-wordmark{font-family:'Inter',sans-serif;font-size:15px;font-weight:800;letter-spacing:0.16em;color:var(--text);text-transform:uppercase;}
 .brand-re{color:var(--text);}
-.brand-trade{color:var(--accent);text-shadow:0 0 10px rgba(245,166,35,.14);}
+.brand-trade{color:var(--accent);text-shadow:0 0 14px rgba(245,166,35,.18),0 0 32px rgba(245,166,35,.06);}
 .tab .tab-ic,.nav-more-btn .tab-ic{display:inline-flex;align-items:center;justify-content:center;opacity:.9}
 .tab{gap:8px;}
 .nav-more-btn{padding:0 10px;min-width:42px}
@@ -205,46 +205,50 @@ nav:not(#bottom-nav){position:sticky;top:0;z-index:200;background:var(--surface)
 #bottom-nav{
   display:none;
   position:fixed;top:auto;bottom:0;left:0;right:0;
-  height:60px;background:var(--surface);border-top:1px solid var(--border);
-  z-index:200;padding-bottom:env(safe-area-inset-bottom);
-  box-shadow:0 -1px 0 var(--border);
+  height:72px;background:var(--surface);border-top:1px solid var(--border);
+  z-index:200;
+  /* Extra 10px above safe area so icons never conflict with iOS swipe gesture */
+  padding-bottom:calc(env(safe-area-inset-bottom,0px) + 10px);
+  box-shadow:0 -1px 0 var(--border),0 -4px 20px var(--shadow);
   transform:translateY(0);
   transition:transform 0.22s cubic-bezier(0.34,1.38,0.64,1);
   will-change:transform;
 }
 #bottom-nav.nav-shown{display:flex!important;align-items:stretch;gap:0;}
 #bottom-nav.nav-hidden{
-  transform:translateY(calc(100% + env(safe-area-inset-bottom)));
+  transform:translateY(calc(100% + env(safe-area-inset-bottom,0px) + 10px));
   transition:transform 0.18s cubic-bezier(0.4,0,1,1);
 }
 .bnt{
   flex:1 1 0;min-width:0;height:100%;
   display:flex;flex-direction:column;align-items:center;justify-content:center;
-  gap:3px;border:none;background:transparent;cursor:pointer;
+  /* Extra bottom padding so content sits in the upper portion, away from swipe zone */
+  padding:0 0 4px;margin:0;
+  gap:4px;border:none;background:transparent;cursor:pointer;
   font-family:var(--font-body);color:var(--muted);font-size:11px;font-weight:500;letter-spacing:0;text-transform:none;
-  transition:color 0.15s;padding:0;margin:0;
+  transition:color 0.15s;
   -webkit-tap-highlight-color:transparent;
 }
 .bnt.on{color:var(--accent);}
 .bnt svg{transition:transform 0.2s cubic-bezier(0.34,1.5,0.64,1);}
-.bnt.on svg{transform:scale(1.18);}
+/* .bnt.on svg — see polish block */
 @media(max-width:720px) and (min-width:481px){
   .insights{grid-template-columns:1fr 1fr 1fr!important;}
 }
 @media(max-width:600px){
   /* Hide entire top nav on mobile — bottom nav handles everything */
   nav:not(#bottom-nav){display:none!important;}
-  body{padding-bottom:60px;}
-  .fab{bottom:72px!important;}
-  .fab-dial{bottom:72px;}
+  body{padding-bottom:calc(72px + env(safe-area-inset-bottom,0px));}
+  .fab{bottom:calc(84px + env(safe-area-inset-bottom,0px))!important;}
+  .fab-dial{bottom:calc(84px + env(safe-area-inset-bottom,0px));}
 }
 /* Landscape on mobile: keep bottom nav visible, shift FAB above it */
 @media(max-width:900px) and (orientation:landscape) and (max-height:500px){
   nav:not(#bottom-nav){display:none!important;}
   #bottom-nav{display:flex!important;align-items:stretch;gap:0;}
-  body{padding-bottom:60px;}
-  .fab{bottom:72px!important;right:16px!important;}
-  .fab-dial{bottom:72px;right:16px;}
+  body{padding-bottom:72px;}
+  .fab{bottom:84px!important;right:16px!important;}
+  .fab-dial{bottom:84px;right:16px;}
 }
 /* MORE SHEET */
 .more-sheet-row{display:flex;align-items:center;gap:16px;width:100%;padding:14px 22px;background:none;border:none;text-align:left;cursor:pointer;font-size:15px;font-weight:500;color:var(--text);-webkit-tap-highlight-color:transparent;transition:background 0.12s;}
@@ -277,6 +281,7 @@ nav:not(#bottom-nav){position:sticky;top:0;z-index:200;background:var(--surface)
 .search-dropdown.open{display:block;}
 .search-result{display:flex;align-items:center;gap:10px;padding:10px 14px;cursor:pointer;transition:background 0.1s;border-bottom:1px solid var(--border);}
 .search-result:last-child{border-bottom:none;}
+.search-result{transition:background .1s ease;}
 .search-result:hover,.search-result.active{background:var(--surface2);}
 .sr-icon{font-size:18px;flex-shrink:0;width:28px;text-align:center;}
 .sr-body{flex:1;min-width:0;}
@@ -337,11 +342,11 @@ nav:not(#bottom-nav){position:sticky;top:0;z-index:200;background:var(--surface)
 .kcard::after{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:var(--accent);opacity:0.8;}
 .kcard.g::after{background:var(--green);}.kcard.r::after{background:#e05555;}.kcard.b::after{background:var(--blue);}.kcard.p::after{background:var(--purple);}
 .klabel{font-family:var(--font-display);font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;font-weight:600;}
-.kval{font-family:var(--font-body);font-size:clamp(14px,2.4vw,28px);font-weight:800;line-height:1.05;letter-spacing:-0.03em;margin:8px 0 4px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;min-width:0;}
+.kval{font-family:var(--font-body);font-size:clamp(14px,2.4vw,28px);font-weight:800;line-height:1.0;letter-spacing:-0.03em;margin:8px 0 4px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;min-width:0;}
 /* Auto-size kval containers so long numbers don't clip */
 .kcard{container-type:inline-size;}
-@container(max-width:160px){.kval{font-size:clamp(13px,7cqi,20px)!important;}}
-@container(max-width:120px){.kval{font-size:clamp(12px,6cqi,17px)!important;}}
+@container(max-width:160px){.kval{font-size:clamp(13px,8cqi,26px)!important;}}
+@container(max-width:120px){.kval{font-size:clamp(12px,7cqi,22px)!important;}}
 .ksub{font-size:11px;color:var(--muted);margin-top:6px;font-weight:400;letter-spacing:0.01em;}
 
 /* INSIGHTS */
@@ -349,11 +354,11 @@ nav:not(#bottom-nav){position:sticky;top:0;z-index:200;background:var(--surface)
 .insight-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;display:flex;align-items:center;gap:12px;box-shadow:0 1px 2px var(--shadow);}
 .insight-icon{font-size:22px;flex-shrink:0;display:flex;align-items:center;justify-content:center;width:28px;height:28px;}
 .insight-label{font-family:var(--font-display);font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:0.07em;margin-bottom:5px;font-weight:600;}
-.insight-val{font-family:"Inter",system-ui,sans-serif;font-size:19px;font-weight:700;letter-spacing:-0.03em;}
+.insight-val{font-family:"Inter",system-ui,sans-serif;font-size:22px;font-weight:700;letter-spacing:-0.04em;}
 .insight-sub{font-size:11px;color:var(--text-secondary);margin-top:3px;}
 
 /* ALERTS — kept slot for future banners */
-@keyframes spin{from{transform:rotate(0deg);}to{transform:rotate(360deg);}}
+/* spin defined in polish block */
 
 /* SECTION LABEL */
 .sl{display:inline-flex;align-items:center;width:auto;font-family:var(--font-display);font-size:10px;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;color:var(--muted);background:transparent;border:none;border-radius:0;padding:0;margin:20px 0 12px;box-sizing:border-box;gap:8px;}
@@ -382,7 +387,7 @@ nav:not(#bottom-nav){position:sticky;top:0;z-index:200;background:var(--surface)
 .chart-legend-dot{display:inline-block;width:8px;height:8px;border-radius:2px;flex-shrink:0;margin-right:3px;}
 .leg{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text-secondary);}
 .leg-dot{width:8px;height:8px;border-radius:2px;}
-.chart-canvas-wrap{position:relative;width:100%;height:240px;min-width:0;overflow:hidden;}
+.chart-canvas-wrap{position:relative;width:100%;height:260px;min-width:0;overflow:hidden;}
 @media(max-width:600px){.chart-canvas-wrap{height:180px;}}
 @media(max-width:900px) and (min-width:601px){.chart-canvas-wrap{height:210px;}}
 
@@ -522,10 +527,12 @@ input,select,textarea{touch-action:manipulation;user-select:text;-webkit-user-se
 .ddmenu button.danger:hover{background:var(--red-dim);}
 
 /* TOAST */
-#toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(100px);background:var(--surface);border:1px solid var(--border);color:var(--text);padding:14px 24px;border-radius:10px;font-size:14px;font-weight:500;z-index:500;opacity:0;transition:opacity 0.22s ease, transform 0.32s cubic-bezier(0.34,1.32,0.64,1);box-shadow:0 4px 20px var(--shadow-md);max-width:90vw;}
-@media(max-width:600px){#toast{bottom:84px;}}
+#toast{position:fixed;bottom:28px;left:50%;transform:translateX(-50%) translateY(120px);background:var(--surface);border:1px solid color-mix(in srgb,var(--border) 85%,transparent);color:var(--text);padding:11px 22px;border-radius:12px;font-size:13px;font-weight:600;z-index:9000;opacity:0;box-shadow:0 6px 28px var(--shadow-md),0 1px 3px var(--shadow);max-width:calc(100vw - 40px);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);}
+[data-theme="dark"] #toast{background:color-mix(in srgb,var(--surface) 90%,transparent);}
+@media(max-width:600px){#toast{bottom:calc(82px + env(safe-area-inset-bottom,0px) + 8px);}}
 #toast.on{opacity:1;transform:translateX(-50%) translateY(0);}
 #toast.err{background:var(--red);color:#fff;border-color:var(--red-hover);}
+#toast.success{background:var(--green);color:#fff;border-color:var(--green-hover);}
 
 /* MOBILE */
 
@@ -633,7 +640,7 @@ input,select,textarea{touch-action:manipulation;user-select:text;-webkit-user-se
 .page-header>div:first-child{min-width:0;flex:1;}
 .page-header .page-title{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 /* Fluid page title — scales smoothly from 20px (320px viewport) to 34px (desktop). */
-.page-title{font-family:"Inter",system-ui,sans-serif;font-size:clamp(20px,5.5vw,34px);font-weight:800;letter-spacing:-0.04em;line-height:1.1;}
+.page-title{font-family:"Inter",system-ui,sans-serif;font-size:clamp(20px,5.5vw,42px);font-weight:800;letter-spacing:-0.04em;line-height:1.1;}
 /* Subtitle fades out on very narrow viewports where it would push content down.
    Smooth opacity + height transition means it disappears without layout jump. */
 .page-subtitle{color:var(--text-secondary);font-size:clamp(12px,3vw,14px);margin-top:3px;line-height:1.4;
@@ -699,7 +706,7 @@ input,select,textarea{touch-action:manipulation;user-select:text;-webkit-user-se
 #confirm-modal{display:none;position:fixed;inset:0;background:var(--overlay);z-index:1000;align-items:center;justify-content:center;backdrop-filter:blur(4px);}
 #confirm-modal.open{display:flex;animation:confirmOverlayIn 0.22s ease both;}
 #confirm-modal.open .confirm-box{animation:confirmIn 0.3s cubic-bezier(0.34,1.32,0.64,1) both;}
-.confirm-box{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:28px 24px;width:340px;max-width:90vw;box-shadow:0 8px 32px var(--shadow-md);}
+.confirm-box{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:28px 24px;width:340px;max-width:92vw;box-shadow:0 16px 48px var(--shadow-md),0 2px 8px var(--shadow);}
 .confirm-icon{font-size:36px;margin-bottom:12px;text-align:center;}
 .confirm-title{font-family:var(--font-display);font-weight:800;font-size:17px;margin-bottom:8px;text-align:center;letter-spacing:-0.01em;}
 .confirm-msg{color:var(--text-secondary);font-size:13px;margin-bottom:20px;text-align:center;line-height:1.6;}
@@ -903,7 +910,7 @@ input,select,textarea{touch-action:manipulation;user-select:text;-webkit-user-se
 .ip-section-title{font-family:var(--font-display);font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:0.1em;color:var(--muted);}
 .ip-section-meta{display:flex;align-items:center;gap:8px;}
 .ip-section-badge{font-family:var(--font-display);font-size:14px;font-weight:800;letter-spacing:-0.01em;}
-.ip-section-chevron{font-size:11px;color:var(--muted);transition:transform 0.2s;}
+.ip-section-chevron{font-size:11px;color:var(--muted);}
 .ip-section-body{padding:0 16px 16px;}
 
 /* P&L receipt rows */
@@ -1027,7 +1034,7 @@ input,select,textarea{touch-action:manipulation;user-select:text;-webkit-user-se
 .fab-dial-btn.sourced{color:var(--accent);border:1.5px solid var(--accent-dim);}
 .fab-dial-btn.sourcerun{color:var(--purple);border:1.5px solid rgba(166,134,255,0.18);}
 /* Patch C — sourcing run banner */
-.run-banner{display:flex;align-items:center;gap:12px;background:rgba(34,197,94,0.08);border:1.5px solid rgba(34,197,94,0.3);border-radius:12px;padding:12px 14px;margin-bottom:14px;}
+.run-banner{display:flex;align-items:center;gap:12px;background:rgba(34,197,94,0.07);border:1.5px solid rgba(34,197,94,0.25);border-radius:14px;padding:12px 14px;margin-bottom:14px;box-shadow:0 2px 12px rgba(34,197,94,0.08);}
 .run-banner-dot{width:10px;height:10px;border-radius:50%;background:var(--green);flex-shrink:0;animation:run-pulse 2s ease-in-out infinite;}
 @keyframes run-pulse{0%,100%{opacity:1;}50%{opacity:0.4;}}
 @keyframes _arPulse{0%,100%{box-shadow:0 0 0 0 rgba(26,182,100,0.55);}60%{box-shadow:0 0 0 6px rgba(26,182,100,0);}}
@@ -1078,9 +1085,9 @@ input,select,textarea{touch-action:manipulation;user-select:text;-webkit-user-se
 /* ─────────────────────────────────────────────────────────────────────── */
 
 /* STAT NUMBER utility — used in JS-generated big numbers */
-.stat-num{font-family:"Inter",system-ui,sans-serif;font-size:26px;font-weight:700;letter-spacing:-0.04em;line-height:1.05;}
-.stat-num-sm{font-family:"Inter",system-ui,sans-serif;font-size:20px;font-weight:700;letter-spacing:-0.04em;line-height:1.05;}
-.stat-num-xs{font-family:"Inter",system-ui,sans-serif;font-size:17px;font-weight:600;letter-spacing:-0.03em;line-height:1.1;}
+.stat-num{font-family:"Inter",system-ui,sans-serif;font-size:32px;font-weight:700;letter-spacing:-0.04em;line-height:1.05;}
+.stat-num-sm{font-family:"Inter",system-ui,sans-serif;font-size:24px;font-weight:700;letter-spacing:-0.04em;line-height:1.05;}
+.stat-num-xs{font-family:"Inter",system-ui,sans-serif;font-size:20px;font-weight:600;letter-spacing:-0.03em;line-height:1.1;}
 
 .brand svg{display:none!important;}
 #auth-screen-login svg[width="62"], #auth-screen-reset svg[width="62"]{display:none!important;}
@@ -1106,12 +1113,12 @@ input,select,textarea{touch-action:manipulation;user-select:text;-webkit-user-se
   --shadow:rgba(0,0,0,0.35);--shadow-md:rgba(0,0,0,0.55);--overlay:rgba(6,11,18,0.72);
 }
 html,body{background:linear-gradient(180deg,var(--bg) 0%, color-mix(in srgb,var(--bg) 92%, #7d90bb 8%) 100%);} 
-body{font-size:14px;}
-.page{max-width:1280px;margin:0 auto;padding:28px 28px 120px;animation:pageFade .3s cubic-bezier(0.34,1.1,0.64,1) both;}
-@keyframes pageFade{from{opacity:.0;transform:translateY(6px)}to{opacity:1;transform:none}}
-@keyframes panelContentIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
-@keyframes confirmIn{from{opacity:0;transform:scale(0.93) translateY(8px)}to{opacity:1;transform:scale(1) translateY(0)}}
-@keyframes confirmOverlayIn{from{opacity:0}to{opacity:1}}
+body{font-size:15px;}
+.page{max-width:1280px;margin:0 auto;padding:28px 32px 120px;animation:pageFade .3s cubic-bezier(0.34,1.1,0.64,1) both;}
+/* pageFade defined in polish block */
+/* panelContentIn defined in polish block */
+/* confirmIn defined in polish block */
+/* confirmOverlayIn defined in polish block */
 #panel-content{animation:panelContentIn 0.28s cubic-bezier(0.34,1.2,0.64,1) both;min-width:0;max-width:100%;overflow-x:hidden;}
 nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparent);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);border-bottom:1px solid color-mix(in srgb,var(--border) 76%, transparent);}
 .nav-inner{max-width:1280px;height:68px;padding:0 24px;gap:16px;}
@@ -1135,8 +1142,8 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
 .page-header{margin-bottom:22px;}
 .page-title{font-weight:800;letter-spacing:-0.05em;}
 .page-subtitle{color:var(--text-secondary);}
-.kgrid{gap:12px;margin-bottom:18px;}
-.kcard{border-radius:20px;padding:20px 20px 18px;border:1px solid var(--border);box-shadow:0 10px 30px var(--shadow);min-height:100px;background:linear-gradient(180deg,color-mix(in srgb,var(--surface) 94%, #ffffff 6%) 0%,var(--surface) 100%);;min-width:0;}
+.kgrid{gap:14px;margin-bottom:20px;}
+.kcard{border-radius:20px;padding:22px 22px 18px;border:1px solid var(--border);box-shadow:0 10px 30px var(--shadow);min-height:120px;background:linear-gradient(180deg,color-mix(in srgb,var(--surface) 94%, #ffffff 6%) 0%,var(--surface) 100%);;min-width:0;}
 [data-theme="dark"] .kcard{background:linear-gradient(180deg,color-mix(in srgb,var(--surface) 92%, #1f2b40 8%) 0%,var(--surface) 100%);border-color:color-mix(in srgb,var(--border) 88%, transparent);}
 .kcard::after{height:2px;opacity:.95;background:linear-gradient(90deg,var(--accent),transparent 86%);} 
 .kcard.g::after{background:linear-gradient(90deg,var(--green),transparent 86%)}
@@ -1144,12 +1151,12 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
 .kcard.b::after{background:linear-gradient(90deg,var(--blue),transparent 86%)}
 .kcard.p::after{background:linear-gradient(90deg,var(--purple),transparent 86%)}
 @media(hover:hover){.kcard:hover{transform:translateY(-3px);box-shadow:0 16px 42px var(--shadow-md);}}
-.klabel{font-size:11px;font-weight:800;letter-spacing:.10em;color:var(--muted);} 
+.klabel{font-size:11px;font-weight:800;letter-spacing:.12em;color:var(--muted);text-transform:uppercase;} 
 .kval,.stat-num,.stat-num-sm,.stat-num-xs,.insight-val{font-variant-numeric:tabular-nums lining-nums;letter-spacing:-0.05em;}
-.kval{font-size:26px;font-weight:800;margin:10px 0 6px;line-height:.98;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;}
-.ksub{font-size:13px;color:var(--text-secondary)}
+.kval{font-size:34px;font-weight:800;margin:10px 0 6px;line-height:.96;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;}
+.ksub{font-size:13px;color:var(--text-secondary);line-height:1.4;}
 .insights{gap:14px;grid-template-columns:1fr;}
-.insight-card{border-radius:18px;padding:16px 16px;border:1px solid var(--border);box-shadow:0 10px 26px var(--shadow);align-items:flex-start;}
+.insight-card{border-radius:18px;padding:18px 18px;border:1px solid var(--border);box-shadow:0 10px 26px var(--shadow);align-items:flex-start;}
 [data-theme="dark"] .insight-card{border-color:color-mix(in srgb,var(--border) 88%, transparent);}
 .insight-icon{width:34px;height:34px;border-radius:12px;background:var(--surface2);}
 .sl{font-size:11px;letter-spacing:.14em;color:var(--text-secondary);margin:0 0 14px;}
@@ -1165,10 +1172,10 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
 .item-row:hover{background:linear-gradient(180deg,color-mix(in srgb,var(--surface) 98%, #fff 2%) 0%, var(--surface) 100%);transform:translateY(-1px);} 
 .item-row:last-child{border-bottom:1px solid color-mix(in srgb,var(--border) 88%, transparent);} 
 .item-row.selected{border-left:none;padding-left:18px;box-shadow:0 0 0 1px var(--accent),0 14px 30px var(--shadow-md);}
-.item-row-name{font-size:15px;font-weight:700;}
+.item-row-name{font-size:16px;font-weight:700;}
 .item-row-meta{font-size:12px;color:var(--text-secondary);}
-.item-row-price{font-size:16px;font-weight:700;}
-.item-row-profit{font-size:13px;font-weight:700;}
+.item-row-price{font-size:18px;font-weight:700;}
+.item-row-profit{font-size:14px;font-weight:700;}
 .item-row-roi{font-size:11px;color:var(--text-secondary);}
 .filter-row,.list-toolbar{margin-bottom:14px;}
 .month-select,.period-select-inline,.period-select{height:42px;padding:0 40px 0 14px;border-radius:14px;background:color-mix(in srgb,var(--surface2) 78%, var(--surface));font-weight:600;border:1px solid var(--border);}
@@ -1184,8 +1191,8 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
 .mcard-body-right{margin-top:8px;}
 [data-theme="dark"] .mcard{border-color:color-mix(in srgb,var(--border) 88%, transparent);}
 .mname{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text-secondary);}
-.mval{font-size:28px;font-weight:800;letter-spacing:-.05em;font-family:"Inter",system-ui,sans-serif;font-variant-numeric:tabular-nums lining-nums;}
-.month-picker-title{font-size:32px;font-weight:800;letter-spacing:-.06em;}
+.mval{font-size:32px;font-weight:800;letter-spacing:-.05em;font-family:"Inter",system-ui,sans-serif;font-variant-numeric:tabular-nums lining-nums;}
+.month-picker-title{font-size:38px;font-weight:800;letter-spacing:-.06em;}
 .fy-section{position:relative;}
 .fy-section::before{content:'';position:absolute;left:0;top:0;bottom:0;width:2px;border-radius:999px;background:linear-gradient(180deg,var(--accent),transparent 55%);opacity:.14;transform:translateX(-10px);} 
 #p-item .item-full-page,.item-full-page{max-width:1240px;padding:28px 28px 120px;}
@@ -1194,13 +1201,13 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
 .ip-tokens{gap:14px;}
 .ip-token,.ip-postage-row,.ip-section-pnl,.ip-relist-section{border-radius:20px;box-shadow:0 10px 24px var(--shadow);border:1px solid var(--border);}
 [data-theme="dark"] .ip-token,[data-theme="dark"] .ip-postage-row,[data-theme="dark"] .ip-section-pnl,[data-theme="dark"] .ip-relist-section{border-color:color-mix(in srgb,var(--border) 88%, transparent);}
-.ip-token{padding:18px 18px 16px;}
+.ip-token{padding:20px 20px 18px;}
 .ip-token-label,.ip-section-title,.item-full-section-title{font-size:10px;letter-spacing:.12em;color:var(--muted)}
-.ip-token-val{font-size:28px;font-weight:800;}
-.ip-token-sub{font-size:12px;color:var(--text-secondary)}
+.ip-token-val{font-size:36px;font-weight:800;}
+.ip-token-sub{font-size:12px;color:var(--text-secondary);margin-top:6px;}
 .ip-section-header{padding:16px 18px;}
 .ip-section-body{padding:0 18px 18px;}
-.ip-receipt-row{font-size:13px;padding:10px 0;}
+.ip-receipt-row{font-size:14px;padding:10px 0;}
 .ip-field,.ip-field-select,.ip-field-date{font-size:15px;}
 #auth-screen-login,#auth-screen-reset{max-width:420px;border-radius:28px;padding:42px 36px!important;box-shadow:0 22px 60px rgba(0,0,0,.18);} 
 #auth-screen-login > div:first-child + div + div span{letter-spacing:.16em!important;}
@@ -1220,8 +1227,8 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
 .metric-inline.clickable:hover,.panel-card.clickable:hover{background:color-mix(in srgb,var(--surface2) 55%, transparent);}
 .category-mini-row:hover{background:color-mix(in srgb,var(--surface2) 72%, transparent);}
 .metric-k{font-size:13px;color:var(--text-secondary);font-weight:600;}
-.metric-v{font-size:24px;font-weight:800;letter-spacing:-.05em;}
-.hero-title{font-size:38px;font-weight:800;letter-spacing:-.06em;line-height:1.02;}
+.metric-v{font-size:32px;font-weight:800;letter-spacing:-.05em;line-height:1.05;}
+.hero-title{font-size:48px;font-weight:800;letter-spacing:-.06em;line-height:1.0;}
 .hero-sub{font-size:14px;color:var(--text-secondary);margin-top:8px;max-width:720px;}
 .dashboard-kicker{display:flex;align-items:center;gap:10px;font-size:11px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--accent);margin:8px 0 8px;}
 .dashboard-kicker::before{content:'';display:block;width:18px;height:2px;border-radius:2px;background:var(--accent);opacity:.9}
@@ -1294,13 +1301,13 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
 .age-bar-seg{height:100%;cursor:pointer;transition:opacity 0.15s,filter 0.15s;opacity:0.85;}
 .age-bar-seg:hover{opacity:1;filter:brightness(1.1);}
 .age-bar-seg.active{opacity:1;box-shadow:inset 0 0 0 2px var(--surface);}
-.age-legend{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;}
-.age-legend-btn{display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border-radius:14px;background:transparent;border:1px solid var(--border);cursor:pointer;font-size:11px;font-family:var(--font-body);color:var(--text-secondary);transition:all 0.12s;}
+.age-legend{display:flex;flex-wrap:nowrap;gap:6px;margin-top:10px;overflow:hidden;}
+.age-legend-btn{display:inline-flex;align-items:center;gap:5px;padding:5px 9px;border-radius:12px;background:transparent;border:1px solid var(--border);cursor:pointer;font-size:11px;font-family:var(--font-body);color:var(--text-secondary);transition:all 0.12s;white-space:nowrap;min-width:0;flex-shrink:1;}
 .age-legend-btn:hover{background:var(--surface2);color:var(--text);border-color:var(--border2);}
 .age-legend-btn.active{background:var(--surface2);color:var(--text);border-color:var(--text-secondary);font-weight:600;}
-.age-legend-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;}
+.age-legend-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0;}
 .age-legend-label{font-weight:500;}
-.age-legend-count{color:var(--muted);font-weight:600;font-size:10px;}
+.age-legend-count{color:var(--muted);font-weight:600;font-size:10px;min-width:0;}
 .age-legend-btn.active .age-legend-count{color:var(--text);}
 
 /* Row action hints — progressive escalation pill on stock rows */
@@ -1449,13 +1456,243 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
   #search-fab{
     display:flex!important;
     align-items:center;justify-content:center;
-    bottom:calc(72px + env(safe-area-inset-bottom));
+    bottom:calc(84px + env(safe-area-inset-bottom,0px));
     right:calc(24px + 52px + 12px);
     width:37px;height:37px;
   }
   #search-fab.active{color:var(--accent);border-color:var(--accent);box-shadow:0 4px 20px rgba(212,136,10,0.25);}
   #search-fab:active{transform:scale(0.93);}
   #search-fab svg{width:17px;height:17px;}
+}
+
+/* nav-more open state */
+.nav-more.open .nav-more-btn{color:var(--text)!important;background:none!important;box-shadow:none!important;}
+#nav-more-menu button{display:flex;}
+
+/* ═══════════════════════════════════════════════════════
+   RETRADE v8 POLISH — motion, micro-interactions, UX
+   ═══════════════════════════════════════════════════════ */
+
+/* ── Reduced-motion respect ── */
+@media(prefers-reduced-motion:reduce){
+  *{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important;}
+}
+
+/* ── Improved page transition ── */
+@keyframes pageFade{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:none}}
+.page.on{animation:pageFade .22s cubic-bezier(0.22,1,0.36,1) both;}
+
+/* ── Item row — spring hover/active ── */
+.item-row{
+  transition:background .12s ease, border-color .15s ease, transform .18s cubic-bezier(0.34,1.2,0.64,1), box-shadow .18s ease;
+  will-change:transform;
+}
+@media(hover:hover){
+  .item-row:hover{transform:translateY(-2px) scale(1.002);border-color:color-mix(in srgb,var(--accent) 40%,var(--border));}
+}
+.item-row:active{transform:scale(0.993) translateY(0)!important;transition:transform .06s ease,box-shadow .06s ease!important;}
+
+/* ── Month card — spring ── */
+.mcard{
+  transition:border-color .15s ease, transform .2s cubic-bezier(0.34,1.3,0.64,1), box-shadow .2s ease;
+  will-change:transform;
+}
+@media(hover:hover){.mcard:hover{transform:translateY(-3px) scale(1.01);}}
+.mcard:active{transform:scale(0.97)!important;transition:transform .07s ease!important;}
+
+/* ── Button active states ── */
+.btn{transition:background .14s ease, transform .15s cubic-bezier(0.34,1.3,0.64,1), box-shadow .15s ease, opacity .1s;}
+.btn:active{transform:scale(0.96)!important;transition:transform .06s ease!important;}
+.btn-p:active{filter:brightness(0.92);}
+
+/* ── FAB main — spring on open ── */
+.fab-main{transition:transform .2s cubic-bezier(0.34,1.5,0.64,1), background .15s, box-shadow .2s;}
+.fab-main:active{transform:scale(0.92)!important;}
+
+/* ── FAB dial items — staggered spring entrance ── */
+.fab-dial.open .fab-dial-item{animation:fabItemIn .22s cubic-bezier(0.34,1.4,0.64,1) both;}
+.fab-dial.open .fab-dial-item:nth-child(1){animation-delay:.02s;}
+.fab-dial.open .fab-dial-item:nth-child(2){animation-delay:.05s;}
+.fab-dial.open .fab-dial-item:nth-child(3){animation-delay:.08s;}
+.fab-dial.open .fab-dial-item:nth-child(4){animation-delay:.11s;}
+.fab-dial.open .fab-dial-item:nth-child(5){animation-delay:.14s;}
+@keyframes fabItemIn{from{opacity:0;transform:translateY(10px) scale(0.9)}to{opacity:1;transform:none}}
+
+/* ── Slide panel — smoother spring ── */
+.slide-panel{transition:transform .3s cubic-bezier(0.32,1.1,0.5,1);}
+.slide-panel.on{transform:translateX(0);}
+
+/* ── Panel content entrance ── */
+@keyframes panelContentIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+#panel-content{animation:panelContentIn .24s cubic-bezier(0.34,1.2,0.64,1) both;}
+
+/* ── Search dropdown entrance ── */
+.search-dropdown{
+  transform-origin:top left;
+  animation:none;
+  transition:opacity .14s ease, transform .16s cubic-bezier(0.34,1.2,0.64,1);
+}
+.search-dropdown.open{animation:searchDropIn .16s cubic-bezier(0.34,1.3,0.64,1) both;}
+@keyframes searchDropIn{from{opacity:0;transform:translateY(-6px) scale(0.97)}to{opacity:1;transform:none}}
+
+/* ── Confirm modal ── */
+@keyframes confirmIn{from{opacity:0;transform:scale(0.92) translateY(10px)}to{opacity:1;transform:scale(1) translateY(0)}}
+@keyframes confirmOverlayIn{from{opacity:0}to{opacity:1}}
+#confirm-modal.open .confirm-box{animation:confirmIn .28s cubic-bezier(0.34,1.3,0.64,1) both;}
+
+/* ── Toast ── */
+#toast{
+  transition:opacity .2s ease, transform .3s cubic-bezier(0.34,1.3,0.64,1);
+  letter-spacing:.01em;
+}
+#toast.on{opacity:1;transform:translateX(-50%) translateY(0);}
+
+/* ── Bottom nav button press ── */
+.bnt{transition:color .15s, opacity .1s, transform .12s cubic-bezier(0.34,1.4,0.64,1);}
+.bnt:active{opacity:.6;transform:scale(0.9);}
+.bnt.on svg{transform:scale(1.2);}
+
+/* ── Nav tab active indicator ── */
+.tab::after{transition:opacity .18s ease, width .18s cubic-bezier(0.34,1.2,0.64,1);}
+
+/* ── Chip/filter active ── */
+.chip{transition:background .14s ease, color .14s ease, box-shadow .14s ease, transform .12s cubic-bezier(0.34,1.3,0.64,1);}
+.chip:active:not(:disabled){transform:scale(0.95);}
+.chip.active{transform:none;}
+
+/* ── KPI card subtle pulse on load ── */
+@keyframes kCardIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+.kgrid .kcard:nth-child(1){animation:kCardIn .2s .03s cubic-bezier(0.34,1.1,0.64,1) both;}
+.kgrid .kcard:nth-child(2){animation:kCardIn .2s .06s cubic-bezier(0.34,1.1,0.64,1) both;}
+.kgrid .kcard:nth-child(3){animation:kCardIn .2s .09s cubic-bezier(0.34,1.1,0.64,1) both;}
+.kgrid .kcard:nth-child(4){animation:kCardIn .2s .12s cubic-bezier(0.34,1.1,0.64,1) both;}
+
+/* ── Empty state entrance ── */
+.empty-state{animation:pageFade .3s .1s cubic-bezier(0.34,1.1,0.64,1) both;}
+
+/* ── Month picker dropdown ── */
+.month-picker-wrap.open .month-picker-dropdown{
+  animation:searchDropIn .16s cubic-bezier(0.34,1.2,0.64,1) both;
+}
+
+/* ── More sheet entrance ── */
+#more-sheet{transition:transform .24s cubic-bezier(0.34,1.2,0.64,1);}
+
+/* ── Section header chevron ── */
+.ip-section-chevron{transition:transform .2s cubic-bezier(0.34,1.1,0.64,1);}
+
+/* ── ip-token hover ── */
+.ip-token{transition:border-color .15s ease, box-shadow .15s ease, transform .15s cubic-bezier(0.34,1.2,0.64,1);}
+@media(hover:hover){.ip-token:not(.locked):hover{transform:translateY(-1px);}}
+
+/* ── Run banner pulse dot ── */
+.run-banner-dot{animation:run-pulse 2.2s ease-in-out infinite;}
+
+/* ── Nav active dot ── */
+.nav-active-dot{animation:navDotPulse 2.2s ease-in-out infinite;}
+
+/* ── Sync indicator spin ── */
+#sync-indicator{transition:opacity .2s ease;}
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar{width:5px;height:5px;}
+::-webkit-scrollbar-track{background:transparent;}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px;transition:background .15s;}
+::-webkit-scrollbar-thumb:hover{background:color-mix(in srgb,var(--accent) 55%,var(--border2));}
+
+/* ── Filter pill dropdown ── */
+.filter-pill-dd.open .filter-pill-dd-menu{
+  animation:searchDropIn .15s cubic-bezier(0.34,1.3,0.64,1) both;
+}
+
+/* ── User menu dropdown ── */
+.user-menu.open .user-menu-dropdown{
+  animation:searchDropIn .16s cubic-bezier(0.34,1.3,0.64,1) both;
+}
+
+/* ── Nav more menu ── */
+.nav-more.open .nav-more-menu{
+  animation:searchDropIn .16s cubic-bezier(0.34,1.3,0.64,1) both;
+}
+
+/* ── Input focus glow ── */
+.fg input:focus,.fg select:focus,.fg textarea:focus{
+  box-shadow:0 0 0 3px var(--accent-dim);
+  transition:border-color .15s ease, box-shadow .15s ease;
+}
+
+/* ── Expense item ── */
+.expense-item{transition:background .12s ease;}
+
+/* ── Run history row ── */
+.run-history-row{transition:background .12s ease;}
+
+/* ── Progress bar segments ── */
+.age-bar-seg{transition:opacity .15s ease, filter .15s ease;}
+
+/* ── Loading spinner ── */
+@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+
+/* ── Bulk bar entrance ── */
+.bulk-bar{animation:pageFade .2s cubic-bezier(0.34,1.1,0.64,1) both;}
+
+/* ── FY section collapse ── */
+.fy-section .mgrid{animation:pageFade .2s cubic-bezier(0.34,1.1,0.64,1) both;}
+
+/* ── Quick add platform pill ── */
+.qa-platform-pill{transition:background .14s ease, border-color .14s ease, color .14s ease, transform .12s cubic-bezier(0.34,1.3,0.64,1);}
+.qa-platform-pill:active{transform:scale(0.95);}
+
+/* ── Dropdown menu item hover ── */
+.ddmenu button{transition:background .1s ease;}
+.nav-more-menu button{transition:background .1s ease, color .12s ease;}
+
+/* ── Item page back button ── */
+.ip-back .btn{transition:background .12s ease, border-color .12s ease, transform .14s cubic-bezier(0.34,1.2,0.64,1);}
+
+/* ── Selection checkbox ── */
+.sel-check-box{transition:background .14s ease, border-color .14s ease;}
+
+/* ── Ensure panel overlay transition works ── */
+.panel-overlay{transition:opacity .22s ease;}
+.panel-overlay.on{opacity:1;pointer-events:auto;}
+
+/* bnt-label — text inside bottom nav button (used when icon + text are siblings) */
+.bnt-label{font-size:11px;font-weight:500;pointer-events:none;}
+
+/* ── Large desktop (1280px+): maximum real estate usage ── */
+@media(min-width:1280px){
+  .kval{font-size:38px!important;}
+  .kcard{padding:24px 24px 20px!important;min-height:130px!important;}
+  .klabel{font-size:11px!important;letter-spacing:.12em!important;}
+  .ksub{font-size:14px!important;}
+  .metric-v{font-size:36px!important;}
+  .metric-k{font-size:14px!important;}
+  .hero-title{font-size:52px!important;}
+  .mval{font-size:34px!important;}
+  .mcard{min-height:150px!important;padding:22px 20px!important;}
+  .item-row{padding:18px 22px!important;}
+  .item-row-name{font-size:17px!important;}
+  .item-row-price{font-size:20px!important;}
+  .item-row-profit{font-size:15px!important;}
+  .item-row-roi{font-size:12px!important;}
+  .page{padding:32px 36px 120px!important;}
+  .ip-token-val{font-size:40px!important;}
+  .ip-token{padding:22px 22px 20px!important;}
+  .nav-inner{height:72px!important;}
+}
+
+/* Run page hero P&L number */
+@media(min-width:981px){
+  .run-hero-val{font-size:40px!important;}
+}
+@media(min-width:1280px){
+  .run-hero-val{font-size:48px!important;}
+}
+
+@media(min-width:1280px){
+  .chart-canvas-wrap{height:300px!important;}
+  .chart-wrap{padding:26px!important;}
 }
 </style>
 </head>
@@ -1510,7 +1747,7 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
     <!-- Right: sync indicator + user menu -->
     <div class="nav-right">
       <div id="sync-indicator">
-        <svg width="14" height="14" viewBox="0 0 14 14" style="animation:spin 1s linear infinite;flex-shrink:0"><circle cx="7" cy="7" r="5.5" fill="none" stroke="var(--border2)" stroke-width="2"/><path d="M7 1.5A5.5 5.5 0 0 1 12.5 7" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round"/></svg>
+        <svg width="15" height="15" viewBox="0 0 14 14" style="animation:spin .7s linear infinite;flex-shrink:0"><circle cx="7" cy="7" r="5.5" fill="none" stroke="var(--border)" stroke-width="1.8"/><path d="M7 1.5A5.5 5.5 0 0 1 12.5 7" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round"/></svg>
         <span id="sync-label">Saving…</span>
       </div>
       <div class="user-menu" id="user-menu">
@@ -1565,23 +1802,23 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
 <!-- BOTTOM NAV — always pinned to bottom, mobile + desktop -->
 <nav id="bottom-nav" aria-label="Bottom navigation" style="display:none;">
   <button class="bnt on" data-tab="summary" onclick="goToTab('summary',this)">
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
     Home
   </button>
   <button class="bnt" data-tab="monthly" onclick="goToTab('monthly',this)">
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2.5"/><path d="M8 3v4M16 3v4"/><line x1="3" y1="10" x2="21" y2="10"/><rect x="7" y="13" width="3" height="3" rx="0.5" fill="currentColor" stroke="none" opacity="0.7"/></svg>
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2.5"/><path d="M8 3v4M16 3v4"/><line x1="3" y1="10" x2="21" y2="10"/><rect x="7" y="13" width="3" height="3" rx="0.5" fill="currentColor" stroke="none" opacity="0.7"/></svg>
     Calendar
   </button>
   <button class="bnt" data-tab="stock" onclick="goToTab('stock',this)">
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="14" width="20" height="7" rx="1.5"/><rect x="4" y="9" width="16" height="6" rx="1.5"/><rect x="7" y="4" width="10" height="6" rx="1.5"/></svg>
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="14" width="20" height="7" rx="1.5"/><rect x="4" y="9" width="16" height="6" rx="1.5"/><rect x="7" y="4" width="10" height="6" rx="1.5"/></svg>
     Stock
   </button>
   <button class="bnt nav-item-runs" data-tab="runs" onclick="goToTab('runs',this)" style="position:relative;">
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h3l3-8 4 16 3-8h5"/></svg>
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h3l3-8 4 16 3-8h5"/></svg>
     <span class="bnt-label">Runs</span>
   </button>
   <button class="bnt" id="bnt-more" onclick="toggleMoreSheet()">
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
     Menu
   </button>
 </nav>
@@ -1605,7 +1842,7 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
 
 <!-- MORE SHEET — hamburger menu, slides up from bottom nav -->
 <div id="more-sheet-overlay" onclick="closeMoreSheet()" style="display:none;position:fixed;inset:0;z-index:300;background:var(--overlay);backdrop-filter:blur(2px);"></div>
-<div id="more-sheet" style="display:none;position:fixed;bottom:60px;left:0;right:0;z-index:301;background:var(--surface);border-top:1px solid var(--border);border-radius:20px 20px 0 0;padding:8px 0 16px;box-shadow:0 -8px 40px var(--shadow-md);overflow:hidden;">
+<div id="more-sheet" style="display:none;position:fixed;bottom:72px;left:0;right:0;z-index:301;background:var(--surface);border-top:1px solid var(--border);border-radius:20px 20px 0 0;padding:8px 0 16px;box-shadow:0 -8px 40px var(--shadow-md);overflow:hidden;transform:translateY(100%);transition:transform .28s cubic-bezier(0.32,1.1,0.5,1);">
   <div style="width:36px;height:4px;background:var(--border2);border-radius:2px;margin:0 auto 16px;"></div>
   <!-- MAIN sheet contents — page nav + country trigger + theme + sign out -->
   <div id="more-sheet-main" class="more-sheet-pane">
@@ -1706,8 +1943,8 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
   </div>
 </div>
 
-<div id="sold-modal" style="display:none;position:fixed;inset:0;background:var(--overlay);z-index:1000;align-items:center;justify-content:center;backdrop-filter:blur(4px)">
-  <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:24px;width:300px;max-width:90vw;box-shadow:0 8px 32px var(--shadow-md)">
+<div id="sold-modal" style="display:none;position:fixed;inset:0;background:var(--overlay);z-index:1000;align-items:center;justify-content:center;backdrop-filter:blur(4px);animation:confirmOverlayIn .18s ease both">
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:24px;width:320px;max-width:92vw;box-shadow:0 8px 32px var(--shadow-md)">
     <div style="font-weight:700;font-size:16px;margin-bottom:16px">Mark as Sold</div>
     <div class="fg" style="margin-bottom:12px">
       <label>Date Sold</label>
@@ -1731,8 +1968,8 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
   </div>
 </div>
 
-<div id="resale-modal" style="display:none;position:fixed;inset:0;background:var(--overlay);z-index:1000;align-items:center;justify-content:center;backdrop-filter:blur(4px)">
-  <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:24px;width:320px;max-width:90vw;box-shadow:0 8px 32px var(--shadow-md)">
+<div id="resale-modal" style="display:none;position:fixed;inset:0;background:var(--overlay);z-index:1000;align-items:center;justify-content:center;backdrop-filter:blur(4px);animation:confirmOverlayIn .18s ease both">
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:24px;width:320px;max-width:92vw;box-shadow:0 8px 32px var(--shadow-md)">
     <div style="font-weight:700;font-size:16px;margin-bottom:4px">Re-sold</div>
     <div style="font-size:12px;color:var(--muted);margin-bottom:16px" id="resale-modal-sub">Shipping &amp; promo carried over from relist</div>
     <div class="fg">
@@ -1754,7 +1991,7 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
 <div id="auth-overlay" style="display:none;position:fixed;inset:0;z-index:9999;background:#0c1320;align-items:center;justify-content:center;padding:24px;" data-theme="dark">
 
   <!-- SIGN IN SCREEN -->
-  <div id="auth-screen-login" style="background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:36px 32px;width:100%;max-width:380px;box-shadow:0 8px 40px var(--shadow-md);position:relative;overflow:hidden;">
+  <div id="auth-screen-login" style="background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:36px 32px;width:100%;max-width:380px;box-shadow:0 16px 48px rgba(0,0,0,.32),0 2px 8px rgba(0,0,0,.16);position:relative;overflow:hidden;">
     <div style="position:absolute;top:0;left:50%;transform:translateX(-50%);width:1px;height:40px;background:linear-gradient(to bottom,var(--accent),transparent);opacity:0.4;pointer-events:none;"></div>
     <div style="position:absolute;top:20px;left:50%;transform:translate(-50%,-50%);width:40px;height:1px;background:linear-gradient(to right,transparent,var(--accent),transparent);opacity:0.4;pointer-events:none;"></div>
     <div style="text-align:center;margin-bottom:32px;padding-top:8px;">
@@ -1791,12 +2028,11 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
       style="width:100%;padding:12px;background:var(--accent);color:#000;border:none;border-radius:8px;font-weight:700;font-size:15px;cursor:pointer;transition:background 0.15s;">
       Sign In
     </button>
-
     <button onclick="showForgotPassword()"
       style="width:100%;padding:10px;background:none;border:none;color:var(--text-secondary);font-size:13px;cursor:pointer;margin-top:8px;text-decoration:underline;text-underline-offset:3px;">
       Forgot password?
     </button>
-    <div id="auth-loading" style="display:none;text-align:center;margin-top:12px;font-size:13px;color:var(--text-secondary);">Signing in…</div>
+    <div id="auth-loading" style="display:none;text-align:center;margin-top:14px;font-size:13px;color:var(--text-secondary);align-items:center;justify-content:center;gap:8px;"><svg width="14" height="14" style="animation:spin 0.8s linear infinite;flex-shrink:0" viewBox="0 0 14 14"><circle cx="7" cy="7" r="5.5" fill="none" stroke="var(--border2)" stroke-width="2"/><path d="M7 1.5A5.5 5.5 0 0 1 12.5 7" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round"/></svg>Signing in…</div>
   </div>
 
   <!-- FORGOT PASSWORD SCREEN -->
@@ -2368,8 +2604,8 @@ function closeAllDropdowns(){
 function toggleMoreSheet(){
   const sheet=document.getElementById('more-sheet');
   const overlay=document.getElementById('more-sheet-overlay');
-  const isOpen=sheet.style.display!=='none';
-  if(!isOpen) closeAllDropdowns(); // close others before opening
+  const isOpen=sheet._msOpen;
+  if(!isOpen) closeAllDropdowns();
   if(isOpen){closeMoreSheet();return;}
   // Sync theme label
   const theme=document.documentElement.getAttribute('data-theme')||'light';
@@ -2382,6 +2618,13 @@ function toggleMoreSheet(){
   });
   sheet.style.display='block';
   overlay.style.display='block';
+  overlay.style.opacity='0';
+  sheet._msOpen=true;
+  requestAnimationFrame(function(){
+    sheet.style.transform='translateY(0)';
+    overlay.style.transition='opacity .22s ease';
+    overlay.style.opacity='1';
+  });
   document.getElementById('bnt-more').classList.add('on');
 }
 function _refreshDefaultPlatLabel(){
@@ -2465,9 +2708,18 @@ document.addEventListener('click',(e)=>{
 });
 
 function closeMoreSheet(){
-  document.getElementById('more-sheet').style.display='none';
-  document.getElementById('more-sheet-overlay').style.display='none';
-  document.getElementById('bnt-more').classList.remove('active');
+  const sheet=document.getElementById('more-sheet');
+  const overlay=document.getElementById('more-sheet-overlay');
+  sheet._msOpen=false;
+  sheet.style.transform='translateY(100%)';
+  overlay.style.opacity='0';
+  setTimeout(function(){
+    if(!sheet._msOpen){
+      sheet.style.display='none';
+      overlay.style.display='none';
+    }
+  },260);
+  document.getElementById('bnt-more').classList.remove('on');
   // Reset the sheet back to its main pane so next open starts clean
   moreSheetShowMain();
 }
@@ -2529,7 +2781,165 @@ const LEGACY_PREVIEW_STORAGE_KEYS=['general_preview_mode'];
 const _previewStored = localStorage.getItem(PREVIEW_STORAGE_KEY) === '1' || LEGACY_PREVIEW_STORAGE_KEYS.some(function(k){ return localStorage.getItem(k) === '1'; });
 const PREVIEW_MODE_ENABLED = false;
 
-function _buildPreviewDB(){return{};} // Preview only
+function _buildPreviewDB(){
+  // ── Date helpers ──────────────────────────────────────────────────────────
+  const MNTHS=['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
+  const now=new Date();
+  const ago=function(days){const d=new Date(now);d.setDate(d.getDate()-days);return d.toISOString().split('T')[0];}
+  const mkey=function(daysAgo){const d=new Date(now);d.setDate(d.getDate()-daysAgo);return MNTHS[d.getMonth()]+'-'+String(d.getFullYear()).slice(-2);}
+
+  // ── Sourcing runs ─────────────────────────────────────────────────────────
+  const run1={id:'pv-run-1',name:'Taplow Car Boot',location:'Taplow',dateStarted:ago(85),startedAtIso:new Date(ago(85)).toISOString(),dateEnded:ago(85),status:'ended',notes:'Early start — good cameras section'};
+  const run2={id:'pv-run-2',name:'Maidenhead Oxfam',location:'Maidenhead',dateStarted:ago(70),startedAtIso:new Date(ago(70)).toISOString(),dateEnded:ago(70),status:'ended',notes:'Scored Lego and a PS4 controller'};
+  const run3={id:'pv-run-3',name:'Slough Sunday Boot',location:'Slough',dateStarted:ago(54),startedAtIso:new Date(ago(54)).toISOString(),dateEnded:ago(54),status:'ended',notes:'Rain but great electronics pile'};
+  const run4={id:'pv-run-4',name:'Windsor Charity Sweep',location:'Windsor',dateStarted:ago(40),startedAtIso:new Date(ago(40)).toISOString(),dateEnded:ago(40),status:'ended',notes:'Three shops in one trip — books and games'};
+  const run5={id:'pv-run-5',name:'Reading Boot Sale',location:'Reading',dateStarted:ago(25),startedAtIso:new Date(ago(25)).toISOString(),dateEnded:ago(25),status:'ended',notes:'Massive boot — left with full boot of car'};
+  const run6={id:'pv-run-6',name:'Farnham Sunday Run',location:'Farnham',dateStarted:ago(10),startedAtIso:new Date(ago(10)).toISOString(),dateEnded:ago(10),status:'ended',notes:'Quiet day but two solid scores'};
+  _sourcingRuns=[run1,run2,run3,run4,run5,run6];
+  _activeSourcingRun=null;
+
+  // ── Item builder ──────────────────────────────────────────────────────────
+  let _gid=1;
+  const it=function(o){
+    return {
+      id:'pv-item-'+(_gid),
+      gid:'R-'+String(_gid++).padStart(4,'0'),
+      item:o.item, category:o.cat||'Electronics',
+      source:o.src||'Car boot', location:o.loc||null,
+      state:o.state||'listed',
+      dateListed:o.listed||null, dateSold:o.sold||null,
+      dateSourced:o.sourced||null,
+      salePrice:o.sp||0, costPrice:o.cp||0,
+      postage:o.post||3.20, shippingCost:o.ship||o.post||3.20,
+      packagingCost:o.pkg||0.90, promoPercent:o.promo||0,
+      estSalePrice:o.est||null,
+      isReturned:o.returned||false,
+      resaleSalePrice:o.rsp||null, resaleDateSold:o.rsd||null,
+      resaleShippingCost:o.rship||null, resalePromoPercent:o.rpromo||null,
+      resalePackagingCost:o.rpkg||null, resalePostage:o.rpost||null,
+      returnHistory:o.returns||[],
+      parts:o.parts||[], notes:o.notes||'',
+      defaultPlatform:o.plat||'ebay', soldOnPlatform:o.splat||null,
+      sourcingRunId:o.runId||null,
+      grossProfit:null,
+    };
+  }
+
+  // ── Build month buckets ───────────────────────────────────────────────────
+  const DB_={_userOwned:false,trips:[],expenses:[]};
+  // Ensure all month keys exist
+  for(let i=0;i<5;i++){const k=mkey(i*30);if(!DB_[k])DB_[k]=[];}
+  const push=function(item){const k=mkey(0); // will be re-bucketed below
+    const date=item.dateListed||item.dateSourced||ago(0);
+    const d=new Date(date);const mk=MNTHS[d.getMonth()]+'-'+String(d.getFullYear()).slice(-2);
+    if(!DB_[mk])DB_[mk]=[];DB_[mk].push(item);
+  }
+
+  // ── run1: Taplow Car Boot (85d ago) — 5 items all sold ─────────────────
+  push(it({item:'Canon EOS 1100D body',       cat:'Cameras',       src:'Car boot',     sourced:ago(85),listed:ago(84),sold:ago(70),sp:62, cp:12,post:4.99,ship:4.99,pkg:1.20,splat:'ebay',runId:'pv-run-1',notes:'Tested working, slight dust on sensor'}));
+  push(it({item:'Canon 18-55mm kit lens',      cat:'Camera Lenses', src:'Car boot',     sourced:ago(85),listed:ago(84),sold:ago(68),sp:28, cp:5, post:3.20,ship:3.20,          splat:'ebay',runId:'pv-run-1'}));
+  push(it({item:'Nintendo DS Lite + charger',  cat:'Gaming',        src:'Car boot',     sourced:ago(85),listed:ago(83),sold:ago(71),sp:22, cp:4, post:2.80,ship:2.80,          splat:'ebay',runId:'pv-run-1'}));
+  push(it({item:'Dyson V6 Slim handheld',      cat:'Hoovers',       src:'Car boot',     sourced:ago(85),listed:ago(82),sold:ago(60),sp:45, cp:8, post:5.99,ship:5.99,pkg:1.50,splat:'ebay',runId:'pv-run-1'}));
+  push(it({item:'Lego Star Wars 75177',         cat:'Lego',          src:'Car boot',     sourced:ago(85),listed:ago(83),sold:ago(55),sp:38, cp:7, post:4.50,ship:4.50,          splat:'ebay',runId:'pv-run-1'}));
+
+  // ── run2: Maidenhead Oxfam (70d ago) — 4 items all sold ──────────────────
+  push(it({item:'PS4 DualShock controller',     cat:'Gaming',        src:'Charity shop', sourced:ago(70),listed:ago(69),sold:ago(45),sp:28, cp:5, post:2.80,ship:2.80,          splat:'ebay',runId:'pv-run-2'}));
+  push(it({item:'Lego City 60141 police stn',   cat:'Lego',          src:'Charity shop', sourced:ago(70),listed:ago(69),sold:ago(40),sp:44, cp:8, post:5.50,ship:5.50,pkg:2.00,splat:'ebay',runId:'pv-run-2'}));
+  push(it({item:'Bose SoundLink Mini II',        cat:'Audio',         src:'Charity shop', sourced:ago(70),listed:ago(69),sold:ago(38),sp:55, cp:12,post:3.99,ship:3.99,pkg:1.50,splat:'ebay',runId:'pv-run-2'}));
+  push(it({item:'GoPro Hero 5 Black',            cat:'Cameras',       src:'Car boot',     sourced:ago(70),listed:ago(68),sold:ago(35),sp:58, cp:12,post:3.50,ship:3.50,pkg:1.20,splat:'ebay',runId:'pv-run-2'}));
+
+  // ── run3: Slough Sunday Boot (54d ago) — 4 sold, 1 still listed ─────────
+  push(it({item:'Dell XPS 13 charger 45W',      cat:'Laptop Acc',    src:'Car boot',     sourced:ago(54),listed:ago(53),sold:ago(30),sp:22, cp:3, post:2.40,ship:2.40,          splat:'ebay',runId:'pv-run-3'}));
+  push(it({item:'Razer BlackWidow keyboard',     cat:'Peripherals',   src:'Car boot',     sourced:ago(54),listed:ago(52),sold:ago(28),sp:35, cp:8, post:5.50,ship:5.50,pkg:2.00,splat:'ebay',runId:'pv-run-3'}));
+  push(it({item:'Sony PSP 3003',                 cat:'Gaming',        src:'Car boot',     sourced:ago(54),listed:ago(53),sold:ago(35),sp:32, cp:6, post:3.99,ship:3.99,          splat:'ebay',runId:'pv-run-3',notes:'Needed new battery'}));
+  push(it({item:'Olympus OM-10 35mm SLR',        cat:'Cameras',       src:'Car boot',     sourced:ago(54),listed:ago(53),sold:ago(33),sp:48, cp:9, post:4.50,ship:4.50,pkg:1.50,splat:'ebay',runId:'pv-run-3'}));
+  push(it({item:'North Face Puffa jacket M',     cat:'Jackets',       src:'Car boot',     sourced:ago(54),listed:ago(52),           sp:32, cp:6, post:4.50,ship:4.50,est:32,state:'listed',runId:'pv-run-3'}));
+
+  // ── run4: Windsor Charity Sweep (40d ago) — 4 items all sold ────────────
+  push(it({item:'Game Boy Advance SP + games',   cat:'Gaming',        src:'Charity shop', sourced:ago(40),listed:ago(39),sold:ago(22),sp:48, cp:10,post:3.50,ship:3.50,pkg:1.20,splat:'ebay',runId:'pv-run-4'}));
+  push(it({item:'Lego Friends 41450 mall',        cat:'Lego',          src:'Charity shop', sourced:ago(40),listed:ago(39),sold:ago(20),sp:36, cp:7, post:4.50,ship:4.50,pkg:1.50,splat:'ebay',runId:'pv-run-4'}));
+  push(it({item:'Harry Potter complete set',      cat:'Books',         src:'Charity shop', sourced:ago(40),listed:ago(38),sold:ago(18),sp:42, cp:8, post:5.99,ship:5.99,pkg:2.00,splat:'ebay',runId:'pv-run-4'}));
+  push(it({item:'Tonka digger toy diecast',       cat:'Toys',          src:'Charity shop', sourced:ago(40),listed:ago(39),sold:ago(15),sp:24, cp:3, post:3.20,ship:3.20,          splat:'ebay',runId:'pv-run-4'}));
+
+  // ── run5: Reading Boot Sale (25d ago) — 2 sold, 3 listed ────────────────
+  push(it({item:'Bose QC25 headphones',           cat:'Audio',         src:'Car boot',     sourced:ago(25),listed:ago(24),sold:ago(8), sp:68, cp:14,post:4.99,ship:4.99,pkg:1.50,splat:'ebay',runId:'pv-run-5'}));
+  push(it({item:'Sennheiser HD 280 Pro',           cat:'Audio',         src:'Car boot',     sourced:ago(25),listed:ago(24),sold:ago(12),sp:38, cp:8, post:4.50,ship:4.50,          splat:'ebay',runId:'pv-run-5'}));
+  push(it({item:'Stanley Multi-tool set',          cat:'Tools',         src:'Car boot',     sourced:ago(25),listed:ago(24),            sp:32, cp:6, post:5.50,ship:5.50,est:32,state:'listed',runId:'pv-run-5'}));
+  push(it({item:'Vintage Tonka truck red',          cat:'Toys',          src:'Car boot',     sourced:ago(25),listed:ago(23),            sp:28, cp:5, post:5.50,ship:5.50,est:28,state:'listed',runId:'pv-run-5'}));
+  push(it({item:'Polaroid SX-70 camera',            cat:'Cameras',       src:'Car boot',     sourced:ago(25),listed:ago(23),            sp:55, cp:12,post:5.99,ship:5.99,pkg:1.50,est:55,state:'listed',runId:'pv-run-5'}));
+
+  // ── run6: Farnham Sunday Run (10d ago) — 1 sold, 1 listed, 2 in stock ───
+  push(it({item:'Microsoft Sculpt keyboard',       cat:'Peripherals',   src:'Car boot',     sourced:ago(10),listed:ago(9),sold:ago(3), sp:28, cp:5, post:3.99,ship:3.99,          splat:'ebay',runId:'pv-run-6'}));
+  push(it({item:'Nikon D40 DSLR body',              cat:'Cameras',       src:'Car boot',     sourced:ago(10),listed:ago(9),             sp:55, cp:18,post:5.99,ship:5.99,pkg:1.50,est:55,state:'listed',runId:'pv-run-6',notes:'Body only, low shutter count'}));
+  push(it({item:'Vintage Pyrex casserole set',      cat:'Kitchen',       src:'Car boot',     sourced:ago(10),                           cp:7,                                    est:32,state:'sourced',runId:'pv-run-6'}));
+  push(it({item:'Boxed Monopoly vintage edition',   cat:'Games',         src:'Car boot',     sourced:ago(10),                           cp:4,                                    est:22,state:'sourced',runId:'pv-run-6'}));
+
+  // ── RETURNED + RELISTED ───────────────────────────────────────────────────
+  const samsungId='pv-item-'+_gid;
+  push(it({item:'Samsung Galaxy S9 64GB',cat:'Phones',src:'Car boot',sourced:ago(50),listed:ago(49),sold:ago(32),sp:48,cp:14,post:3.75,ship:3.75,returned:true,
+    rsp:52,rsd:ago(10),rship:3.75,rpkg:1.00,rpromo:0,rpost:3.75,state:'listed',
+    returns:[{id:'pv-ret-1',type:'full_seller',refundAmount:48,loggedAt:new Date(ago(25)).toISOString(),notes:'Buyer claimed not as described',_dateSoldAtReturn:ago(32),_salePriceAtReturn:48}],
+    notes:'Returned — relisted and resold'}));
+
+  // ── Non-run sold items — general stock history ────────────────────────────
+  push(it({item:'Apple iPhone 7 128GB',           cat:'Phones',        src:'Charity shop', sourced:ago(78),listed:ago(77),sold:ago(62),sp:72, cp:18,post:3.75,ship:3.75,pkg:1.00,splat:'ebay'}));
+  push(it({item:'Vintage Casio F-91W',             cat:'Watches',       src:'Car boot',     sourced:ago(75),listed:ago(74),sold:ago(58),sp:18, cp:2, post:1.50,ship:1.50,          splat:'vinted'}));
+  push(it({item:'Sony WH-1000XM3 headphones',      cat:'Audio',         src:'Facebook',     sourced:ago(72),listed:ago(71),sold:ago(50),sp:85, cp:22,post:4.99,ship:4.99,pkg:2.00,splat:'ebay',notes:'Missing 3.5mm cable, stated in listing'}));
+  push(it({item:'JBL Charge 3 speaker',             cat:'Audio',         src:'Charity shop', sourced:ago(68),listed:ago(67),sold:ago(44),sp:32, cp:6, post:3.99,ship:3.99,          splat:'ebay'}));
+  push(it({item:'Lego Technic 42082',               cat:'Lego',          src:'Car boot',     sourced:ago(65),listed:ago(64),sold:ago(40),sp:52, cp:10,post:5.50,ship:5.50,pkg:1.50,splat:'ebay'}));
+  push(it({item:'Nike Air Max 95 size 10',          cat:'Trainers',      src:'Charity shop', sourced:ago(62),listed:ago(61),sold:ago(38),sp:55, cp:9, post:4.99,ship:4.99,          splat:'ebay'}));
+  push(it({item:'Garmin Forerunner 235',             cat:'Watches',       src:'Facebook',     sourced:ago(60),listed:ago(59),sold:ago(35),sp:62, cp:15,post:3.50,ship:3.50,pkg:1.00,splat:'ebay'}));
+  push(it({item:'Beats Solo3 Wireless',             cat:'Audio',         src:'Car boot',     sourced:ago(58),listed:ago(57),sold:ago(30),sp:42, cp:8, post:3.99,ship:3.99,          splat:'ebay'}));
+  push(it({item:'Fitbit Charge 4',                  cat:'Smartwatches',  src:'Charity shop', sourced:ago(48),listed:ago(47),sold:ago(33),sp:32, cp:7, post:2.80,ship:2.80,          splat:'ebay'}));
+  push(it({item:'Apple AirPods 2nd gen',            cat:'Audio',         src:'Facebook',     sourced:ago(45),listed:ago(44),sold:ago(28),sp:48, cp:15,post:2.80,ship:2.80,pkg:1.00,splat:'ebay'}));
+  push(it({item:'Vintage Levi denim jacket',        cat:'Jackets',       src:'Charity shop', sourced:ago(35),listed:ago(34),sold:ago(17),sp:38, cp:6, post:4.50,ship:4.50,          splat:'vinted'}));
+  push(it({item:'Lego Architecture 21041',          cat:'Lego',          src:'Car boot',     sourced:ago(32),listed:ago(31),sold:ago(14),sp:42, cp:8, post:5.50,ship:5.50,pkg:1.50,splat:'ebay'}));
+  push(it({item:'Penguin Classics 30-book lot',     cat:'Books',         src:'Car boot',     sourced:ago(28),listed:ago(27),sold:ago(13),sp:35, cp:5, post:6.99,ship:6.99,pkg:2.50,splat:'ebay'}));
+  push(it({item:'Vintage Schwinn road bike',        cat:'Sports',        src:'Facebook',     sourced:ago(20),listed:ago(19),sold:ago(5), sp:165,cp:45,post:0,  ship:0,              splat:'facebook',notes:'Collection only, sold same week'}));
+  push(it({item:'Anker Powercore 20100mAh',         cat:'Electronics',   src:'Car boot',     sourced:ago(40),listed:ago(39),sold:ago(15),sp:18, cp:3, post:2.40,ship:2.40,          splat:'ebay'}));
+  push(it({item:'Kindle Paperwhite 3rd gen',        cat:'Tablets',       src:'Car boot',     sourced:ago(68),listed:ago(67),sold:ago(44),sp:28, cp:5, post:2.80,ship:2.80,          splat:'ebay'}));
+
+  // ── Active listed items ───────────────────────────────────────────────────
+  push(it({item:'Pentax K1000 film camera',         cat:'Cameras',       src:'Car boot',     sourced:ago(45),listed:ago(44),sp:38, cp:8, post:4.99,ship:4.99,          est:38, state:'listed',notes:'Fully mechanical, working shutter'}));
+  push(it({item:'Vitamix 5200 blender',             cat:'Kitchen',       src:'Charity shop', sourced:ago(42),listed:ago(41),sp:78, cp:15,post:7.99,ship:7.99,pkg:2.50,est:78, state:'listed'}));
+  push(it({item:"Levi's 501 W32 L30",               cat:'Jeans',         src:'Charity shop', sourced:ago(40),listed:ago(39),sp:24, cp:4, post:2.99,ship:2.99,          est:24, state:'listed'}));
+  push(it({item:'Fujifilm Instax Mini 9',           cat:'Cameras',       src:'Car boot',     sourced:ago(38),listed:ago(37),sp:22, cp:5, post:2.80,ship:2.80,          est:22, state:'listed'}));
+  push(it({item:'Kindle Fire HD 8 8th gen',         cat:'Tablets',       src:'Charity shop', sourced:ago(35),listed:ago(34),sp:32, cp:7, post:2.80,ship:2.80,          est:32, state:'listed'}));
+
+  // ── Sourced (in stock) ────────────────────────────────────────────────────
+  push(it({item:'Panasonic Lumix TZ70',             cat:'Cameras',       src:'Car boot',     sourced:ago(8), cp:14,est:55,state:'sourced',notes:'Fully working, good condition'}));
+  push(it({item:'Lego Minecraft 21137',             cat:'Lego',          src:'Car boot',     sourced:ago(6), cp:7, est:38,state:'sourced'}));
+  push(it({item:'Adidas Samba OG W size 6',         cat:'Trainers',      src:'Charity shop', sourced:ago(4), cp:5, est:45,state:'sourced'}));
+  push(it({item:'Apple Watch Series 3 42mm',        cat:'Smartwatches',  src:'Car boot',     sourced:ago(3), cp:12,est:35,state:'sourced',notes:'Battery 78%, working'}));
+  push(it({item:'Wii console + 2 controllers',      cat:'Gaming',        src:'Car boot',     sourced:ago(2), cp:10,est:32,state:'sourced'}));
+  push(it({item:'Canon Pixma printer (spares)',     cat:'Printers',      src:'Charity shop', sourced:ago(1), cp:2, est:14,state:'sourced',notes:'For parts — ink heads only'}));
+
+  // ── Trips ─────────────────────────────────────────────────────────────────
+  DB_.trips=[
+    {id:'pv-trip-1',date:ago(85),description:'Taplow Car Boot',mileage:14,ratePerMile:0.45,expenses:[{description:'Parking',amount:2.00,date:ago(85)}],sourcingRunId:'pv-run-1'},
+    {id:'pv-trip-2',date:ago(70),description:'Maidenhead Oxfam run',mileage:9,ratePerMile:0.45,expenses:[],sourcingRunId:'pv-run-2'},
+    {id:'pv-trip-3',date:ago(40),description:'Windsor charity shop crawl',mileage:16,ratePerMile:0.45,expenses:[],sourcingRunId:'pv-run-4'},
+    {id:'pv-trip-4',date:ago(54),description:'Slough Sunday Boot',mileage:22,ratePerMile:0.45,expenses:[{description:'Entry fee',amount:3.00,date:ago(54)},{description:'Parking',amount:2.50,date:ago(54)}],sourcingRunId:'pv-run-3'},
+    {id:'pv-trip-5',date:ago(25),description:'Reading Boot Sale',mileage:28,ratePerMile:0.45,expenses:[{description:'Entry fee',amount:4.00,date:ago(25)},{description:'Coffee',amount:3.20,date:ago(25)}],sourcingRunId:'pv-run-5'},
+    {id:'pv-trip-6',date:ago(10),description:'Farnham Sunday Run',mileage:18,ratePerMile:0.45,expenses:[{description:'Entry',amount:2.00,date:ago(10)}],sourcingRunId:'pv-run-6'},
+    {id:'pv-trip-7',date:ago(7),description:'Quick Aldershot scout',mileage:8,ratePerMile:0.45,expenses:[],sourcingRunId:null},
+  ];
+
+  // ── Expenses ──────────────────────────────────────────────────────────────
+  DB_.expenses=[
+    {id:'pv-exp-1',date:ago(80),description:'Bubble wrap roll 50m',amount:8.99,category:'Packaging Materials',sourcingRunId:null},
+    {id:'pv-exp-2',date:ago(75),description:'Small jiffy bags x100',amount:12.49,category:'Packaging Materials',sourcingRunId:null},
+    {id:'pv-exp-3',date:ago(60),description:'Poly mailers 100pk',amount:9.99,category:'Packaging Materials',sourcingRunId:null},
+    {id:'pv-exp-4',date:ago(55),description:'Cardboard boxes assorted',amount:14.50,category:'Packaging Materials',sourcingRunId:null},
+    {id:'pv-exp-5',date:ago(45),description:'Tape gun + rolls',amount:6.99,category:'Shipping Supplies',sourcingRunId:null},
+    {id:'pv-exp-6',date:ago(30),description:'Thermal label printer rolls',amount:11.99,category:'Shipping Supplies',sourcingRunId:null},
+    {id:'pv-exp-7',date:ago(20),description:'Phone repair kit',amount:7.50,category:'Parts & Repairs',sourcingRunId:null},
+    {id:'pv-exp-8',date:ago(10),description:'Bubble wrap refill',amount:7.49,category:'Packaging Materials',sourcingRunId:null},
+    {id:'pv-exp-9',date:ago(85),description:'Boot run snacks & fuel stop',amount:6.00,category:'Travel',sourcingRunId:'pv-run-1'},
+  ];
+
+  return DB_;
+}
 
 function enablePreviewMode(){
   _previewMode = true;
@@ -2594,7 +3004,7 @@ async function doSignIn(){
   const btn   = document.getElementById('auth-btn');
   errEl.style.display = 'none';
   btn.style.display = 'none';
-  ldEl.style.display = 'block';
+  ldEl.style.display = 'flex';
   const {error} = await _sb.auth.signInWithPassword({email, password: pass});
   if(error){
     // Translate Supabase error codes into plain English
@@ -2632,8 +3042,7 @@ function showLoginScreen(){
   document.getElementById('auth-screen-reset').style.display = 'none';
   document.getElementById('auth-screen-login').style.display = 'block';
   // Gate: hide dev bypass button unless this is a dev build
-  const _pb = document.getElementById('preview-btn');
-  if(_pb) _pb.style.display = PREVIEW_MODE_ENABLED ? 'block' : 'none';
+  // preview-btn stripped
 }
 
 async function doResetPassword(){
@@ -2651,7 +3060,7 @@ async function doResetPassword(){
   }
   errEl.style.display = 'none';
   btn.style.display = 'none';
-  ldEl.style.display = 'block';
+  ldEl.style.display = 'flex';
   const {error} = await _sb.auth.resetPasswordForEmail(email, {
     redirectTo: window.location.origin + window.location.pathname
   });
@@ -4737,11 +5146,9 @@ function openPanel(title,content,pushHistory,_meta){
 }
 function closePanel(){
   const panel=document.getElementById('slide-panel');
-  document.getElementById('panel-overlay').classList.remove('on');
-  document.getElementById('panel-overlay').classList.remove('active');
-  panel.classList.remove('dragging');
-  panel.classList.remove('active');
-  panel.classList.remove('on');
+  const overlay=document.getElementById('panel-overlay');
+  overlay.classList.remove('on');
+  panel.classList.remove('dragging','on');
   PANEL_STACK=[];
   unlockBodyScroll();
   updatePanelNav();
@@ -5515,7 +5922,7 @@ function _renderRunPage(run){
   const heroColor=netBestCase>=0?'var(--green)':'var(--red)';
   const hero='<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:18px 20px;margin-bottom:10px;">'
     +'<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--muted);margin-bottom:6px;">'+heroLabel+'</div>'
-    +'<div style="font-size:32px;font-weight:800;letter-spacing:-0.04em;color:'+heroColor+';line-height:1.1;">\u00a3'+netBestCase.toFixed(2)+'</div>'
+    +'<div class="run-hero-val" style="font-size:32px;font-weight:800;letter-spacing:-0.04em;color:'+heroColor+';line-height:1.1;">\u00a3'+netBestCase.toFixed(2)+'</div>'
     +'<div style="font-size:11px;color:var(--text-secondary);margin-top:5px;line-height:1.5;">'+heroSub+'</div>'
     +(totalROI!==null?'<div style="display:inline-block;margin-top:8px;font-size:11px;font-weight:700;padding:3px 9px;border-radius:6px;background:var(--surface2);color:var(--text-secondary);">'+totalROI.toFixed(1)+'% ROI on \u00a3'+totalSpent.toFixed(2)+'</div>':'')
   +'</div>';
@@ -14046,10 +14453,12 @@ function esc(s){
 
 function toast(msg,type=''){
   const el=document.getElementById('toast');
+  if(!el)return;
   el.textContent=msg;
-  el.className=type==='err'?'on err':'on';
+  const cls=type==='err'||type==='error'?'on err':type==='success'?'on success':'on';
+  el.className=cls;
   clearTimeout(el._t);
-  el._t=setTimeout(()=>el.classList.remove('on','err'),3000);
+  el._t=setTimeout(function(){el.classList.remove('on','err','success');},2800);
 }
 
 // ── Inline field saves on item full page ─────────────────────────────────────
@@ -14629,7 +15038,3 @@ window.addEventListener('load', function(){
 
 </body>
 </html>
-<style>
-.nav-more.open .nav-more-btn{color:var(--text)!important;background:none!important;box-shadow:none!important;}
-#nav-more-menu button{display:flex;}
-</style>
