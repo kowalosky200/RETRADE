@@ -420,8 +420,8 @@ nav:not(#bottom-nav){position:sticky;top:env(safe-area-inset-top,0px);z-index:20
 .chip.chip-state-sourced.active{background:var(--accent-dim);color:var(--accent);border-color:rgba(212,136,10,0.35);}
 .chip.chip-state-listed.active{background:rgba(96,165,250,0.13);color:var(--blue);border-color:rgba(96,165,250,0.35);}
 .chip.chip-state-all.active{background:var(--surface2);color:var(--text);border-color:var(--border);}
-.plat-badge{font-size:10px;padding:2px 6px;border-radius:5px;font-weight:600;letter-spacing:0.3px;background:var(--surface2);border:1px solid var(--border2);color:var(--text-secondary);white-space:nowrap;}
-.plat-badge.vinted{background:var(--surface2);border-color:var(--border2);color:var(--text-secondary);}
+.plat-badge{font-size:10px;padding:2px 6px;border-radius:5px;font-weight:600;letter-spacing:0.3px;background:rgba(245,175,2,0.12);border:1px solid rgba(245,175,2,0.35);color:#c48a00;white-space:nowrap;}
+.plat-badge.vinted{background:rgba(0,119,130,0.12);border-color:rgba(0,119,130,0.35);color:#007782;}
 .plat-badge.depop{background:rgba(255,70,70,0.1);border-color:rgba(255,70,70,0.25);color:#e03030;}
 .plat-badge.fb{background:rgba(24,119,242,0.1);border-color:rgba(24,119,242,0.25);color:#1877f2;}
 .plat-badge.amazon_uk{background:rgba(255,153,0,0.12);border-color:rgba(255,153,0,0.3);color:#c45a00;}
@@ -1159,7 +1159,7 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
 .summary-kpis .klabel br{display:none;} /* default hidden */
 .stock-kpis .klabel br{display:none;} /* default hidden */
 .kval,.stat-num,.stat-num-sm,.stat-num-xs,.insight-val{font-variant-numeric:tabular-nums lining-nums;letter-spacing:-0.05em;}
-.kval{font-size:clamp(20px,13cqi,34px)!important;font-weight:800;margin:10px 0 6px;line-height:1.05;overflow:visible;white-space:normal;}
+.kval{font-size:clamp(22px,14cqi,38px)!important;font-weight:800;margin:10px 0 6px;line-height:1.05;overflow:visible;white-space:normal;}
 .ksub{font-size:13px;color:var(--text-secondary)}
 .insights{gap:14px;grid-template-columns:1fr;}
 .insight-card{border-radius:18px;padding:16px 16px;border:1px solid var(--border);box-shadow:0 10px 26px var(--shadow);align-items:flex-start;}
@@ -1233,7 +1233,7 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
 .metric-inline.clickable:hover,.panel-card.clickable:hover{background:color-mix(in srgb,var(--surface2) 55%, transparent);}
 .category-mini-row:hover{background:color-mix(in srgb,var(--surface2) 72%, transparent);}
 .metric-k{font-size:13px;color:var(--text-secondary);font-weight:600;}
-.metric-v{font-size:clamp(20px,9cqi,26px);font-weight:800;letter-spacing:-.05em;}
+.metric-v{font-size:clamp(18px,8cqi,23px);font-weight:800;letter-spacing:-.05em;}
 .hero-title{font-size:42px;font-weight:800;letter-spacing:-.06em;line-height:1.0;}
 .hero-sub{font-size:14px;color:var(--text-secondary);margin-top:8px;max-width:720px;}
 .dashboard-kicker{display:flex;align-items:center;gap:10px;font-size:11px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--accent);margin:8px 0 8px;}
@@ -3807,6 +3807,42 @@ function refreshActivePage(){
 // BUYER PROTECTION FEE (Tiered eBay UK formula)
 // calcBuyerProtectionFee: now uses unified iterative calcEbayBPF
 function calcBuyerProtectionFee(p){return calcEbayBPF(p);}
+function toggleItemPlatformPicker(m,id){
+  const picker=document.getElementById('ip-plat-picker-'+id);
+  if(!picker)return;
+  const isOpen=picker.style.display!=='none';
+  picker.style.display=isOpen?'none':'';
+  if(!isOpen){
+    // Close on outside click
+    setTimeout(()=>{
+      const close=function(e){
+        if(!picker.contains(e.target)&&e.target.id!=='ip-plat-btn-'+id){
+          picker.style.display='none';
+          document.removeEventListener('click',close);
+        }
+      };
+      document.addEventListener('click',close);
+    },0);
+  }
+}
+
+async function setItemPlatform(m,id,platId){
+  // Close picker
+  const picker=document.getElementById('ip-plat-picker-'+id);
+  if(picker)picker.style.display='none';
+
+  const items=DB[m]||[];
+  const i=items.find(x=>x.id===id);
+  if(!i)return;
+  if(i.defaultPlatform===platId)return; // no change
+
+  i.defaultPlatform=platId;
+  await saveDB();
+  // Re-render item page to show updated P&L
+  renderItemPage(m,id);
+  toast('Platform updated to '+(PLATFORMS[platId]?PLATFORMS[platId].label:platId));
+}
+
 function platBadgeHTML(i){
   const p=_itemPlatform(i);
   if(!p||p==='ebay')return '';
@@ -4580,7 +4616,37 @@ function renderItemPage(m,id){
   html+='<span class="ip-chip">'+m+'</span>';
   html+='<div class="item-badge '+status+'">'+status+'</div>';
   const _platBadge=platBadgeHTML(i);
-  if(_platBadge)html+=_platBadge;
+  if(_platBadge&&status!=='active'){
+    html+=_platBadge;
+  } else if(status==='active'){
+    // Tappable platform selector for listed items — change & instantly see P&L impact
+    const _curPlat=_itemPlatform(i);
+    const _livePlats=Object.values(PLATFORMS).filter(p=>p.live);
+    // Match .plat-badge colours per platform (same as the CSS definitions)
+    const _platBtnStyle=(function(p){
+      if(p==='vinted')return 'background:rgba(0,119,130,0.12);border-color:rgba(0,119,130,0.35);color:#007782;';
+      if(p==='depop')return 'background:rgba(255,70,70,0.1);border-color:rgba(255,70,70,0.25);color:#e03030;';
+      if(p==='fb')return 'background:rgba(24,119,242,0.1);border-color:rgba(24,119,242,0.25);color:#1877f2;';
+      if(p==='amazon_uk')return 'background:rgba(255,153,0,0.12);border-color:rgba(255,153,0,0.3);color:#c45a00;';
+      // ebay, ebay_biz — yellow
+      return 'background:rgba(245,175,2,0.12);border-color:rgba(245,175,2,0.35);color:#c48a00;';
+    })(_curPlat);
+    html+='<div style="position:relative;display:inline-block">';
+    html+='<button id="ip-plat-btn-'+id+'" onclick="toggleItemPlatformPicker(\''+m+'\',\''+id+'\')" style="display:inline-flex;align-items:center;gap:4px;font-size:10px;padding:2px 7px 2px 6px;border-radius:5px;font-weight:600;letter-spacing:0.3px;border:1px solid;cursor:pointer;font-family:inherit;-webkit-tap-highlight-color:transparent;'+_platBtnStyle+'">'
+      +(PLATFORMS[_curPlat]?PLATFORMS[_curPlat].short:_curPlat)
+      +' <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>'
+      +'</button>';
+    html+='<div id="ip-plat-picker-'+id+'" style="display:none;position:absolute;top:calc(100% + 6px);left:0;background:var(--surface);border:1px solid var(--border);border-radius:10px;box-shadow:0 4px 20px var(--shadow-md);z-index:300;min-width:160px;padding:6px">';
+    _livePlats.forEach(p=>{
+      const isActive=p.id===_curPlat;
+      html+='<button onclick="setItemPlatform(\''+m+'\',\''+id+'\',\''+p.id+'\')" style="display:flex;align-items:center;gap:8px;width:100%;padding:8px 10px;background:'+(isActive?'var(--accent-dim)':'transparent')+';border:none;border-radius:7px;cursor:pointer;font-family:inherit;color:'+(isActive?'var(--accent)':'var(--text)')+';font-size:12px;font-weight:'+(isActive?'700':'500')+';text-align:left">'
+        +'<span class="plat-badge '+(p.id==='ebay_biz'?'ebay':p.id)+'" style="font-size:10px">'+p.short+'</span>'
+        +p.label
+        +(isActive?' ✓':'')
+        +'</button>';
+    });
+    html+='</div></div>';
+  }
   html+='</div></div></div>';
   html+='</div>'; // ip-topbar
 
