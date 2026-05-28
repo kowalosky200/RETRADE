@@ -1157,6 +1157,7 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
 @media(hover:hover){.kcard:hover{transform:translateY(-3px);box-shadow:0 16px 42px var(--shadow-md);}}
 .klabel{font-size:11px;font-weight:800;letter-spacing:.10em;color:var(--muted);white-space:normal;line-height:1.3;} 
 .summary-kpis .klabel br{display:none;} /* default hidden */
+.stock-kpis .klabel br{display:none;} /* default hidden */
 .kval,.stat-num,.stat-num-sm,.stat-num-xs,.insight-val{font-variant-numeric:tabular-nums lining-nums;letter-spacing:-0.05em;}
 .kval{font-size:clamp(20px,13cqi,34px)!important;font-weight:800;margin:10px 0 6px;line-height:1.05;overflow:visible;white-space:normal;}
 .ksub{font-size:13px;color:var(--text-secondary)}
@@ -1253,6 +1254,7 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
 /* ===== Mobile ≤480px ===== */
 @media(max-width:480px){
   .summary-kpis .klabel br{display:inline!important;}
+  .stock-kpis .klabel br{display:inline!important;}
   /* KPI cards: keep 2-col — handled above at 600px; kgrid-1col already single-col */
   .kgrid,.kgrid-4,.kgrid-3{grid-template-columns:1fr 1fr!important;}
   .kcard{padding:14px 14px 12px;min-height:100px;height:auto;border-radius:16px;}
@@ -1649,6 +1651,14 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
             <span style="flex:1;text-align:left;display:flex;flex-direction:column;gap:1px;">
               <span style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;font-weight:700;">Default platform</span>
               <span id="user-menu-defplat-label" style="font-size:13px;color:var(--text);font-weight:500;">eBay UK</span>
+            </span>
+          </button>
+          <div class="user-menu-divider"></div>
+          <button class="user-menu-item" onclick="event.stopPropagation();openShippingPoliciesPanel();closeUserMenu()">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l2-1.14"/><path d="M16.5 9.4 7.55 4.24"/><polyline points="3.29 7 12 12 20.71 7"/><line x1="12" y1="22" x2="12" y2="12"/><circle cx="18.5" cy="15.5" r="2.5"/><path d="M20.27 17.27 22 19"/></svg>
+            <span style="flex:1;text-align:left;display:flex;flex-direction:column;gap:1px;">
+              <span style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;font-weight:700;">Shipping policies</span>
+              <span id="user-menu-policies-label" style="font-size:13px;color:var(--text);font-weight:500;">Saved delivery presets</span>
             </span>
           </button>
           <div class="user-menu-divider"></div>
@@ -2107,6 +2117,7 @@ function _migrateBareDBKeys(){
   });
 }
 const STORAGE_KEY='retrade_db_v1';
+const SHIPPING_POLICIES_KEY='retrade_shipping_policies';
 const LEGACY_STORAGE_KEYS=['ebay_db_v7'];
 const THEME_KEY='retrade_theme';
 const LEGACY_THEME_KEYS=['ebay_theme'];
@@ -2232,6 +2243,137 @@ function _getDefaultPlatform(){
 }
 function _setDefaultPlatform(p){
   try{ localStorage.setItem('_rtrade_default_platform',p); }catch(e){}
+}
+
+// Shipping policies — saved name → {yourCost, buyerPays}
+function getShippingPolicies(){
+  try{const v=localStorage.getItem(SHIPPING_POLICIES_KEY);return v?JSON.parse(v):[];}catch(e){return[];}
+}
+function saveShippingPolicy(name,yourCost,buyerPays){
+  const policies=getShippingPolicies().filter(p=>p.name!==name);
+  policies.push({name,yourCost:+yourCost||0,buyerPays:+buyerPays||0});
+  try{localStorage.setItem(SHIPPING_POLICIES_KEY,JSON.stringify(policies));}catch(e){}
+  _refreshShippingPolicyDropdowns();
+}
+function deleteShippingPolicy(name){
+  const policies=getShippingPolicies().filter(p=>p.name!==name);
+  try{localStorage.setItem(SHIPPING_POLICIES_KEY,JSON.stringify(policies));}catch(e){}
+  _refreshShippingPolicyDropdowns();
+}
+function _refreshShippingPolicyDropdowns(){
+  // Re-render all open policy dropdowns after add/delete
+  ['qa-shipping-policy','edit-shipping-policy'].forEach(id=>{
+    const sel=document.getElementById(id);
+    if(!sel)return;
+    const cur=sel.value;
+    _populateShippingPolicySelect(sel);
+    sel.value=cur||'';
+  });
+  // Refresh management panel if open
+  const list=document.getElementById('shipping-policies-list');
+  if(list)_renderShippingPoliciesList();
+}
+function _populateShippingPolicySelect(sel){
+  const policies=getShippingPolicies();
+  sel.innerHTML='<option value="">— Quick-fill from saved policy —</option>'
+    +policies.map(p=>`<option value="${esc(p.name)}">${esc(p.name)} (you: £${p.yourCost.toFixed(2)} · buyer: £${p.buyerPays.toFixed(2)})</option>`).join('');
+}
+function applyShippingPolicy(selId,costId,postageId,bpfFn){
+  const sel=document.getElementById(selId);
+  if(!sel||!sel.value)return;
+  const policy=getShippingPolicies().find(p=>p.name===sel.value);
+  if(!policy)return;
+  const costEl=document.getElementById(costId);
+  const postEl=document.getElementById(postageId);
+  if(costEl)costEl.value=policy.yourCost||'';
+  if(postEl)postEl.value=policy.buyerPays||'';
+  if(typeof window[bpfFn]==='function')window[bpfFn]();
+}
+function promptSaveShippingPolicy(costId,postageId){
+  const costEl=document.getElementById(costId);
+  const postEl=document.getElementById(postageId);
+  const cost=parseFloat(costEl?.value)||0;
+  const pays=parseFloat(postEl?.value)||0;
+  const name=prompt('Name this shipping policy (e.g. "Standard 2nd Class"):');
+  if(!name||!name.trim())return;
+  saveShippingPolicy(name.trim(),cost,pays);
+  toast('Shipping policy saved: '+name.trim());
+}
+
+function _renderShippingPoliciesList(){
+  const el=document.getElementById('shipping-policies-list');
+  if(!el)return;
+  const policies=getShippingPolicies();
+  if(!policies.length){
+    el.innerHTML='<div style="color:var(--muted);font-size:13px;padding:12px 0">No saved policies yet. Add them from the delivery section when listing an item.</div>';
+    return;
+  }
+  el.innerHTML=policies.map(function(p,idx){
+    const safeN=JSON.stringify(p.name).replace(/"/g,'&quot;');
+    return '<div style="background:var(--surface2);border-radius:10px;margin-bottom:8px;overflow:hidden">'
+      +'<div style="display:flex;align-items:center;gap:12px;padding:12px 14px;cursor:pointer" onclick="_togglePolicyEdit('+idx+')">'
+      +'<div style="flex:1;min-width:0"><div style="font-weight:600;font-size:13px">'+esc(p.name)+'</div>'
+      +'<div style="font-size:12px;color:var(--text-secondary);margin-top:2px">You pay \xa3'+p.yourCost.toFixed(2)+' \xb7 Buyer pays \xa3'+p.buyerPays.toFixed(2)+'</div></div>'
+      +'<span style="font-size:11px;color:var(--accent);font-weight:600;margin-right:4px">Edit</span>'
+      +'<button onclick="event.stopPropagation();deleteShippingPolicy('+safeN+')" style="background:none;border:none;color:var(--red);font-size:20px;cursor:pointer;padding:0 4px;line-height:1;font-family:inherit">\xd7</button>'
+      +'</div>'
+      +'<div id="policy-edit-'+idx+'" style="display:none;padding:0 14px 14px;border-top:1px solid var(--border)">'
+      +'<div style="margin-top:10px;margin-bottom:8px"><label style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;font-weight:700;display:block;margin-bottom:4px">Policy name</label>'
+      +'<input id="policy-edit-name-'+idx+'" type="text" value="'+esc(p.name)+'" style="width:100%;padding:8px 10px;background:var(--surface);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;font-family:inherit"></div>'
+      +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">'
+      +'<div><label style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;font-weight:700;display:block;margin-bottom:4px">Your cost (\xa3)</label>'
+      +'<input id="policy-edit-cost-'+idx+'" type="number" step="0.01" min="0" value="'+p.yourCost+'" style="width:100%;padding:8px 10px;background:var(--surface);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;font-family:inherit"></div>'
+      +'<div><label style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;font-weight:700;display:block;margin-bottom:4px">Buyer pays (\xa3)</label>'
+      +'<input id="policy-edit-pays-'+idx+'" type="number" step="0.01" min="0" value="'+p.buyerPays+'" style="width:100%;padding:8px 10px;background:var(--surface);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;font-family:inherit"></div>'
+      +'</div><div style="display:flex;gap:8px">'
+      +'<button onclick="_savePolicyEdit('+idx+','+safeN+')" class="btn btn-p" style="flex:1;padding:8px;font-size:13px">Save</button>'
+      +'<button onclick="_togglePolicyEdit('+idx+')" class="btn" style="flex:1;padding:8px;font-size:13px">Cancel</button>'
+      +'</div></div></div>';
+  }).join('');
+}
+function _togglePolicyEdit(idx){
+  const el=document.getElementById('policy-edit-'+idx);
+  if(el)el.style.display=el.style.display==='none'?'':'none';
+}
+function _savePolicyEdit(idx,oldName){
+  const n=(document.getElementById('policy-edit-name-'+idx)?.value||'').trim();
+  const c=parseFloat(document.getElementById('policy-edit-cost-'+idx)?.value)||0;
+  const p=parseFloat(document.getElementById('policy-edit-pays-'+idx)?.value)||0;
+  if(!n){toast('Policy name required','err');return;}
+  deleteShippingPolicy(oldName);
+  saveShippingPolicy(n,c,p);
+  toast('Policy updated');
+}
+
+
+function _saveNewShippingPolicy(){
+  const n=document.getElementById('new-policy-name').value.trim();
+  const c=document.getElementById('new-policy-cost').value;
+  const p=document.getElementById('new-policy-pays').value;
+  if(!n){toast('Enter a policy name','err');return;}
+  saveShippingPolicy(n,c,p);
+  document.getElementById('new-policy-name').value='';
+  document.getElementById('new-policy-cost').value='';
+  document.getElementById('new-policy-pays').value='';
+  toast('Policy saved: '+n);
+}
+
+function openShippingPoliciesPanel(){
+  const html=`
+    <div style="margin-bottom:16px;font-size:13px;color:var(--text-secondary)">Create and manage your delivery presets. Apply them with one tap when listing items.</div>
+    <div style="background:var(--surface2);border-radius:12px;padding:16px;margin-bottom:16px">
+      <div style="font-weight:700;font-size:13px;margin-bottom:12px">Add new policy</div>
+      <div class="fg" style="margin-bottom:10px"><label>Policy name</label><input type="text" id="new-policy-name" placeholder='e.g. "Standard 2nd Class"' style="width:100%"></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
+        <div class="fg" style="margin-bottom:0"><label>Your cost (£)</label><input type="number" id="new-policy-cost" step="0.01" min="0" placeholder="0.00"></div>
+        <div class="fg" style="margin-bottom:0"><label>Buyer pays (£)</label><input type="number" id="new-policy-pays" step="0.01" min="0" placeholder="0.00"></div>
+      </div>
+      <button class="btn btn-p" style="width:100%" onclick="_saveNewShippingPolicy()">Save policy</button>
+    </div>
+    <div style="font-weight:700;font-size:13px;margin-bottom:10px">Saved policies</div>
+    <div id="shipping-policies-list"></div>`;
+  openPanel('Shipping Policies',html);
+  _renderShippingPoliciesList();
 }
 // Keep DEFAULT_PLATFORM as a live getter alias
 Object.defineProperty(window,'DEFAULT_PLATFORM',{get:_getDefaultPlatform,configurable:true});
@@ -6646,6 +6788,8 @@ function openQuickAdd(){
   if(typeof _refreshQuickAddPriceCopy==='function')_refreshQuickAddPriceCopy();
   if(typeof _refreshQuickAddSubmitState==='function')_refreshQuickAddSubmitState();
   if(typeof _refreshQuickAddDelivery==='function')_refreshQuickAddDelivery();
+  // Populate shipping policy dropdown
+  const _qaPolicySel=document.getElementById('qa-shipping-policy');if(_qaPolicySel)_populateShippingPolicySelect(_qaPolicySel);
   // Focus the item name field immediately — must be synchronous within the
   // tap gesture chain for mobile keyboard to fire reliably.
   const qaItem=document.getElementById('qa-item');
@@ -6705,6 +6849,8 @@ function openListFromSourced(m, id){
   if(typeof _refreshQuickAddPriceCopy==='function')_refreshQuickAddPriceCopy();
   if(typeof _refreshQuickAddSubmitState==='function')_refreshQuickAddSubmitState();
   if(typeof _refreshQuickAddDelivery==='function')_refreshQuickAddDelivery();
+  // Populate shipping policy dropdown
+  const _qaPolicySel=document.getElementById('qa-shipping-policy');if(_qaPolicySel)_populateShippingPolicySelect(_qaPolicySel);
   // Pre-fill fields from sourced item
   const qaItem=document.getElementById('qa-item');
   if(qaItem){ qaItem.value=i.item||''; }
@@ -7280,6 +7426,11 @@ function formHTML(){
       </div>
 
       <div id="qa-delivery-custom" style="display:none">
+        <div style="margin-bottom:8px">
+          <select id="qa-shipping-policy" onchange="applyShippingPolicy('qa-shipping-policy','qa-shipping','qa-postage','updateBPFPreview')" style="width:100%;padding:9px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text-secondary);font-size:13px">
+            <option value="">— Quick-fill from saved policy —</option>
+          </select>
+        </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
           <div class="fg" style="margin-bottom:0">
             <label style="margin-bottom:4px">Your cost (£)</label>
@@ -7290,6 +7441,7 @@ function formHTML(){
             <input type="number" id="qa-postage" step="0.01" min="0" placeholder="0.00" oninput="updateBPFPreview()">
           </div>
         </div>
+        <button type="button" onclick="promptSaveShippingPolicy('qa-shipping','qa-postage')" style="margin-top:8px;background:none;border:none;color:var(--accent);font-size:12px;font-weight:600;cursor:pointer;padding:0;font-family:inherit">+ Save as policy</button>
       </div>
       <div id="qa-vinted-postage-note" style="display:none;font-size:12px;color:var(--text-secondary);padding:8px 10px;background:var(--surface2);border-radius:8px;border:1px solid var(--border);margin-top:4px">
         📦 Buyer pays postage on Vinted — no shipping cost to you
@@ -7393,10 +7545,17 @@ function _refreshQuickAddDelivery(){
   // Mode toggle only visible on eBay
   if(modeToggle)modeToggle.style.display=isEbay?'':'none';
   if(isEbay){
-    // eBay: respect whichever mode is currently active (simple is default).
-    // Simple panel is already visible by default from the HTML; only hide custom.
-    const simpleIsActive=simplePanel&&simplePanel.style.display!=='none';
-    if(customPanel)customPanel.style.display=simpleIsActive?'none':'';
+    // eBay Biz defaults to custom; eBay private defaults to simple
+    const isBiz=_itemPlatform({defaultPlatform:document.getElementById('qa-platform')?.value||DEFAULT_PLATFORM})==='ebay_biz';
+    const currentMode=simplePanel&&simplePanel.style.display!=='none'?'simple':'custom';
+    // Only force default on first open (when both panels are in their HTML default state)
+    const bothDefault=simplePanel&&simplePanel.style.display!=='none'&&customPanel&&customPanel.style.display==='none';
+    if(bothDefault&&isBiz){
+      qaSetDeliveryMode('custom');
+    } else {
+      const simpleIsActive=simplePanel&&simplePanel.style.display!=='none';
+      if(customPanel)customPanel.style.display=simpleIsActive?'none':'';
+    }
   } else {
     // Non-eBay: always use custom delivery fields (no Simple Delivery option).
     if(simplePanel)simplePanel.style.display='none';
@@ -7597,7 +7756,6 @@ function showCategoryItems(cat,_fromBack){
   });});
   const sold=items.filter(i=>(i.dateSold||i.resaleSalePrice)&&!i.isReturned);
   const active=items.filter(i=>!i.dateSold&&!i.isReturned&&!i.resaleSalePrice);
-  // Sort: listed first (by days listed desc — most urgent top), then sold (most recent first), then returned
   items.sort((a,b)=>{
     const statusOrder=i=>{
       if(!i.dateSold&&!i.isReturned&&!i.resaleSalePrice)return 0;
@@ -7606,14 +7764,12 @@ function showCategoryItems(cat,_fromBack){
     };
     const so=statusOrder(a)-statusOrder(b);
     if(so!==0)return so;
-    // Within listed: most days listed first (most urgent)
     if(statusOrder(a)===0){
       const _today=new Date().toISOString().split('T')[0];
       const dA=a.dateListed?daysBetween(a.dateListed,_today):0;
       const dB=b.dateListed?daysBetween(b.dateListed,_today):0;
       return dB-dA;
     }
-    // Within sold: most recent sale first
     const dateA=(a.resaleDateSold||a.dateSold||'');
     const dateB=(b.resaleDateSold||b.dateSold||'');
     return dateB.localeCompare(dateA);
@@ -7621,12 +7777,14 @@ function showCategoryItems(cat,_fromBack){
   const totalProfit=sold.reduce((s,i)=>s+calcGrossProfit(i),0);
   const soldWithDate=sold.filter(i=>calcDaysToSell(i)!==null);
   const avgDays=soldWithDate.length?Math.round(soldWithDate.reduce((s,i)=>s+calcDaysToSell(i),0)/soldWithDate.length):null;
+  const backBtn=!_fromBack?`<button onclick="closePanel();showAllCategoriesModal(window.__summaryByCat)" style="background:none;border:none;color:var(--accent);font-size:13px;font-weight:600;padding:0 0 14px;cursor:pointer;font-family:inherit;-webkit-tap-highlight-color:transparent">← All categories</button>`:'';
   const html=`
+    ${backBtn}
     <div style="margin-bottom:16px;background:var(--surface2);border-radius:10px;padding:14px">
       <div style="font-size:16px;font-weight:700;margin-bottom:6px">${esc(cat)}</div>
       <div style="display:flex;gap:16px;font-size:13px;color:var(--text-secondary);flex-wrap:wrap">
         <span>${items.length} total</span>
-        <span style="color:var(--green)">${sold.length} sold · ${fmt(totalProfit)} profit</span>
+        <span style="color:${totalProfit>=0?'var(--green)':'var(--red)'}">${sold.length} sold · ${fmt(totalProfit)} profit</span>
         <span style="color:var(--muted)">${active.length} active</span>
         ${avgDays!==null?`<span style="color:var(--text-secondary)">avg ${avgDays}d to sell</span>`:''}
       </div>
@@ -8127,7 +8285,7 @@ function showAllCategoriesModal(byCat){
     const apColor=ap!==null?(ap>=0?'var(--green)':'var(--red)'):'var(--muted)';
     const staleTag=c.stale>0?'<span style="font-size:10px;background:var(--accent-dim);color:var(--accent);border-radius:999px;padding:2px 7px;margin-left:4px">'+c.stale+' stale</span>':'';
     const apBlock=apStr?'<div style="font-size:14px;font-weight:800;color:'+apColor+'">'+apStr+'</div><div style="font-size:10px;color:var(--muted);margin-top:1px">avg profit</div>':'';
-    return '<div style="display:flex;align-items:center;gap:12px;padding:11px 14px;border-radius:12px;background:var(--surface2);margin-bottom:6px;cursor:pointer;-webkit-tap-highlight-color:transparent" onclick="closeAllCategoriesModal();showCategoryItems('+JSON.stringify(c.cat).replace(/"/g,'&quot;')+')">'
+    return '<div style="display:flex;align-items:center;gap:12px;padding:11px 14px;border-radius:12px;background:var(--surface2);margin-bottom:6px;cursor:pointer;-webkit-tap-highlight-color:transparent" onclick="closeAllCategoriesModal();showCategoryItems('+JSON.stringify(c.cat).replace(/"/g,'&quot;')+',false)">'
       +'<div style="flex:1;min-width:0"><div style="font-weight:700;font-size:13px;color:var(--text);display:flex;align-items:center;gap:4px;flex-wrap:wrap">'+esc(c.cat)+staleTag+'</div>'
       +'<div style="font-size:11px;color:var(--text-secondary);margin-top:2px">'+c.sold+'/'+c.total+' sold \u00b7 '+avg+'</div></div>'
       +'<div style="text-align:right;flex-shrink:0">'+apBlock+'<div style="font-size:11px;font-weight:600;color:var(--text-secondary);margin-top:'+(apStr?'2':'0')+'px">'+sellPct+'% sold</div></div></div>';
@@ -9266,12 +9424,12 @@ function renderMonth(){
         <div class="ksub">${stats.totalRev>0?(stats.realisedProfit/stats.totalRev*100).toFixed(0)+'% margin':'—'}</div>
       </div>
       <div class="kcard">
-        <div class="klabel">Avg <br>ROI</div>
+        <div class="klabel">Avg ROI</div>
         <div class="kval">${stats.avgROI!==null?stats.avgROI.toFixed(1)+'%':'—'}</div>
         <div class="ksub">${stats.avgDays!==null?stats.avgDays+'d avg to sell':stats.soldCount===0?'No sales':'—'}</div>
       </div>
       <div class="kcard r">
-        <div class="klabel">Refund <br>rate</div>
+        <div class="klabel">Refund rate</div>
         <div class="kval">${refundLabel}</div>
         <div class="ksub">${refundSub}</div>
       </div>
@@ -10104,20 +10262,20 @@ function renderStock(){
     ];
   } else if(isListedOnly){
     kpis=[
-      {cls:'b',label:'Potential revenue', val:fmt(totalValue),       sub:'Sum of asking prices'},
-      {cls:'g',label:'Estimated profit',  val:fmt(potentialProfit),  sub:'If every item sells'},
-      {cls:'', label:'Avg asking price',  val:fmt(avgAsking),        sub:'Per active listing'},
-      {cls:'p',label:'Avg listing age',   val:allListed.length?avgListingAge+'d':'—',
-       sub:capitalStale>0?fmt(capitalStale)+' stale (90d+)':allListed.length?'All moving well':'—',
+      {cls:'b',label:'Potential<br>revenue', val:fmtK(totalValue),       sub:'Sum of asking prices'},
+      {cls:'g',label:'Estimated<br>profit',  val:fmtK(potentialProfit),  sub:'If every item sells'},
+      {cls:'', label:'Avg asking<br>price',  val:fmtK(avgAsking),        sub:'Per active listing'},
+      {cls:'p',label:'Avg listing<br>age',   val:allListed.length?avgListingAge+'d':'—',
+       sub:capitalStale>0?fmtK(capitalStale)+' stale (90d+)':allListed.length?'All moving well':'—',
        click:cStale>0?"openDashboardStock('stale')":''}
     ];
   } else {
     kpis=[
-      {cls:'b',label:'Total inventory value',val:fmt(totalValue),      sub:'Listed asking + sourced cost'},
-      {cls:'g',label:'Estimated profit',     val:fmt(potentialProfit), sub:'If every listed item sells'},
-      {cls:'', label:'Avg asking price',     val:fmt(avgAsking),       sub:'Per listed item'},
-      {cls:'p',label:'Avg listing age',      val:allListed.length?avgListingAge+'d':'—',
-       sub:capitalStale>0?fmt(capitalStale)+' stale (90d+)':allListed.length?'All moving well':'—',
+      {cls:'b',label:'Total inventory<br>value',val:fmtK(totalValue),      sub:'Listed asking + sourced cost'},
+      {cls:'g',label:'Estimated<br>profit',     val:fmtK(potentialProfit), sub:'If every listed item sells'},
+      {cls:'', label:'Avg asking<br>price',     val:fmtK(avgAsking),       sub:'Per listed item'},
+      {cls:'p',label:'Avg listing<br>age',      val:allListed.length?avgListingAge+'d':'—',
+       sub:capitalStale>0?fmtK(capitalStale)+' stale (90d+)':allListed.length?'All moving well':'—',
        click:cStale>0?"openDashboardStock('stale')":''}
     ];
   }
@@ -10147,7 +10305,7 @@ function renderStock(){
         </div>
       </div>
     </div>
-    <div class="kgrid kgrid-4">${kpiHTML}</div>
+    <div class="kgrid kgrid-4 stock-kpis">${kpiHTML}</div>
     ${(()=>{
       // 2-option toggle: Listed ↔ Sourced. No 'All' — you're always in one mode.
       const stateBuckets=[
@@ -12087,6 +12245,11 @@ function editItem(m,id){
         <div style="font-size:11px;color:var(--muted);margin-top:6px">eBay calculates these — check your listing for the exact values</div>
       </div>
       <div id="edit-delivery-custom" style="display:${_editPostMode==='custom'?'block':'none'}">
+        <div style="margin-bottom:8px">
+          <select id="edit-shipping-policy" onchange="applyShippingPolicy('edit-shipping-policy','edit-shipping-c','edit-postage-c','updateEditBPFPreview')" style="width:100%;padding:9px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text-secondary);font-size:13px">
+            <option value="">— Quick-fill from saved policy —</option>
+          </select>
+        </div>
         <div class="form-grid-2" style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
           <div class="fg" style="margin-bottom:0">
             <label style="margin-bottom:4px">Your cost (£)</label>
@@ -12097,6 +12260,7 @@ function editItem(m,id){
             <input type="number" id="edit-postage-c" step="0.01" min="0" placeholder="0.00" value="${item.postage||0}">
           </div>
         </div>
+        <button type="button" onclick="promptSaveShippingPolicy('edit-shipping-c','edit-postage-c')" style="margin-top:8px;background:none;border:none;color:var(--accent);font-size:12px;font-weight:600;cursor:pointer;padding:0;font-family:inherit">+ Save as policy</button>
       </div>
       <input type="hidden" id="edit-postage-mode" value="${_editPostMode}">
     </div>
@@ -12131,6 +12295,8 @@ function editItem(m,id){
     <button class="btn btn-p" style="width:100%;margin-top:16px" onclick="saveEdit('${m}','${id}')">Save Changes</button>
   `;
   openPanel('Edit Item',html);
+  const _editPolicySel=document.getElementById('edit-shipping-policy');
+  if(_editPolicySel)_populateShippingPolicySelect(_editPolicySel);
 }
 
 function _editSetDelivery(mode){
