@@ -267,7 +267,7 @@ nav:not(#bottom-nav){position:sticky;top:env(safe-area-inset-top,0px);z-index:20
 .more-sheet-danger svg{color:var(--red)!important;}
 
 /* Search dropdown */
-.item-full-page{max-width:1100px;margin:0 auto;padding:20px 24px 80px;}
+.item-full-page{max-width:1100px;margin:0 auto;padding:20px 24px 80px;width:100%;box-sizing:border-box;overflow-x:hidden;}
 .item-full-section{background:var(--surface2);border-radius:12px;padding:16px;margin-bottom:14px;}
 .item-full-section-title{font-size:11px;font-weight:700;color:var(--muted);letter-spacing:0.08em;text-transform:uppercase;margin-bottom:12px;}
 .history-entry{padding:10px 0;border-bottom:1px solid var(--border);font-size:13px;}
@@ -672,11 +672,17 @@ input,select,textarea{touch-action:manipulation;user-select:text;-webkit-user-se
 .month-select{padding:10px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:14px;cursor:pointer;font-family:inherit;font-weight:500;transition:border-color 0.15s;}
 .month-select:focus{outline:none;border-color:var(--accent);}
 .month-title-select{background:transparent;border:none;color:var(--text);font-family:var(--font-display);font-size:26px;font-weight:800;letter-spacing:-0.03em;cursor:pointer;padding:0 28px 0 0;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 12 12'%3E%3Cpath fill='%236b7280' d='M6 9L1 4h10z'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 4px center;}
+@media(max-width:380px){.fy-current-badge{display:none!important;}}
+@media(max-width:360px){.btn-label-hide-xs{display:none!important;}}
+@media(max-width:420px){
+  .item-row-meta span:not(.item-badge):not(.row-hint):not(.plat-badge){display:none;}
+  .item-row-meta .item-row-meta-sep{display:none;}
+}
 .month-title-select:focus{outline:none;}
 .month-title-select:hover{color:var(--accent);}
 /* Custom month picker */
 .month-picker-wrap{position:relative;display:inline-block;}
-.month-picker-title{font-family:var(--font-display);font-size:26px;font-weight:800;letter-spacing:-0.03em;color:var(--text);cursor:pointer;display:flex;align-items:center;gap:10px;user-select:none;transition:color 0.15s;}
+.month-picker-title{font-family:var(--font-display);font-size:clamp(16px,6vw,26px);font-weight:800;letter-spacing:-0.03em;color:var(--text);cursor:pointer;display:flex;align-items:center;gap:8px;user-select:none;transition:color 0.15s;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;}
 .month-picker-title:hover{color:var(--accent);}
 .month-picker-chevron{font-size:14px;color:var(--muted);transition:transform 0.2s;}
 .month-picker-wrap.open .month-picker-chevron{transform:rotate(180deg);}
@@ -867,7 +873,7 @@ input,select,textarea{touch-action:manipulation;user-select:text;-webkit-user-se
 .ip-act-danger:hover{background:var(--red-dim)!important;border-color:var(--red)!important;color:var(--red)!important;}
 
 /* Editable token grid — 4 tokens: Sale Price, Buy Price, Promo %, Net Profit */
-.ip-tokens{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:0;width:100%;}
+.ip-tokens{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:0;width:100%;overflow:hidden;box-sizing:border-box;}
 .ip-token{background:var(--surface);border:1.5px solid var(--border);border-radius:12px;padding:12px 14px;cursor:pointer;transition:border-color 0.15s,box-shadow 0.15s;position:relative;user-select:none;-webkit-tap-highlight-color:transparent;}
 .ip-token:not(.locked):not(.editing){border-color:var(--border2);}
 .ip-token:hover:not(.locked){border-color:var(--accent);box-shadow:0 2px 10px var(--accent-dim);}
@@ -1198,7 +1204,7 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
 [data-theme="dark"] .mcard{border-color:color-mix(in srgb,var(--border) 88%, transparent);}
 .mname{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text-secondary);}
 .mval{font-size:30px;font-weight:800;letter-spacing:-.05em;font-family:"Inter",system-ui,sans-serif;font-variant-numeric:tabular-nums lining-nums;}
-.month-picker-title{font-size:32px;font-weight:800;letter-spacing:-.06em;}
+.month-picker-title{font-size:clamp(18px,3.5vw,32px);font-weight:800;letter-spacing:-.06em;}
 .fy-section{position:relative;}
 .fy-section::before{content:'';position:absolute;left:0;top:0;bottom:0;width:2px;border-radius:999px;background:linear-gradient(180deg,var(--accent),transparent 55%);opacity:.14;transform:translateX(-10px);} 
 #p-item .item-full-page,.item-full-page{max-width:1240px;padding:28px 28px 120px;}
@@ -2275,8 +2281,8 @@ function _refreshShippingPolicyDropdowns(){
 }
 function _populateShippingPolicySelect(sel){
   const policies=getShippingPolicies();
-  sel.innerHTML='<option value="">— Quick-fill from saved policy —</option>'
-    +policies.map(p=>`<option value="${esc(p.name)}">${esc(p.name)} (you: £${p.yourCost.toFixed(2)} · buyer: £${p.buyerPays.toFixed(2)})</option>`).join('');
+  sel.innerHTML='<option value="">— Saved delivery policies —</option>'
+    +policies.map(p=>`<option value="${esc(p.name)}">${esc(p.name)} · you £${p.yourCost.toFixed(2)} · buyer £${p.buyerPays.toFixed(2)}</option>`).join('');
 }
 function applyShippingPolicy(selId,costId,postageId,bpfFn){
   const sel=document.getElementById(selId);
@@ -2288,6 +2294,7 @@ function applyShippingPolicy(selId,costId,postageId,bpfFn){
   if(costEl)costEl.value=policy.yourCost||'';
   if(postEl)postEl.value=policy.buyerPays||'';
   if(typeof window[bpfFn]==='function')window[bpfFn]();
+  // Keep selected value visible so user sees which policy is applied
 }
 function promptSaveShippingPolicy(costId,postageId){
   const costEl=document.getElementById(costId);
@@ -3807,6 +3814,19 @@ function refreshActivePage(){
 // BUYER PROTECTION FEE (Tiered eBay UK formula)
 // calcBuyerProtectionFee: now uses unified iterative calcEbayBPF
 function calcBuyerProtectionFee(p){return calcEbayBPF(p);}
+function applyIPPolicy(m,id){
+  const sel=document.getElementById('ip-policy-sel-'+id);
+  if(!sel)return;
+  if(!sel.value){return;} // "None" selected — just leave fields as-is
+  const policy=getShippingPolicies().find(p=>p.name===sel.value);
+  if(!policy)return;
+  const shipEl=document.getElementById('ip-ship2-'+id)||document.getElementById('ip-ship-'+id);
+  const postEl=document.getElementById('ip-post2-'+id);
+  if(shipEl){shipEl.value=policy.yourCost||0;shipEl.dispatchEvent(new Event('change'));}
+  if(postEl){postEl.value=policy.buyerPays||0;postEl.dispatchEvent(new Event('change'));}
+  // Keep selected value visible so user sees which policy is applied
+}
+
 function toggleItemPlatformPicker(m,id){
   const picker=document.getElementById('ip-plat-picker-'+id);
   if(!picker)return;
@@ -4573,9 +4593,10 @@ function renderItemPage(m,id){
   }
 
   // Options show tier-correct prices based on the item's current sale price.
-  const sdOpts=_sdOptionsFor(i.salePrice||0,sdIdx);
+  // Policy dropdown — full-width, sits between the mode toggle and the inputs
+  const _ipPolSel='<select id="ip-policy-sel-'+id+'" onchange="applyIPPolicy(\''+m+'\',\''+id+'\')" style="width:100%;padding:6px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:7px;color:var(--text-secondary);font-size:12px;font-family:inherit;margin-bottom:8px;display:block"></select>';
   const _customPostageInner='<div class="ip-postage-custom">'
-     +'<div class="ip-postage-custom-field"><label>You pay (£)</label><input type="number" step="0.01" value="'+(i.shippingCost||0)+'" onchange="ipSaveNum(\''+m+'\',\''+id+'\',\'shippingCost\',this.value)" onkeydown="if(event.key===\'Enter\')this.blur()"></div>'
+     +'<div class="ip-postage-custom-field"><label>You pay (£)</label><input id="ip-ship-'+id+'" type="number" step="0.01" value="'+(i.shippingCost||0)+'" onchange="ipSaveNum(\''+m+'\',\''+id+'\',\'shippingCost\',this.value)" onkeydown="if(event.key===\'Enter\')this.blur()"></div>'
      +'</div>';
   const postageRowInner=!_showPostage
     ?''
@@ -4584,11 +4605,10 @@ function renderItemPage(m,id){
       :(postageMode==='simple'
         ?'<select class="ip-postage-select" onchange="saveSDRate(\''+m+'\',\''+id+'\',this.value)">'+sdOpts+'</select>'
          +'<div class="ip-postage-buyer"><label><input type="checkbox" '+(i._sdBuyerPays===true?'':'checked')+' onchange="saveSDFree(\''+m+'\',\''+id+'\',!this.checked)"> Free postage</label></div>'
-        :'<div class="ip-postage-custom">'
-         +'<div class="ip-postage-custom-field"><label>You pay</label><input type="number" step="0.01" value="'+(i.shippingCost||0)+'" onchange="ipSaveNum(\''+m+'\',\''+id+'\',\'shippingCost\',this.value)" onkeydown="if(event.key===\'Enter\')this.blur()"></div>'
-         +'<div class="ip-postage-custom-field"><label>Buyer pays</label><input type="number" step="0.01" value="'+(i.postage||0)+'" onchange="ipSaveNum(\''+m+'\',\''+id+'\',\'postage\',this.value)" onkeydown="if(event.key===\'Enter\')this.blur()"></div>'
+        :_ipPolSel+'<div class="ip-postage-custom">'
+         +'<div class="ip-postage-custom-field"><label>You pay</label><input id="ip-ship2-'+id+'" type="number" step="0.01" value="'+(i.shippingCost||0)+'" onchange="ipSaveNum(\''+m+'\',\''+id+'\',\'shippingCost\',this.value)" onkeydown="if(event.key===\'Enter\')this.blur()"></div>'
+         +'<div class="ip-postage-custom-field"><label>Buyer pays</label><input id="ip-post2-'+id+'" type="number" step="0.01" value="'+(i.postage||0)+'" onchange="ipSaveNum(\''+m+'\',\''+id+'\',\'postage\',this.value)" onkeydown="if(event.key===\'Enter\')this.blur()"></div>'
          +'</div>');
-
   const saleEditable=!i.dateSold&&!i.resaleSalePrice&&!i.isReturned;
   const profitClass=profit===null?'':profit>=0?'pos':'neg';
   const promoDisplay=((i.promoPercent||0)*100);
@@ -4784,6 +4804,11 @@ function renderItemPage(m,id){
   html+='</div>'; // ip-content
   html+='</div>'; // item-full-page
   page.innerHTML=html;
+  // Populate shipping policy dropdowns on item page
+  ['ip-policy-sel-'+id].forEach(function(sid){
+    const sel=document.getElementById(sid);
+    if(sel)_populateShippingPolicySelect(sel);
+  });
 }
 
 // SEARCH
@@ -6454,11 +6479,11 @@ function renderRunsPage(){
   }
 
   const html=
-    '<div class="page-header" style="display:flex;align-items:center;justify-content:space-between;">'+
-      '<div><div class="page-title">Runs</div>'+
-      '<div class="page-subtitle">Sourcing events &amp; per-run P&amp;L.</div></div>'+
-      '<div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">'+
-        '<button class="btn btn-s" style="font-size:12px;" onclick="openLogPastRunModal()">+ Log past run</button>'+
+    '<div class="page-header" style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;flex-wrap:nowrap;">'+
+      '<div style="min-width:0;"><div class="page-title" style="white-space:nowrap;">Runs</div>'+
+      '<div class="page-subtitle" style="display:none;">Sourcing events &amp; per-run P&amp;L.</div></div>'+
+      '<div style="display:flex;align-items:center;gap:8px;flex-shrink:0;flex-wrap:wrap;justify-content:flex-end;">'+
+        '<button class="btn btn-s" style="font-size:12px;white-space:nowrap;" onclick="openLogPastRunModal()">+ Log past run</button>'+
         (!_activeSourcingRun?
           '<button class="btn btn-p" style="gap:6px;padding:9px 16px;font-size:13px;" onclick="openStartRunModal()">'+
             '<svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg>'+
@@ -9010,7 +9035,7 @@ function renderMonthlyGrid(){
     const chevronRot=isCollapsed?'0deg':'180deg';
     const borderCol=isCurrentFY?'var(--accent)':'var(--border)';
     const labelCol=isCurrentFY?'var(--accent)':'var(--text)';
-    const currentBadge=isCurrentFY?'<span style="font-size:10px;font-weight:700;background:var(--accent);color:#000;border-radius:4px;padding:2px 7px;letter-spacing:0.5px;flex-shrink:0;">CURRENT</span>':'';
+    const currentBadge=isCurrentFY?'<span class="fy-current-badge" style="font-size:10px;font-weight:700;background:var(--accent);color:#000;border-radius:4px;padding:2px 7px;letter-spacing:0.5px;flex-shrink:0;">CURRENT</span>':'';
     const roiSpan=fyAvgROI!==null?'<span style="color:var(--text-secondary)">'+fyAvgROI.toFixed(1)+'% avg ROI</span>':'';
 
     let gridHTML='';
@@ -9428,9 +9453,9 @@ function renderMonth(){
 
   const html=`
     <div class="page-header">
-      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
-        <button class="btn btn-s" style="padding:7px 14px;font-size:13px;" onclick="${backAction}">${backLabel}</button>
-        <div class="month-picker-wrap" id="month-picker">
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:nowrap;min-width:0;">
+        <button class="btn btn-s" style="padding:7px 14px;font-size:13px;flex-shrink:0;" onclick="${backAction}">${backLabel}</button>
+        <div class="month-picker-wrap" id="month-picker" style="min-width:0;overflow:hidden;">
           <div class="month-picker-title" onclick="toggleMonthPicker()">
             ${keyName(m)}
             <span class="month-picker-chevron">▾</span>
@@ -10351,15 +10376,15 @@ function renderStock(){
 
   const html=`
     <div class="page-header">
-      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;width:100%;">
-        <div>
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;width:100%;min-width:0;">
+        <div style="min-width:0;flex:1;">
           ${_stockFromSummary?`<button class="btn btn-s" onclick="goToTab('summary',document.querySelector('[data-tab=\\'summary\\']'));_stockFromSummary=false;" style="margin-bottom:10px;font-size:13px">← Dashboard</button>`:''}
-          <div class="page-title">Stock Room</div>
+          <div class="page-title" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">Stock Room</div>
           <div class="page-subtitle">Live listings and sourced items — your full inventory.</div>
         </div>
-        <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;margin-top:4px;">
-          <button class="btn btn-s${STOCK_GROUPED?' active':''}" style="padding:7px 12px;font-size:12px;white-space:nowrap;${STOCK_GROUPED?'background:var(--accent);color:#000;border-color:var(--accent);':''}" onclick="toggleStockGrouped()" title="Group items by listing month">
-            <svg width="13" height="13" viewBox="0 0 15 15" fill="none" style="vertical-align:-1px;margin-right:4px"><rect x="1" y="1" width="5.5" height="5.5" rx="1" stroke="currentColor" stroke-width="1.3"/><rect x="8.5" y="1" width="5.5" height="5.5" rx="1" stroke="currentColor" stroke-width="1.3"/><rect x="1" y="8.5" width="5.5" height="5.5" rx="1" stroke="currentColor" stroke-width="1.3"/><rect x="8.5" y="8.5" width="5.5" height="5.5" rx="1" stroke="currentColor" stroke-width="1.3"/></svg>By month
+        <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;margin-top:4px;">
+          <button class="btn btn-s${STOCK_GROUPED?' active':''}" style="padding:7px 10px;font-size:12px;white-space:nowrap;${STOCK_GROUPED?'background:var(--accent);color:#000;border-color:var(--accent);':''}" onclick="toggleStockGrouped()" title="Group items by listing month">
+            <svg width="13" height="13" viewBox="0 0 15 15" fill="none" style="vertical-align:-1px;flex-shrink:0"><rect x="1" y="1" width="5.5" height="5.5" rx="1" stroke="currentColor" stroke-width="1.3"/><rect x="8.5" y="1" width="5.5" height="5.5" rx="1" stroke="currentColor" stroke-width="1.3"/><rect x="1" y="8.5" width="5.5" height="5.5" rx="1" stroke="currentColor" stroke-width="1.3"/><rect x="8.5" y="8.5" width="5.5" height="5.5" rx="1" stroke="currentColor" stroke-width="1.3"/></svg><span class="btn-label-hide-xs"> By month</span>
           </button>
           <div class="ddwrap" id="dd-stock-add" style="position:relative;">
             <button class="btn btn-p" style="padding:7px 12px;font-size:12px;gap:5px;" onclick="toggleDD('dd-stock-add')">Add ▾</button>
