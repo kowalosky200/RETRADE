@@ -6,7 +6,8 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="mobile-web-app-capable" content="yes">
-<meta name="theme-color" content="#11111a">
+<meta name="theme-color" content="#11111a" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#f4f5f7" media="(prefers-color-scheme: light)">
 <title>Retrade</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,300;0,14..32,400;0,14..32,500;0,14..32,600;0,14..32,700;0,14..32,800;0,14..32,900;1,14..32,400&family=Space+Grotesk:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -36,7 +37,7 @@
   --shadow:rgba(0,0,0,0.4);--shadow-md:rgba(0,0,0,0.6);--overlay:rgba(8,8,12,0.88);
 }
 *{box-sizing:border-box;margin:0;padding:0;}
-html{overflow-x:hidden;}
+html{overflow-x:hidden;background:var(--bg);}/* Safari uses html bg for status bar and overscroll areas */
 body{background:var(--bg);color:var(--text);font-family:var(--font-body);font-size:14px;line-height:1.5;min-height:100vh;transition:background 0.25s,color 0.25s;overflow-x:hidden;padding-top:env(safe-area-inset-top,0px);}
 
 /* NAV — Desktop: full width, single row */
@@ -2752,6 +2753,7 @@ function initTheme(){
   const saved=localStorage.getItem(THEME_KEY)||'dark';
   document.documentElement.setAttribute('data-theme',saved);
   updateThemeIcon(saved);
+  _syncThemeColorMeta(saved);
 }
 
 // Session D1.6 — Hydrate the COUNTRY constant from localStorage and paint the
@@ -2778,6 +2780,17 @@ function toggleTheme(){
   localStorage.setItem(THEME_KEY,next);
   updateThemeIcon(next);
   _updateChartTheme();
+  // Update theme-color meta so Safari status bar matches app background
+  _syncThemeColorMeta(next);
+}
+function _syncThemeColorMeta(theme){
+  const colour=theme==='dark'?'#11111a':'#f4f5f7';
+  document.querySelectorAll('meta[name="theme-color"]').forEach(function(m){
+    m.setAttribute('content',colour);
+    m.removeAttribute('media'); // remove media query — set directly
+  });
+  // Also update html background so Safari overscroll area matches
+  document.documentElement.style.background=colour;
 }
 function updateThemeIcon(theme){
   const icon=document.getElementById('theme-icon');
