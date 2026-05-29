@@ -215,9 +215,12 @@ nav:not(#bottom-nav){position:sticky;top:env(safe-area-inset-top,0px);z-index:20
 #bottom-nav{
   display:none;
   position:fixed;top:auto;bottom:0;left:0;right:0;
-  height:72px;background:var(--surface);border-top:1px solid var(--border);
+  /* Height = icon zone (62px) + safe-area padding. The safe-area goes BELOW
+     the icons via padding-bottom so icons are never compressed on iPhone PWA. */
+  height:calc(62px + env(safe-area-inset-bottom,0px));
+  background:var(--surface);border-top:1px solid var(--border);
   z-index:200;
-  padding-bottom:calc(env(safe-area-inset-bottom,0px) + 10px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
   box-shadow:0 -1px 0 var(--border),0 -4px 20px var(--shadow);
   transform:translateY(0);
   transition:transform 0.22s cubic-bezier(0.34,1.38,0.64,1);
@@ -225,7 +228,7 @@ nav:not(#bottom-nav){position:sticky;top:env(safe-area-inset-top,0px);z-index:20
 }
 #bottom-nav.nav-shown{display:flex!important;align-items:stretch;gap:0;}
 #bottom-nav.nav-hidden{
-  transform:translateY(calc(100% + env(safe-area-inset-bottom,0px) + 10px));
+  transform:translateY(100%);
   transition:transform 0.18s cubic-bezier(0.4,0,1,1);
 }
 .bnt{
@@ -251,17 +254,17 @@ nav:not(#bottom-nav){position:sticky;top:env(safe-area-inset-top,0px);z-index:20
 @media(max-width:600px){
   /* Hide entire top nav on mobile — bottom nav handles everything */
   nav:not(#bottom-nav){display:none!important;}
-  body{padding-bottom:calc(72px + env(safe-area-inset-bottom,0px));}
-  .fab{bottom:calc(88px + env(safe-area-inset-bottom,0px))!important;}
-  .fab-dial{bottom:calc(88px + env(safe-area-inset-bottom,0px));}
+  body{padding-bottom:calc(62px + env(safe-area-inset-bottom,0px));}
+  /* fab bottom controlled by nav-shown rule below */
+  /* fab-dial bottom handled by nav-shown rule */
 }
 /* Landscape on mobile: keep bottom nav visible, shift FAB above it */
 @media(max-width:900px) and (orientation:landscape) and (max-height:500px){
   nav:not(#bottom-nav){display:none!important;}
   #bottom-nav{display:flex!important;align-items:stretch;gap:0;}
   body{padding-bottom:72px;}
-  .fab{bottom:88px!important;right:16px!important;}
-  .fab-dial{bottom:88px;right:16px;}
+  .fab{bottom:calc(62px + env(safe-area-inset-bottom,0px) + 10px)!important;right:16px!important;}
+  .fab-dial{bottom:calc(62px + env(safe-area-inset-bottom,0px) + 10px);right:16px;}
 }
 /* MORE SHEET */
 .more-sheet-row{display:flex;align-items:center;gap:16px;width:100%;padding:14px 22px;background:none;border:none;text-align:left;cursor:pointer;font-size:15px;font-weight:500;color:var(--text);-webkit-tap-highlight-color:transparent;transition:background 0.12s;}
@@ -273,7 +276,7 @@ nav:not(#bottom-nav){position:sticky;top:env(safe-area-inset-top,0px);z-index:20
 .more-sheet-danger svg{color:var(--red)!important;}
 
 /* Search dropdown */
-.item-full-page{max-width:1100px;margin:0 auto;padding:20px 24px 80px;}
+.item-full-page{max-width:1100px;margin:0 auto;padding:20px 24px 80px;width:100%;box-sizing:border-box;overflow-x:hidden;}
 .item-full-section{background:var(--surface2);border-radius:12px;padding:16px;margin-bottom:14px;}
 .item-full-section-title{font-size:11px;font-weight:700;color:var(--muted);letter-spacing:0.08em;text-transform:uppercase;margin-bottom:12px;}
 .history-entry{padding:10px 0;border-bottom:1px solid var(--border);font-size:13px;}
@@ -415,6 +418,9 @@ nav:not(#bottom-nav){position:sticky;top:env(safe-area-inset-top,0px);z-index:20
 .item-header{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
 .item-name{font-weight:600;font-size:15px;color:var(--text);}
 .item-badge{font-size:10px;padding:3px 8px;border-radius:6px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;}
+/* Date fallback — hidden normally, only shows at ≤360px when all other meta is gone */
+.item-row-date-fallback{display:none;font-size:10px;color:var(--muted);white-space:nowrap;}
+@media(max-width:360px){.item-row-date-fallback{display:inline;}}
 .item-badge.listed{background:rgba(96,165,250,0.15);color:var(--blue);}
 .item-badge.sold{background:var(--green-dim);color:var(--green);}
 .item-badge.returned{background:var(--red-dim);color:var(--red);}
@@ -426,10 +432,8 @@ nav:not(#bottom-nav){position:sticky;top:env(safe-area-inset-top,0px);z-index:20
 .chip.chip-state-sourced.active{background:var(--accent-dim);color:var(--accent);border-color:rgba(212,136,10,0.35);}
 .chip.chip-state-listed.active{background:rgba(96,165,250,0.13);color:var(--blue);border-color:rgba(96,165,250,0.35);}
 .chip.chip-state-all.active{background:var(--surface2);color:var(--text);border-color:var(--border);}
-.plat-badge{font-size:10px;padding:2px 6px;border-radius:5px;font-weight:600;letter-spacing:0.3px;background:var(--surface2);border:1px solid var(--border2);color:var(--text-secondary);white-space:nowrap;}
-.plat-badge.ebay{background:rgba(230,0,0,0.08);border-color:rgba(230,0,0,0.22);color:#cc0000;}
-.plat-badge.ebay_biz{background:rgba(0,80,200,0.08);border-color:rgba(0,80,200,0.22);color:#0050c8;}
-.plat-badge.vinted{background:rgba(9,182,150,0.1);border-color:rgba(9,182,150,0.28);color:#07a085;}
+.plat-badge{font-size:10px;padding:2px 6px;border-radius:5px;font-weight:600;letter-spacing:0.3px;background:rgba(245,175,2,0.12);border:1px solid rgba(245,175,2,0.35);color:#c48a00;white-space:nowrap;}
+.plat-badge.vinted{background:rgba(0,119,130,0.12);border-color:rgba(0,119,130,0.35);color:#007782;}
 .plat-badge.depop{background:rgba(255,70,70,0.1);border-color:rgba(255,70,70,0.25);color:#e03030;}
 .plat-badge.fb{background:rgba(24,119,242,0.1);border-color:rgba(24,119,242,0.25);color:#1877f2;}
 .plat-badge.amazon_uk{background:rgba(255,153,0,0.12);border-color:rgba(255,153,0,0.3);color:#c45a00;}
@@ -441,6 +445,10 @@ nav:not(#bottom-nav){position:sticky;top:env(safe-area-inset-top,0px);z-index:20
 .item-row-inner{display:flex;align-items:center;gap:10px;min-width:0;width:100%;overflow:hidden;}
 .item-row-body{flex:1;min-width:0;overflow:hidden;}
 .item-row-name{font-family:var(--font-body);font-weight:600;font-size:14px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.3;}
+@media(max-width:600px){
+  /* Allow item title to wrap to 2 lines on mobile — more of the name visible without needing to tap */
+  .item-row-name{white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
+}
 .item-row-meta{font-size:12px;color:var(--muted);margin-top:3px;display:flex;align-items:center;gap:6px;flex-wrap:wrap;line-height:1.4;}
 .item-row-gid{font-family:var(--font-mono);font-size:10px;color:var(--muted);opacity:0.6;font-weight:400;}
 .item-row-meta-sep{color:var(--border2);}
@@ -626,12 +634,23 @@ input,select,textarea{touch-action:manipulation;user-select:text;-webkit-user-se
 .expense-item:last-child{border-bottom:none;}
 .expense-item:hover{background:var(--surface2);}
 .expense-item.clickable{cursor:pointer;}
+/* Policy dropdown — centred text so placeholder reads naturally */
+select[id^="ip-policy-sel"],
+select[id^="qa-shipping-policy"],
+select[id^="edit-shipping-policy"]{text-align:center;text-align-last:center;}
+
+/* ≤420px: clamp expense meta to 2 items — prevent multi-line wrap */
+@media(max-width:420px){
+  .expense-meta{flex-wrap:nowrap;}
+  .expense-meta>*{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;}
+  .expense-meta>*:nth-child(n+3){display:none;}
+}
 .exp-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
 .exp-dot.trip{background:var(--accent);}
 .exp-dot.expense{background:var(--red);}
 .expense-main{flex:1;min-width:0;}
 .expense-label{font-weight:600;font-size:14px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.3;}
-.expense-meta{font-size:12px;color:var(--muted);margin-top:2px;display:flex;align-items:center;gap:5px;flex-wrap:wrap;}
+.expense-meta{font-size:12px;color:var(--muted);margin-top:2px;display:flex;align-items:center;gap:5px;flex-wrap:wrap;min-width:0;overflow:hidden;}
 .expense-right{display:flex;flex-direction:column;align-items:flex-end;gap:2px;flex-shrink:0;min-width:64px;}
 .expense-amount{font-size:14px;font-weight:700;font-family:var(--font-body);color:var(--text);white-space:nowrap;letter-spacing:-0.02em;font-variant-numeric:tabular-nums;}
 .expense-actions{display:flex;align-items:center;gap:6px;flex-shrink:0;}
@@ -660,7 +679,11 @@ input,select,textarea{touch-action:manipulation;user-select:text;-webkit-user-se
 @media(max-width:420px){
   .page-subtitle{opacity:0;max-height:0;margin:0;}
   .page-header{align-items:center!important;}
-  .page-title{font-size:clamp(22px,6.5vw,28px);white-space:normal!important;overflow:visible!important;text-overflow:unset!important;}
+  /* DO NOT add white-space/overflow overrides here — line 645 already sets
+     .page-header .page-title to nowrap+ellipsis. Overriding it back with
+     !important causes all page titles to overflow on narrow screens because
+     the adjacent flex-shrink:0 buttons give the title nowhere to wrap into. */
+  .page-title{font-size:clamp(18px,6.5vw,24px);}
 }
 .page-actions{display:flex;gap:6px;align-items:center;flex-wrap:wrap;}
 
@@ -680,11 +703,30 @@ input,select,textarea{touch-action:manipulation;user-select:text;-webkit-user-se
 .month-select{padding:10px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:14px;cursor:pointer;font-family:inherit;font-weight:500;transition:border-color 0.15s;}
 .month-select:focus{outline:none;border-color:var(--accent);}
 .month-title-select{background:transparent;border:none;color:var(--text);font-family:var(--font-display);font-size:26px;font-weight:800;letter-spacing:-0.03em;cursor:pointer;padding:0 28px 0 0;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 12 12'%3E%3Cpath fill='%236b7280' d='M6 9L1 4h10z'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 4px center;}
+@media(max-width:380px){.fy-current-badge{display:none!important;}}
+@media(max-width:380px){
+  .btn-label-hide-xs{display:none!important;}
+  .btn-label-show-xs{display:inline!important;}
+}
+/* ≤500px: hide the GID — least useful at a glance */
+@media(max-width:500px){
+  .item-row-meta .item-row-gid{display:none;}
+}
+/* ≤420px: hide separators and all meta AFTER the first non-badge span
+   (keeps date/age visible, hides secondary info) */
+@media(max-width:420px){
+  .item-row-meta .item-row-meta-sep{display:none;}
+  .item-row-meta>span:not(.item-badge):not(.row-hint):not(.plat-badge):not(.item-row-gid)~span:not(.item-badge):not(.row-hint):not(.plat-badge):not(.item-row-gid){display:none;}
+}
+/* ≤360px: only badge + hint — tiny screens get the minimum viable signal */
+@media(max-width:360px){
+  .item-row-meta>span:not(.item-badge):not(.row-hint):not(.plat-badge){display:none;}
+}
 .month-title-select:focus{outline:none;}
 .month-title-select:hover{color:var(--accent);}
 /* Custom month picker */
 .month-picker-wrap{position:relative;display:inline-block;}
-.month-picker-title{font-family:var(--font-display);font-size:26px;font-weight:800;letter-spacing:-0.03em;color:var(--text);cursor:pointer;display:flex;align-items:center;gap:10px;user-select:none;transition:color 0.15s;}
+.month-picker-title{font-family:var(--font-display);font-size:clamp(16px,6vw,26px);font-weight:800;letter-spacing:-0.03em;color:var(--text);cursor:pointer;display:flex;align-items:center;gap:8px;user-select:none;transition:color 0.15s;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;}
 .month-picker-title:hover{color:var(--accent);}
 .month-picker-chevron{font-size:14px;color:var(--muted);transition:transform 0.2s;}
 .month-picker-wrap.open .month-picker-chevron{transform:rotate(180deg);}
@@ -858,9 +900,12 @@ input,select,textarea{touch-action:manipulation;user-select:text;-webkit-user-se
 
 /* Top bar */
 .ip-topbar{display:flex;flex-direction:column;gap:8px;margin-bottom:16px;}
-.ip-topbar-row1{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+.ip-topbar-row1{display:flex;align-items:center;gap:5px;flex-wrap:nowrap;}
 .ip-topbar-row2{display:flex;align-items:flex-start;gap:8px;}
-.ip-back{flex-shrink:0;}
+.ip-back{flex-shrink:0;white-space:nowrap;}
+.ip-back-label{pointer-events:none;}
+.ip-act-label-always{pointer-events:none;}
+.ip-act-label{pointer-events:none;}
 .ip-title-wrap{flex:1;min-width:0;}
 .ip-title{font-family:var(--font-display);font-size:19px;font-weight:700;line-height:1.3;word-break:break-word;margin-bottom:6px;cursor:pointer;border-radius:6px;padding:2px 4px;margin-left:-4px;transition:background 0.15s;}
 .ip-title:hover{background:var(--surface2);}
@@ -870,20 +915,31 @@ input,select,textarea{touch-action:manipulation;user-select:text;-webkit-user-se
 .ip-chip{font-size:11px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:2px 8px;color:var(--muted);white-space:nowrap;display:flex;align-items:center;gap:3px;}
 .ip-chip.mono{font-family:var(--font-mono);}
 .ip-actions{display:flex;align-items:center;gap:6px;flex-shrink:0;flex-wrap:wrap;}
-.ip-act-btn{padding:7px 12px;font-size:13px;gap:5px;}
+.ip-act-btn{padding:7px 11px;font-size:13px;gap:5px;white-space:nowrap;flex-shrink:1;min-width:34px;}
+.ip-act-danger{padding:7px 9px!important;}
+@media(max-width:500px){
+  .ip-act-label{display:none!important;}
+  .ip-back-label{display:none!important;}
+  .ip-act-btn{padding:7px 8px;gap:0;}
+  .ip-back{padding:7px 10px;}
+}
+@media(max-width:380px){
+  .ip-back{padding:6px 10px;font-size:12px;}
+  .ip-act-btn{padding:6px 8px;}
+}
 .ip-act-danger{color:var(--red)!important;}
 .ip-act-danger:hover{background:var(--red-dim)!important;border-color:var(--red)!important;color:var(--red)!important;}
 
 /* Editable token grid — 4 tokens: Sale Price, Buy Price, Promo %, Net Profit */
-.ip-tokens{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:0;width:100%;}
-.ip-token{background:var(--surface);border:1.5px solid var(--border);border-radius:12px;padding:12px 14px;cursor:pointer;transition:border-color 0.15s,box-shadow 0.15s;position:relative;user-select:none;-webkit-tap-highlight-color:transparent;}
+.ip-tokens{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:0;width:100%;overflow:hidden;box-sizing:border-box;}
+.ip-token{background:var(--surface);border:1.5px solid var(--border);border-radius:12px;padding:12px 14px;cursor:pointer;transition:border-color 0.15s,box-shadow 0.15s;position:relative;user-select:none;-webkit-tap-highlight-color:transparent;min-width:0;overflow:hidden;}
 .ip-token:not(.locked):not(.editing){border-color:var(--border2);}
 .ip-token:hover:not(.locked){border-color:var(--accent);box-shadow:0 2px 10px var(--accent-dim);}
 .ip-token.editing{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-dim);}
 .ip-token.locked{cursor:not-allowed;opacity:0.5;}
 .ip-token.locked:hover{border-color:var(--border)!important;box-shadow:none!important;}
 .ip-token-label{font-family:var(--font-display);font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:0.1em;color:var(--muted);margin-bottom:5px;}
-.ip-token-val{font-family:"Inter",system-ui,sans-serif;font-size:21px;font-weight:700;letter-spacing:-0.04em;line-height:1;min-height:26px;}
+.ip-token-val{font-family:"Inter",system-ui,sans-serif;font-size:21px;font-weight:700;letter-spacing:-0.04em;line-height:1;min-height:26px;min-width:0;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .ip-token-val input{font-family:"Inter",system-ui,sans-serif;font-size:21px;font-weight:700;letter-spacing:-0.04em;width:100%;background:transparent;border:none;outline:none;color:var(--accent);padding:0;-moz-appearance:textfield;}
 .ip-token-val input::-webkit-outer-spin-button,.ip-token-val input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0;}
 .ip-token-sub{font-size:11px;color:var(--text-secondary);margin-top:5px;line-height:1.3;}
@@ -973,22 +1029,29 @@ input,select,textarea{touch-action:manipulation;user-select:text;-webkit-user-se
    Pairs stay logical: [Sale Price][Buy Price] / [Promo %][Net Profit] */
 @media(max-width:680px){
   /* Top bar */
-  .ip-topbar-row1{flex-wrap:wrap;}
+  /* ip-topbar-row1 nowrap — see base rule */
   .ip-title{font-size:18px;}
   .ip-actions{width:100%;justify-content:flex-start;}
   .ip-act-danger{margin-left:auto;} /* push delete to far right */
   .ip-act-label{font-size:12px;}
   .ip-actions{width:100%;justify-content:flex-start;}
-}
 
-
-  /* Tokens */
+  /* Tokens — 4-col → 2-col on mobile */
   .ip-tokens{grid-template-columns:1fr 1fr;gap:8px;}
   .ip-token{padding:10px 12px;}
   .ip-token-val{font-size:18px;}
   .ip-token-val input{font-size:18px;}
   .ip-token-sub{font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+}
 
+/* Narrow screens: ensure token values never overflow their cell */
+@media(max-width:420px){
+  .ip-token-val{font-size:16px;}
+  .ip-token-val input{font-size:16px;}
+  .ip-token{padding:8px 10px;}
+  .ip-token-label{font-size:9px;}
+
+@media(max-width:680px){
   /* Postage row — stack on mobile */
   .ip-postage-row{flex-direction:column;align-items:flex-start;gap:8px;padding:10px 12px;}
   .ip-postage-divider{display:none;}
@@ -1002,7 +1065,7 @@ input,select,textarea{touch-action:manipulation;user-select:text;-webkit-user-se
 
   /* Details */
   .ip-details-grid{grid-template-columns:1fr;}
-  .ip-field{font-size:16px;text-align:left;padding:2px 4px;} /* prevent iOS zoom + fix centering */
+  .ip-field{font-size:16px;text-align:left;padding:2px 4px;}
   .ip-field[type=date]{text-align:left;direction:ltr;display:block;-webkit-text-fill-color:var(--text);}
   .ip-field[type=date]::-webkit-date-and-time-value{text-align:left;}
   .ip-field-select{font-size:16px;}
@@ -1017,7 +1080,7 @@ input,select,textarea{touch-action:manipulation;user-select:text;-webkit-user-se
   .ip-timeline-detail{font-size:12px;}
   .ip-timeline-header button{padding:4px 10px!important;font-size:12px!important;}
 
-  /* Page padding consistency — keep bottom clearance for FAB */
+  /* Page padding consistency */
   .item-full-page{padding:14px 16px 80px;}
 }
 
@@ -1058,6 +1121,18 @@ input,select,textarea{touch-action:manipulation;user-select:text;-webkit-user-se
 .run-history-row{display:flex;align-items:center;gap:10px;padding:12px 14px;cursor:pointer;border-top:1px solid var(--border);}
 .run-history-row:first-child{border-top:none;}
 .run-history-row:active{background:var(--surface2);}
+/* Run history row internals — classes enable responsive condensing */
+.rh-body{flex:1;min-width:0;}
+.rh-name{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.rh-meta{font-size:11px;color:var(--text-secondary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.rh-meta-compact{display:none;}
+.rh-profit{font-size:13px;font-weight:700;flex-shrink:0;margin-right:6px;}
+.past-runs-hdr{margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;gap:12px;min-width:0;}
+.past-runs-lbl{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--muted);flex-shrink:0;}
+.past-runs-sort{font-size:12px;flex-shrink:1;min-width:0;max-width:60%;}
+@media(max-width:380px){.past-runs-sort{font-size:11px;padding:4px 6px;}}
+@media(max-width:480px){.rh-meta-full{display:none;}.rh-meta-compact{display:block;}}
+@media(max-width:360px){.rh-meta-compact{display:none;}}
 .fab-main{position:relative;z-index:1;width:52px;height:52px;border-radius:50%;background:var(--accent);color:#000;border:none;cursor:pointer;font-size:24px;font-weight:700;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 20px var(--shadow-md);transition:transform 0.2s,background 0.2s;pointer-events:auto;flex-shrink:0;}
 .fab-main:hover{transform:scale(1.08);background:var(--accent-hover);}
 .fab-main .fab-icon{display:block;transition:transform 0.22s;}
@@ -1164,7 +1239,7 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
 .summary-kpis .klabel br{display:none;} /* default hidden */
 .stock-kpis .klabel br{display:none;} /* default hidden */
 .kval,.stat-num,.stat-num-sm,.stat-num-xs,.insight-val{font-variant-numeric:tabular-nums lining-nums;letter-spacing:-0.05em;}
-.kval{font-size:clamp(20px,13cqi,34px)!important;font-weight:800;margin:10px 0 6px;line-height:1.05;overflow:visible;white-space:normal;}
+.kval{font-size:clamp(22px,14cqi,38px)!important;font-weight:800;margin:10px 0 6px;line-height:1.05;overflow:visible;white-space:normal;}
 .ksub{font-size:13px;color:var(--text-secondary)}
 .insights{gap:14px;grid-template-columns:1fr;}
 .insight-card{border-radius:18px;padding:16px 16px;border:1px solid var(--border);box-shadow:0 10px 26px var(--shadow);align-items:flex-start;}
@@ -1203,7 +1278,7 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
 [data-theme="dark"] .mcard{border-color:color-mix(in srgb,var(--border) 88%, transparent);}
 .mname{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text-secondary);}
 .mval{font-size:30px;font-weight:800;letter-spacing:-.05em;font-family:"Inter",system-ui,sans-serif;font-variant-numeric:tabular-nums lining-nums;}
-.month-picker-title{font-size:32px;font-weight:800;letter-spacing:-.06em;}
+.month-picker-title{font-size:clamp(18px,3.5vw,32px);font-weight:800;letter-spacing:-.06em;}
 .fy-section{position:relative;}
 .fy-section::before{content:'';position:absolute;left:0;top:0;bottom:0;width:2px;border-radius:999px;background:linear-gradient(180deg,var(--accent),transparent 55%);opacity:.14;transform:translateX(-10px);} 
 #p-item .item-full-page,.item-full-page{max-width:1240px;padding:28px 28px 120px;}
@@ -1236,7 +1311,7 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
 .metric-inline.clickable:hover,.panel-card.clickable:hover{background:color-mix(in srgb,var(--surface2) 55%, transparent);}
 .category-mini-row:hover{background:color-mix(in srgb,var(--surface2) 72%, transparent);}
 .metric-k{font-size:13px;color:var(--text-secondary);font-weight:600;}
-.metric-v{font-size:clamp(20px,9cqi,26px);font-weight:800;letter-spacing:-.05em;}
+.metric-v{font-size:clamp(18px,8cqi,23px);font-weight:800;letter-spacing:-.05em;}
 .hero-title{font-size:42px;font-weight:800;letter-spacing:-.06em;line-height:1.0;}
 .hero-sub{font-size:14px;color:var(--text-secondary);margin-top:8px;max-width:720px;}
 .dashboard-kicker{display:flex;align-items:center;gap:10px;font-size:11px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--accent);margin:8px 0 8px;}
@@ -1496,6 +1571,13 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
 @keyframes panelContentIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
 #panel-content{animation:panelContentIn .24s cubic-bezier(0.34,1.2,0.64,1) both;}
 .slide-panel{transition:transform .3s cubic-bezier(0.32,1.1,0.5,1);}
+/* Panel is max 440px wide — the 3-col stat-strip needs to stay compact.
+   Force single-col row layout regardless of viewport width. */
+.slide-panel .stat-strip-grid{grid-template-columns:1fr!important;}
+.slide-panel .stat-strip-grid .ip-token{display:flex!important;flex-direction:row!important;align-items:center!important;justify-content:space-between!important;padding:10px 14px!important;gap:10px!important;}
+.slide-panel .stat-strip-grid .ip-token-label{font-size:10px;margin-bottom:0!important;flex-shrink:0;flex:1;}
+.slide-panel .stat-strip-grid .ip-token-val{font-size:20px!important;margin:0!important;flex-shrink:0;white-space:nowrap;}
+.slide-panel .stat-strip-grid .ip-token-sub{display:none!important;}
 
 /* Confirm modal */
 @keyframes confirmIn{from{opacity:0;transform:scale(0.92) translateY(10px)}to{opacity:1;transform:none}}
@@ -1648,35 +1730,38 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
           <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 4l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
         </button>
         <div class="user-menu-dropdown" id="user-menu-dropdown">
-          <button class="user-menu-item" onclick="toggleTheme();closeUserMenu()">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
-            <span id="user-menu-theme-label">Light mode</span>
-          </button>
-          <div class="user-menu-divider"></div>
-          <button class="user-menu-item user-menu-country-trigger" onclick="event.stopPropagation();toggleCountryPanel()" id="user-menu-country-trigger">
-            <span id="user-menu-country-trigger-flag" class="user-menu-country-trigger-flag" aria-hidden="true"></span>
-            <span style="flex:1;text-align:left;display:flex;flex-direction:column;gap:1px;">
-              <span style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;font-weight:700;">Country</span>
-              <span id="user-menu-country-trigger-label" style="font-size:13px;color:var(--text);font-weight:500;">United Kingdom</span>
-            </span>
-            <svg width="11" height="11" viewBox="0 0 12 12" fill="none" style="color:var(--muted);"><path d="M4 2l4 4-4 4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
-          </button>
-          <div class="user-menu-divider"></div>
+          <!-- PREFERENCES group -->
+          <div style="padding:6px 10px 2px;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:var(--muted);">Preferences</div>
           <button class="user-menu-item" onclick="event.stopPropagation();openDefaultPlatformPanel();closeUserMenu()">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
             <span style="flex:1;text-align:left;display:flex;flex-direction:column;gap:1px;">
-              <span style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;font-weight:700;">Default platform</span>
-              <span id="user-menu-defplat-label" style="font-size:13px;color:var(--text);font-weight:500;">eBay UK</span>
+              <span style="font-size:12px;color:var(--text);font-weight:500;">Default Platform</span>
+              <span id="user-menu-defplat-label" style="font-size:11px;color:var(--muted);font-weight:400;">eBay UK</span>
             </span>
           </button>
+          <button class="user-menu-item user-menu-country-trigger" onclick="event.stopPropagation();toggleCountryPanel()" id="user-menu-country-trigger">
+            <span id="user-menu-country-trigger-flag" class="user-menu-country-trigger-flag" aria-hidden="true"></span>
+            <span style="flex:1;text-align:left;display:flex;flex-direction:column;gap:1px;">
+              <span style="font-size:12px;color:var(--text);font-weight:500;">Country</span>
+              <span id="user-menu-country-trigger-label" style="font-size:11px;color:var(--muted);font-weight:400;">United Kingdom</span>
+            </span>
+            <svg width="11" height="11" viewBox="0 0 12 12" fill="none" style="color:var(--muted);"><path d="M4 2l4 4-4 4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+          <button class="user-menu-item" onclick="toggleTheme();closeUserMenu()">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+            <span id="user-menu-theme-label" style="font-size:12px;color:var(--text);">Light mode</span>
+          </button>
+          <!-- SELLING TOOLS group -->
           <div class="user-menu-divider"></div>
+          <div style="padding:4px 10px 2px;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:var(--muted);">Selling Tools</div>
           <button class="user-menu-item" onclick="event.stopPropagation();openShippingPoliciesPanel();closeUserMenu()">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l2-1.14"/><path d="M16.5 9.4 7.55 4.24"/><polyline points="3.29 7 12 12 20.71 7"/><line x1="12" y1="22" x2="12" y2="12"/><circle cx="18.5" cy="15.5" r="2.5"/><path d="M20.27 17.27 22 19"/></svg>
             <span style="flex:1;text-align:left;display:flex;flex-direction:column;gap:1px;">
-              <span style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;font-weight:700;">Shipping policies</span>
-              <span id="user-menu-policies-label" style="font-size:13px;color:var(--text);font-weight:500;">Saved delivery presets</span>
+              <span style="font-size:12px;color:var(--text);font-weight:500;">Shipping Policies</span>
+              <span id="user-menu-policies-label" style="font-size:11px;color:var(--muted);font-weight:400;">Saved delivery presets</span>
             </span>
           </button>
+          <!-- ACCOUNT group -->
           <div class="user-menu-divider"></div>
           <button class="user-menu-item danger" id="user-menu-signout" onclick="closeUserMenu();doSignOut()">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
@@ -1742,7 +1827,7 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
 
 <!-- MORE SHEET — hamburger menu, slides up from bottom nav -->
 <div id="more-sheet-overlay" onclick="closeMoreSheet()" style="display:none;position:fixed;inset:0;z-index:300;background:var(--overlay);backdrop-filter:blur(2px);"></div>
-<div id="more-sheet" style="display:none;position:fixed;bottom:72px;left:0;right:0;z-index:301;background:var(--surface);border-top:1px solid var(--border);border-radius:20px 20px 0 0;padding:8px 0 16px;box-shadow:0 -8px 40px var(--shadow-md);overflow:hidden;transform:translateY(100%);transition:transform .28s cubic-bezier(0.32,1.1,0.5,1);">
+<div id="more-sheet" style="display:none;position:fixed;bottom:calc(62px + env(safe-area-inset-bottom,0px));left:0;right:0;z-index:301;background:var(--surface);border-top:1px solid var(--border);border-radius:20px 20px 0 0;padding:8px 0 16px;box-shadow:0 -8px 40px var(--shadow-md);overflow-y:auto;max-height:70vh;transform:translateY(100%);transition:transform .28s cubic-bezier(0.32,1.1,0.5,1);">
   <div style="width:36px;height:4px;background:var(--border2);border-radius:2px;margin:0 auto 16px;"></div>
   <!-- MAIN sheet contents — page nav + country trigger + theme + sign out -->
   <div id="more-sheet-main" class="more-sheet-pane">
@@ -1759,18 +1844,10 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
       <span>Data</span>
     </button>
     <div style="height:1px;background:var(--border);margin:6px 16px;"></div>
-    <button onclick="moreSheetShowCountry()" class="more-sheet-row" id="more-sheet-country-trigger">
-      <span id="more-sheet-country-flag" style="width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;box-shadow:0 0 0 1px var(--border);overflow:hidden;"></span>
-      <span style="flex:1;display:flex;flex-direction:column;gap:1px;">
-        <span style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;font-weight:700;">Country</span>
-        <span id="more-sheet-country-label" style="font-size:14px;color:var(--text);font-weight:600;">United Kingdom</span>
-      </span>
+    <button onclick="moreSheetShowSettings()" class="more-sheet-row" id="more-sheet-settings-trigger">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      <span style="flex:1;">Settings</span>
       <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style="color:var(--muted);"><path d="M4 2l4 4-4 4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
-    </button>
-    <div style="height:1px;background:var(--border);margin:6px 16px;"></div>
-    <button onclick="closeMoreSheet();toggleTheme()" class="more-sheet-row" id="more-sheet-theme">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
-      <span id="more-sheet-theme-label">Light mode</span>
     </button>
     <div style="height:1px;background:var(--border);margin:6px 16px;"></div>
     <button onclick="closeMoreSheet();doSignOut()" class="more-sheet-row more-sheet-danger">
@@ -1778,15 +1855,126 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
       <span>Sign out</span>
     </button>
   </div>
-  <!-- COUNTRY sheet contents — header with back arrow + country list. Hidden by default. -->
+  <!-- COUNTRY sheet contents -->
   <div id="more-sheet-country" class="more-sheet-pane" style="display:none;">
     <div style="display:flex;align-items:center;gap:10px;padding:6px 16px 10px;">
-      <button onclick="moreSheetShowMain()" style="width:32px;height:32px;display:flex;align-items:center;justify-content:center;border:none;background:var(--surface2);border-radius:8px;cursor:pointer;color:var(--text-secondary);flex-shrink:0;" aria-label="Back to menu">
+      <button onclick="moreSheetShowSettings()" style="width:32px;height:32px;display:flex;align-items:center;justify-content:center;border:none;background:var(--surface2);border-radius:8px;cursor:pointer;color:var(--text-secondary);flex-shrink:0;" aria-label="Back to Settings">
         <svg width="14" height="14" viewBox="0 0 12 12" fill="none"><path d="M8 2L4 6l4 4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </button>
-      <span style="font-family:var(--font-display);font-size:13px;font-weight:800;color:var(--text);text-transform:uppercase;letter-spacing:0.08em;">Select country</span>
+      <span style="font-family:var(--font-display);font-size:13px;font-weight:800;color:var(--text);text-transform:uppercase;letter-spacing:0.08em;">Country</span>
     </div>
     <div id="more-sheet-country-list"></div>
+  </div>
+  <!-- PLATFORM sheet contents -->
+  <div id="more-sheet-platform" class="more-sheet-pane" style="display:none;">
+    <div style="display:flex;align-items:center;gap:10px;padding:6px 16px 10px;">
+      <button onclick="moreSheetShowSettings()" style="width:32px;height:32px;display:flex;align-items:center;justify-content:center;border:none;background:var(--surface2);border-radius:8px;cursor:pointer;color:var(--text-secondary);flex-shrink:0;" aria-label="Back to Settings">
+        <svg width="14" height="14" viewBox="0 0 12 12" fill="none"><path d="M8 2L4 6l4 4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <span style="font-family:var(--font-display);font-size:13px;font-weight:800;color:var(--text);text-transform:uppercase;letter-spacing:0.08em;">Default Platform</span>
+    </div>
+    <div id="more-sheet-platform-list"></div>
+  </div>
+  <!-- DELIVERY PRESETS list pane -->
+  <div id="more-sheet-policies" class="more-sheet-pane" style="display:none;">
+    <div style="display:flex;align-items:center;gap:10px;padding:6px 16px 10px;">
+      <button onclick="moreSheetShowSettings()" style="width:32px;height:32px;display:flex;align-items:center;justify-content:center;border:none;background:var(--surface2);border-radius:8px;cursor:pointer;color:var(--text-secondary);flex-shrink:0;" aria-label="Back to Settings">
+        <svg width="14" height="14" viewBox="0 0 12 12" fill="none"><path d="M8 2L4 6l4 4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <span style="font-family:var(--font-display);font-size:13px;font-weight:800;color:var(--text);text-transform:uppercase;letter-spacing:0.08em;">Delivery Presets</span>
+    </div>
+    <div style="padding:0 16px 16px;">
+      <div id="ms-policies-list"></div>
+      <button class="more-sheet-row" onclick="moreSheetShowAddPolicy()" style="margin-top:4px;border-radius:10px;border:1.5px dashed var(--border2);justify-content:center;gap:8px;color:var(--accent);">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 3v10M3 8h10" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+        <span style="font-size:13px;font-weight:600;">Add preset</span>
+      </button>
+    </div>
+  </div>
+  <!-- ADD PRESET pane -->
+  <div id="more-sheet-add-policy" class="more-sheet-pane" style="display:none;">
+    <div style="display:flex;align-items:center;gap:10px;padding:6px 16px 10px;">
+      <button onclick="moreSheetShowPolicies()" style="width:32px;height:32px;display:flex;align-items:center;justify-content:center;border:none;background:var(--surface2);border-radius:8px;cursor:pointer;color:var(--text-secondary);flex-shrink:0;" aria-label="Back to Delivery Presets">
+        <svg width="14" height="14" viewBox="0 0 12 12" fill="none"><path d="M8 2L4 6l4 4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <span id="ms-form-title" style="font-family:var(--font-display);font-size:13px;font-weight:800;color:var(--text);text-transform:uppercase;letter-spacing:0.08em;flex:1;">New Preset</span>
+      <!-- Delete button — only visible when editing an existing preset -->
+      <button id="ms-delete-btn" onclick="_msDeleteFromEdit()" style="display:none;width:32px;height:32px;align-items:center;justify-content:center;border:none;background:rgba(220,53,69,0.1);border-radius:8px;cursor:pointer;color:var(--red);flex-shrink:0;" title="Delete this preset">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M2 4h12M5 4V2h6v2M6 7v5M10 7v5M3 4l1 9a1 1 0 001 1h6a1 1 0 001-1l1-9" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+    </div>
+    <div style="padding:0 16px 16px;">
+      <div class="fg" style="margin-bottom:12px;">
+        <label>Preset name</label>
+        <input type="text" id="ms-policy-name" placeholder='e.g. "Royal Mail 2nd Class"' style="width:100%">
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px;">
+        <div class="fg" style="margin-bottom:0;">
+          <label>Your cost (£)</label>
+          <input type="number" id="ms-policy-cost" step="0.01" min="0" placeholder="0.00">
+        </div>
+        <div class="fg" style="margin-bottom:0;">
+          <label>Buyer pays (£)</label>
+          <input type="number" id="ms-policy-pays" step="0.01" min="0" placeholder="0.00">
+        </div>
+      </div>
+      <button class="btn btn-p" style="width:100%;" onclick="_msSavePolicyFromSheet()">Save preset</button>
+    </div>
+  </div>
+  <!-- SETTINGS pane -->
+  <div id="more-sheet-settings" class="more-sheet-pane" style="display:none;">
+    <div style="display:flex;align-items:center;gap:10px;padding:6px 16px 12px;">
+      <button onclick="moreSheetShowMain()" style="width:32px;height:32px;display:flex;align-items:center;justify-content:center;border:none;background:var(--surface2);border-radius:8px;cursor:pointer;color:var(--text-secondary);flex-shrink:0;" aria-label="Back">
+        <svg width="14" height="14" viewBox="0 0 12 12" fill="none"><path d="M8 2L4 6l4 4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <span style="font-family:var(--font-display);font-size:13px;font-weight:800;color:var(--text);text-transform:uppercase;letter-spacing:0.08em;">Settings</span>
+    </div>
+    <!-- PREFERENCES section -->
+    <div style="padding:0 16px 2px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:var(--muted);">Preferences</div>
+    <button onclick="moreSheetShowPlatform()" class="more-sheet-row" id="more-sheet-platform-trigger">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+      <span style="flex:1;display:flex;flex-direction:column;gap:1px;">
+        <span style="font-size:12px;font-weight:500;color:var(--text);">Default Platform</span>
+        <span id="more-sheet-platform-label" style="font-size:11px;color:var(--muted);font-weight:400;">eBay UK</span>
+      </span>
+      <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style="color:var(--muted);"><path d="M4 2l4 4-4 4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
+    <button onclick="moreSheetShowCountry()" class="more-sheet-row" id="more-sheet-country-trigger">
+      <span id="more-sheet-country-flag" style="width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;box-shadow:0 0 0 1px var(--border);overflow:hidden;"></span>
+      <span style="flex:1;display:flex;flex-direction:column;gap:1px;">
+        <span style="font-size:12px;font-weight:500;color:var(--text);">Country</span>
+        <span id="more-sheet-country-label" style="font-size:11px;color:var(--muted);font-weight:400;">United Kingdom</span>
+      </span>
+      <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style="color:var(--muted);"><path d="M4 2l4 4-4 4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
+    <button onclick="moreSheetShowAppearance()" class="more-sheet-row" id="more-sheet-theme">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+      <span style="flex:1;display:flex;flex-direction:column;gap:1px;">
+        <span style="font-size:12px;font-weight:500;color:var(--text);">Appearance</span>
+        <span id="more-sheet-theme-label" style="font-size:11px;color:var(--muted);font-weight:400;">Dark mode</span>
+      </span>
+      <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style="color:var(--muted);"><path d="M4 2l4 4-4 4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
+    <!-- SELLING TOOLS section -->
+    <div style="padding:10px 16px 2px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:var(--muted);">Selling Tools</div>
+    <button onclick="moreSheetShowPolicies()" class="more-sheet-row">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l2-1.14"/><path d="M16.5 9.4 7.55 4.24"/><polyline points="3.29 7 12 12 20.71 7"/><line x1="12" y1="22" x2="12" y2="12"/><circle cx="18.5" cy="15.5" r="2.5"/><path d="M20.27 17.27 22 19"/></svg>
+      <span style="flex:1;display:flex;flex-direction:column;gap:1px;">
+        <span style="font-size:12px;font-weight:500;color:var(--text);">Shipping Policies</span>
+        <span id="more-sheet-policies-sublabel" style="font-size:11px;color:var(--muted);font-weight:400;">Delivery presets</span>
+      </span>
+      <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style="color:var(--muted);"><path d="M4 2l4 4-4 4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
+  </div>
+  <!-- APPEARANCE pane -->
+  <div id="more-sheet-appearance" class="more-sheet-pane" style="display:none;">
+    <div style="display:flex;align-items:center;gap:10px;padding:6px 16px 10px;">
+      <button onclick="moreSheetShowSettings()" style="width:32px;height:32px;display:flex;align-items:center;justify-content:center;border:none;background:var(--surface2);border-radius:8px;cursor:pointer;color:var(--text-secondary);flex-shrink:0;" aria-label="Back to Settings">
+        <svg width="14" height="14" viewBox="0 0 12 12" fill="none"><path d="M8 2L4 6l4 4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <span style="font-family:var(--font-display);font-size:13px;font-weight:800;color:var(--text);text-transform:uppercase;letter-spacing:0.08em;">Appearance</span>
+    </div>
+    <div id="more-sheet-appearance-list"></div>
   </div>
 </div>
 
@@ -2154,6 +2342,7 @@ function setCountry(countryId){
   refreshCountrySubmenu();
   // Refresh the more-sheet (mobile) country trigger row
   if(typeof refreshMoreSheetCountryTrigger==='function')refreshMoreSheetCountryTrigger();
+  if(typeof refreshMoreSheetPlatformTrigger==='function')refreshMoreSheetPlatformTrigger();
   // Toast for clarity
   if(typeof toast==='function')toast('Country set to '+COUNTRIES[countryId].label);
 }
@@ -2211,8 +2400,8 @@ function _refreshShippingPolicyDropdowns(){
 }
 function _populateShippingPolicySelect(sel){
   const policies=getShippingPolicies();
-  sel.innerHTML='<option value="">— Quick-fill from saved policy —</option>'
-    +policies.map(p=>`<option value="${esc(p.name)}">${esc(p.name)} (you: £${p.yourCost.toFixed(2)} · buyer: £${p.buyerPays.toFixed(2)})</option>`).join('');
+  sel.innerHTML='<option value="">— No policy (clear fields) —</option>'
+    +policies.map(p=>`<option value="${esc(p.name)}">${esc(p.name)} · you £${p.yourCost.toFixed(2)} · buyer £${p.buyerPays.toFixed(2)}</option>`).join('');
 }
 function applyShippingPolicy(selId,costId,postageId,bpfFn){
   const sel=document.getElementById(selId);
@@ -2224,6 +2413,7 @@ function applyShippingPolicy(selId,costId,postageId,bpfFn){
   if(costEl)costEl.value=policy.yourCost||'';
   if(postEl)postEl.value=policy.buyerPays||'';
   if(typeof window[bpfFn]==='function')window[bpfFn]();
+  // Keep selected value visible so user sees which policy is applied
 }
 function promptSaveShippingPolicy(costId,postageId){
   const costEl=document.getElementById(costId);
@@ -2513,6 +2703,7 @@ function initCountry(){
   refreshCountryTrigger();
   // E2 — seed the more-sheet (mobile) country row too
   if(typeof refreshMoreSheetCountryTrigger==='function')refreshMoreSheetCountryTrigger();
+  if(typeof refreshMoreSheetPlatformTrigger==='function')refreshMoreSheetPlatformTrigger();
 }
 function toggleTheme(){
   const current=document.documentElement.getAttribute('data-theme')||'light';
@@ -2560,9 +2751,13 @@ function toggleMoreSheet(){
   const isOpen=sheet._msOpen;
   if(!isOpen) closeAllDropdowns();
   if(isOpen){closeMoreSheet();return;}
+  // Theme label lives in the settings pane — refresh handled by moreSheetShowSettings
+  // Still refresh for legacy references
   const theme=document.documentElement.getAttribute('data-theme')||'light';
   const lbl=document.getElementById('more-sheet-theme-label');
   if(lbl)lbl.textContent=theme==='dark'?'Light mode':'Dark mode';
+  refreshMoreSheetPlatformTrigger();
+  refreshMoreSheetCountryTrigger();
   const activePage=(document.querySelector('.page.on')||{id:''}).id.replace('p-','');
   document.querySelectorAll('[data-sheet-tab]').forEach(r=>{
     r.classList.toggle('active-row', r.dataset.sheetTab===activePage);
@@ -2680,7 +2875,7 @@ function moreSheetShowCountry(){
       const c=COUNTRIES[cid];
       const isActive=cid===COUNTRY;
       const isLive=!!c.live;
-      const onclick=isLive?`setCountry('${cid}');moreSheetShowMain();closeMoreSheet();`:'';
+      const onclick=isLive?`setCountry('${cid}');moreSheetShowSettings();`:'';
       return '<button class="more-sheet-row" '+(isLive?'':'disabled')+' onclick="'+onclick+'" style="'+(isLive?'':'opacity:0.4;')+'">'
         +'<span style="width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;box-shadow:0 0 0 1px var(--border);overflow:hidden;">'+_flagSVG(c.flag,22)+'</span>'
         +'<span style="flex:1;'+(isActive?'color:var(--accent);font-weight:700;':'')+'">'+c.label+(isLive?'':' <span style="font-size:11px;color:var(--muted);font-weight:500;">(coming soon)</span>')+'</span>'
@@ -2689,14 +2884,213 @@ function moreSheetShowCountry(){
     }).join('');
     list.innerHTML=html;
   }
-  document.getElementById('more-sheet-main').style.display='none';
+  ['more-sheet-main','more-sheet-settings','more-sheet-country','more-sheet-platform','more-sheet-policies','more-sheet-add-policy','more-sheet-appearance'].forEach(function(id){const el=document.getElementById(id);if(el)el.style.display='none';});
   document.getElementById('more-sheet-country').style.display='block';
 }
 function moreSheetShowMain(){
   const main=document.getElementById('more-sheet-main');
-  const cty=document.getElementById('more-sheet-country');
+  ['more-sheet-country','more-sheet-platform','more-sheet-policies','more-sheet-settings','more-sheet-appearance'].forEach(function(id){
+    const el=document.getElementById(id);if(el)el.style.display='none';
+  });
   if(main)main.style.display='block';
-  if(cty)cty.style.display='none';
+}
+function moreSheetShowSettings(){
+  const sett=document.getElementById('more-sheet-settings');
+  if(!sett)return;
+  ['more-sheet-main','more-sheet-country','more-sheet-platform','more-sheet-policies','more-sheet-appearance'].forEach(function(id){
+    const el=document.getElementById(id);if(el)el.style.display='none';
+  });
+  sett.style.display='block';
+  // Refresh labels while showing settings pane
+  refreshMoreSheetPlatformTrigger();
+  refreshMoreSheetCountryTrigger();
+  const theme=document.documentElement.getAttribute('data-theme')||'dark';
+  const lbl=document.getElementById('more-sheet-theme-label');
+  if(lbl)lbl.textContent=theme==='dark'?'Dark mode':'Light mode';
+  // Update policies sublabel count
+  const plbl=document.getElementById('more-sheet-policies-sublabel');
+  if(plbl){const n=getShippingPolicies().length;plbl.textContent=n?n+' saved '+(n===1?'policy':'policies'):'No policies saved';}
+}
+function moreSheetShowPolicies(){
+  ['more-sheet-main','more-sheet-settings','more-sheet-country','more-sheet-platform','more-sheet-policies','more-sheet-add-policy','more-sheet-appearance'].forEach(function(id){const el=document.getElementById(id);if(el)el.style.display='none';});
+  const pane=document.getElementById('more-sheet-policies');
+  pane.style.display='block';
+  _msPoliciesRender();
+}
+function moreSheetShowAppearance(){
+  ['more-sheet-main','more-sheet-country','more-sheet-platform','more-sheet-policies','more-sheet-settings'].forEach(function(id){
+    const el=document.getElementById(id);if(el)el.style.display='none';
+  });
+  const pane=document.getElementById('more-sheet-appearance');
+  if(!pane)return;
+  pane.style.display='block';
+  // Build the two-option list
+  const cur=(document.documentElement.getAttribute('data-theme')||'dark');
+  const list=document.getElementById('more-sheet-appearance-list');
+  if(!list)return;
+  const options=[
+    {id:'dark',  label:'Dark',  sub:'Easy on the eyes — great for sourcing runs',
+     icon:'<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>'},
+    {id:'light', label:'Light', sub:'Full brightness — better in daylight',
+     icon:'<circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>'},
+  ];
+  list.innerHTML=options.map(function(o){
+    const isActive=o.id===cur;
+    return '<button class="more-sheet-row" onclick="_msSetTheme(\'' + o.id + '\')" style="'+(isActive?'background:var(--surface2);':'')+ '">'+
+      '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">'+o.icon+'</svg>'+
+      '<span style="flex:1;display:flex;flex-direction:column;gap:2px;">'+
+        '<span style="font-size:14px;font-weight:'+(isActive?'700':'500')+';color:'+(isActive?'var(--accent)':'var(--text)')+';">'+o.label+'</span>'+
+        '<span style="font-size:11px;color:var(--muted);">'+o.sub+'</span>'+
+      '</span>'+
+      (isActive?'<span style="color:var(--accent);font-size:16px;font-weight:700;">✓</span>':'')+
+    '</button>';
+  }).join('');
+}
+function _msSetTheme(id){
+  const cur=document.documentElement.getAttribute('data-theme')||'dark';
+  if(id!==cur)toggleTheme(); // toggleTheme always flips, so only call if different
+  // Refresh labels
+  const theme=document.documentElement.getAttribute('data-theme')||'dark';
+  const lbl=document.getElementById('more-sheet-theme-label');
+  if(lbl)lbl.textContent=theme==='dark'?'Dark mode':'Light mode';
+  // Re-render to show updated tick
+  moreSheetShowAppearance();
+}
+function _msPoliciesRender(){
+  const list=document.getElementById('ms-policies-list');
+  if(!list)return;
+  const policies=getShippingPolicies();
+  // Refresh Settings sublabel live
+  const plbl=document.getElementById('more-sheet-policies-sublabel');
+  if(plbl){const n=policies.length;plbl.textContent=n?n+' '+(n===1?'preset':'presets')+' saved':'No presets yet';}
+  if(!policies.length){
+    list.innerHTML='<div style="text-align:center;padding:28px 0 12px;color:var(--muted);">'
+      +'<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" style="opacity:0.35;margin:0 auto 8px;display:block;"><path d="M21 10V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0"/></svg>'
+      +'<div style="font-size:13px;font-weight:500;">No presets yet</div>'
+      +'<div style="font-size:11px;margin-top:3px;">Tap Add preset to create one</div>'
+    +'</div>';
+    return;
+  }
+  list.innerHTML=policies.map(function(p){
+    var safeN=esc(p.name);
+    return '<div style="display:flex;align-items:center;gap:8px;padding:11px 0;border-bottom:1px solid var(--border);">'
+      +'<div style="flex:1;min-width:0;">'
+        +'<div style="font-weight:600;font-size:14px;color:var(--text);">'+safeN+'</div>'
+        +'<div style="font-size:12px;color:var(--muted);margin-top:1px;">You: £'+(p.yourCost||0).toFixed(2)+' &nbsp;·&nbsp; Buyer: £'+(p.buyerPays||0).toFixed(2)+'</div>'
+      +'</div>'
+      +'<button onclick="_msOpenEditPolicy(\''+ safeN +'\')" '
+        +'style="width:30px;height:30px;display:flex;align-items:center;justify-content:center;border:none;background:var(--surface2);border-radius:8px;cursor:pointer;color:var(--text-secondary);flex-shrink:0;" title="Edit">'
+        +'<svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M11.5 2.5a2.12 2.12 0 0 1 3 3L5 15H2v-3L11.5 2.5z" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>'
+        +'</button>'
+      +'<button onclick="deleteShippingPolicy(\''+ safeN +'\');_msPoliciesRender();" '
+        +'style="width:30px;height:30px;display:flex;align-items:center;justify-content:center;border:none;background:var(--surface2);border-radius:8px;cursor:pointer;color:var(--red);flex-shrink:0;font-size:16px;" title="Delete">×</button>'
+    +'</div>';
+  }).join('');
+}
+// Tracks which preset is being edited (null = new preset)
+var _msEditingPolicy=null;
+function _msOpenEditPolicy(name){
+  const p=getShippingPolicies().find(function(x){return x.name===name;});
+  if(!p)return;
+  _msEditingPolicy=name; // remember original name for delete-and-replace on save
+  // Show the same add/edit pane but pre-fill it
+  ['more-sheet-main','more-sheet-settings','more-sheet-country','more-sheet-platform','more-sheet-policies','more-sheet-appearance'].forEach(function(id){
+    const el=document.getElementById(id);if(el)el.style.display='none';
+  });
+  const pane=document.getElementById('more-sheet-add-policy');
+  if(!pane)return;
+  // Update title to "Edit Preset"
+  const title=document.getElementById('ms-form-title');
+  if(title)title.textContent='Edit Preset';
+  // Show delete button
+  const del=document.getElementById('ms-delete-btn');
+  if(del)del.style.display='flex';
+  // Pre-fill fields
+  const nameEl=document.getElementById('ms-policy-name');
+  const costEl=document.getElementById('ms-policy-cost');
+  const paysEl=document.getElementById('ms-policy-pays');
+  if(nameEl)nameEl.value=p.name;
+  if(costEl)costEl.value=(p.yourCost||0).toFixed(2);
+  if(paysEl)paysEl.value=(p.buyerPays||0).toFixed(2);
+  pane.style.display='block';
+  if(nameEl)nameEl.focus();
+}
+function _msDeleteFromEdit(){
+  if(!_msEditingPolicy)return;
+  deleteShippingPolicy(_msEditingPolicy);
+  _msEditingPolicy=null;
+  moreSheetShowPolicies();
+  toast('Preset deleted');
+}
+function moreSheetShowAddPolicy(){
+  _msEditingPolicy=null; // clear edit state — this is a new preset
+  ['more-sheet-main','more-sheet-settings','more-sheet-country','more-sheet-platform','more-sheet-policies','more-sheet-appearance'].forEach(function(id){const el=document.getElementById(id);if(el)el.style.display='none';});
+  const p=document.getElementById('more-sheet-add-policy');
+  if(!p)return;
+  // Reset title and hide delete button
+  const title=document.getElementById('ms-form-title');
+  if(title)title.textContent='New Preset';
+  const del=document.getElementById('ms-delete-btn');
+  if(del)del.style.display='none';
+  // Clear fields
+  ['ms-policy-name','ms-policy-cost','ms-policy-pays'].forEach(function(id){
+    const el=document.getElementById(id);if(el)el.value='';
+  });
+  p.style.display='block';
+}
+function _msSavePolicyFromSheet(){
+  const name=(document.getElementById('ms-policy-name').value||'').trim();
+  const cost=parseFloat(document.getElementById('ms-policy-cost').value)||0;
+  const pays=parseFloat(document.getElementById('ms-policy-pays').value)||0;
+  if(!name){toast('Preset name required','error');return;}
+  if(_msEditingPolicy&&_msEditingPolicy!==name){
+    // Name changed — remove old entry first so we don't end up with a duplicate
+    deleteShippingPolicy(_msEditingPolicy);
+  }
+  saveShippingPolicy(name,cost,pays);
+  _msEditingPolicy=null;
+  moreSheetShowPolicies();
+  toast(name+' saved');
+}
+function _platBadgeStyle(pid){
+  // Returns inline style string matching .plat-badge CSS colours
+  if(pid==='vinted')return 'background:rgba(0,119,130,0.15);border:1px solid rgba(0,119,130,0.4);color:#007782;';
+  if(pid==='depop')return 'background:rgba(255,70,70,0.12);border:1px solid rgba(255,70,70,0.3);color:#e03030;';
+  if(pid==='fb')return 'background:rgba(24,119,242,0.12);border:1px solid rgba(24,119,242,0.3);color:#1877f2;';
+  if(pid==='amazon_uk')return 'background:rgba(255,153,0,0.14);border:1px solid rgba(255,153,0,0.35);color:#c45a00;';
+  // ebay, ebay_biz — yellow
+  return 'background:rgba(245,175,2,0.14);border:1px solid rgba(245,175,2,0.4);color:#c48a00;';
+}
+function moreSheetShowPlatform(){
+  const list=document.getElementById('more-sheet-platform-list');
+  if(list){
+    const cur=DEFAULT_PLATFORM;
+    const rows=Object.values(PLATFORMS).filter(function(p){return p.live;}).map(function(p){
+      const isActive=p.id===cur;
+      // Coloured pill badge matching the web item-page platform badges
+      const badgeStyle=_platBadgeStyle(p.id);
+      const badge='<span style="font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px;white-space:nowrap;'+badgeStyle+'">'+p.short+'</span>';
+      return '<button class="more-sheet-row" onclick="_setDefaultPlatformFromSheet(\'' + p.id + '\')">'
+        +badge
+        +'<span style="flex:1;font-size:14px;'+(isActive?'color:var(--accent);font-weight:700;':'')+'">'+p.label+'</span>'
+        +(isActive?'<span style="color:var(--accent);font-size:16px;font-weight:700;">✓</span>':'')
+      +'</button>';
+    }).join('');
+    list.innerHTML=rows;
+  }
+  ['more-sheet-main','more-sheet-settings','more-sheet-country','more-sheet-platform','more-sheet-policies','more-sheet-add-policy','more-sheet-appearance'].forEach(function(id){const el=document.getElementById(id);if(el)el.style.display='none';});
+  document.getElementById('more-sheet-platform').style.display='block';
+}
+function _setDefaultPlatformFromSheet(pid){
+  _setDefaultPlatform(pid);
+  refreshMoreSheetPlatformTrigger();
+  moreSheetShowSettings();
+  toast((PLATFORMS[pid]?PLATFORMS[pid].label:pid)+' set as default platform');
+}
+function refreshMoreSheetPlatformTrigger(){
+  const p=PLATFORMS[DEFAULT_PLATFORM];
+  const el=document.getElementById('more-sheet-platform-label');
+  if(el)el.textContent=p?p.label:(DEFAULT_PLATFORM||'eBay UK');
 }
 
 // Sync the country trigger row inside the more-sheet (flag + label).
@@ -3160,6 +3554,59 @@ function refreshActivePage(){
 // BUYER PROTECTION FEE (Tiered eBay UK formula)
 // calcBuyerProtectionFee: now uses unified iterative calcEbayBPF
 function calcBuyerProtectionFee(p){return calcEbayBPF(p);}
+function applyIPPolicy(m,id){
+  const sel=document.getElementById('ip-policy-sel-'+id);
+  if(!sel)return;
+  const shipEl=document.getElementById('ip-ship2-'+id)||document.getElementById('ip-ship-'+id);
+  const postEl=document.getElementById('ip-post2-'+id);
+  if(!sel.value){
+    // Empty option — clear fields to 0 so user can reset applied policy
+    if(shipEl){shipEl.value=0;shipEl.dispatchEvent(new Event('change'));}
+    if(postEl){postEl.value=0;postEl.dispatchEvent(new Event('change'));}
+    return;
+  }
+  const policy=getShippingPolicies().find(p=>p.name===sel.value);
+  if(!policy)return;
+  if(shipEl){shipEl.value=policy.yourCost||0;shipEl.dispatchEvent(new Event('change'));}
+  if(postEl){postEl.value=policy.buyerPays||0;postEl.dispatchEvent(new Event('change'));}
+}
+
+function toggleItemPlatformPicker(m,id){
+  const picker=document.getElementById('ip-plat-picker-'+id);
+  if(!picker)return;
+  const isOpen=picker.style.display!=='none';
+  picker.style.display=isOpen?'none':'';
+  if(!isOpen){
+    // Close on outside click
+    setTimeout(()=>{
+      const close=function(e){
+        if(!picker.contains(e.target)&&e.target.id!=='ip-plat-btn-'+id){
+          picker.style.display='none';
+          document.removeEventListener('click',close);
+        }
+      };
+      document.addEventListener('click',close);
+    },0);
+  }
+}
+
+async function setItemPlatform(m,id,platId){
+  // Close picker
+  const picker=document.getElementById('ip-plat-picker-'+id);
+  if(picker)picker.style.display='none';
+
+  const items=DB[m]||[];
+  const i=items.find(x=>x.id===id);
+  if(!i)return;
+  if(i.defaultPlatform===platId)return; // no change
+
+  i.defaultPlatform=platId;
+  await saveDB();
+  // Re-render item page to show updated P&L
+  renderItemPage(m,id);
+  toast('Platform updated to '+(PLATFORMS[platId]?PLATFORMS[platId].label:platId));
+}
+
 function platBadgeHTML(i){
   const p=_itemPlatform(i);
   if(!p||p==='ebay')return '';
@@ -3249,6 +3696,11 @@ function openItemPage(m,id,origin){
   if(typeof closeSearchDropdown==='function')closeSearchDropdown();
   if(typeof closeMoreSheet==='function')closeMoreSheet();
   if(typeof window._resetNavScrollState==='function')window._resetNavScrollState();
+  // Defensive: clear stale panel state so exitItemPage() can't re-route to a prior item.
+  // Scenario: user opens item via panel "Full details →" (sets _savedPanelState + _itemPageOrigin='panel'),
+  // navigates away via tab/back, then taps a different row — without this reset, exitItemPage
+  // would see _itemPageOrigin==='panel' && _savedPanelState set and re-open the OLD item's panel.
+  _savedPanelState=null;
   _itemPageOrigin=origin||(document.querySelector('.page.on')?document.querySelector('.page.on').id:'p-summary');
   _saveTabScroll();
   document.querySelectorAll('.tab').forEach(t=>t.classList.remove('on'));
@@ -3682,8 +4134,17 @@ function renderItemPage(m,id){
   const _promoLabel=_plat==='ebay'?'Promo %':'Boost %';
   const totalRefunded=(i.returnHistory||[]).reduce((s,r)=>s+(r.refundAmount||0),0);
   const totalReturnPostage=(i.returnHistory||[]).reduce((s,r)=>s+(r.returnPostage||0),0);
-  const postageMode=i._postageMode||(i.shippingCost>0?'custom':'simple');
+  // Platform-aware postage default:
+  // ebay private → simple (eBay manages delivery); ebay_biz + others → custom
+  // Falls back to cost-sniff only if _postageMode truly unset AND platform unclear
+  const _defaultPostageMode=(function(plat){
+    if(plat==='ebay')return 'simple';          // eBay private: Simple Delivery
+    if(plat==='ebay_biz')return 'custom';      // eBay Biz: own courier/rates
+    return 'custom';                            // all other platforms: custom
+  })(_plat);
+  const postageMode=i._postageMode||_defaultPostageMode;
   const sdIdx=i._sdRateIdx!=null?i._sdRateIdx:1;
+  const sdOpts=_sdOptionsFor(i.salePrice||0,sdIdx); // needed for Simple Delivery rate select
 
   const timeline=[];
   const _listPlat=PLATFORMS[i.defaultPlatform||'ebay']||PLATFORMS['ebay'];
@@ -3890,9 +4351,10 @@ function renderItemPage(m,id){
   }
 
   // Options show tier-correct prices based on the item's current sale price.
-  const sdOpts=_sdOptionsFor(i.salePrice||0,sdIdx);
+  // Policy dropdown — full-width, sits between the mode toggle and the inputs
+  const _ipPolSel='<select id="ip-policy-sel-'+id+'" onchange="applyIPPolicy(\''+m+'\',\''+id+'\')" style="width:100%;padding:6px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:7px;color:var(--text-secondary);font-size:12px;font-family:inherit;margin-bottom:8px;display:block"></select>';
   const _customPostageInner='<div class="ip-postage-custom">'
-     +'<div class="ip-postage-custom-field"><label>You pay (£)</label><input type="number" step="0.01" value="'+(i.shippingCost||0)+'" onchange="ipSaveNum(\''+m+'\',\''+id+'\',\'shippingCost\',this.value)" onkeydown="if(event.key===\'Enter\')this.blur()"></div>'
+     +'<div class="ip-postage-custom-field"><label>You pay (£)</label><input id="ip-ship-'+id+'" type="number" step="0.01" value="'+(i.shippingCost||0)+'" onchange="ipSaveNum(\''+m+'\',\''+id+'\',\'shippingCost\',this.value)" onkeydown="if(event.key===\'Enter\')this.blur()"></div>'
      +'</div>';
   const postageRowInner=!_showPostage
     ?''
@@ -3901,11 +4363,10 @@ function renderItemPage(m,id){
       :(postageMode==='simple'
         ?'<select class="ip-postage-select" onchange="saveSDRate(\''+m+'\',\''+id+'\',this.value)">'+sdOpts+'</select>'
          +'<div class="ip-postage-buyer"><label><input type="checkbox" '+(i._sdBuyerPays===true?'':'checked')+' onchange="saveSDFree(\''+m+'\',\''+id+'\',!this.checked)"> Free postage</label></div>'
-        :'<div class="ip-postage-custom">'
-         +'<div class="ip-postage-custom-field"><label>You pay</label><input type="number" step="0.01" value="'+(i.shippingCost||0)+'" onchange="ipSaveNum(\''+m+'\',\''+id+'\',\'shippingCost\',this.value)" onkeydown="if(event.key===\'Enter\')this.blur()"></div>'
-         +'<div class="ip-postage-custom-field"><label>Buyer pays</label><input type="number" step="0.01" value="'+(i.postage||0)+'" onchange="ipSaveNum(\''+m+'\',\''+id+'\',\'postage\',this.value)" onkeydown="if(event.key===\'Enter\')this.blur()"></div>'
+        :_ipPolSel+'<div class="ip-postage-custom">'
+         +'<div class="ip-postage-custom-field"><label>You pay</label><input id="ip-ship2-'+id+'" type="number" step="0.01" value="'+(i.shippingCost||0)+'" onchange="ipSaveNum(\''+m+'\',\''+id+'\',\'shippingCost\',this.value)" onkeydown="if(event.key===\'Enter\')this.blur()"></div>'
+         +'<div class="ip-postage-custom-field"><label>Buyer pays</label><input id="ip-post2-'+id+'" type="number" step="0.01" value="'+(i.postage||0)+'" onchange="ipSaveNum(\''+m+'\',\''+id+'\',\'postage\',this.value)" onkeydown="if(event.key===\'Enter\')this.blur()"></div>'
          +'</div>');
-
   const saleEditable=!i.dateSold&&!i.resaleSalePrice&&!i.isReturned;
   const profitClass=profit===null?'':profit>=0?'pos':'neg';
   const promoDisplay=((i.promoPercent||0)*100);
@@ -3915,13 +4376,13 @@ function renderItemPage(m,id){
   // Top bar — title is directly editable
   html+='<div class="ip-topbar">';
   html+='<div class="ip-topbar-row1">';
-  html+='<button class="btn btn-s ip-back" onclick="exitItemPage()">← Back</button>';
+  html+='<button class="btn btn-s ip-back" onclick="exitItemPage()"><span>←</span><span class="ip-back-label"> Back</span></button>';
   html+='<div class="ip-actions" style="margin-left:0">';
-  if((!i.dateSold&&!i.resaleSalePrice)&&!i.isReturned)html+='<button class="btn btn-p ip-act-btn" onclick="markSold(\''+m+'\',\''+id+'\')"><svg width="13" height="13" viewBox="0 0 15 15" fill="none"><path d="M8.5 1.5h4a1 1 0 011 1v4a.5.5 0 01-.15.35l-6 6a1 1 0 01-1.41 0l-4-4a1 1 0 010-1.41l6-6A.5.5 0 018.5 1.5z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/><circle cx="11" cy="4" r="0.8" fill="currentColor"/></svg><span class="ip-act-label">Mark Sold</span></button>';
-  if(i.isReturned)html+='<button class="btn btn-p ip-act-btn" onclick="openRelist(\''+m+'\',\''+id+'\')">↩ <span class="ip-act-label">Relist</span></button>';
-  if((i.dateSold||i.resaleSalePrice)&&!i.isReturned)html+='<button class="btn btn-s ip-act-btn" onclick="openReturn(\''+m+'\',\''+id+'\')">↩ <span class="ip-act-label">Return</span></button>';
-  if(i.dateSold&&!i.resaleSalePrice&&!i.isReturned)html+='<button class="btn btn-s ip-act-btn" onclick="revertToActive(\''+m+'\',\''+id+'\')" title="Undo the sold mark — move this item back to active stock">⟲ <span class="ip-act-label">Revert</span></button>';
-  html+='<button class="btn btn-s ip-act-btn" onclick="duplicateItem(\''+m+'\',\''+id+'\')"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><rect x="5" y="5" width="9" height="9" rx="1.5" stroke="currentColor" stroke-width="1.4"/><path d="M3 11V3a1 1 0 011-1h8" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg><span class="ip-act-label">Dupe</span></button>';
+  if((!i.dateSold&&!i.resaleSalePrice)&&!i.isReturned)html+='<button class="btn btn-p ip-act-btn" onclick="markSold(\''+m+'\',\''+id+'\')"><svg width="13" height="13" viewBox="0 0 15 15" fill="none"><path d="M8.5 1.5h4a1 1 0 011 1v4a.5.5 0 01-.15.35l-6 6a1 1 0 01-1.41 0l-4-4a1 1 0 010-1.41l6-6A.5.5 0 018.5 1.5z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/><circle cx="11" cy="4" r="0.8" fill="currentColor"/></svg><span class="ip-act-label-always">Mark Sold</span></button>';
+  if(i.isReturned)html+='<button class="btn btn-p ip-act-btn" onclick="openRelist(\''+m+'\',\''+id+'\')">↩ <span class="ip-act-label-always">Relist</span></button>';
+  if((i.dateSold||i.resaleSalePrice)&&!i.isReturned)html+='<button class="btn btn-s ip-act-btn" onclick="openReturn(\''+m+'\',\''+id+'\')">↩ <span class="ip-act-label-always">Return</span></button>';
+  if(i.dateSold&&!i.resaleSalePrice&&!i.isReturned)html+='<button class="btn btn-s ip-act-btn" onclick="revertToActive(\''+m+'\',\''+id+'\')" title="Undo the sold mark — move this item back to active stock"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M2 8a6 6 0 1 0 1.5-3.9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M2 3v4h4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="ip-act-label">Revert</span></button>';
+  html+='<button class="btn btn-s ip-act-btn" onclick="confirmDupeItem(\''+m+'\',\''+id+'\')"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><rect x="5" y="5" width="9" height="9" rx="1.5" stroke="currentColor" stroke-width="1.4"/><path d="M3 11V3a1 1 0 011-1h8" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg><span class="ip-act-label">Dupe</span></button>';
   if(i.state==='listed')html+='<button class="btn btn-s ip-act-btn" onclick="withdrawToSourced(\''+m+'\',\''+id+'\')" title="Withdraw listing and move back to sourced stock" style="color:var(--accent)"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M10 4L6 8l4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M6 8h8M3 2v12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg><span class="ip-act-label">Withdraw</span></button>';
   html+='<button class="btn btn-s ip-act-btn ip-act-danger" onclick="deleteItem(\''+m+'\',\''+id+'\')"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M2 4h12M5 4V2h6v2M6 7v5M10 7v5M3 4l1 9a1 1 0 001 1h6a1 1 0 001-1l1-9" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>';
   html+='</div></div>';
@@ -3933,7 +4394,37 @@ function renderItemPage(m,id){
   html+='<span class="ip-chip">'+m+'</span>';
   html+='<div class="item-badge '+status+'">'+status+'</div>';
   const _platBadge=platBadgeHTML(i);
-  if(_platBadge)html+=_platBadge;
+  if(_platBadge&&status!=='active'){
+    html+=_platBadge;
+  } else if(status==='active'){
+    // Tappable platform selector for listed items — change & instantly see P&L impact
+    const _curPlat=_itemPlatform(i);
+    const _livePlats=Object.values(PLATFORMS).filter(p=>p.live);
+    // Match .plat-badge colours per platform (same as the CSS definitions)
+    const _platBtnStyle=(function(p){
+      if(p==='vinted')return 'background:rgba(0,119,130,0.12);border-color:rgba(0,119,130,0.35);color:#007782;';
+      if(p==='depop')return 'background:rgba(255,70,70,0.1);border-color:rgba(255,70,70,0.25);color:#e03030;';
+      if(p==='fb')return 'background:rgba(24,119,242,0.1);border-color:rgba(24,119,242,0.25);color:#1877f2;';
+      if(p==='amazon_uk')return 'background:rgba(255,153,0,0.12);border-color:rgba(255,153,0,0.3);color:#c45a00;';
+      // ebay, ebay_biz — yellow
+      return 'background:rgba(245,175,2,0.12);border-color:rgba(245,175,2,0.35);color:#c48a00;';
+    })(_curPlat);
+    html+='<div style="position:relative;display:inline-block">';
+    html+='<button id="ip-plat-btn-'+id+'" onclick="toggleItemPlatformPicker(\''+m+'\',\''+id+'\')" style="display:inline-flex;align-items:center;gap:4px;font-size:10px;padding:2px 7px 2px 6px;border-radius:5px;font-weight:600;letter-spacing:0.3px;border:1px solid;cursor:pointer;font-family:inherit;-webkit-tap-highlight-color:transparent;'+_platBtnStyle+'">'
+      +(PLATFORMS[_curPlat]?PLATFORMS[_curPlat].short:_curPlat)
+      +' <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>'
+      +'</button>';
+    html+='<div id="ip-plat-picker-'+id+'" style="display:none;position:absolute;top:calc(100% + 6px);left:0;background:var(--surface);border:1px solid var(--border);border-radius:10px;box-shadow:0 4px 20px var(--shadow-md);z-index:300;min-width:160px;padding:6px">';
+    _livePlats.forEach(p=>{
+      const isActive=p.id===_curPlat;
+      html+='<button onclick="setItemPlatform(\''+m+'\',\''+id+'\',\''+p.id+'\')" style="display:flex;align-items:center;gap:8px;width:100%;padding:8px 10px;background:'+(isActive?'var(--accent-dim)':'transparent')+';border:none;border-radius:7px;cursor:pointer;font-family:inherit;color:'+(isActive?'var(--accent)':'var(--text)')+';font-size:12px;font-weight:'+(isActive?'700':'500')+';text-align:left">'
+        +'<span class="plat-badge '+(p.id==='ebay_biz'?'ebay':p.id)+'" style="font-size:10px">'+p.short+'</span>'
+        +p.label
+        +(isActive?' ✓':'')
+        +'</button>';
+    });
+    html+='</div></div>';
+  }
   html+='</div></div></div>';
   html+='</div>'; // ip-topbar
 
@@ -4071,6 +4562,11 @@ function renderItemPage(m,id){
   html+='</div>'; // ip-content
   html+='</div>'; // item-full-page
   page.innerHTML=html;
+  // Populate shipping policy dropdowns on item page
+  ['ip-policy-sel-'+id].forEach(function(sid){
+    const sel=document.getElementById(sid);
+    if(sel)_populateShippingPolicySelect(sel);
+  });
 }
 
 // SEARCH
@@ -5671,12 +6167,15 @@ function renderRunsPage(){
         const profitCol=sold.length>0?(profit>=0?'var(--green)':'var(--red)'):'var(--muted)';
         const dateStr=(run.dateEnded||run.dateStarted||'').slice(0,10);
         const loc=run.location?(esc(run.location)+' \u00b7 '):''; 
+        const _metaFull=loc+dateStr+' · '+items.length+' item'+(items.length!==1?'s':'')+' · £'+spent.toFixed(2)+' spent';
+        const _metaCompact=dateStr+(dateStr?' · ':'')+profitStr;
         return '<div class="run-history-row" data-runid="'+run.id+'" onclick="openRunPageFromRuns(this.dataset.runid)">'
-          +'<div style="flex:1;min-width:0;">'
-            +'<div style="font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(run.name)+'</div>'
-            +'<div style="font-size:11px;color:var(--text-secondary);">'+loc+dateStr+' · '+items.length+' item'+(items.length!==1?'s':'')+' · £'+spent.toFixed(2)+' spent</div>'
+          +'<div class="rh-body">'
+            +'<div class="rh-name">'+esc(run.name)+'</div>'
+            +'<div class="rh-meta rh-meta-full">'+_metaFull+'</div>'
+            +'<div class="rh-meta rh-meta-compact">'+_metaCompact+'</div>'
           +'</div>'
-          +'<span style="font-size:13px;font-weight:700;color:'+profitCol+';flex-shrink:0;margin-right:6px;">'+profitStr+'</span>'
+          +'<span class="rh-profit" style="color:'+profitCol+';">'+profitStr+'</span>'
           +'<svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M6 4l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>'
         +'</div>';
       }).join('');
@@ -5694,9 +6193,9 @@ function renderRunsPage(){
     }).join('');
 
     pastHTML=
-      '<div style="margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;gap:12px;">'
-        +'<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--muted);">Past Runs</div>'
-        +'<select class="sort-select" style="font-size:12px;" onchange="RUNS_SORT=this.value;window._RUNS_SORT=this.value;renderRunsPage();_saveUIState()">'+sortSel+'</select>'
+      '<div class="past-runs-hdr">'
+        +'<div class="past-runs-lbl">Past Runs</div>'
+        +'<select class="sort-select past-runs-sort" onchange="RUNS_SORT=this.value;window._RUNS_SORT=this.value;renderRunsPage();_saveUIState()">'+sortSel+'</select>'
       +'</div>'
       +monthGroups;
   }
@@ -5749,19 +6248,24 @@ function renderRunsPage(){
     '</div>';
 
   const html=
-    '<div class="page-header" style="display:flex;align-items:center;justify-content:space-between;">'+
-      '<div><div class="page-title">Runs</div>'+
-      '<div class="page-subtitle">Sourcing events &amp; per-run P&amp;L.</div></div>'+
-      '<div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">'+
-        '<button class="btn btn-s" style="font-size:12px;" onclick="openLogPastRunModal()">+ Log past run</button>'+
+    '<div class="page-header" style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;flex-wrap:nowrap;">'+
+      '<div style="min-width:0;"><div class="page-title" style="white-space:nowrap;">Runs</div>'+
+      '<div class="page-subtitle" style="display:none;">Sourcing events &amp; per-run P&amp;L.</div></div>'+
+      '<div style="display:flex;align-items:center;gap:8px;flex-shrink:0;flex-wrap:wrap;justify-content:flex-end;">'+
+        '<button class="btn btn-s" style="font-size:12px;white-space:nowrap;padding:7px 12px;" onclick="openLogPastRunModal()" title="Log a past run">'+
+        '<svg width="13" height="13" viewBox="0 0 16 16" fill="none" style="display:inline-block;vertical-align:-2px"><path d="M8 3v10M3 8h10" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>'+
+        '<span class="btn-label-hide-xs"> Log past run</span>'+
+      '</button>'+
         (!_activeSourcingRun?
-          '<button class="btn btn-p" style="gap:6px;padding:9px 16px;font-size:13px;" onclick="openStartRunModal()">'+
+          '<button class="btn btn-p" style="gap:6px;padding:9px 14px;font-size:13px;white-space:nowrap;" onclick="openStartRunModal()">'+
             '<svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg>'+
-            'Start Run'+
+            '<span class="btn-label-hide-xs">Start Run</span>'+
+            '<span class="btn-label-show-xs" style="display:none">Start</span>'+
           '</button>':
-          '<button class="btn btn-p" style="gap:6px;padding:9px 16px;font-size:13px;background:var(--green);border-color:var(--green);color:#fff;" onclick="openActiveRunPage()">'+
+          '<button class="btn btn-p" style="gap:6px;padding:9px 14px;font-size:13px;background:var(--green);border-color:var(--green);color:#fff;white-space:nowrap;" onclick="openActiveRunPage()">'+
             '<span style="width:8px;height:8px;border-radius:50%;background:#fff;display:inline-block;flex-shrink:0;animation:navDotPulse 2s ease-in-out infinite;"></span>'+
-            'Active run \u203a'+
+            '<span class="btn-label-hide-xs">Active run \u203a</span>'+
+            '<span class="btn-label-show-xs" style="display:none">Active \u203a</span>'+
           '</button>')+
       '</div>'+
     '</div>'+
@@ -8281,7 +8785,7 @@ function renderMonthlyGrid(){
     const chevronRot=isCollapsed?'0deg':'180deg';
     const borderCol=isCurrentFY?'var(--accent)':'var(--border)';
     const labelCol=isCurrentFY?'var(--accent)':'var(--text)';
-    const currentBadge=isCurrentFY?'<span style="font-size:10px;font-weight:700;background:var(--accent);color:#000;border-radius:4px;padding:2px 7px;letter-spacing:0.5px;flex-shrink:0;">CURRENT</span>':'';
+    const currentBadge=isCurrentFY?'<span class="fy-current-badge" style="font-size:10px;font-weight:700;background:var(--accent);color:#000;border-radius:4px;padding:2px 7px;letter-spacing:0.5px;flex-shrink:0;">CURRENT</span>':'';
     const roiSpan=fyAvgROI!==null?'<span style="color:var(--text-secondary)">'+fyAvgROI.toFixed(1)+'% avg ROI</span>':'';
 
     let gridHTML='';
@@ -8699,9 +9203,9 @@ function renderMonth(){
 
   const html=`
     <div class="page-header">
-      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
-        <button class="btn btn-s" style="padding:7px 14px;font-size:13px;" onclick="${backAction}">${backLabel}</button>
-        <div class="month-picker-wrap" id="month-picker">
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:nowrap;min-width:0;">
+        <button class="btn btn-s" style="padding:7px 14px;font-size:13px;flex-shrink:0;" onclick="${backAction}">${backLabel}</button>
+        <div class="month-picker-wrap" id="month-picker" style="min-width:0;overflow:hidden;">
           <div class="month-picker-title" onclick="toggleMonthPicker()">
             ${keyName(m)}
             <span class="month-picker-chevron">▾</span>
@@ -8905,7 +9409,7 @@ function renderSaleEventRow(ev){
       '<button onclick="event.stopPropagation();openItemPage(\''+m+'\',\''+i.id+'\',document.querySelector(\'.page.on\').id)">📄 Full page</button>'+
       '<button onclick="event.stopPropagation();editItem(\''+m+'\',\''+i.id+'\')">✏️ Edit</button>'+
       (!ev.isReturned?'<button onclick="event.stopPropagation();openReturn(\''+m+'\',\''+i.id+'\')">↩️ Log Return</button>':'')+
-      '<button onclick="event.stopPropagation();duplicateItem(\''+m+'\',\''+i.id+'\')">📋 Duplicate</button>'+
+      '<button onclick="event.stopPropagation();confirmDupeItem(\''+m+'\',\''+i.id+'\')">📋 Duplicate</button>'+
       '<button class="danger" onclick="event.stopPropagation();deleteItem(\''+m+'\',\''+i.id+'\')">🗑️ Delete</button>'+
     '</div></div>';
 
@@ -8969,7 +9473,7 @@ function renderItemRow(m,i){
         '<button onclick="event.stopPropagation();toggleDD(\'dd-'+i.id+'\');openListFromSourced(\''+m+'\',\''+i.id+'\')" style="color:var(--accent);font-weight:600;">\ud83d\udce6 List Item</button>'+
         '<button onclick="event.stopPropagation();openItemPage(\''+m+'\',\''+i.id+'\',document.querySelector(\'.page.on\').id)">\ud83d\udcc4 Full page</button>'+
         '<button onclick="event.stopPropagation();editItem(\''+m+'\',\''+i.id+'\')">\u270f\ufe0f Edit</button>'+
-        '<button onclick="event.stopPropagation();duplicateItem(\''+m+'\',\''+i.id+'\')">\ud83d\udccb Duplicate</button>'+
+        '<button onclick="event.stopPropagation();confirmDupeItem(\''+m+'\',\''+i.id+'\')">\ud83d\udccb Duplicate</button>'+
         '<button class="danger" onclick="event.stopPropagation();deleteItem(\''+m+'\',\''+i.id+'\')">\ud83d\uddd1\ufe0f Delete</button>'+
       '</div></div>';
     const photoHTML=i.photo?'<div class="stock-row-thumb" style="width:38px;height:38px;border-radius:6px;background:#0007 center/cover no-repeat url(\''+i.photo+'\');flex-shrink:0;border:1px solid var(--border);"></div>':'';
@@ -9018,24 +9522,26 @@ function renderItemRow(m,i){
 
   // Status-aware meta — minimum useful info per status
   const metaParts=[];
+  let _primaryDate=''; // survives at ≤360px when all other meta is hidden
   if(isRelisted){
     // Show relist date + days since relist for this cycle
-    if(_effListDate)metaParts.push('relisted '+_effListDate);
+    if(_effListDate){metaParts.push('relisted '+_effListDate);_primaryDate='relisted '+_effListDate;}
     metaParts.push(daysThisCycle+'d');
   }else if(status==='listed'){
-    if(i.dateListed)metaParts.push(i.dateListed);
+    if(i.dateListed){metaParts.push(i.dateListed);_primaryDate=i.dateListed;}
     metaParts.push(daysListed+'d');
   }else if(status==='sold'){
-    if(i.dateSold)metaParts.push('sold '+i.dateSold);
+    if(i.dateSold){metaParts.push('sold '+i.dateSold);_primaryDate='sold '+i.dateSold;}
     if(daysToSellVal!==null)metaParts.push(daysToSellVal+'d to sell');
   }else if(status==='resold'){
-    if(i.resaleDateSold)metaParts.push('resold '+i.resaleDateSold);
-    else if(i.dateSold)metaParts.push('sold '+i.dateSold);
+    if(i.resaleDateSold){metaParts.push('resold '+i.resaleDateSold);_primaryDate='resold '+i.resaleDateSold;}
+    else if(i.dateSold){metaParts.push('sold '+i.dateSold);_primaryDate='sold '+i.dateSold;}
     if(daysToSellVal!==null)metaParts.push(daysToSellVal+'d avg');
   }else if(status==='returned'){
-    if(i.dateSold)metaParts.push('sold '+i.dateSold);
+    if(i.dateSold){metaParts.push('sold '+i.dateSold);_primaryDate='sold '+i.dateSold;}
   }
-  if(i.gid)metaParts.push(i.gid);
+  // GID rendered separately so .item-row-gid CSS can hide it at narrow widths
+  const _gidSpan=i.gid?'<span class="item-row-meta-sep">·</span><span class="item-row-gid">'+esc(i.gid)+'</span>':'';
 
   const metaStr=metaParts.join(' · ');
 
@@ -9088,7 +9594,7 @@ function renderItemRow(m,i){
       (!i.dateSold&&!i.resaleSalePrice?'<button onclick="event.stopPropagation();markSold(\''+m+'\',\''+i.id+'\')">' + '<svg width="14" height="14" viewBox="0 0 15 15" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M8.5 1.5h4a1 1 0 011 1v4a.5.5 0 01-.15.35l-6 6a1 1 0 01-1.41 0l-4-4a1 1 0 010-1.41l6-6A.5.5 0 018.5 1.5z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/><circle cx="11" cy="4" r="0.8" fill="currentColor"/></svg> Mark Sold</button>':'')+
       (!i.dateSold&&!i.resaleSalePrice&&i.state==='listed'?'<button onclick="event.stopPropagation();withdrawToSourced(\''+m+'\',\''+i.id+'\')" style="color:var(--warn)">↩ Withdraw</button>':'')+
       ((i.dateSold||i.resaleSalePrice)&&!i.isReturned?'<button onclick="event.stopPropagation();openReturn(\''+m+'\',\''+i.id+'\')">' + '↩️ Log Return</button>':'')+
-      '<button onclick="event.stopPropagation();duplicateItem(\''+m+'\',\''+i.id+'\')">' + '📋 Duplicate</button>'+
+      '<button onclick="event.stopPropagation();confirmDupeItem(\''+m+'\',\''+i.id+'\')">' + '📋 Duplicate</button>'+
       '<button class="danger" onclick="event.stopPropagation();deleteItem(\''+m+'\',\''+i.id+'\')">' + '🗑️ Delete</button>'+
     '</div></div>';
 
@@ -9102,6 +9608,9 @@ function renderItemRow(m,i){
             (i.state==='sourced'?'<span class="item-badge sourced">STOCK</span>':'<span class="item-badge '+badgeClass+'">'+badgeLabel+'</span>')+
             platBadgeHTML(i)+
             (metaStr?'<span class="item-row-meta-sep">·</span><span>'+metaStr+'</span>':'')+
+            _gidSpan+
+            // Date chip: only visible when all other meta is hidden (≤360px)
+            (_primaryDate?'<span class="item-row-date-fallback">'+_primaryDate+'</span>':'')+
             actionHint+
           '</div>'+
         '</div>'+
@@ -9622,15 +10131,15 @@ function renderStock(){
 
   const html=`
     <div class="page-header">
-      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;width:100%;">
-        <div>
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;min-width:0;">
+        <div style="min-width:0;flex:1;">
           ${_stockFromSummary?`<button class="btn btn-s" onclick="goToTab('summary',document.querySelector('[data-tab=\\'summary\\']'));_stockFromSummary=false;" style="margin-bottom:10px;font-size:13px">← Dashboard</button>`:''}
           <div class="page-title">Stock Room</div>
           <div class="page-subtitle">Live listings and sourced items — your full inventory.</div>
         </div>
-        <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;margin-top:4px;">
-          <button class="btn btn-s${STOCK_GROUPED?' active':''}" style="padding:7px 12px;font-size:12px;white-space:nowrap;${STOCK_GROUPED?'background:var(--accent);color:#000;border-color:var(--accent);':''}" onclick="toggleStockGrouped()" title="Group items by listing month">
-            <svg width="13" height="13" viewBox="0 0 15 15" fill="none" style="vertical-align:-1px;margin-right:4px"><rect x="1" y="1" width="5.5" height="5.5" rx="1" stroke="currentColor" stroke-width="1.3"/><rect x="8.5" y="1" width="5.5" height="5.5" rx="1" stroke="currentColor" stroke-width="1.3"/><rect x="1" y="8.5" width="5.5" height="5.5" rx="1" stroke="currentColor" stroke-width="1.3"/><rect x="8.5" y="8.5" width="5.5" height="5.5" rx="1" stroke="currentColor" stroke-width="1.3"/></svg>By month
+        <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
+          <button class="btn btn-s${STOCK_GROUPED?' active':''}" style="padding:7px 10px;font-size:12px;white-space:nowrap;${STOCK_GROUPED?'background:var(--accent);color:#000;border-color:var(--accent);':''}" onclick="toggleStockGrouped()" title="Group items by listing month">
+            <svg width="13" height="13" viewBox="0 0 15 15" fill="none" style="vertical-align:-1px;flex-shrink:0"><rect x="1" y="1" width="5.5" height="5.5" rx="1" stroke="currentColor" stroke-width="1.3"/><rect x="8.5" y="1" width="5.5" height="5.5" rx="1" stroke="currentColor" stroke-width="1.3"/><rect x="1" y="8.5" width="5.5" height="5.5" rx="1" stroke="currentColor" stroke-width="1.3"/><rect x="8.5" y="8.5" width="5.5" height="5.5" rx="1" stroke="currentColor" stroke-width="1.3"/></svg><span class="btn-label-hide-xs"> By month</span>
           </button>
           <div class="ddwrap" id="dd-stock-add" style="position:relative;">
             <button class="btn btn-p" style="padding:7px 12px;font-size:12px;gap:5px;" onclick="toggleDD('dd-stock-add')">Add ▾</button>
@@ -11521,7 +12030,9 @@ function editItem(m,id){
   if(item.state==='sourced'){ return _editStockItem(m,item); }
   const _editPlat=item.defaultPlatform||DEFAULT_PLATFORM;
   const _editDate=item.dateListed||'';
-  const _editPostMode=item._postageMode||(item.shippingCost>0?'custom':'simple');
+  const _editPlatForMode=_itemPlatform(item);
+  const _editDefaultMode=(_editPlatForMode==='ebay')?'simple':'custom';
+  const _editPostMode=item._postageMode||_editDefaultMode;
   const html=`
     <div class="fg">
       <label>Date Listed</label>
@@ -11972,6 +12483,15 @@ async function deleteItem(m,id){
   }
 }
 
+function confirmDupeItem(m,id){
+  var item=(DB[m]||[]).find(function(i){return i.id===id;});
+  if(!item)return;
+  showConfirm(
+    'Duplicate item',
+    '"'+esc(item.item)+'" will be copied as a new active listing.',
+    {okLabel:'Duplicate',danger:false,icon:'info'}
+  ).then(function(ok){if(ok)duplicateItem(m,id);});
+}
 function duplicateItem(m,id,context){
   const item=(DB[m]||[]).find(i=>i.id===id);
   if(!item)return;
