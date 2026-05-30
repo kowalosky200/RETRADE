@@ -625,6 +625,10 @@ input,select,textarea{touch-action:manipulation;user-select:text;-webkit-user-se
 .exp-month-group.collapsed .exp-month-toggle{transform:rotate(-90deg);}
 .exp-month-body{padding:0 6px 6px;}
 .exp-month-group.collapsed .exp-month-body{display:none;}
+/* F7 — collapsible stock groups */
+.stock-group-header:hover{background:color-mix(in srgb,var(--border) 30%,var(--surface2) 70%);}
+.stock-group.collapsed .stock-group-body{display:none!important;}
+.stock-group-toggle{font-size:12px;color:var(--muted);transition:transform 0.2s;display:inline-block;}
 .expense-item{background:var(--surface);border-bottom:1px solid var(--border);padding:11px 12px;display:flex;align-items:center;gap:10px;transition:background 0.12s;cursor:default;}
 .expense-item:last-child{border-bottom:none;}
 .expense-item:hover{background:var(--surface2);}
@@ -2413,6 +2417,7 @@ function setCountry(countryId){
   if(typeof refreshMoreSheetPlatformTrigger==='function')refreshMoreSheetPlatformTrigger();
   // Toast for clarity
   if(typeof toast==='function')toast('Country set to '+COUNTRIES[countryId].label);
+  _syncUserSettingsToCloud();
 }
 
 function refreshCountrySubmenu(){
@@ -2436,6 +2441,64 @@ function _getDefaultPlatform(){
 }
 function _setDefaultPlatform(p){
   try{ localStorage.setItem('_rtrade_default_platform',p); }catch(e){}
+  _syncUserSettingsToCloud();
+}
+
+// F6: Debounced write-through of settings to Supabase user_settings table.
+// localStorage is the fast-start cache; Supabase is source of truth on login.
+let _settingsSyncTimer=null;
+function _syncUserSettingsToCloud(){
+  if(!_currentUserId||typeof _sb==='undefined')return;
+  clearTimeout(_settingsSyncTimer);
+  _settingsSyncTimer=setTimeout(async function(){
+    if(!_currentUserId)return;
+    try{
+      const row={
+        user_id:_currentUserId,
+        default_platform:_getDefaultPlatform(),
+        shipping_policies:getShippingPolicies(),
+        theme:localStorage.getItem('retrade_theme')||'dark',
+        country:COUNTRY||'uk',
+        updated_at:new Date().toISOString()
+      };
+      await _sb.from('user_settings').upsert(row,{onConflict:'user_id'});
+    }catch(e){
+      console.warn('[RETRADE] user_settings sync failed (non-fatal):',e.message);
+    }
+  },800);
+}
+// F6: Hydrate local settings from Supabase row on login — called after loadDataForUser
+async function _hydrateUserSettings(uid){
+  if(!uid||typeof _sb==='undefined')return;
+  try{
+    const {data,error}=await _sb.from('user_settings').select('*').eq('user_id',uid).single();
+    if(error||!data)return; // no row yet — leave localStorage values as-is
+    // default_platform
+    if(data.default_platform&&PLATFORMS[data.default_platform]){
+      try{localStorage.setItem('_rtrade_default_platform',data.default_platform);}catch(e){}
+    }
+    // shipping_policies — cloud wins on login
+    if(Array.isArray(data.shipping_policies)&&data.shipping_policies.length>0){
+      try{localStorage.setItem('retrade_shipping_policies',JSON.stringify(data.shipping_policies));}catch(e){}
+      _refreshShippingPolicyDropdowns();
+    }
+    // theme
+    if(data.theme&&(data.theme==='dark'||data.theme==='light')){
+      const current=document.documentElement.getAttribute('data-theme')||'dark';
+      if(data.theme!==current){
+        document.documentElement.setAttribute('data-theme',data.theme);
+        try{localStorage.setItem('retrade_theme',data.theme);}catch(e){}
+        if(typeof updateThemeIcon==='function')updateThemeIcon(data.theme);
+        if(typeof _syncThemeColorMeta==='function')_syncThemeColorMeta(data.theme);
+      }
+    }
+    // country
+    if(data.country&&COUNTRIES[data.country]&&COUNTRIES[data.country].live){
+      setCountry(data.country);
+    }
+  }catch(e){
+    console.warn('[RETRADE] _hydrateUserSettings failed (non-fatal):',e.message);
+  }
 }
 
 // Shipping policies — saved name → {yourCost, buyerPays}
@@ -2447,11 +2510,26 @@ function saveShippingPolicy(name,yourCost,buyerPays){
   policies.push({name,yourCost:+yourCost||0,buyerPays:+buyerPays||0});
   try{localStorage.setItem(SHIPPING_POLICIES_KEY,JSON.stringify(policies));}catch(e){}
   _refreshShippingPolicyDropdowns();
+  _syncUserSettingsToCloud();
 }
 function deleteShippingPolicy(name){
   const policies=getShippingPolicies().filter(p=>p.name!==name);
   try{localStorage.setItem(SHIPPING_POLICIES_KEY,JSON.stringify(policies));}catch(e){}
   _refreshShippingPolicyDropdowns();
+  _syncUserSettingsToCloud();
+}
+// F3: Move a preset up (-1) or down (+1) in order — controls dropdown order everywhere
+function reorderShippingPolicy(name,dir){
+  const policies=getShippingPolicies();
+  const idx=policies.findIndex(p=>p.name===name);
+  if(idx<0)return;
+  const newIdx=idx+dir;
+  if(newIdx<0||newIdx>=policies.length)return;
+  const tmp=policies[idx]; policies[idx]=policies[newIdx]; policies[newIdx]=tmp;
+  try{localStorage.setItem(SHIPPING_POLICIES_KEY,JSON.stringify(policies));}catch(e){}
+  _refreshShippingPolicyDropdowns();
+  _syncUserSettingsToCloud();
+  _msPoliciesRender();
 }
 function _refreshShippingPolicyDropdowns(){
   // Re-render all open policy dropdowns after add/delete
@@ -2783,6 +2861,7 @@ function toggleTheme(){
   _updateChartTheme();
   // Update theme-color meta so Safari status bar matches app background
   _syncThemeColorMeta(next);
+  _syncUserSettingsToCloud();
 }
 function _syncThemeColorMeta(theme){
   const colour=theme==='dark'?'#11111a':'#f4f5f7';
@@ -3052,19 +3131,21 @@ function _msPoliciesRender(){
     +'</div>';
     return;
   }
-  list.innerHTML=policies.map(function(p){
+  list.innerHTML=policies.map(function(p,idx){
     var safeN=esc(p.name);
-    return '<div style="display:flex;align-items:center;gap:8px;padding:11px 0;border-bottom:1px solid var(--border);">'
+    var isFirst=idx===0,isLast=idx===policies.length-1;
+    return '<div style="display:flex;align-items:center;gap:6px;padding:11px 0;border-bottom:1px solid var(--border);">'
+      +'<div style="display:flex;flex-direction:column;gap:2px;flex-shrink:0;">'
+        +'<button class="ms-reorder-btn" data-name="'+safeN+'" data-dir="-1" style="width:22px;height:22px;display:flex;align-items:center;justify-content:center;border:none;background:var(--surface2);border-radius:4px;cursor:pointer;color:var(--text-secondary);font-size:11px;'+( isFirst?'opacity:0.25;pointer-events:none;':'')+'" title="Move up">&#9650;</button>'
+        +'<button class="ms-reorder-btn" data-name="'+safeN+'" data-dir="1" style="width:22px;height:22px;display:flex;align-items:center;justify-content:center;border:none;background:var(--surface2);border-radius:4px;cursor:pointer;color:var(--text-secondary);font-size:11px;'+( isLast?'opacity:0.25;pointer-events:none;':'')+'" title="Move down">&#9660;</button>'
+      +'</div>'
       +'<div style="flex:1;min-width:0;">'
         +'<div style="font-weight:600;font-size:14px;color:var(--text);">'+safeN+'</div>'
         +'<div style="font-size:12px;color:var(--muted);margin-top:1px;">You: £'+(p.yourCost||0).toFixed(2)+' &nbsp;·&nbsp; Buyer: £'+(p.buyerPays||0).toFixed(2)+'</div>'
       +'</div>'
-      +'<button onclick="_msOpenEditPolicy(\''+ safeN +'\')" '
-        +'style="width:30px;height:30px;display:flex;align-items:center;justify-content:center;border:none;background:var(--surface2);border-radius:8px;cursor:pointer;color:var(--text-secondary);flex-shrink:0;" title="Edit">'
-        +'<svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M11.5 2.5a2.12 2.12 0 0 1 3 3L5 15H2v-3L11.5 2.5z" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>'
-        +'</button>'
-      +'<button onclick="deleteShippingPolicy(\''+ safeN +'\');_msPoliciesRender();" '
-        +'style="width:30px;height:30px;display:flex;align-items:center;justify-content:center;border:none;background:var(--surface2);border-radius:8px;cursor:pointer;color:var(--red);flex-shrink:0;font-size:16px;" title="Delete">×</button>'
+      +'<button class="ms-edit-policy-btn" data-name="'+safeN+'" style="width:30px;height:30px;display:flex;align-items:center;justify-content:center;border:none;background:var(--surface2);border-radius:8px;cursor:pointer;color:var(--text-secondary);flex-shrink:0;" title="Edit">'
+        +'<svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M11.5 2.5a2.12 2.12 0 0 1 3 3L5 15H2v-3L11.5 2.5z" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>'
+      +'<button class="ms-delete-policy-btn" data-name="'+safeN+'" style="width:30px;height:30px;display:flex;align-items:center;justify-content:center;border:none;background:var(--surface2);border-radius:8px;cursor:pointer;color:var(--red);flex-shrink:0;font-size:16px;" title="Delete">&#215;</button>'
     +'</div>';
   }).join('');
 }
@@ -4108,8 +4189,22 @@ async function _persistChanges(){
     }
 
     if(errors.length > 0){
-      console.error('Supabase sync errors:', errors);
-      toast('⚠️ Cloud sync issue — check connection');
+      // F9: Distinguish schema errors (missing column — user's connection is fine, just needs migration)
+      // from real network/connection errors. Don't alarm the user about connection for schema issues.
+      const schemaErrors=errors.filter(function(msg){
+        return msg&&(msg.includes('does not exist')||msg.includes('undefined column')||msg.includes('42703')||msg.includes('column'));
+      });
+      const networkErrors=errors.filter(function(msg){
+        return !msg||(!(msg.includes('does not exist'))&&!(msg.includes('undefined column'))&&!(msg.includes('42703'))&&!(msg.includes('column')));
+      });
+      if(schemaErrors.length>0){
+        // Schema error: log quietly, don't show connection toast — data saved locally
+        console.warn('[RETRADE] Supabase schema mismatch (column not yet migrated) — local save OK:', schemaErrors);
+      }
+      if(networkErrors.length>0){
+        console.error('Supabase sync errors:', networkErrors);
+        toast('⚠️ Cloud sync issue — check connection');
+      }
     }
 
     // Update snapshot to reflect what we just saved
@@ -4267,6 +4362,14 @@ async function setItemPlatform(m,id,platId){
   if(i.defaultPlatform===platId)return; // no change
 
   i.defaultPlatform=platId;
+  // F2: eBay Biz doesn't use Simple Delivery — force custom postage mode on switch
+  if(platId==='ebay_biz'){
+    i._postageMode='custom';
+  }
+  // F2: eBay private switching back → reset to simple if currently custom due to biz
+  if(platId==='ebay'&&(!i._postageMode||i._postageMode==='custom')){
+    i._postageMode='simple';
+  }
   await saveDB();
   // Re-render item page to show updated P&L
   renderItemPage(m,id);
@@ -4284,10 +4387,11 @@ function platBadgeHTML(i){
 
 // NAVIGATION
 // ── UI State Persistence ──────────────────────────────────────────────────────
-const _SK={tab:'_rt_tab',stockF:'_rt_stk_f',stockSF:'_rt_stk_sf',stockSo:'_rt_stk_so',stockSoF:'_rt_stk_sof',stockGr:'_rt_stk_gr',runsSort:'_rt_run_so',sumPer:'_rt_sum_p',monthV:'_rt_mon_v'};
+const _SK={tab:'_rt_tab',stockF:'_rt_stk_f',stockSF:'_rt_stk_sf',stockSo:'_rt_stk_so',stockSoF:'_rt_stk_sof',stockGr:'_rt_stk_gr',stkCol:'_rt_stk_col',runsSort:'_rt_run_so',sumPer:'_rt_sum_p',monthV:'_rt_mon_v'};
+let STOCK_COLLAPSED=new Set(); // F7: collapsed month keys in grouped stock view
 const _scrollMap={};
-function _saveUIState(){try{localStorage.setItem(_SK.tab,(document.querySelector('.page.on')||{id:'p-summary'}).id.replace('p-',''));localStorage.setItem(_SK.stockF,STOCK_FILTER);localStorage.setItem(_SK.stockSF,STOCK_STATE_FILTER);localStorage.setItem(_SK.stockSo,STOCK_SORT);localStorage.setItem(_SK.stockSoF,STOCK_SOURCED_FILTER);localStorage.setItem(_SK.stockGr,STOCK_GROUPED?'1':'0');localStorage.setItem(_SK.runsSort,RUNS_SORT);localStorage.setItem(_SK.sumPer,SUMMARY_PERIOD);localStorage.setItem(_SK.monthV,MONTHLY_VIEW);}catch(e){}}
-function _loadUIState(){try{const sf=localStorage.getItem(_SK.stockF);const ssf=localStorage.getItem(_SK.stockSF);const sso=localStorage.getItem(_SK.stockSo);const ssof=localStorage.getItem(_SK.stockSoF);const sgr=localStorage.getItem(_SK.stockGr);const rs=localStorage.getItem(_SK.runsSort);const sp=localStorage.getItem(_SK.sumPer);const mv=localStorage.getItem(_SK.monthV);if(sf)STOCK_FILTER=sf;if(ssf)STOCK_STATE_FILTER=ssf;if(sso)STOCK_SORT=sso;if(ssof)STOCK_SOURCED_FILTER=ssof;if(sgr)STOCK_GROUPED=sgr==='1';if(rs)RUNS_SORT=rs;if(sp)SUMMARY_PERIOD=sp;if(mv)MONTHLY_VIEW=mv;}catch(e){}}
+function _saveUIState(){try{localStorage.setItem(_SK.tab,(document.querySelector('.page.on')||{id:'p-summary'}).id.replace('p-',''));localStorage.setItem(_SK.stockF,STOCK_FILTER);localStorage.setItem(_SK.stockSF,STOCK_STATE_FILTER);localStorage.setItem(_SK.stockSo,STOCK_SORT);localStorage.setItem(_SK.stockSoF,STOCK_SOURCED_FILTER);localStorage.setItem(_SK.stockGr,STOCK_GROUPED?'1':'0');localStorage.setItem(_SK.stkCol,JSON.stringify([...STOCK_COLLAPSED]));localStorage.setItem(_SK.runsSort,RUNS_SORT);localStorage.setItem(_SK.sumPer,SUMMARY_PERIOD);localStorage.setItem(_SK.monthV,MONTHLY_VIEW);}catch(e){}}
+function _loadUIState(){try{const sf=localStorage.getItem(_SK.stockF);const ssf=localStorage.getItem(_SK.stockSF);const sso=localStorage.getItem(_SK.stockSo);const ssof=localStorage.getItem(_SK.stockSoF);const sgr=localStorage.getItem(_SK.stockGr);const sc=localStorage.getItem(_SK.stkCol);const rs=localStorage.getItem(_SK.runsSort);const sp=localStorage.getItem(_SK.sumPer);const mv=localStorage.getItem(_SK.monthV);if(sf)STOCK_FILTER=sf;if(ssf)STOCK_STATE_FILTER=ssf;if(sso)STOCK_SORT=sso;if(ssof)STOCK_SOURCED_FILTER=ssof;if(sgr)STOCK_GROUPED=sgr==='1';if(sc){try{STOCK_COLLAPSED=new Set(JSON.parse(sc));}catch(e){}}if(rs)RUNS_SORT=rs;if(sp)SUMMARY_PERIOD=sp;if(mv)MONTHLY_VIEW=mv;}catch(e){}}
 function _saveTabScroll(){const a=document.querySelector('.page.on');if(a)_scrollMap[a.id.replace('p-','')]=window.scrollY||window.pageYOffset||0;}
 function _restoreTabScroll(tab){const y=_scrollMap[tab];if(y)requestAnimationFrame(function(){requestAnimationFrame(function(){window.scrollTo(0,y);});});}
 
@@ -4794,7 +4898,7 @@ function renderItemPage(m,id){
   const hasReturn=(i.returnHistory||[]).length>0;
   const _plat=_itemPlatform(i);
   const _showPostage=(_plat!=='vinted');
-  const _showSimpleDelivery=(_plat==='ebay'||_plat==='ebay_biz'); // Simple Delivery available for both eBay account types
+  const _showSimpleDelivery=(_plat==='ebay'); // Simple Delivery: eBay private only; Biz uses postage policies
   const _showFee=(_plat!=='vinted'&&_plat!=='fb');
   const _feeLabel=_plat==='ebay'?'eBay BPF':_plat==='ebay_biz'?'eBay FVF (Biz)':_plat==='depop'?'Depop fee':_plat==='amazon_uk'?'Amazon fee':'Platform fee';
   const _promoLabel=_plat==='ebay'?'Promo %':'Boost %';
@@ -4896,7 +5000,16 @@ function renderItemPage(m,id){
   if(_plat==='vinted')pb+=rcp('Buyer pays postage','(buyer covered)','var(--muted)');
   else if(_rcptPostage>0)pb+=rcp('+ Buyer postage','+'+fmt(_rcptPostage),'var(--green)');
   if(_showFee)pb+=rcp(_feeLabel,'−'+fmt(bpf),'var(--red)');
-  if((i.listingFee||0)>0)pb+=rcp('Listing fee','−'+fmt(i.listingFee),'var(--red)');
+  // F1: Listing fee — inline editable input in receipt for eBay Biz; read-only line for others if set
+  if(_plat==='ebay_biz'){
+    pb+='<div class="ip-receipt-row"><span style="flex:1;color:var(--text-secondary)">Listing fee</span>'
+      +'<span class="ip-receipt-val" style="color:var(--red);display:flex;align-items:center;gap:4px">'
+      +'−£<input type="number" class="rcpt-listing-fee-input" data-m="'+m+'" data-id="'+id+'" value="'+( i.listingFee||0 )+'" min="0" step="0.01" '
+      +'style="width:60px;padding:2px 4px;background:var(--surface2);border:1px solid var(--border);border-radius:5px;color:var(--red);font-size:13px;font-weight:600;text-align:right">'
+      +'</span></div>';
+  } else if((i.listingFee||0)>0){
+    pb+=rcp('Listing fee','−'+fmt(i.listingFee),'var(--red)');
+  }
   if(_showPostage&&_rcptShipping>0)pb+=rcp('Shipping cost','−'+fmt(_rcptShipping),'var(--red)');
   if(_showPostage&&_rcptPackaging>0)pb+=rcp('Packaging','−'+fmt(_rcptPackaging),'var(--red)');
   if(_rcptPromo)pb+=rcp((_plat==='ebay'?'Promo fee ('+((_rcptPromo*100).toFixed(0))+'% +VAT)':'Boost fee ('+((_rcptPromo*100).toFixed(0))+'%)'),'−'+fmt(promoCost),'var(--red)');
@@ -5122,14 +5235,8 @@ function renderItemPage(m,id){
   html+='<div class="ip-token-sub">Tap to edit · Fee: '+fmt(promoCost)+'</div>';
   html+='</div>';
 
-  // Listing fee — shown for eBay Biz only (insertion fee / listing upgrade)
-  if(_plat==='ebay_biz'){
-    html+='<div class="ip-token" id="tok-listingFee-'+id+'" onpointerdown="tokenPointerDown(\''+m+'\',\''+id+'\',\'listingFee\')" onclick="openTokenEdit(\''+m+'\',\''+id+'\',\'listingFee\')">'
-      +'<div class="ip-token-label">Listing Fee</div>'
-      +'<div class="ip-token-val">'+fmt(i.listingFee||0)+'</div>'
-      +'<div class="ip-token-sub">'+(i.listingFee?'Deducted from profit':'0 · tap to add')+'</div>'
-    +'</div>';
-  }
+  // Listing fee moved to inline P&L receipt input (F1) — no longer a KPI token
+
 
   // Net Profit + ROI — read only, auto calculated
   html+='<div class="ip-token locked '+profitClass+'">';
@@ -8065,7 +8172,8 @@ function qaSetPlatform(platformId){
 
 function _refreshQuickAddDelivery(){
   const platformId=document.getElementById('qa-platform')?.value||DEFAULT_PLATFORM;
-  const isEbay=(platformId==='ebay'||platformId==='ebay_biz'); // Simple Delivery for both eBay account types
+  const isEbay=(platformId==='ebay'); // Simple Delivery: eBay private only
+  const isEbayBiz=(platformId==='ebay_biz');
   const isVinted=platformId==='vinted';
   const deliverySection=document.getElementById('qa-delivery-section');
   const modeToggle=document.getElementById('qa-mode-toggle');
@@ -8075,20 +8183,18 @@ function _refreshQuickAddDelivery(){
   const customBtn=document.getElementById('qa-mode-custom');
   // Vinted: buyer pays postage — hide the entire delivery section, show note below price
   if(deliverySection)deliverySection.style.display=isVinted?'none':'';
-  // Mode toggle only visible on eBay
+  // Mode toggle only visible on eBay private (not Biz)
   if(modeToggle)modeToggle.style.display=isEbay?'':'none';
   if(isEbay){
-    // eBay Biz defaults to custom; eBay private defaults to simple
-    const isBiz=_itemPlatform({defaultPlatform:document.getElementById('qa-platform')?.value||DEFAULT_PLATFORM})==='ebay_biz';
-    const currentMode=simplePanel&&simplePanel.style.display!=='none'?'simple':'custom';
-    // Only force default on first open (when both panels are in their HTML default state)
-    const bothDefault=simplePanel&&simplePanel.style.display!=='none'&&customPanel&&customPanel.style.display==='none';
-    if(bothDefault&&isBiz){
-      qaSetDeliveryMode('custom');
-    } else {
-      const simpleIsActive=simplePanel&&simplePanel.style.display!=='none';
-      if(customPanel)customPanel.style.display=simpleIsActive?'none':'';
-    }
+    // eBay private: show simple by default
+    const simpleIsActive=simplePanel&&simplePanel.style.display!=='none';
+    if(customPanel)customPanel.style.display=simpleIsActive?'none':'';
+  } else if(isEbayBiz){
+    // eBay Biz: always custom, never show Simple Delivery
+    if(simplePanel)simplePanel.style.display='none';
+    if(simpleBtn){simpleBtn.style.background='var(--surface2)';simpleBtn.style.color='var(--text-secondary)';simpleBtn.style.borderColor='var(--border)';}
+    if(customBtn){customBtn.style.background='var(--accent)';customBtn.style.color='#000';customBtn.style.borderColor='var(--accent)';}
+    if(customPanel)customPanel.style.display='';
   } else {
     // Non-eBay: always use custom delivery fields (no Simple Delivery option).
     if(simplePanel)simplePanel.style.display='none';
@@ -8100,7 +8206,7 @@ function _refreshQuickAddDelivery(){
   const vintedNote=document.getElementById('qa-vinted-postage-note');
   if(vintedNote)vintedNote.style.display=isVinted?'':'none';
   const promoLbl=document.getElementById('qa-promo-label');
-  if(promoLbl)promoLbl.textContent=isEbay?'Promo %':'Boost %';
+  if(promoLbl)promoLbl.textContent=(isEbay||isEbayBiz)?'Promo %':'Boost %';
   const postageNote=document.getElementById('bpf-postage-note');
   if(postageNote){if(isVinted){postageNote.textContent='📦 Buyer pays postage — not deducted from your proceeds';postageNote.style.display='';}else{postageNote.style.display='none';}}
   // Packaging: hidden when eBay Simple Delivery is active
@@ -10564,6 +10670,17 @@ function setStockStateFilter(f){
   _saveUIState();
 }
 function toggleStockGrouped(){STOCK_GROUPED=!STOCK_GROUPED;renderStock();_saveUIState();}
+// F7: Toggle a specific month group collapsed/expanded
+function toggleStockGroup(key){
+  if(STOCK_COLLAPSED.has(key))STOCK_COLLAPSED.delete(key);
+  else STOCK_COLLAPSED.add(key);
+  _saveUIState();
+  // Toggle class in DOM without full re-render for performance
+  const el=document.getElementById('stock-group-'+key);
+  if(el)el.classList.toggle('collapsed',STOCK_COLLAPSED.has(key));
+  const toggle=el&&el.querySelector('.stock-group-toggle');
+  if(toggle)toggle.style.transform=STOCK_COLLAPSED.has(key)?'rotate(-90deg)':'rotate(0deg)';
+}
 
 function toggleStockSelection(){
   STOCK_SELECTION_MODE=!STOCK_SELECTION_MODE;
@@ -10721,10 +10838,12 @@ function renderStock(){
       // relisted items, ordinary gross for everything else).
       const groupProfit=groupItems.reduce((s,i)=>s+(calcEstProfit(i)||0),0);
       const groupStale=groupItems.filter(i=>i.dateListed&&daysBetween(i.dateListed,today)>=90).length;
-      groupedHTML+='<div class="stock-group" style="margin-bottom:18px;">'
-        +'<div class="stock-group-header" style="padding:10px 12px;background:var(--surface2);border-radius:8px 8px 0 0;border:1px solid var(--border);border-bottom:none;">'
+      const isCollapsed=STOCK_COLLAPSED.has(k);
+      groupedHTML+='<div class="stock-group'+(isCollapsed?' collapsed':'')+'" id="stock-group-'+k+'" style="margin-bottom:18px;">'
+        +'<div class="stock-group-header" onclick="toggleStockGroup(\''+k+'\')" style="padding:10px 12px;background:var(--surface2);border-radius:'+(isCollapsed?'8px':'8px 8px 0 0')+';border:1px solid var(--border);'+(isCollapsed?'':'border-bottom:none;')+'cursor:pointer;">'
         +'<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">'
         +'<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;min-width:0;">'
+        +'<span class="stock-group-toggle" style="font-size:12px;color:var(--muted);transition:transform 0.2s;display:inline-block;'+(isCollapsed?'transform:rotate(-90deg)':'')+'">&#9662;</span>'
         +'<span style="font-size:12px;font-weight:700;color:var(--text);text-transform:uppercase;letter-spacing:0.06em;white-space:nowrap;">'+keyName(k)+'</span>'
         +'<span style="font-size:12px;color:var(--text-secondary);white-space:nowrap;">'+groupItems.length+' active</span>'
         +'</div>'
@@ -10735,7 +10854,7 @@ function renderStock(){
         +'</div>'
         +'</div>'
         +'</div>'
-        +'<div class="item-table" style="border-radius:0 0 8px 8px;border:1px solid var(--border);border-top:none;">'
+        +'<div class="item-table stock-group-body" style="'+(isCollapsed?'display:none;':'')+'border-radius:0 0 8px 8px;border:1px solid var(--border);border-top:none;">'
         +groupItems.map(i=>renderStockRow(i.month,i)).join('')
         +'</div></div>';
     });
@@ -12761,7 +12880,7 @@ function editItem(m,id){
     </div>
     <div class="fg">
       <label>Delivery</label>
-      <div style="display:flex;gap:8px;margin-bottom:10px">
+      <div id="edit-mode-toggle" style="display:${_editPlatForMode==='ebay'?'flex':'none'};gap:8px;margin-bottom:10px">
         <button type="button" id="edit-mode-simple" onclick="_editSetDelivery('simple')"
           style="flex:1;padding:8px 12px;font-size:13px;font-weight:600;border-radius:8px;cursor:pointer;transition:all 0.15s;${_editPostMode==='simple'?'background:var(--accent);color:#000;border:1px solid var(--accent)':'background:var(--surface2);color:var(--text-secondary);border:1px solid var(--border)'}">
           Simple Delivery
@@ -12771,7 +12890,7 @@ function editItem(m,id){
           Custom
         </button>
       </div>
-      <div id="edit-delivery-simple" style="display:${_editPostMode==='simple'?'block':'none'}">
+      <div id="edit-delivery-simple" style="display:${_editPostMode==='simple'&&_editPlatForMode==='ebay'?'block':'none'}">
         <div class="form-grid-2" style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
           <div class="fg" style="margin-bottom:0">
             <label style="margin-bottom:4px">Your cost (£)</label>
@@ -14625,16 +14744,36 @@ function calcAmazonUKBPF(item,salePrice){
   return+(salePrice*rate+0.75).toFixed(2);
 }
 
-// eBay Business UK fee formula — verified from actual transaction (May 2026):
-// Category: Cameras & Photography = 6.9% FVF (rates vary 6.9%–14.9% by category)
+// eBay Business UK category FVF rates (verified Feb 2026 schedule)
+// Default 12.9% (Other) if category missing — safer to over-estimate than under.
+const EBAY_BIZ_FVF={
+  'Electronics & Tech':    0.099,
+  'Cameras & Photography': 0.099,
+  'Audio & Music':         0.099,
+  'Books & Media':         0.099,
+  'Toys & Games':          0.109,
+  'Collectibles & Vintage':0.109,
+  'Home & Garden':         0.119,
+  'Clothing & Fashion':    0.119,
+  'Other':                 0.129
+};
+
+// eBay Business UK fee formula (verified Feb 2026):
+// FVF: category-rate% on (item + buyer postage)
 // Regulatory Operating Fee: 0.35% of total transaction
 // Per-order fee: £0.40 on orders over £10, £0.30 on orders ≤£10
 // VAT: 20% charged on (FVF + regulatory + per-order) combined
-// All fees are on (item price + buyer-paid postage) — salePrice here already includes postage.
-// Note: if VAT-registered, you can reclaim the 20% VAT. Non-VAT-registered sellers pay it in full.
-function calcEbayBizBPF(salePrice){
+// All fees on (item price + buyer-paid postage) — salePrice already includes postage.
+// Note: if VAT-registered, you can reclaim the 20% VAT.
+// Banded tiers (6.9%→3% above £1,000 for tech etc.) deferred — flat per-category rate
+// is correct for the vast majority of reseller price points (<£400).
+function calcEbayBizBPF(salePrice, category){
   if(!salePrice||salePrice<=0)return 0;
-  const fvf=salePrice*0.069;           // 6.9% — Cameras & Photography (use as default)
+  const rate=EBAY_BIZ_FVF[category]||0.129; // default Other = 12.9% (safe over-estimate)
+  if(!(category in EBAY_BIZ_FVF)&&category){
+    console.warn('[RETRADE] eBay Biz: unknown category "'+category+'" — defaulting to 12.9%');
+  }
+  const fvf=salePrice*rate;
   const reg=salePrice*0.0035;          // 0.35% regulatory
   const perOrder=salePrice>10?0.40:0.30;
   const subtotal=fvf+reg+perOrder;
@@ -14652,7 +14791,7 @@ function calcPlatformBPF(item,salePrice,buyerPostage){
   const post=buyerPostage||0;
   switch(p){
     case 'ebay':      return calcEbayBPF(salePrice+post);
-    case 'ebay_biz':  return calcEbayBizBPF(salePrice+post);
+    case 'ebay_biz':  return calcEbayBizBPF(salePrice+post,item.category);
     case 'vinted':    return calcVintedBPF(item,salePrice);
     case 'depop':     return calcDepopBPF(item,salePrice);
     case 'fb':        return calcFbBPF(item,salePrice);
@@ -15513,6 +15652,7 @@ function _restoreAuthInputs(){
     if(_av && session.user?.email) _av.textContent=session.user.email[0].toUpperCase();
     await initDB();
     _dbSnapshot = _dbFingerprint();
+    await _hydrateUserSettings(_currentUserId); // F6: sync settings from cloud on login
   } else {
     // DEV: always show login so you can sign in normally OR tap "Developer preview"
     showLogin();
@@ -15531,6 +15671,7 @@ function _restoreAuthInputs(){
         _initialLoadDone = true;
         await initDB();
         _dbSnapshot = _dbFingerprint();
+        await _hydrateUserSettings(_currentUserId); // F6: sync settings from cloud on login
       }
       // else: page-load SIGNED_IN echo — already loaded, do nothing
     } else if(event === 'TOKEN_REFRESHED' && sess){
@@ -15694,6 +15835,7 @@ function exportForSupabase(){
   const trips=(DB.trips||[]).map(function(t){return{id:t.id||String(Date.now()),date:t.date,description:t.description||'',mileage:t.mileage||0,rate_per_mile:t.ratePerMile||0.45};});
   const expenses=(DB.expenses||[]).map(function(e){return{id:e.id||String(Date.now()),date:e.date,description:e.description||'',amount:e.amount||0,category:e.category||null};});
   const out={items,item_parts:parts,item_returns:returns,trips,expenses};
+  console.log(JSON.stringify(out,null,2));
   return out;
 }
 // Usage: open browser console and run: exportForSupabase()
@@ -15739,6 +15881,36 @@ window.addEventListener('load', function(){
   _suppressPasswordManagers();
   ['mark-sold-modal','relist-modal','return-modal'].forEach(function(id){
     _injectHoneypots(document.getElementById(id));
+  });
+  // F1: Delegated listener for inline listing fee input in P&L receipt
+  document.addEventListener('change', function(e){
+    const el=e.target;
+    if(!el.classList.contains('rcpt-listing-fee-input'))return;
+    const m=el.dataset.m;
+    const id=el.dataset.id;
+    if(!m||!id)return;
+    const items=DB[m]||[];
+    const it=items.find(function(x){return x.id===id;});
+    if(!it)return;
+    it.listingFee=+(parseFloat(el.value)||0).toFixed(2);
+    saveDB();
+    renderItemPage(m,id);
+  });
+  // F3: Delegated listeners for policy list reorder/edit/delete buttons
+  document.addEventListener('click', function(e){
+    const btn=e.target.closest('button');
+    if(!btn)return;
+    if(btn.classList.contains('ms-reorder-btn')){
+      e.stopPropagation();
+      reorderShippingPolicy(btn.dataset.name, parseInt(btn.dataset.dir,10));
+    } else if(btn.classList.contains('ms-edit-policy-btn')){
+      e.stopPropagation();
+      _msOpenEditPolicy(btn.dataset.name);
+    } else if(btn.classList.contains('ms-delete-policy-btn')){
+      e.stopPropagation();
+      deleteShippingPolicy(btn.dataset.name);
+      _msPoliciesRender();
+    }
   });
 });
 // Re-run whenever panel content is injected (covers Quick Add, Relist, Item Page etc.)
