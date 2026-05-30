@@ -545,7 +545,7 @@ input,select,textarea{touch-action:manipulation;user-select:text;-webkit-user-se
 
 /* TOAST */
 #toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(100px);background:var(--surface);border:1px solid var(--border);color:var(--text);padding:14px 24px;border-radius:10px;font-size:14px;font-weight:500;z-index:500;opacity:0;transition:opacity 0.22s ease, transform 0.32s cubic-bezier(0.34,1.32,0.64,1);box-shadow:0 4px 20px var(--shadow-md);max-width:90vw;}
-@media(max-width:600px){#toast{bottom:calc(88px + env(safe-area-inset-bottom,0px));}}
+@media(max-width:600px){#toast{bottom:calc(62px + env(safe-area-inset-bottom,0px) + 10px);}}
 #toast.on{opacity:1;transform:translateX(-50%) translateY(0);}
 #toast.err{background:var(--red);color:#fff;border-color:var(--red-hover);}
 
@@ -1045,6 +1045,7 @@ select[id^="edit-shipping-policy"]{text-align:center;text-align-last:center;}
   .ip-token-val input{font-size:16px;}
   .ip-token{padding:8px 10px;}
   .ip-token-label{font-size:9px;}
+}
 
 @media(max-width:680px){
   /* Postage row — stack on mobile */
@@ -1547,7 +1548,7 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
   #search-fab{
     display:flex!important;
     align-items:center;justify-content:center;
-    bottom:calc(88px + env(safe-area-inset-bottom,0px));
+    bottom:calc(62px + env(safe-area-inset-bottom,0px) + 10px);
     right:calc(24px + 52px + 12px);
     width:37px;height:37px;
   }
@@ -2787,10 +2788,11 @@ function _syncThemeColorMeta(theme){
   const colour=theme==='dark'?'#11111a':'#f4f5f7';
   document.querySelectorAll('meta[name="theme-color"]').forEach(function(m){
     m.setAttribute('content',colour);
-    m.removeAttribute('media'); // remove media query — set directly
+    m.removeAttribute('media');
   });
-  // Also update html background so Safari overscroll area matches
-  document.documentElement.style.background=colour;
+  // NOTE: do NOT set documentElement.style.background — inline style overrides
+  // CSS custom properties and breaks the entire colour system + fixed positioning.
+  // The html{background:var(--bg)} CSS rule handles the Safari overscroll area.
 }
 function updateThemeIcon(theme){
   const icon=document.getElementById('theme-icon');
@@ -3637,6 +3639,7 @@ function _rowToItem(row, parts, returns){
     estSalePrice:    row.est_sale_price != null ? Number(row.est_sale_price) : null,
     defaultPlatform: row.default_platform || null,
     soldOnPlatform:  row.sold_on_platform || null,
+    listingFee:      row.listing_fee != null ? Number(row.listing_fee) : 0,
     _shippingMigrated: true,
     returnData:      null,
     parts: (parts||[]).map(p=>({id:p.id, description:p.description||'', cost:Number(p.cost)||0})),
@@ -3694,6 +3697,7 @@ function _itemToRow(i, month){
     est_sale_price:   i.estSalePrice != null ? i.estSalePrice : null,
     default_platform: i.defaultPlatform || null,
     sold_on_platform: i.soldOnPlatform || null,
+    listing_fee:      i.listingFee || null,
   };
 }
 
@@ -4892,6 +4896,7 @@ function renderItemPage(m,id){
   if(_plat==='vinted')pb+=rcp('Buyer pays postage','(buyer covered)','var(--muted)');
   else if(_rcptPostage>0)pb+=rcp('+ Buyer postage','+'+fmt(_rcptPostage),'var(--green)');
   if(_showFee)pb+=rcp(_feeLabel,'−'+fmt(bpf),'var(--red)');
+  if((i.listingFee||0)>0)pb+=rcp('Listing fee','−'+fmt(i.listingFee),'var(--red)');
   if(_showPostage&&_rcptShipping>0)pb+=rcp('Shipping cost','−'+fmt(_rcptShipping),'var(--red)');
   if(_showPostage&&_rcptPackaging>0)pb+=rcp('Packaging','−'+fmt(_rcptPackaging),'var(--red)');
   if(_rcptPromo)pb+=rcp((_plat==='ebay'?'Promo fee ('+((_rcptPromo*100).toFixed(0))+'% +VAT)':'Boost fee ('+((_rcptPromo*100).toFixed(0))+'%)'),'−'+fmt(promoCost),'var(--red)');
@@ -5116,6 +5121,15 @@ function renderItemPage(m,id){
   html+='<div class="ip-token-val">'+promoStr+'%</div>';
   html+='<div class="ip-token-sub">Tap to edit · Fee: '+fmt(promoCost)+'</div>';
   html+='</div>';
+
+  // Listing fee — shown for eBay Biz only (insertion fee / listing upgrade)
+  if(_plat==='ebay_biz'){
+    html+='<div class="ip-token" id="tok-listingFee-'+id+'" onpointerdown="tokenPointerDown(\''+m+'\',\''+id+'\',\'listingFee\')" onclick="openTokenEdit(\''+m+'\',\''+id+'\',\'listingFee\')">'
+      +'<div class="ip-token-label">Listing Fee</div>'
+      +'<div class="ip-token-val">'+fmt(i.listingFee||0)+'</div>'
+      +'<div class="ip-token-sub">'+(i.listingFee?'Deducted from profit':'0 · tap to add')+'</div>'
+    +'</div>';
+  }
 
   // Net Profit + ROI — read only, auto calculated
   html+='<div class="ip-token locked '+profitClass+'">';
@@ -14732,7 +14746,8 @@ function calcGrossProfit(i){
   // Vinted (and any future buyer-pays-postage-only platform): seller pays nothing to ship
   const _platForCost=_itemPlatform(i);
   const _sellerPaysShipping=(_platForCost!=='vinted'&&_platForCost!=='fb');
-  const cost=(i.costPrice||0)+(_sellerPaysShipping?_s1Shipping:0)+(_sellerPaysShipping?_s1Packaging:0)+promoCost+returnCost+partsCost;
+  const listingFee=i.listingFee||0;
+  const cost=(i.costPrice||0)+(_sellerPaysShipping?_s1Shipping:0)+(_sellerPaysShipping?_s1Packaging:0)+promoCost+returnCost+partsCost+listingFee;
   let profit=rev-cost;
   // Second sale (resold after return)
   if(i.resaleSalePrice){
@@ -15071,7 +15086,7 @@ window.addEventListener('load',handleNavResize);
   const _fabsRaise=function(){
     var fd=document.getElementById('fab-dial');
     var sf=document.getElementById('search-fab');
-    var raised=window.innerWidth<=600?'88px':'24px';
+    var raised=window.innerWidth<=600?'calc(62px + env(safe-area-inset-bottom,0px) + 10px)':'24px';
     if(fd)fd.style.bottom=raised;
     if(sf)sf.style.bottom=raised;
   }
