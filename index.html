@@ -216,7 +216,10 @@ nav:not(#bottom-nav){position:sticky;top:env(safe-area-inset-top,0px);z-index:20
      the icons via padding-bottom so icons are never compressed on iPhone PWA. */
   height:calc(62px + env(safe-area-inset-bottom,0px));
   background:var(--surface);border-top:1px solid var(--border);
-  z-index:200;
+  /* z-index above the transient page backdrops (search 249 / fab 299 / more 300)
+     so a backdrop that's mid-animation or left open can never make the nav dead.
+     Still below modals/panels (400+). The nav's own handlers dismiss overlays. */
+  z-index:310;
   padding-bottom:env(safe-area-inset-bottom,0px);
   box-shadow:0 -1px 0 var(--border),0 -4px 20px var(--shadow);
   transform:translateY(0);
@@ -260,8 +263,8 @@ nav:not(#bottom-nav){position:sticky;top:env(safe-area-inset-top,0px);z-index:20
   nav:not(#bottom-nav){display:none!important;}
   #bottom-nav{display:flex!important;align-items:stretch;gap:0;}
   body{padding-bottom:72px;}
-  .fab{bottom:calc(62px + env(safe-area-inset-bottom,0px) + 10px)!important;right:16px!important;}
-  .fab-dial{bottom:calc(62px + env(safe-area-inset-bottom,0px) + 10px);right:16px;}
+  .fab{bottom:calc(62px + env(safe-area-inset-bottom,0px) + 18px)!important;right:16px!important;}
+  .fab-dial{bottom:calc(62px + env(safe-area-inset-bottom,0px) + 18px);right:16px;}
 }
 /* MORE SHEET */
 .more-sheet-row{display:flex;align-items:center;gap:16px;width:100%;padding:14px 22px;background:none;border:none;text-align:left;cursor:pointer;font-size:15px;font-weight:500;color:var(--text);-webkit-tap-highlight-color:transparent;transition:background 0.12s;}
@@ -1113,7 +1116,7 @@ button .rt-icon,.btn .rt-icon{pointer-events:none;}
 #auth-screen-login,#auth-screen-reset{background:#1a1a24!important;border-color:#2e2e3e!important;}
 
 /* FAB — double ring on hover (target motif) */
-.fab-dial{position:fixed;bottom:24px;right:24px;z-index:300;display:flex;flex-direction:column;align-items:flex-end;gap:10px;pointer-events:none;transition:bottom 0.22s cubic-bezier(0.34,1.38,0.64,1);}
+.fab-dial{position:fixed;bottom:24px;right:24px;z-index:330;display:flex;flex-direction:column;align-items:flex-end;gap:10px;pointer-events:none;transition:bottom 0.22s cubic-bezier(0.34,1.38,0.64,1);}
 .fab-dial.open .fab-dial-item{opacity:1;transform:translateY(0);pointer-events:auto;}
 .fab-dial-item{display:flex;align-items:center;gap:10px;opacity:0;transform:translateY(12px);transition:opacity 0.18s,transform 0.18s;pointer-events:none;}
 .fab-dial-item:nth-child(2){transition-delay:0.04s;}
@@ -1725,9 +1728,9 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
       <div class="nav-more" id="nav-more-wrap">
         <button class="nav-more-btn has-items" id="nav-more-trigger" onclick="event.stopPropagation();toggleNavMore()" title="More pages" style="gap:5px;padding:0 12px;" title="More"><span class="tab-ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/></svg></span><span class="tab-label">More</span></button>
         <div class="nav-more-menu" id="nav-more-menu">
-          <button data-tab="expenses" onclick="goToTab('expenses',this);document.querySelector('.nav-more').classList.remove('open')"><span style="width:28px;height:28px;border-radius:6px;background:rgba(212,136,10,0.12);color:var(--accent);display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 2h14a1 1 0 0 1 1 1v18l-2.5-1.5L15 21l-2.5-1.5L10 21l-2.5-1.5L5 21V3a1 1 0 0 1 0-1z"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="12" y2="16"/></svg></span><span style="display:flex;flex-direction:column;gap:1px;"><span>Expenses</span><span style="font-size:11px;font-weight:400;color:var(--muted);">Track your spend</span></span></button>
-          <button data-tab="tax" onclick="goToTab('tax',this);document.querySelector('.nav-more').classList.remove('open')"><span style="width:28px;height:28px;border-radius:6px;background:rgba(29,95,168,0.10);color:var(--blue);display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="15" x2="15" y2="9"/><circle cx="9.5" cy="9.5" r="1" fill="currentColor" stroke="none"/><circle cx="14.5" cy="14.5" r="1" fill="currentColor" stroke="none"/></svg></span><span style="display:flex;flex-direction:column;gap:1px;"><span>Tax / SA103</span><span style="font-size:11px;font-weight:400;color:var(--muted);">Generate reports</span></span></button>
-          <button data-tab="data" onclick="goToTab('data',this);document.querySelector('.nav-more').classList.remove('open')"><span style="width:28px;height:28px;border-radius:6px;background:rgba(107,63,160,0.10);color:var(--purple);display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v4c0 1.66 4 3 9 3s9-1.34 9-3V5"/><path d="M3 9v5c0 1.66 4 3 9 3s9-1.34 9-3V9"/><path d="M3 14v5c0 1.66 4 3 9 3s9-1.34 9-3v-5"/></svg></span><span style="display:flex;flex-direction:column;gap:1px;"><span>Data</span><span style="font-size:11px;font-weight:400;color:var(--muted);">Export &amp; manage</span></span></button>
+          <button data-tab="expenses" onclick="goToTab('expenses',this);closeNavMore()"><span style="width:28px;height:28px;border-radius:6px;background:rgba(212,136,10,0.12);color:var(--accent);display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 2h14a1 1 0 0 1 1 1v18l-2.5-1.5L15 21l-2.5-1.5L10 21l-2.5-1.5L5 21V3a1 1 0 0 1 0-1z"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="12" y2="16"/></svg></span><span style="display:flex;flex-direction:column;gap:1px;"><span>Expenses</span><span style="font-size:11px;font-weight:400;color:var(--muted);">Track your spend</span></span></button>
+          <button data-tab="tax" onclick="goToTab('tax',this);closeNavMore()"><span style="width:28px;height:28px;border-radius:6px;background:rgba(29,95,168,0.10);color:var(--blue);display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="15" x2="15" y2="9"/><circle cx="9.5" cy="9.5" r="1" fill="currentColor" stroke="none"/><circle cx="14.5" cy="14.5" r="1" fill="currentColor" stroke="none"/></svg></span><span style="display:flex;flex-direction:column;gap:1px;"><span>Tax / SA103</span><span style="font-size:11px;font-weight:400;color:var(--muted);">Generate reports</span></span></button>
+          <button data-tab="data" onclick="goToTab('data',this);closeNavMore()"><span style="width:28px;height:28px;border-radius:6px;background:rgba(107,63,160,0.10);color:var(--purple);display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v4c0 1.66 4 3 9 3s9-1.34 9-3V5"/><path d="M3 9v5c0 1.66 4 3 9 3s9-1.34 9-3V9"/><path d="M3 14v5c0 1.66 4 3 9 3s9-1.34 9-3v-5"/></svg></span><span style="display:flex;flex-direction:column;gap:1px;"><span>Data</span><span style="font-size:11px;font-weight:400;color:var(--muted);">Export &amp; manage</span></span></button>
         </div>
       </div>
     </div>
@@ -1840,8 +1843,8 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
 </div>
 
 <!-- MORE SHEET — hamburger menu, slides up from bottom nav -->
-<div id="more-sheet-overlay" onclick="closeMoreSheet()" style="display:none;position:fixed;inset:0;z-index:300;background:var(--overlay);backdrop-filter:blur(2px);"></div>
-<div id="more-sheet" style="display:none;position:fixed;bottom:calc(62px + env(safe-area-inset-bottom,0px));left:0;right:0;z-index:301;background:var(--surface);border-top:1px solid var(--border);border-radius:20px 20px 0 0;padding:8px 0 16px;box-shadow:0 -8px 40px var(--shadow-md);overflow-y:auto;max-height:70vh;transform:translateY(100%);transition:transform .28s cubic-bezier(0.32,1.1,0.5,1);">
+<div id="more-sheet-overlay" onclick="closeMoreSheet()" style="display:none;position:fixed;inset:0;z-index:320;background:var(--overlay);backdrop-filter:blur(2px);"></div>
+<div id="more-sheet" style="display:none;position:fixed;bottom:calc(62px + env(safe-area-inset-bottom,0px));left:0;right:0;z-index:321;background:var(--surface);border-top:1px solid var(--border);border-radius:20px 20px 0 0;padding:8px 0 16px;box-shadow:0 -8px 40px var(--shadow-md);overflow-y:auto;max-height:70vh;transform:translateY(100%);transition:transform .28s cubic-bezier(0.32,1.1,0.5,1);">
   <div style="width:36px;height:4px;background:var(--border2);border-radius:2px;margin:0 auto 16px;"></div>
   <!-- MAIN sheet contents — page nav + country trigger + theme + sign out -->
   <div id="more-sheet-main" class="more-sheet-pane">
@@ -1993,8 +1996,12 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
 </div>
 
 <div id="fab-backdrop" onclick="closeFabDial()" style="display:none;position:fixed;inset:0;z-index:299;background:var(--overlay);backdrop-filter:blur(2px);-webkit-backdrop-filter:blur(2px);opacity:0;transition:opacity 0.18s ease;pointer-events:none;"></div>
+<!-- Invisible backdrop for the desktop "More" dropdown — captures the outside
+     click so it (a) closes the menu and (b) absorbs the tap so nothing in the
+     page behind it fires. Sits just below the menu (z-300), above page content. -->
+<div id="nav-more-backdrop" onclick="event.stopPropagation();event.preventDefault();closeNavMore();" style="display:none;position:fixed;inset:0;z-index:190;background:transparent;"></div>
 <div id="search-backdrop" onclick="toggleNavSearch()" style="display:none;position:fixed;inset:0;z-index:249;background:var(--overlay);backdrop-filter:blur(2px);-webkit-backdrop-filter:blur(2px);opacity:0;transition:opacity 0.18s ease;pointer-events:none;"></div>
-<button id="search-fab" onclick="toggleNavSearch()" aria-label="Search" style="display:none;position:fixed;z-index:300;background:var(--surface);border:1px solid var(--border);color:var(--text-secondary);border-radius:50%;width:37px;height:37px;cursor:pointer;box-shadow:0 4px 16px var(--shadow-md);-webkit-tap-highlight-color:transparent;transition:bottom 0.22s cubic-bezier(0.34,1.38,0.64,1),transform 0.15s,box-shadow 0.15s,color 0.15s;">
+<button id="search-fab" onclick="toggleNavSearch()" aria-label="Search" style="display:none;position:fixed;z-index:330;background:var(--surface);border:1px solid var(--border);color:var(--text-secondary);border-radius:50%;width:37px;height:37px;cursor:pointer;box-shadow:0 4px 16px var(--shadow-md);-webkit-tap-highlight-color:transparent;transition:bottom 0.22s cubic-bezier(0.34,1.38,0.64,1),transform 0.15s,box-shadow 0.15s,color 0.15s;">
   <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5 L21 21"/></svg>
 </button>
 <div id="fab-dial" class="fab-dial" style="display:none">
@@ -2347,8 +2354,10 @@ const ITEM_SOURCES=[
 
 const ITEM_CATEGORIES=[
   'Electronics & Tech','Cameras & Photography','Audio & Music',
-  'Books & Media','Toys & Games','Home & Garden',
-  'Clothing & Fashion','Collectibles & Vintage','Other'
+  'Books & Media','Toys & Games','Video Games & Consoles',
+  'Home & Garden','Clothing & Fashion','Sneakers & Trainers',
+  'Health & Beauty','Sporting Goods','Jewellery & Watches',
+  'Collectibles & Vintage','Other'
 ];
 
 // ============================================================================
@@ -2411,8 +2420,10 @@ function icon(name,size,extraStyle){
 // Map item category → icon name (single lookup used everywhere a category glyph appears)
 const _CAT_ICON={
   'Electronics & Tech':'cat_tech','Cameras & Photography':'cat_camera','Audio & Music':'cat_audio',
-  'Books & Media':'cat_books','Toys & Games':'cat_toys','Home & Garden':'cat_home',
-  'Clothing & Fashion':'cat_fashion','Collectibles & Vintage':'cat_vintage','Other':'cat_other'
+  'Books & Media':'cat_books','Toys & Games':'cat_toys','Video Games & Consoles':'cat_toys',
+  'Home & Garden':'cat_home','Clothing & Fashion':'cat_fashion','Sneakers & Trainers':'cat_fashion',
+  'Health & Beauty':'cat_other','Sporting Goods':'cat_other','Jewellery & Watches':'cat_vintage',
+  'Collectibles & Vintage':'cat_vintage','Other':'cat_other'
 };
 function catIcon(category,size){return icon(_CAT_ICON[category]||'cat_other',size||16);}
 
@@ -2981,6 +2992,8 @@ function closeAllDropdowns(){
   // Desktop nav-more dropdown (hamburger)
   const _nm=document.querySelector('.nav-more');
   if(_nm)_nm.classList.remove('open');
+  const _nmbd=document.getElementById('nav-more-backdrop');
+  if(_nmbd)_nmbd.style.display='none';
   const _nmt=document.getElementById('nav-more-trigger');
   if(_nmt)_nmt.classList.remove('active');
   // Mobile more sheet
@@ -4333,7 +4346,11 @@ async function initDB(){
     _dbSnapshot = _dbFingerprint();
     _loadUIState();
     hideLoadingScreen();
-    const _lastTab=(()=>{try{return localStorage.getItem(_SK.tab)||'summary';}catch(e){return 'summary';}})();
+    // On a fresh session, always start on Summary (the natural home), ignoring
+    // whatever page was last open. _loadUIState() above already kept default
+    // filters for a new session, so this completes the clean-start behaviour.
+    const _freshSession=!_isSameSession();
+    const _lastTab=(()=>{if(_freshSession)return 'summary';try{return localStorage.getItem(_SK.tab)||'summary';}catch(e){return 'summary';}})();
     const _safeTab=['summary','monthly','stock','expenses','tax','data','runs'].includes(_lastTab)?_lastTab:'summary';
     if(_safeTab==='summary')renderSummary();
     else if(_safeTab==='monthly')renderMonthlyPage();
@@ -4351,6 +4368,9 @@ async function initDB(){
     const _bn=document.querySelector('#bottom-nav .bnt[data-tab="'+_safeTab+'"]');if(_bn)_bn.classList.add('on');
     handleNavResize();
     if(typeof _syncFabVisibility==='function')_syncFabVisibility();
+    // Stamp this session active now so a quick reload (even with no navigation)
+    // is recognised as the same session and the next save extends it.
+    try{localStorage.setItem(_SK.lastActive,String(Date.now()));}catch(e){}
   }catch(e){
     console.error('initDB error:', e);
     hideLoadingScreen();
@@ -4496,9 +4516,18 @@ async function setItemPlatform(m,id,platId){
   const items=DB[m]||[];
   const i=items.find(x=>x.id===id);
   if(!i)return;
-  if(i.defaultPlatform===platId)return; // no change
 
-  i.defaultPlatform=platId;
+  const _isSold=(i.dateSold||i.resaleSalePrice)&&!i.isReturned;
+  if(_isSold){
+    // Sold item: the fee source-of-truth is soldOnPlatform. Update it (and keep
+    // defaultPlatform in sync), then re-store grossProfit so totals/tax follow.
+    if(i.soldOnPlatform===platId&&i.defaultPlatform===platId)return; // no change
+    i.soldOnPlatform=platId;
+    i.defaultPlatform=platId;
+  }else{
+    if(i.defaultPlatform===platId)return; // no change
+    i.defaultPlatform=platId;
+  }
   // F2: eBay Biz doesn't use Simple Delivery — force custom postage mode on switch
   if(platId==='ebay_biz'){
     i._postageMode='custom';
@@ -4507,6 +4536,7 @@ async function setItemPlatform(m,id,platId){
   if(platId==='ebay'&&(!i._postageMode||i._postageMode==='custom')){
     i._postageMode='simple';
   }
+  if(_isSold)i.grossProfit=calcGrossProfit(i);
   await saveDB();
   // Re-render item page to show updated P&L
   renderItemPage(m,id);
@@ -4524,11 +4554,24 @@ function platBadgeHTML(i){
 
 // NAVIGATION
 // ── UI State Persistence ──────────────────────────────────────────────────────
-const _SK={tab:'_rt_tab',stockF:'_rt_stk_f',stockSF:'_rt_stk_sf',stockSo:'_rt_stk_so',stockSoF:'_rt_stk_sof',stockGr:'_rt_stk_gr',stkCol:'_rt_stk_col',runsSort:'_rt_run_so',sumPer:'_rt_sum_p',monthV:'_rt_mon_v'};
+const _SK={tab:'_rt_tab',stockF:'_rt_stk_f',stockSF:'_rt_stk_sf',stockSo:'_rt_stk_so',stockSoF:'_rt_stk_sof',stockGr:'_rt_stk_gr',stkCol:'_rt_stk_col',runsSort:'_rt_run_so',sumPer:'_rt_sum_p',monthV:'_rt_mon_v',lastActive:'_rt_last_active'};
+// A gap longer than this between activity and the next launch counts as a NEW
+// session — on a fresh session we ignore the persisted page/filters and start
+// from clean defaults (Summary page, no stock filters), which feels more
+// natural than resuming wherever the user happened to leave off days ago.
+const _SESSION_FRESH_MS=4*60*60*1000; // 4 hours
 let STOCK_COLLAPSED=new Set(); // F7: collapsed month keys in grouped stock view
 const _scrollMap={};
-function _saveUIState(){try{localStorage.setItem(_SK.tab,(document.querySelector('.page.on')||{id:'p-summary'}).id.replace('p-',''));localStorage.setItem(_SK.stockF,STOCK_FILTER);localStorage.setItem(_SK.stockSF,STOCK_STATE_FILTER);localStorage.setItem(_SK.stockSo,STOCK_SORT);localStorage.setItem(_SK.stockSoF,STOCK_SOURCED_FILTER);localStorage.setItem(_SK.stockGr,STOCK_GROUPED?'1':'0');localStorage.setItem(_SK.stkCol,JSON.stringify([...STOCK_COLLAPSED]));localStorage.setItem(_SK.runsSort,RUNS_SORT);localStorage.setItem(_SK.sumPer,SUMMARY_PERIOD);localStorage.setItem(_SK.monthV,MONTHLY_VIEW);}catch(e){}}
-function _loadUIState(){try{const sf=localStorage.getItem(_SK.stockF);const ssf=localStorage.getItem(_SK.stockSF);const sso=localStorage.getItem(_SK.stockSo);const ssof=localStorage.getItem(_SK.stockSoF);const sgr=localStorage.getItem(_SK.stockGr);const sc=localStorage.getItem(_SK.stkCol);const rs=localStorage.getItem(_SK.runsSort);const sp=localStorage.getItem(_SK.sumPer);const mv=localStorage.getItem(_SK.monthV);if(sf)STOCK_FILTER=sf;if(ssf)STOCK_STATE_FILTER=ssf;if(sso)STOCK_SORT=sso;if(ssof)STOCK_SOURCED_FILTER=ssof;if(sgr)STOCK_GROUPED=sgr==='1';if(sc){try{STOCK_COLLAPSED=new Set(JSON.parse(sc));}catch(e){}}if(rs)RUNS_SORT=rs;if(sp)SUMMARY_PERIOD=sp;if(mv)MONTHLY_VIEW=mv;}catch(e){}}
+function _saveUIState(){try{localStorage.setItem(_SK.tab,(document.querySelector('.page.on')||{id:'p-summary'}).id.replace('p-',''));localStorage.setItem(_SK.stockF,STOCK_FILTER);localStorage.setItem(_SK.stockSF,STOCK_STATE_FILTER);localStorage.setItem(_SK.stockSo,STOCK_SORT);localStorage.setItem(_SK.stockSoF,STOCK_SOURCED_FILTER);localStorage.setItem(_SK.stockGr,STOCK_GROUPED?'1':'0');localStorage.setItem(_SK.stkCol,JSON.stringify([...STOCK_COLLAPSED]));localStorage.setItem(_SK.runsSort,RUNS_SORT);localStorage.setItem(_SK.sumPer,SUMMARY_PERIOD);localStorage.setItem(_SK.monthV,MONTHLY_VIEW);localStorage.setItem(_SK.lastActive,String(Date.now()));}catch(e){}}
+// True if the last recorded activity is recent enough to be the SAME session.
+// Missing/old timestamp → treat as a new session (return false).
+function _isSameSession(){try{const t=parseInt(localStorage.getItem(_SK.lastActive),10);if(!t||isNaN(t))return false;return (Date.now()-t)<_SESSION_FRESH_MS;}catch(e){return false;}}
+function _loadUIState(){try{
+  // New session → keep the clean JS defaults (Summary, no stock filters) rather
+  // than resuming stale page/filter state. Collapsed-group state is harmless to
+  // restore either way, but we skip it too for a fully clean start.
+  if(!_isSameSession())return;
+  const sf=localStorage.getItem(_SK.stockF);const ssf=localStorage.getItem(_SK.stockSF);const sso=localStorage.getItem(_SK.stockSo);const ssof=localStorage.getItem(_SK.stockSoF);const sgr=localStorage.getItem(_SK.stockGr);const sc=localStorage.getItem(_SK.stkCol);const rs=localStorage.getItem(_SK.runsSort);const sp=localStorage.getItem(_SK.sumPer);const mv=localStorage.getItem(_SK.monthV);if(sf)STOCK_FILTER=sf;if(ssf)STOCK_STATE_FILTER=ssf;if(sso)STOCK_SORT=sso;if(ssof)STOCK_SOURCED_FILTER=ssof;if(sgr)STOCK_GROUPED=sgr==='1';if(sc){try{STOCK_COLLAPSED=new Set(JSON.parse(sc));}catch(e){}}if(rs)RUNS_SORT=rs;if(sp)SUMMARY_PERIOD=sp;if(mv)MONTHLY_VIEW=mv;}catch(e){}}
 function _saveTabScroll(){const a=document.querySelector('.page.on');if(a)_scrollMap[a.id.replace('p-','')]=window.scrollY||window.pageYOffset||0;}
 function _restoreTabScroll(tab){const y=_scrollMap[tab];if(y)requestAnimationFrame(function(){requestAnimationFrame(function(){window.scrollTo(0,y);});});}
 
@@ -4549,6 +4592,13 @@ function goToTab(name,sourceEl){
   if(typeof closeMoreSheet==='function')closeMoreSheet();
   const _fabDial=document.querySelector('.fab-dial');if(_fabDial)_fabDial.classList.remove('open');
   const _fabBackdrop=document.getElementById('fab-backdrop');if(_fabBackdrop){_fabBackdrop.style.opacity='0';_fabBackdrop.style.pointerEvents='none';setTimeout(function(){_fabBackdrop.style.display='none';},180);}
+  // Safety net — force EVERY transient full-screen backdrop fully inert
+  // immediately (display:none + pointer-events:none), so an interrupted
+  // close animation can never leave an invisible layer eating nav taps.
+  ['fab-backdrop','search-backdrop','more-sheet-overlay'].forEach(function(bid){
+    const b=document.getElementById(bid);
+    if(b){b.style.display='none';b.style.pointerEvents='none';b.style.opacity='0';}
+  });
   document.querySelectorAll('.tab').forEach(t=>t.classList.remove('on'));
   document.querySelectorAll('.bnt').forEach(b=>b.classList.remove('on'));
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('on'));
@@ -4568,6 +4618,7 @@ function goToTab(name,sourceEl){
     b.classList.toggle('on', b.dataset.tab===name);
   });
   document.querySelector('.nav-more')?.classList.remove('open');
+  var _nmBdNav=document.getElementById('nav-more-backdrop');if(_nmBdNav)_nmBdNav.style.display='none';
   handleNavResize();
   _saveTabScroll();
   _saveUIState();
@@ -5086,7 +5137,7 @@ function renderItemPage(m,id){
   const _showPostage=(_plat!=='vinted');
   const _showSimpleDelivery=(_plat==='ebay'); // Simple Delivery: eBay private only; Biz uses postage policies
   const _showFee=(_plat!=='vinted'&&_plat!=='fb');
-  const _feeLabel=_plat==='ebay'?'eBay BPF':_plat==='ebay_biz'?('eBay FVF (Biz · '+((EBAY_BIZ_FVF[i.category]||0.129)*100).toFixed(1)+'%)'):_plat==='depop'?'Depop fee':_plat==='amazon_uk'?'Amazon fee':'Platform fee';
+  const _feeLabel=_plat==='ebay'?'eBay BPF':_plat==='ebay_biz'?('eBay FVF (Biz · '+_ebayBizRateLabel(i.category,(i.salePrice||0),i.salePrice||0)+')'):_plat==='depop'?'Depop fee':_plat==='amazon_uk'?'Amazon fee':'Platform fee';
   const _promoLabel=_plat==='ebay'?'Promo %':'Boost %';
   const totalRefunded=(i.returnHistory||[]).reduce((s,r)=>s+(r.refundAmount||0),0);
   const totalReturnPostage=(i.returnHistory||[]).reduce((s,r)=>s+(r.returnPostage||0),0);
@@ -5369,11 +5420,10 @@ function renderItemPage(m,id){
   if(i.gid)html+='<span class="ip-chip mono">'+esc(i.gid)+'</span>';
   html+='<span class="ip-chip">'+m+'</span>';
   html+='<div class="item-badge '+status+'">'+status+'</div>';
-  const _platBadge=platBadgeHTML(i);
-  if(_platBadge&&status!=='active'){
-    html+=_platBadge;
-  } else if(status==='active'){
-    // Tappable platform selector for listed items — change & instantly see P&L impact
+  {
+    // Tappable platform selector — change & instantly see P&L impact. Available
+    // on sold/returned items too (a sale can be recorded on the wrong platform;
+    // editing here writes soldOnPlatform and re-stores profit — no undo dance).
     const _curPlat=_itemPlatform(i);
     const _livePlats=Object.values(PLATFORMS).filter(p=>p.live);
     // Match .plat-badge colours per platform (same as the CSS definitions)
@@ -6148,6 +6198,7 @@ function initPanelSwipe(){
 }
 initPanelSwipe();
 
+
 // Patch A — Page-aware FAB.
 // Per-page option sets (top of stack = most-used / closest to FAB).
 // Page → option ids (in order). Option specs are in _FAB_OPTION_DEFS below.
@@ -6339,7 +6390,9 @@ function openLogPastRunModal(){
     </div>
     <button class="btn btn-p" style="width:100%;margin-top:6px" onclick="submitLogPastRun()">Save &amp; open run</button>`;
   openPanel('Log past run', html);
-  setTimeout(function(){const n=document.getElementById('pr-name');if(n)n.focus();},60);
+  // Focus synchronously within the tap so iOS opens the keyboard; retry as fallback.
+  (function(){const n=document.getElementById('pr-name');if(n)n.focus();})();
+  setTimeout(function(){const n=document.getElementById('pr-name');if(n&&document.activeElement!==n)n.focus();},60);
 }
 
 function submitLogPastRun(){
@@ -6646,7 +6699,8 @@ function openEditRun(runId){
     </div>
     <button class="btn btn-p" style="width:100%;margin-top:6px" onclick="submitEditRun('${run.id}')">Save</button>`;
   openPanel('Edit run', html);
-  setTimeout(function(){ const n=document.getElementById('er-name'); if(n)n.focus(); },80);
+  (function(){const n=document.getElementById('er-name');if(n)n.focus();})();
+  setTimeout(function(){const n=document.getElementById('er-name');if(n&&document.activeElement!==n)n.focus();},80);
 }
 
 function submitEditRun(runId){
@@ -6669,9 +6723,12 @@ function submitEditRun(runId){
   saveDB();
   closePanel();
   toast('Run updated');
-  // If run detail page is open, re-render it
-  if(document.querySelector('.page.on')&&document.querySelector('.page.on').id==='p-run'){
+  // Re-render whichever runs view is open so the edit shows immediately.
+  const _curPage=document.querySelector('.page.on');
+  if(_curPage&&_curPage.id==='p-run'){
     openRunPage(runId);
+  }else if(_curPage&&_curPage.id==='p-runs'){
+    renderRunsPage();
   }
 }
 
@@ -6707,28 +6764,6 @@ function _autoTagToActiveRun(item){
 }
 
 // ── Section 2: Active run banner HTML ────────────────────────────────────────
-function _activeRunBannerHTML(){
-  if(!_activeSourcingRun)return'';
-  const run=_activeSourcingRun;
-  const items=_runItems(run.id);
-  const spent=items.reduce(function(s,i){return s+(i.costPrice||0)+calcPartsCost(i);},0);
-  const listed=items.filter(function(i){return i.state!=='sourced';}).length;
-  const pctListed=items.length?Math.round((listed/items.length)*100):0;
-  const loc=run.location?(' \u00b7 '+esc(run.location)):'';
-  return '<div class="run-banner" id="active-run-banner">'
-    +'<div class="run-banner-dot"></div>'
-    +'<div class="run-banner-body">'
-      +'<div class="run-banner-title">'+esc(run.name)+loc+'</div>'
-      +'<div class="run-banner-meta">'+items.length+' item'+(items.length!==1?'s':'')+' \u00b7 \u00a3'+spent.toFixed(2)+' spent \u00b7 '+pctListed+'% listed</div>'
-    +'</div>'
-    +'<div class="run-banner-actions">'
-      +'<button class="btn btn-s" style="padding:6px 10px;font-size:12px;" onclick="openActiveRunPage()" title="Go to active run workspace">Go</button>'
-      +'<button class="btn btn-s" style="padding:6px 10px;font-size:12px;" onclick="endSourcingRun()">End</button>'
-      +'<button class="btn btn-s" style="padding:6px 10px;font-size:12px;" onclick="openRunPage(\''+run.id+'\')">P&amp;L</button>'
-    +'</div>'
-    +'</div>';
-}
-
 function openRunPage(runId){
   const run=_sourcingRuns.find(r=>r.id===runId);
   if(!run){ toast('Run not found','error'); return; }
@@ -7016,72 +7051,7 @@ function _renderRunPage(run){
 }
 
 
-function removeItemFromRun(m,itemId,runId){
-  const i=(DB[m]||[]).find(x=>x.id===itemId);
-  if(!i)return;
-  i.sourcingRunId=null;
-  saveDB();
-  const run=_sourcingRuns.find(r=>r.id===runId);
-  if(run)_renderRunPage(run);
-}
-
 // ── Section 4: Run history (rendered inside renderStock) ──────────────────────
-function _runHistoryHTML(){
-  const ended=_sourcingRuns.filter(r=>r.status==='ended').slice(0,3);
-  const hasAny=_sourcingRuns.length>0;
-  if(!hasAny){
-    return '<div style="background:var(--surface);border:1px dashed var(--border);border-radius:12px;padding:20px;text-align:center;margin-bottom:18px;">'
-      +'<div style="font-size:13px;font-weight:600;margin-bottom:4px;">No sourcing runs yet</div>'
-      +'<div style="font-size:12px;color:var(--text-secondary);">Tap + \u2192 Start sourcing run when you\u2019re at a boot or charity shop.</div>'
-      +'</div>';
-  }
-  if(ended.length===0)return'';
-  let html='<div style="margin-bottom:18px;">'
-    +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">'
-      +'<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--muted);">Past Runs</div>'
-      +(_sourcingRuns.filter(r=>r.status==='ended').length>3?'<button class="btn btn-s" style="font-size:11px;padding:4px 8px;" onclick="openRunHistoryPanel()">View all</button>':'')
-    +'</div>'
-    +'<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden;">';
-  ended.forEach(function(run,idx){
-    const items=_runItems(run.id);
-    const spent=items.reduce(function(s,i){return s+(i.costPrice||0);},0);
-    const dateStr=(run.dateEnded||'').slice(0,10);
-    html+='<div style="display:flex;align-items:center;gap:10px;padding:10px 14px;cursor:pointer;'+(idx>0?'border-top:1px solid var(--border)':'')+'" onclick="openRunPage(\''+run.id+'\')">'+
-      '<div style="flex:1;min-width:0;">'+
-        '<div style="font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(run.name)+'</div>'+
-        '<div style="font-size:11px;color:var(--text-secondary);">'+(run.location?esc(run.location)+' \u00b7 ':'')+dateStr+' \u00b7 '+items.length+' items \u00b7 \u00a3'+spent.toFixed(2)+'</div>'+
-      '</div>'+
-      '<svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M6 4l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>'+
-    '</div>';
-  });
-  html+='</div></div>';
-  return html;
-}
-
-function openRunHistoryPanel(){
-  const ended=_sourcingRuns.filter(r=>r.status==='ended');
-  if(ended.length===0){ openPanel('Run History','<div style="padding:20px;text-align:center;color:var(--muted)">No completed runs yet</div>'); return; }
-  let html='<div style="display:flex;flex-direction:column;gap:0;">';
-  html+='<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden;">';
-  ended.forEach(function(run,idx){
-    const items=_runItems(run.id);
-    const spent=items.reduce(function(s,i){return s+(i.costPrice||0);},0);
-    const sold=items.filter(function(i){return i.state==='sold';});
-    const profit=sold.reduce(function(s,i){return s+(calcGrossProfit(i)||0);},0);
-    const dateStr=(run.dateEnded||'').slice(0,10);
-    html+='<div style="display:flex;align-items:center;gap:10px;padding:12px 14px;cursor:pointer;'+(idx>0?'border-top:1px solid var(--border)':'')+'" onclick="closePanel();openRunPage(\''+run.id+'\')">'+
-      '<div style="flex:1;min-width:0;">'+
-        '<div style="font-size:13px;font-weight:600;">'+esc(run.name)+'</div>'+
-        '<div style="font-size:11px;color:var(--text-secondary);">'+dateStr+' \u00b7 '+items.length+' items \u00b7 \u00a3'+spent.toFixed(2)+' spent'+(sold.length?' \u00b7 \u00a3'+profit.toFixed(2)+' profit':'')+'</div>'+
-      '</div>'+
-      '<svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M6 4l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>'+
-    '</div>';
-  });
-  html+='</div></div>';
-  openPanel('Run History', html);
-}
-
-
 function renderRunsPage(){
   const page=document.getElementById('p-runs');
   if(!page)return;
@@ -7095,8 +7065,12 @@ function renderRunsPage(){
   // Sort ended runs per current sort
   const sortedRuns=function(runs){
     const copy=runs.slice();
-    if(RUNS_SORT==='newest')copy.sort(function(a,b){return (b.dateEnded||b.dateStarted||'').localeCompare(a.dateEnded||a.dateStarted||'');});
-    else if(RUNS_SORT==='oldest')copy.sort(function(a,b){return (a.dateEnded||a.dateStarted||'').localeCompare(b.dateEnded||b.dateStarted||'');});
+    // Normalise to YYYY-MM-DD before comparing — an edited run stores a
+    // date-only string while auto-created runs store a full ISO timestamp;
+    // comparing them raw makes the edited one sort as "earlier".
+    const _d=function(r){return (r.dateEnded||r.dateStarted||'').slice(0,10);};
+    if(RUNS_SORT==='newest')copy.sort(function(a,b){return _d(b).localeCompare(_d(a));});
+    else if(RUNS_SORT==='oldest')copy.sort(function(a,b){return _d(a).localeCompare(_d(b));});
     else if(RUNS_SORT==='items')copy.sort(function(a,b){return _runItems(b.id).length-_runItems(a.id).length;});
     else if(RUNS_SORT==='profit')copy.sort(function(a,b){return _runProfit(b.id)-_runProfit(a.id);});
     else if(RUNS_SORT==='roi')copy.sort(function(a,b){
@@ -7250,6 +7224,17 @@ function renderRunsPage(){
         bestRun?bestRun.id:null)
     +'</div>';
   }
+
+  // Empty state — no runs logged yet (and none active). Previously supplied by
+  // a helper that's since been removed; defined inline here.
+  const emptyHTML=
+    '<div style="text-align:center;padding:48px 24px;color:var(--text-secondary)">'
+      +'<div style="font-size:15px;font-weight:600;color:var(--text);margin-bottom:6px">No sourcing runs yet</div>'
+      +'<div style="font-size:13px;line-height:1.6;max-width:280px;margin:0 auto 18px">Start a run when you head out sourcing to track items, spend and profit per trip.</div>'
+      +'<button class="btn btn-p" style="gap:6px;padding:10px 18px;font-size:13px" onclick="openStartRunModal()">'
+        +'<svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg>'
+        +'Start your first run</button>'
+    +'</div>';
 
   const html=
     '<div class="page-header" style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;flex-wrap:nowrap;">'+
@@ -8063,8 +8048,12 @@ function submitStockQuickAdd(){
   if(_chainBtns)_chainBtns.style.display='flex';
   const _submitBtn=document.getElementById('sqa-submit-btn');
   if(_submitBtn)_submitBtn.style.display='none';
-  // Focus title for next item — brings keyboard back up on mobile
-  setTimeout(function(){const t=document.getElementById('sqa-title');if(t)t.focus();},80);
+  // Focus title for next item — brings keyboard back up on mobile.
+  // iOS only honours programmatic .focus() when it runs SYNCHRONOUSLY inside
+  // the originating tap gesture; a setTimeout breaks that chain and the
+  // keyboard stays down (user had to tap the field again). Focus immediately.
+  const _titleEl=document.getElementById('sqa-title');
+  if(_titleEl){_titleEl.focus();try{_titleEl.setSelectionRange(0,0);}catch(e){}}
   try{toast(_savedName+' saved','success');}catch(e){}
 }
 
@@ -8348,7 +8337,7 @@ function formHTML(){
 
     <div class="fg">
       <label>Category</label>
-      <select id="qa-category">
+      <select id="qa-category" onchange="updateBPFPreview()">
         <option value="">Select category...</option>
         ${ITEM_CATEGORIES.map(c=>`<option value="${c}">${c}</option>`).join('')}
       </select>
@@ -8548,7 +8537,10 @@ function updateBPFPreview(){
   // so the preview adapts when the user changes the Listed-on pill. Falls
   // back to eBay if the platform field hasn't been mounted yet.
   const _qaPlatform=document.getElementById('qa-platform')?.value||DEFAULT_PLATFORM;
-  const _qaItem={defaultPlatform:_qaPlatform};
+  // Include the chosen category — eBay Biz FVF is category-rated, so the live
+  // profit estimate must see it or the fee won't change when category changes.
+  const _qaCategory=document.getElementById('qa-category')?.value||'';
+  const _qaItem={defaultPlatform:_qaPlatform,category:_qaCategory};
   // Resolve buyer postage before BPF so eBay fee includes postage in base
   const _isSimpleEarly=document.getElementById('qa-delivery-simple')&&document.getElementById('qa-delivery-simple').style.display!=='none';
   const _qaBuyerPostageEarly=_isSimpleEarly
@@ -8604,13 +8596,18 @@ function autoCategory(name){
   const n=name.toLowerCase();
   const rules=[
     ['Cameras & Photography',['camera','canon','nikon','fuji','olympus','pentax','dslr','mirrorless','lens','flash unit','tripod','gopro','dashcam','550d','600d','700d','1300d','astro mod','kit and lens']],
+    ['Video Games & Consoles',['ps1','ps2','ps3','ps4','ps5','playstation','xbox','xbox 360','xbox one','xbox series','nintendo','switch console','nintendo switch','wii','gamecube','game boy','gameboy','nintendo ds','3ds','sega','megadrive','mega drive','dreamcast','console','games console','gaming console']],
     ['Audio & Music',['headphones','earphones','earbuds','speaker','amplifier','receiver','hi-fi','hifi','walkman','docking station','docking speaker','dock','stereo','turntable','vinyl player','soundbar','subwoofer','microphone','musical instrument','piano','guitar','bass','drum','yamaha','roland','casio','korg','singing machine','karaoke','geermac','amplidect','landline phone','bt4600','big button phone','cordless phone','azatom','sony wh','sony xm','wh-1','xm3','xm4','xm5','bose','jbl','marshall','denon','pioneer','onkyo','psr-','psr ']],
-    ['Electronics & Tech',['laptop','macbook','pc ','computer','monitor','gpu','graphics card','processor','cpu','ram','ssd','hard drive','router','netgear','switch','hub','raspberry','arduino','tablet','ipad','kindle','printer','scanner','webcam','iphone','samsung','nokia','motorola','motorolla','blackberry','htc','huawei','pixel','oneplus','android','smartphone','ericsson','siemens','smartwatch','fitbit','garmin','apple watch','geforce','radeon','gtx','rtx','nvidia','amd','intel','asus','msi','gigabyte','corsair','logitech','razer','steelseries','nest','echo','alexa','smart home','thermostat','cctv','security camera','wifi','bluetooth','usb hub','hdmi','charger','power bank','acer','dell','lenovo','toshiba','surface','chromebook','joystick','gamepad','controller','vr headset','oculus','magic keyboard','magic trackpad','apple magic','keyboard 1314','keyboard 1255','keyboard 1655','ps1','ps2','ps3','ps4','playstation','xbox','nintendo','saitek','smarter','fridgecam','remote control adaptor','tv ','television','projector','salus','wireless thermostat','grand turismo','gran turismo']],
+    ['Electronics & Tech',['laptop','macbook','pc ','computer','monitor','gpu','graphics card','processor','cpu','ram','ssd','hard drive','router','netgear','switch','hub','raspberry','arduino','tablet','ipad','kindle','printer','scanner','webcam','iphone','samsung','nokia','motorola','motorolla','blackberry','htc','huawei','pixel','oneplus','android','smartphone','ericsson','siemens','smartwatch','fitbit','garmin','apple watch','geforce','radeon','gtx','rtx','nvidia','amd','intel','asus','msi','gigabyte','corsair','logitech','razer','steelseries','nest','echo','alexa','smart home','thermostat','cctv','security camera','wifi','bluetooth','usb hub','hdmi','charger','power bank','acer','dell','lenovo','toshiba','surface','chromebook','joystick','gamepad','controller','vr headset','oculus','magic keyboard','magic trackpad','apple magic','keyboard 1314','keyboard 1255','keyboard 1655','saitek','smarter','fridgecam','remote control adaptor','tv ','television','projector','salus','wireless thermostat','grand turismo','gran turismo']],
     ['Books & Media',['book','novel','paperback','hardback','hardcover','comic','manga','graphic novel','magazine','dvd','blu-ray','blu ray','vhs','cassette','vinyl','record','cd ','audiobook','box set','trilogy','collection','encyclopedia','dictionary','textbook','manual','guide','biography','cookbook','star wars','lord of the rings','lotr','harry potter','band of brothers','game of thrones','george rr martin','dk illustrated','power rangers','season 1','complete series']],
+    ['Health & Beauty',['makeup','make-up','cosmetic','perfume','aftershave','fragrance','skincare','moisturiser','serum','shampoo','conditioner','hair dryer','hairdryer','straighteners','ghd','clippers','shaver','electric toothbrush','oral-b','razor','beauty','nail','lipstick','foundation','mascara','vitamins','supplement','wig','hair extension']],
+    ['Sporting Goods',['bike','bicycle','cycle','dumbbell','weights','kettlebell','treadmill','exercise','fitness','gym','yoga','football','rugby','cricket','tennis','golf club','golf','fishing','rod','reel','tackle','ski','snowboard','skateboard','scooter','helmet','boxing','darts','dartboard','camping','tent','sleeping bag','rucksack hiking','wetsuit','surfboard']],
+    ['Jewellery & Watches',['ring','necklace','bracelet','earring','pendant','brooch','jewellery','jewelry','watch','rolex','omega','seiko','citizen','tissot','gold chain','silver chain','diamond','gemstone','sapphire','cufflink']],
     ['Toys & Games',['lego','playmobil','toy','doll','action figure','board game','puzzle','jigsaw','card game','chess','monopoly','scrabble','jenga','nerf','hot wheels','matchbox','barbie','figurine','soft toy','teddy','plush','baby toy','rc car','train set','meccano','pokemon','warhammer','dice','playset','blocks','building set','mr potato','potato head','saturn v','marble run','game piece']],
     ['Home & Garden',['sofa','chair','table','shelving','shelf','bookcase','wardrobe','drawer','cabinet','mirror','lamp','light','bulb','curtain','blind','rug','carpet','cushion','pillow','duvet','bedding','towel','cookware','pan','pot','kettle','toaster','microwave','blender','mixer','juicer','coffee','cutlery','crockery','plates','mugs','glasses','storage','bin','basket','garden','plant','hose','lawnmower','spade','rake','drill','saw','hammer','wrench','screwdriver','toolbox','ladder','paint','tile','flooring','shower','tap','toilet','sink','radiator','heater','fan','vacuum','dyson','hoover','mop','broom','cleaning','laundry','iron','sewing','torch','mag-lite','maglite','tyre chains','husky','tool']],
-    ['Clothing & Fashion',['shirt','t-shirt','jumper','hoodie','jacket','coat','trousers','jeans','dress','skirt','suit','tie','scarf','gloves','hat','cap','boots','shoes','trainers','sneakers','sandals','handbag','purse','wallet','belt','socks','underwear','swimwear','sportswear','activewear','shoe care','shoe shine','top shine','backpack','rucksack','bag ']],
-    ['Collectibles & Vintage',['collectible','collectable','antique','vintage','retro','rare','limited edition','signed','memorabilia','stamp','coin','badge','pin','medal','trophy','ornament','vase','pottery','ceramic','china','silver','gold','jewellery','jewelry','watch','clock','postcard','poster','print','painting','art','sculpture','model kit','die cast','diecast','miniature']],
+    ['Sneakers & Trainers',['trainers','sneakers','trainer','running shoes','nike air','jordan','yeezy','air max','air force','adidas ultra','new balance']],
+    ['Clothing & Fashion',['shirt','t-shirt','jumper','hoodie','jacket','coat','trousers','jeans','dress','skirt','suit','tie','scarf','gloves','hat','cap','boots','shoes','sandals','handbag','purse','wallet','belt','socks','underwear','swimwear','sportswear','activewear','shoe care','shoe shine','top shine','backpack','rucksack','bag ']],
+    ['Collectibles & Vintage',['collectible','collectable','antique','vintage','retro','rare','limited edition','signed','memorabilia','stamp','coin','badge','pin','medal','trophy','ornament','vase','pottery','ceramic','china','silver','clock','postcard','poster','print','painting','art','sculpture','model kit','die cast','diecast','miniature']],
   ];
   for(const[cat,kws]of rules){if(kws.some(k=>n.includes(k)))return cat;}
   return'Other';
@@ -9227,8 +9224,6 @@ function closeAllCategoriesModal(){
   if(ov){ov.style.transition='opacity 0.25s ease';ov.style.opacity='0';}
   setTimeout(function(){if(ov)ov.remove();if(pn)pn.remove();unlockBodyScroll();},260);
 }
-function showVelocityCategoriesPanel(byCat){showAllCategoriesModal(byCat);}
-
 let _summaryChart=null;
 
 function _chartColors(){
@@ -11458,7 +11453,7 @@ function calcTieredTrips(trips){
     let used=0;
     byYear[ty].forEach(function(entry){
       const t=entry.t;
-      const m=Number(t.mileage)||0;
+      const m=Math.max(0,Number(t.mileage)||0);
       const rate=Number(t.ratePerMile)||0.45;
       let tier1=0, tier2=0;
       if(used+m<=10000){
@@ -11698,7 +11693,8 @@ function addRunExpense(runId){
     <button class="btn btn-p" style="width:100%;margin-top:16px" onclick="saveRunExpenseInline('${runId}')">Save Expense</button>
   `;
   openPanel('Add Expense to Run',html);
-  setTimeout(function(){const d=document.getElementById('exp-desc');if(d)d.focus();},80);
+  // Focus synchronously within the tap so iOS reopens the keyboard.
+  const _d=document.getElementById('exp-desc');if(_d)_d.focus();
 }
 function saveRunExpenseInline(runId){
   const desc=(document.getElementById('exp-desc').value||'').trim();
@@ -11725,7 +11721,7 @@ function addRunTrip(runId){
     <button class="btn btn-p" style="width:100%;margin-top:16px" onclick="saveRunTripInline('${runId}')">Save Trip</button>
   `;
   openPanel('Add Trip to Run',html);
-  setTimeout(function(){const d=document.getElementById('trip-desc');if(d)d.focus();},80);
+  const _d=document.getElementById('trip-desc');if(_d)_d.focus();
 }
 function saveRunTripInline(runId){
   const desc=(document.getElementById('trip-desc').value||'').trim();
@@ -11796,25 +11792,33 @@ function addTrip(){
     </div>
     <div class="fg">
       <label>Mileage</label>
-      <input type="number" id="trip-miles" step="0.1" min="0" placeholder="e.g. 25.5">
+      <input type="number" id="trip-miles" step="0.1" min="0" placeholder="e.g. 25.5" inputmode="decimal">
     </div>
-    <div class="fg">
-      <label>Rate per mile (£)</label>
-      <input type="number" id="trip-rate" step="0.01" min="0" value="0.45">
-    </div>
+    <details style="margin-bottom:14px">
+      <summary style="font-size:12px;color:var(--text-secondary);cursor:pointer;list-style:none;user-select:none;padding:4px 0">Advanced · rate per mile</summary>
+      <div class="fg" style="margin-top:8px">
+        <label>Rate per mile (£)</label>
+        <input type="number" id="trip-rate" step="0.01" min="0" value="0.45" inputmode="decimal">
+        <div style="font-size:11px;color:var(--muted);margin-top:4px">HMRC standard is 45p (first 10,000 mi/yr, then 25p — applied automatically).</div>
+      </div>
+    </details>
     ${_tripExtrasHTML([])}
     ${_runDropdownHTML('trip-run-id',null)}
     <button class="btn btn-p" style="width:100%;margin-top:16px" onclick="saveTrip()">Save Trip</button>
   `;
   openPanel('Log Trip',html);
+  const _d=document.getElementById('trip-desc');if(_d)_d.focus();
 }
 
 function saveTrip(){
-  // Validation: mileage must be positive, rate non-negative
+  // Validation: mileage must be positive UNLESS the trip has extras logged
+  // (e.g. a parking- or entry-fee-only trip with no driving). Rate non-negative.
   const miles=parseFloat(document.getElementById('trip-miles').value);
   const rate=parseFloat(document.getElementById('trip-rate').value);
-  if(!isFinite(miles)||miles<=0){
-    toast('Mileage must be a positive number','error');
+  const _extras=_readTripExtras();
+  const _hasExtras=_extras.length>0&&_extras.some(function(e){return (Number(e.amount)||0)>0;});
+  if((!isFinite(miles)||miles<=0)&&!_hasExtras){
+    toast('Add mileage or at least one trip expense','error');
     try{document.getElementById('trip-miles').focus();}catch(e){}
     return;
   }
@@ -11827,9 +11831,9 @@ function saveTrip(){
     id:'trip_'+Date.now(),
     date:document.getElementById('trip-date').value,
     description:document.getElementById('trip-desc').value,
-    mileage:miles,
+    mileage:isFinite(miles)&&miles>0?miles:0,
     ratePerMile:rate,
-    expenses:_readTripExtras(),
+    expenses:_extras,
     sourcingRunId:(document.getElementById('trip-run-id')?.value)||(_activeSourcingRun?_activeSourcingRun.id:null)||null
   };
   if(!DB.trips)DB.trips=[];
@@ -11859,12 +11863,13 @@ function addExpense(){
     </div>
     <div class="fg">
       <label>Amount (£)</label>
-      <input type="number" id="exp-amt" step="0.01" min="0" placeholder="0.00">
+      <input type="number" id="exp-amt" step="0.01" min="0" placeholder="0.00" inputmode="decimal">
     </div>
     ${_runDropdownHTML('exp-run-id',null)}
     <button class="btn btn-p" style="width:100%;margin-top:16px" onclick="saveExpense()">Save Expense</button>
   `;
   openPanel('Add Expense',html);
+  const _d=document.getElementById('exp-desc');if(_d)_d.focus();
 }
 
 function saveExpense(){
@@ -13329,7 +13334,8 @@ function _editStockItem(m,item){
     <button class="btn btn-p" style="width:100%;margin-top:14px" onclick="_saveStockEdit('${m}','${item.id}')">Save</button>
   `;
   openPanel('Edit Sourced Item',html);
-  setTimeout(function(){ const t=document.getElementById('edit-stock-title'); if(t)t.focus(); },50);
+  (function(){const t=document.getElementById('edit-stock-title');if(t)t.focus();})();
+  setTimeout(function(){const t=document.getElementById('edit-stock-title');if(t&&document.activeElement!==t)t.focus();},50);
 }
 
 function _saveStockEdit(m,id){
@@ -13451,7 +13457,7 @@ function markSold(m,id){
       if(price&&price>0)item.salePrice=+price.toFixed(2);
       // Session D2 — capture which platform the sale actually closed on.
       // Defaults to the item's defaultPlatform; user can change at Mark Sold.
-      const _soldPlat=document.getElementById('modal-platform')?.value||DEFAULT_PLATFORM;
+      const _soldPlat=document.getElementById('modal-platform')?.value||_itemPlatform(item);
       // Always write soldOnPlatform explicitly so _itemPlatform returns the correct
       // platform for fee calculation, receipt display, and postage gating
       if(_soldPlat&&PLATFORMS[_soldPlat]){
@@ -13481,8 +13487,11 @@ function markSold(m,id){
       platSel.innerHTML=Object.values(PLATFORMS).map(p=>
         '<option value="'+p.id+'"'+(!p.live?' disabled':'')+'>'+p.label+(!p.live?' — coming soon':'')+'</option>'
       ).join('');
-      // Use current global DEFAULT_PLATFORM so changing Settings takes effect immediately.
-      const initialPlat=(PLATFORMS[DEFAULT_PLATFORM]&&PLATFORMS[DEFAULT_PLATFORM].live)?DEFAULT_PLATFORM:'ebay';
+      // Pre-select the item's OWN platform (Biz/private/etc.), not the global
+      // default. Using the global default meant a Biz item silently reverted to
+      // eBay private on sale unless the user manually re-picked it.
+      const _itemPlat=_itemPlatform(item);
+      const initialPlat=(PLATFORMS[_itemPlat]&&PLATFORMS[_itemPlat].live)?_itemPlat:'ebay';
       platSel.value=initialPlat;
       onMarkSoldPlatformChange();
     }
@@ -13771,7 +13780,15 @@ function confirmRelist(m,id){
   // (e.g. sold on eBay private, returned, relisted on eBay Business). The resale
   // fee in calcGrossProfit reads i.resalePlatform so sale-2 fees are correct.
   const _relistPlatEl=document.getElementById('relist-platform');
-  if(_relistPlatEl&&_relistPlatEl.value)i.resalePlatform=_relistPlatEl.value;
+  if(_relistPlatEl&&_relistPlatEl.value&&PLATFORMS[_relistPlatEl.value]){
+    i.resalePlatform=_relistPlatEl.value;
+    // The relisted item is now an ACTIVE listing on the chosen platform, so its
+    // live P&L must use that platform's fees — not sale 1's. Update the item's
+    // own platform and clear the prior soldOnPlatform so _itemPlatform resolves
+    // to the new one. resalePlatform is also kept for the resale fee path.
+    i.defaultPlatform=_relistPlatEl.value;
+    i.soldOnPlatform=null;
+  }
   // E3 P0 #1 — Snapshot sale 1 economics into the latest returnHistory entry
   // BEFORE we overwrite shipping/postage/sdRate/promo with relist values.
   // Without this, the original sale's costs are destroyed and calcGrossProfit
@@ -13977,6 +13994,10 @@ async function revertToActive(m,id){
   i.dateSold=null;
   i.state='listed';
   i.grossProfit=null;
+  // Clear the sale-time platform — once back to active, the item must resolve
+  // its platform from defaultPlatform again (otherwise the item-page platform
+  // picker, which edits defaultPlatform, appears to do nothing).
+  i.soldOnPlatform=null;
   saveDB();
   toast('Moved back to active stock');
   closePanel();
@@ -14001,6 +14022,9 @@ function undoSale(m,id){
     i.dateSold=null;
     i.isReturned=false;
     i.state='listed';
+    // Back to active → platform resolves from defaultPlatform again (so the
+    // item-page platform picker works); clear the stale sale-time platform.
+    i.soldOnPlatform=null;
     // Preserve returnHistory so refund records aren't silently destroyed.
     saveDB();
     renderItemPage(m,id);
@@ -15128,16 +15152,29 @@ function calcAmazonUKBPF(item,salePrice){
 
 // eBay Business UK category FVF rates (verified Feb 2026 schedule)
 // Default 12.9% (Other) if category missing — safer to over-estimate than under.
+// eBay UK Business Final Value Fees — verified against eBay's 12 Feb 2026
+// rate card (via eBay Seller Centre + cross-checked May 2026). Each entry is
+// EITHER a flat variable rate (number) OR a banded spec:
+//   {rate, threshold, above}  → `rate` on the first `threshold` of the sale,
+//                               then `above` on the remainder.
+// Banding is how eBay keeps high-ticket categories competitive — a flat rate
+// would massively over-state fees on expensive items. All rates are the
+// variable FVF only; the formula adds per-order, 0.35% regulatory and 20% VAT.
 const EBAY_BIZ_FVF={
-  'Electronics & Tech':    0.099,
-  'Cameras & Photography': 0.099,
-  'Audio & Music':         0.099,
-  'Books & Media':         0.099,
-  'Toys & Games':          0.109,
-  'Collectibles & Vintage':0.109,
-  'Home & Garden':         0.119,
-  'Clothing & Fashion':    0.119,
-  'Other':                 0.129
+  'Electronics & Tech':       {rate:0.069, threshold:1000, above:0.03}, // Phones/Laptops/TVs/HiFi banded; general tech ~9.9% but banded is the common reseller case
+  'Cameras & Photography':    0.099,
+  'Audio & Music':            0.099,
+  'Books & Media':            0.099,
+  'Toys & Games':             0.109,
+  'Video Games & Consoles':   {rate:0.069, threshold:400, above:0.02}, // console banding
+  'Home & Garden':            {rate:0.119, threshold:500, above:0.079},
+  'Clothing & Fashion':       0.119,
+  'Sneakers & Trainers':      0.119, // special: flips to flat 7% at item price >= £100 (handled in formula)
+  'Health & Beauty':          0.109,
+  'Sporting Goods':           0.109,
+  'Jewellery & Watches':      {rate:0.149, threshold:1000, above:0.04},
+  'Collectibles & Vintage':   0.109,
+  'Other':                    0.129
 };
 
 // eBay Business UK fee formula (verified Feb 2026):
@@ -15149,17 +15186,60 @@ const EBAY_BIZ_FVF={
 // Note: if VAT-registered, you can reclaim the 20% VAT.
 // Banded tiers (6.9%→3% above £1,000 for tech etc.) deferred — flat per-category rate
 // is correct for the vast majority of reseller price points (<£400).
-function calcEbayBizBPF(salePrice, category){
+// salePrice here is the FVF base = item price + buyer-paid postage (combined).
+// itemPriceOnly (optional) is the item price WITHOUT postage — needed only for
+// the Trainers >= £100 threshold, which eBay assesses on item price alone.
+function calcEbayBizBPF(salePrice, category, itemPriceOnly){
   if(!salePrice||salePrice<=0)return 0;
-  const rate=EBAY_BIZ_FVF[category]||0.129; // default Other = 12.9% (safe over-estimate)
-  if(!(category in EBAY_BIZ_FVF)&&category){
+  let spec=EBAY_BIZ_FVF[category];
+  if(spec===undefined&&category){
     console.warn('[RETRADE] eBay Biz: unknown category "'+category+'" — defaulting to 12.9%');
+    spec=0.129;
   }
-  const fvf=salePrice*rate;
-  const reg=salePrice*0.0035;          // 0.35% regulatory
-  const perOrder=salePrice>10?0.40:0.30;
+  if(spec===undefined)spec=0.129;
+
+  // Sneakers & Trainers special: if the ITEM price (excl. postage) is >= £100,
+  // the WHOLE transaction flips to a flat 7% (no band) — a clean threshold flip.
+  if(category==='Sneakers & Trainers'){
+    const itemPx=(itemPriceOnly!=null)?itemPriceOnly:salePrice;
+    spec=(itemPx>=100)?0.07:0.119;
+  }
+
+  // Variable FVF — flat number, or banded {rate, threshold, above}.
+  let fvf;
+  if(typeof spec==='object'&&spec){
+    if(salePrice<=spec.threshold){
+      fvf=salePrice*spec.rate;
+    }else{
+      fvf=spec.threshold*spec.rate+(salePrice-spec.threshold)*spec.above;
+    }
+  }else{
+    fvf=salePrice*spec;
+  }
+
+  const reg=salePrice*0.0035;          // 0.35% regulatory operating fee
+  // Per-order fee: £0.40 over £10, else £0.30 — reduced to £0.10 (orders <=£10)
+  // in Collectables and Home, Furniture & DIY.
+  const lowPerOrderCat=(category==='Collectibles & Vintage'||category==='Home & Garden');
+  const perOrder=salePrice>10?0.40:(lowPerOrderCat?0.10:0.30);
   const subtotal=fvf+reg+perOrder;
   return+(subtotal*1.20).toFixed(2);   // 20% VAT on all fees
+}
+
+// Returns the effective variable FVF rate for a category at a given sale price,
+// for display in the fee label (e.g. "11.9%" or "6.9%→3%" for banded). Pure
+// presentation helper — the real money comes from calcEbayBizBPF.
+function _ebayBizRateLabel(category, salePrice, itemPriceOnly){
+  let spec=EBAY_BIZ_FVF[category];
+  if(spec===undefined)spec=0.129;
+  if(category==='Sneakers & Trainers'){
+    const itemPx=(itemPriceOnly!=null)?itemPriceOnly:(salePrice||0);
+    return (itemPx>=100)?'7.0%':'11.9%';
+  }
+  if(typeof spec==='object'&&spec){
+    return (spec.rate*100).toFixed(1)+'%→'+(spec.above*100).toFixed(1)+'% over £'+spec.threshold;
+  }
+  return (spec*100).toFixed(1)+'%';
 }
 
 // Dispatcher: routes to the right platform fee primitive based on the item.
@@ -15173,7 +15253,7 @@ function calcPlatformBPF(item,salePrice,buyerPostage,platformOverride){
   const post=buyerPostage||0;
   switch(p){
     case 'ebay':      return calcEbayBPF(salePrice+post);
-    case 'ebay_biz':  return calcEbayBizBPF(salePrice+post,item.category);
+    case 'ebay_biz':  return calcEbayBizBPF(salePrice+post,item.category,salePrice);
     case 'vinted':    return calcVintedBPF(item,salePrice);
     case 'depop':     return calcDepopBPF(item,salePrice);
     case 'fb':        return calcFbBPF(item,salePrice);
@@ -15559,8 +15639,23 @@ function toggleNavMore(){
   const willOpen=!wrap.classList.contains('open');
   if(willOpen) closeAllDropdowns();
   wrap.classList.toggle('open');
+  const isOpen=wrap.classList.contains('open');
+  // Backdrop: when open it covers the page (below the nav) so an outside tap
+  // closes the menu AND is absorbed — no background button can fire.
+  const bd=document.getElementById('nav-more-backdrop');
+  if(bd)bd.style.display=isOpen?'block':'none';
   const trigger=document.getElementById('nav-more-trigger');
-  if(trigger) trigger.classList.toggle('on', wrap.classList.contains('open') || ['expenses','tax','data'].includes((document.querySelector('.page.on')?.id||'').replace('p-','')));
+  if(trigger) trigger.classList.toggle('on', isOpen || ['expenses','tax','data'].includes((document.querySelector('.page.on')?.id||'').replace('p-','')));
+}
+// Close the More dropdown without navigating anywhere — used by the backdrop
+// outside-click. The click is absorbed here so the page stays exactly as it was.
+function closeNavMore(){
+  const wrap=document.querySelector('.nav-more');
+  if(wrap)wrap.classList.remove('open');
+  const bd=document.getElementById('nav-more-backdrop');
+  if(bd)bd.style.display='none';
+  const trigger=document.getElementById('nav-more-trigger');
+  if(trigger)trigger.classList.toggle('on', ['expenses','tax','data'].includes((document.querySelector('.page.on')?.id||'').replace('p-','')));
 }
 
 // Handle responsive navigation
@@ -15617,7 +15712,7 @@ window.addEventListener('load',handleNavResize);
   const _fabsRaise=function(){
     var fd=document.getElementById('fab-dial');
     var sf=document.getElementById('search-fab');
-    var raised=window.innerWidth<=600?'calc(62px + env(safe-area-inset-bottom,0px) + 10px)':'24px';
+    var raised=window.innerWidth<=600?'calc(62px + env(safe-area-inset-bottom,0px) + 18px)':'24px';
     if(fd)fd.style.bottom=raised;
     if(sf)sf.style.bottom=raised;
   }
@@ -15725,6 +15820,12 @@ function ipSave(m,id,field,val){
   if(field==='dateSold'){
     if(val){i.grossProfit=calcGrossProfit(i);}
     else{i.grossProfit=null;}
+  }
+  // Category change on a SOLD item must re-store grossProfit, not just refresh
+  // the display — eBay Biz FVF is category-rated, so the stored profit (used in
+  // Summary totals, monthly P&L and tax) would otherwise stay stale.
+  if(field==='category'&&i.dateSold){
+    i.grossProfit=calcGrossProfit(i);
   }
   saveDB();
   // Re-render item page for fields that affect the P&L display.
