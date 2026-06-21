@@ -3663,9 +3663,6 @@ function showForgotPassword(){
 function showLoginScreen(){
   document.getElementById('auth-screen-reset').style.display = 'none';
   document.getElementById('auth-screen-login').style.display = 'block';
-  // Gate: hide dev bypass button unless this is a dev build
-  const _pb = document.getElementById('preview-btn');
-  if(_pb) _pb.style.display = PREVIEW_MODE_ENABLED ? 'block' : 'none';
 }
 
 async function doResetPassword(){
@@ -9531,8 +9528,8 @@ function renderSummary(){
         <div class="summary-main">
           <div class="kgrid kgrid-4 summary-kpis">
             <div class="kcard b clickable" onclick="showFilteredItems('revenue')"><div class="klabel">Total <br>revenue</div><div class="kval">${fmtK(stats.totalRev||0)}</div><div class="ksub">${stats.soldCount||0} sold in view</div></div>
-            <div class="kcard g clickable" onclick="showFilteredItems('realised')"><div class="klabel">Net <br>profit</div><div class="kval">${fmtK(stats.realisedProfit||0)}</div><div class="ksub">${(stats.soldCount||0)>0&&(stats.totalRev||0)>0?((stats.realisedProfit/stats.totalRev)*100).toFixed(0)+'% margin':'No margin yet'}</div></div>
-            <div class="kcard clickable" onclick="showMarginItems()"><div class="klabel">Avg <br>Margin</div><div class="kval">${Math.round(stats.avgMargin||0)}%</div><div class="ksub">Sold items only</div></div>
+            <div class="kcard g clickable" onclick="showFilteredItems('realised')"><div class="klabel">Net <br>profit</div><div class="kval">${fmtK(stats.netProfit||0)}</div><div class="ksub">${fmtK(stats.grossProfit||0)} gross</div></div>
+            <div class="kcard clickable" onclick="showMarginItems()"><div class="klabel">Net <br>margin</div><div class="kval">${Math.round(stats.netMargin||0)}%</div><div class="ksub">${Math.round(stats.grossMargin||0)}% gross</div></div>
             <div class="kcard r clickable" onclick="showReturnedItems()"><div class="klabel">Refund <br>rate</div><div class="kval">${Number(stats.refundItemRate||0).toFixed(1)}%</div><div class="ksub">${stats.fullRefundCount||0} full · ${stats.partialOnlyCount||0} partial</div></div>
           </div>
           <div class="chart-wrap summary-chart">
@@ -15032,6 +15029,31 @@ function calcYearlyStats(period){
   const refundMoneyRate=_refundMoneyDenom>0?(_refundMoneyTotal/_refundMoneyDenom*100):0;
 
   const totalStaleCount=byCat.reduce((s,c)=>s+(c.stale||0),0);
+
+  // E30 — True Net: gross profit (item-level, fees/shipping/returns already
+  // deducted) minus this period's trips (HMRC-tiered mileage + trip-tagged
+  // expenses) minus standalone business expenses. Period-filtered using the
+  // SAME inRange() as everything else above, so the dashboard period dropdown
+  // governs this consistently with revenue/profit.
+  // calcTieredTrips must run on the FULL trips array (not pre-filtered) so the
+  // 10,000-mile tax-year tier boundary is computed correctly across the whole
+  // year; we filter to the period AFTER tiering, by trip date.
+  const _allTrips=DB.trips||[];
+  const _tieredTrips=calcTieredTrips(_allTrips);
+  let tripsCostInPeriod=0;
+  _allTrips.forEach((t,idx)=>{
+    if(inRange(t.date)) tripsCostInPeriod+=(_tieredTrips[idx]?_tieredTrips[idx].totalCost:0);
+  });
+  let expensesCostInPeriod=0;
+  (DB.expenses||[]).forEach(e=>{
+    if(inRange(e.date)) expensesCostInPeriod+=(Number(e.amount)||0);
+  });
+  const overheadsInPeriod=+(tripsCostInPeriod+expensesCostInPeriod).toFixed(2);
+  const grossProfit=realisedProfit; // alias — item-level profit, pre-overheads
+  const grossMargin=avgMargin;      // alias — avg item-level margin, pre-overheads
+  const netProfit=+(grossProfit-overheadsInPeriod).toFixed(2);
+  const netMargin=totalRev>0?+((netProfit/totalRev)*100).toFixed(1):0;
+
   return{totalRev,realisedProfit,unrealisedProfit,stockValue,soldCount,listedCount,totalItems,
     // Refund-rate fields (Session B refund KPI revamp):
     fullRefundCount,partialOnlyCount,refundedItemCount,refundedSalesItemCount,
@@ -15040,7 +15062,9 @@ function calcYearlyStats(period){
     returnCount,returnRate,partialRefundCount,partialRefundRate,totalAffected,
     refundMoneyRate,refundMoneyTotal:_refundMoneyTotal,refundMoneyDenom:_refundMoneyDenom,
     avgROI,avgMargin,avgSale,avgProfit,avgCostPrice,sellThrough,sellThrough14,sold14Count,
-    eligible14Count:eligible14.length,avgDays,stale,byCat,totalStaleCount};
+    eligible14Count:eligible14.length,avgDays,stale,byCat,totalStaleCount,
+    // E30 — True Net dashboard fields:
+    grossProfit,grossMargin,netProfit,netMargin,tripsCostInPeriod,expensesCostInPeriod,overheadsInPeriod};
 }
 
 function calcSummaryStats(){ return calcYearlyStats(SUMMARY_PERIOD); }
