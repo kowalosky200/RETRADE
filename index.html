@@ -1268,6 +1268,11 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
 /* Ensure clean, aligned figures everywhere the mono font is applied inline (money columns) */
 [style*="--font-mono"],.mono,.ip-token-val,.tax-box-tag,.metric-v,.kval,.item-row-price,.item-row-profit{font-variant-numeric:tabular-nums lining-nums;}
 .kval{font-size:clamp(22px,14cqi,38px)!important;font-weight:800;margin:10px 0 6px;line-height:1.05;overflow:visible;white-space:normal;}
+/* Compact KPI cards on Stock + Monthly — hero numbers turned down, cards take less vertical space */
+.stock-kpis .kcard,#p-monthly .kgrid-4 .kcard{min-height:74px;padding:12px 14px 11px;}
+.stock-kpis .kval,#p-monthly .kgrid-4 .kval{font-size:clamp(18px,10cqi,28px)!important;margin:6px 0 3px;}
+.stock-kpis .klabel,#p-monthly .kgrid-4 .klabel{font-size:10px;letter-spacing:.08em;}
+.stock-kpis .ksub,#p-monthly .kgrid-4 .ksub{font-size:11px;}
 .ksub{font-size:13px;color:var(--text-secondary)}
 .insights{gap:14px;grid-template-columns:1fr;}
 .insight-card{border-radius:18px;padding:16px 16px;border:1px solid var(--border);box-shadow:0 10px 26px var(--shadow);align-items:flex-start;}
@@ -1357,6 +1362,12 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
 @media(max-width:1180px){.nav-inner{padding:0 14px;gap:10px}.nav-inner .search-wrap{display:none!important}.nav-spacer{display:none}.tabs-row{margin-left:auto}.nav-right{padding-left:10px}.tab,.nav-more-btn{padding:0 12px;font-size:12px}.brand{margin-right:8px!important}}
 @media(max-width:980px){.summary-shell{grid-template-columns:1fr}.desktop-only{display:none}.page,.item-full-page{padding:20px 18px 110px;}.nav-inner{padding:0 16px;}.hero-title{font-size:30px}}
 @media(max-width:980px) and (min-width:601px){.kgrid-4{grid-template-columns:1fr 1fr!important;} .kval{font-size:clamp(20px,7cqi,30px)!important;white-space:normal!important;overflow:visible!important;}}
+/* Wide desktop: the hero KPI maxes its clamp and looks oversized on full-width.
+   Bring the ceiling down so big single/2-up hero numbers stay proportionate. */
+@media(min-width:1200px){
+  .kval{font-size:clamp(22px,4cqi,30px)!important;}
+  .kgrid.kgrid-1col .kcard .kval{font-size:clamp(18px,4cqi,22px)!important;}
+}
 @media(max-width:820px){.nav-right{gap:6px}.user-menu-btn{padding-right:6px}.tab,.nav-more-btn{padding:0 10px;font-size:12px}}
 
 /* ===== Mobile ≤480px ===== */
@@ -2501,7 +2512,7 @@ function _flagSVG(countryId, size){
 // Session D1.6 — Country setter. Called from the country picker panel.
 // Persists to localStorage for next session; future: writes to user profile
 // in Supabase. Re-renders the user-menu trigger flag + country trigger row.
-function setCountry(countryId){
+function setCountry(countryId,silent){
   if(!COUNTRIES[countryId]||!COUNTRIES[countryId].live)return;
   COUNTRY=countryId;
   try{ localStorage.setItem('retrade_country',countryId); }catch(e){}
@@ -2515,8 +2526,8 @@ function setCountry(countryId){
   // Refresh the more-sheet (mobile) country trigger row
   if(typeof refreshMoreSheetCountryTrigger==='function')refreshMoreSheetCountryTrigger();
   if(typeof refreshMoreSheetPlatformTrigger==='function')refreshMoreSheetPlatformTrigger();
-  // Toast for clarity
-  if(typeof toast==='function')toast('Country set to '+COUNTRIES[countryId].label);
+  // Toast only on an actual user change — not on load-time restore.
+  if(!silent&&typeof toast==='function')toast('Country set to '+COUNTRIES[countryId].label);
   _syncUserSettingsToCloud();
 }
 
@@ -2594,7 +2605,7 @@ async function _hydrateUserSettings(uid){
     }
     // country
     if(data.country&&COUNTRIES[data.country]&&COUNTRIES[data.country].live){
-      setCountry(data.country);
+      setCountry(data.country,true); // silent — restore, not a user change
     }
   }catch(e){
     console.warn('[RETRADE] _hydrateUserSettings failed (non-fatal):',e.message);
@@ -3118,14 +3129,20 @@ document.addEventListener('click',(e)=>{
 function closeMoreSheet(){
   const sheet=document.getElementById('more-sheet');
   const overlay=document.getElementById('more-sheet-overlay');
-  sheet._msOpen=false;
-  sheet.style.transform='translateY(100%)';
-  overlay.style.opacity='0';
+  // Null-guard every element: closeMoreSheet is called defensively from
+  // openItemPage/goToTab to dismiss the sheet, and a null here previously threw
+  // and aborted the caller (blank item page).
+  if(sheet){
+    sheet._msOpen=false;
+    sheet.style.transform='translateY(100%)';
+  }
+  if(overlay)overlay.style.opacity='0';
   setTimeout(function(){
-    if(!sheet._msOpen){sheet.style.display='none';overlay.style.display='none';}
+    if(sheet&&!sheet._msOpen){sheet.style.display='none';if(overlay)overlay.style.display='none';}
   },260);
-  document.getElementById('bnt-more').classList.remove('on');
-  moreSheetShowMain();
+  const _bm=document.getElementById('bnt-more');
+  if(_bm)_bm.classList.remove('on');
+  if(typeof moreSheetShowMain==='function')moreSheetShowMain();
 }
 
 // ── More-sheet: country pane swap (mobile equivalent of desktop country panel)
@@ -3841,6 +3858,16 @@ function _rowToItem(row, parts, returns){
       _relistCondition: r.relist_condition || null,
       _salePriceAtReturn: r.sale_price_at_return!=null ? Number(r.sale_price_at_return) : undefined,
       _dateSoldAtReturn:  r.date_sold_at_return || null,
+      // Sale-1 relist snapshot — undefined when column is null/absent so the
+      // calcGrossProfit/_origSalePrice guards (which test !==undefined) fall back
+      // to live values for pre-migration items exactly as before.
+      _salePriceAtRelist:    r.sale_price_at_relist!=null ? Number(r.sale_price_at_relist) : undefined,
+      _postageAtRelist:      r.postage_at_relist!=null ? Number(r.postage_at_relist) : undefined,
+      _shippingCostAtRelist: r.shipping_cost_at_relist!=null ? Number(r.shipping_cost_at_relist) : undefined,
+      _packagingCostAtRelist:r.packaging_cost_at_relist!=null ? Number(r.packaging_cost_at_relist) : undefined,
+      _promoPercentAtRelist: r.promo_percent_at_relist!=null ? Number(r.promo_percent_at_relist) : undefined,
+      _sdRateIdxAtRelist:    r.sd_rate_idx_at_relist!=null ? Number(r.sd_rate_idx_at_relist) : undefined,
+      _sdBuyerPaysAtRelist:  r.sd_buyer_pays_at_relist!=null ? !!r.sd_buyer_pays_at_relist : undefined,
     })),
   };
   return item;
@@ -4077,6 +4104,16 @@ async function saveItemToSupabase(m, i){
       relist_condition: r._relistCondition || null,
       sale_price_at_return: r._salePriceAtReturn!=null ? Number(r._salePriceAtReturn) : null,
       date_sold_at_return:  r._dateSoldAtReturn || null,
+      // Sale-1 economics snapshot, captured at relist time so editing the live
+      // (relisted) listing never rewrites the original sale's P&L. Persisting
+      // these is what makes each sale its own durable layer across reloads.
+      sale_price_at_relist:    r._salePriceAtRelist!=null ? Number(r._salePriceAtRelist) : null,
+      postage_at_relist:       r._postageAtRelist!=null ? Number(r._postageAtRelist) : null,
+      shipping_cost_at_relist: r._shippingCostAtRelist!=null ? Number(r._shippingCostAtRelist) : null,
+      packaging_cost_at_relist:r._packagingCostAtRelist!=null ? Number(r._packagingCostAtRelist) : null,
+      promo_percent_at_relist: r._promoPercentAtRelist!=null ? Number(r._promoPercentAtRelist) : null,
+      sd_rate_idx_at_relist:   r._sdRateIdxAtRelist!=null ? Number(r._sdRateIdxAtRelist) : null,
+      sd_buyer_pays_at_relist: r._sdBuyerPaysAtRelist!=null ? !!r._sdBuyerPaysAtRelist : null,
     }));
     const {error: retErr} = await _sbCall(()=>_sb.from('item_returns').insert(retRows));
     if(retErr) throw new Error('Save returns failed: ' + retErr.message);
@@ -5076,6 +5113,28 @@ function _renderStockItemPage(m,i){
 }
 
 function renderItemPage(m,id){
+  // Wrapper: a throw inside the render must NOT silently abort and leave the
+  // previously-opened item on screen (which looks like "tapping a new item
+  // reopens the old one"). Surface the error in the page so the issue is
+  // visible and the stale content is cleared.
+  try{
+    return _renderItemPageInner(m,id);
+  }catch(err){
+    const page=document.getElementById('p-item');
+    if(page){
+      page.innerHTML='<div style="padding:32px 20px;max-width:520px;margin:0 auto">'
+        +'<button class="btn btn-s" onclick="exitItemPage()" style="margin-bottom:18px">&larr; Back</button>'
+        +'<div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:20px">'
+        +'<div style="font-size:15px;font-weight:700;color:var(--red);margin-bottom:8px">This item couldn\u2019t be displayed</div>'
+        +'<div style="font-size:13px;color:var(--text-secondary);line-height:1.5">Something went wrong rendering this item. Your data is safe \u2014 try editing it from the list, or report this.</div>'
+        +'<div style="font-size:11px;color:var(--muted);margin-top:12px;font-family:monospace;word-break:break-word">'+esc(String(err&&err.message||err))+'</div>'
+        +'</div></div>';
+    }
+    if(typeof console!=='undefined'&&console.error)console.error('renderItemPage failed for',m,id,err);
+  }
+}
+
+function _renderItemPageInner(m,id){
   // Clean up any platform picker that was portaled to <body> (prevents orphans on re-render)
   document.querySelectorAll('[id^="ip-plat-picker-"]').forEach(function(p){
     if(p.parentElement===document.body)p.remove();
@@ -5127,10 +5186,12 @@ function renderItemPage(m,id){
   const promoCost=grossInc*_rcptPromo*1.20;
   const profit=calcGrossProfit(i);
   const roi=calcROI(i);
+  const margin=calcMargin(i);
   // T-06: display guard for £0-cost items — calcROI returns null when totalInvested<=0
   // (mathematically correct), but the render layer should show ∞ rather than nothing.
   const _isZeroCost=(i.costPrice==null||i.costPrice===0)&&!(_rcptShipping>0)&&!(_rcptPackaging>0)&&!calcPartsCost(i);
   const roiDisplay=_isZeroCost&&profit!==null?'∞':(roi!==null?roi.toFixed(1)+'%':null);
+  const marginDisplay=(margin!==null?margin.toFixed(1)+'%':null);
   const status=i.isReturned?'returned':i.resaleSalePrice?'resold':i.dateSold?'sold':i.condition==='spares'?'spares':'active';
   const hasReturn=(i.returnHistory||[]).length>0;
   const _plat=_itemPlatform(i);
@@ -5286,6 +5347,19 @@ function renderItemPage(m,id){
   }
   pb+='<div class="ip-receipt-row total"><span style="flex:1">'+(i.resaleSalePrice?'Sale 1 net':'Net profit / loss')+'</span><span class="ip-receipt-val" style="color:'+(sale1Net>=0?'var(--green)':'var(--red)')+'">'+fmt(sale1Net)+'</span></div>';
 
+  // sec2 must be declared before the Sale 2 block that uses it (TDZ fix).
+  // sec2: variant that allows a title accent color override
+  const sec2=function(title,body,open,badge,badgeColor,extraClass,accentColor){
+    const cls='ip-section'+(extraClass?' '+extraClass:'');
+    const bdg=badge!=null?'<span class="ip-section-badge" style="color:'+(badgeColor||'var(--muted)')+'">'+badge+'</span>':'';
+    const chevron='<span class="ip-section-chevron" style="transform:'+(open?'rotate(180deg)':'rotate(0deg)')+'">▾</span>';
+    const hdr='<div class="ip-section-header" onclick="var b=this.nextElementSibling,c=this.querySelector(\'.ip-section-chevron\');b.style.display=b.style.display===\'none\'?\'block\':\'none\';c.style.transform=b.style.display===\'none\'?\'rotate(0deg)\':\'rotate(180deg)\'">'
+      +'<span class="ip-section-title"'+(accentColor?' style="color:'+accentColor+'"':'')+'>'+title+'</span>'
+      +'<span class="ip-section-meta">'+bdg+chevron+'</span>'
+      +'</div>';
+    return'<div class="'+cls+'">'+hdr+'<div class="ip-section-body" style="display:'+(open?'block':'none')+'">'+body+'</div></div>';
+  }
+
   // Sale 2 block
   let resaleHTML='';
   if(i.resaleSalePrice){
@@ -5303,6 +5377,7 @@ function renderItemPage(m,id){
     s2b+='<div class="ip-receipt-row total"><span style="flex:1">Sale 2 net</span><span class="ip-receipt-val" style="color:'+(rRev>=0?'var(--green)':'var(--red)')+'">'+fmt(rRev)+'</span></div>';
     s2b+='<div class="ip-receipt-row" style="margin-top:6px;padding:10px 0 2px;border-top:2px solid var(--border)"><span style="flex:1;font-weight:700;font-size:13px">Lifetime P&amp;L</span><span class="ip-receipt-val" style="font-size:16px;color:'+(lifetimeProfit>=0?'var(--green)':'var(--red)')+'">'+fmt(lifetimeProfit)+'</span></div>';
     if(roiDisplay)s2b+=rcp('Overall ROI',roiDisplay,'var(--muted)');
+    if(marginDisplay)s2b+=rcp('Overall margin',marginDisplay,'var(--muted)');
     resaleHTML=sec2('Sale 2 P&amp;L <span style="color:var(--muted);font-weight:400;font-size:11px">re-sold '+esc(i.resaleDateSold||'—')+'</span>',s2b,true,fmt(rRev),rRev>=0?'var(--green)':'var(--red)','ip-section-pnl','var(--purple)');
   }
 
@@ -5360,17 +5435,6 @@ function renderItemPage(m,id){
     const chevron='<span class="ip-section-chevron" style="transform:'+(open?'rotate(180deg)':'rotate(0deg)')+'">▾</span>';
     const hdr='<div class="ip-section-header" onclick="var b=this.nextElementSibling,c=this.querySelector(\'.ip-section-chevron\');b.style.display=b.style.display===\'none\'?\'block\':\'none\';c.style.transform=b.style.display===\'none\'?\'rotate(0deg)\':\'rotate(180deg)\'">'
       +'<span class="ip-section-title">'+title+'</span>'
-      +'<span class="ip-section-meta">'+bdg+chevron+'</span>'
-      +'</div>';
-    return'<div class="'+cls+'">'+hdr+'<div class="ip-section-body" style="display:'+(open?'block':'none')+'">'+body+'</div></div>';
-  }
-  // sec2: variant that allows a title accent color override
-  const sec2=function(title,body,open,badge,badgeColor,extraClass,accentColor){
-    const cls='ip-section'+(extraClass?' '+extraClass:'');
-    const bdg=badge!=null?'<span class="ip-section-badge" style="color:'+(badgeColor||'var(--muted)')+'">'+badge+'</span>':'';
-    const chevron='<span class="ip-section-chevron" style="transform:'+(open?'rotate(180deg)':'rotate(0deg)')+'">▾</span>';
-    const hdr='<div class="ip-section-header" onclick="var b=this.nextElementSibling,c=this.querySelector(\'.ip-section-chevron\');b.style.display=b.style.display===\'none\'?\'block\':\'none\';c.style.transform=b.style.display===\'none\'?\'rotate(0deg)\':\'rotate(180deg)\'">'
-      +'<span class="ip-section-title"'+(accentColor?' style="color:'+accentColor+'"':'')+'>'+title+'</span>'
       +'<span class="ip-section-meta">'+bdg+chevron+'</span>'
       +'</div>';
     return'<div class="'+cls+'">'+hdr+'<div class="ip-section-body" style="display:'+(open?'block':'none')+'">'+body+'</div></div>';
@@ -5484,11 +5548,19 @@ function renderItemPage(m,id){
   // Listing fee moved to inline P&L receipt input (F1) — no longer a KPI token
 
 
-  // Net Profit + ROI — read only, auto calculated
-  html+='<div class="ip-token locked '+profitClass+'">';
-  html+='<div class="ip-token-label">'+(i.resaleSalePrice?'Lifetime Profit':'Net Profit')+'</div>';
-  html+='<div class="ip-token-val">'+(profit!==null?fmt(profit):'—')+'</div>';
-  html+='<div class="ip-token-sub">'+(roiDisplay?roiDisplay+' ROI · ':'')+(hasReturn?'after return':'after fees')+'</div>';
+  // Net Profit token — read only, auto calculated.
+  // For a relisted-after-return item that hasn't resold yet, the headline shows
+  // the SAME lifetime-if-sold estimate the stock list shows (calcEstProfit), so
+  // the two surfaces agree. The loss-so-far and full breakdown remain in the P&L
+  // receipt and relist projection below.
+  const _headlineEst=_wasRelistedDetect?calcEstProfit(i):null;
+  const _useEst=_wasRelistedDetect&&_headlineEst!==null;
+  const _headlineVal=_useEst?_headlineEst:profit;
+  const _headlineClass=_headlineVal===null?'':_headlineVal>=0?'pos':'neg';
+  html+='<div class="ip-token locked '+_headlineClass+'">';
+  html+='<div class="ip-token-label">'+(_useEst?'Lifetime P&amp;L if sold':i.resaleSalePrice?'Lifetime Profit':'Net Profit')+'</div>';
+  html+='<div class="ip-token-val">'+(_headlineVal!==null?(_useEst&&_headlineVal>=0?'+':'')+fmt(_headlineVal):'—')+'</div>';
+  html+='<div class="ip-token-sub">'+(_useEst?'at current price · est.':(marginDisplay?marginDisplay+' margin · ':'')+(hasReturn?'after return':'after fees'))+'</div>';
   html+='</div>';
 
   html+='</div>'; // ip-tokens
@@ -5951,7 +6023,7 @@ function renderSearchResults(q){
   const rows=results.map(i=>{
     const status=i.isReturned?'returned':i.resaleSalePrice?'resold':i.dateSold?'sold':i.condition==='spares'?'spares':'listed';
     const profit=(i.dateSold||i.resaleSalePrice)&&!i.isReturned?calcGrossProfit(i):null;
-    const roi=calcROI(i);
+    const margin=calcMargin(i);
     const catGlyph=catIcon(i.category,16);
     return`<div class="item-row" onclick="openItemPage('${i.month}','${i.id}','p-search')">
       <div class="item-main">
@@ -5969,7 +6041,7 @@ function renderSearchResults(q){
         <div class="item-meta">
           <div class="item-meta-item">£${fmt(i.salePrice).replace("£","")}</div>
           ${profit!==null?`<div class="item-meta-item" style="color:var(--green);font-weight:600">Profit: ${fmt(profit)}</div>`:''}
-          ${roi!==null?`<div class="item-meta-item" style="color:var(--muted);font-size:12px">ROI: ${roi.toFixed(1)}%</div>`:''}
+          ${margin!==null?`<div class="item-meta-item" style="color:var(--muted);font-size:12px">Margin: ${margin.toFixed(1)}%</div>`:''}
         </div>
       </div>
       <div class="item-actions">
@@ -8688,7 +8760,7 @@ function showCategoryItems(cat,_fromBack){
         <div style="display:flex;gap:12px;font-size:12px;color:var(--text-secondary)">
           <span>${fmt(i.salePrice)}</span>
           ${prof!==null?`<span style="color:var(--green);font-weight:600">${fmt(prof)}</span>`:''}
-          ${(i.dateSold||i.resaleSalePrice)&&!i.isReturned&&calcROI(i)!==null?`<span style="color:var(--muted)">ROI ${calcROI(i).toFixed(1)}%</span>`:''}
+          ${(i.dateSold||i.resaleSalePrice)&&!i.isReturned&&calcMargin(i)!==null?`<span style="color:var(--muted)">Margin ${calcMargin(i).toFixed(1)}%</span>`:''}
         </div>
       </div>`;
     }).join('')}`;
@@ -8733,6 +8805,41 @@ function showROIItems(){
       </div>
     `).join('')}`;
   openPanel('Avg ROI — All Items',html);
+}
+
+// Margin equivalent of showROIItems. Bands per reseller norms: ≥50% excellent
+// (green), ≥30% good (accent), below that muted. Margin = profit ÷ revenue.
+function showMarginItems(){
+  let items=[];
+  allDBKeys().forEach(k=>{(DB[k]||[]).forEach(i=>{
+    if((i.item||'').trim().toUpperCase()==='MONTH END')return;
+    if((i.dateSold||i.resaleSalePrice)&&!i.isReturned){
+      const saleDate=i.resaleSalePrice?i.resaleDateSold:i.dateSold;
+      if(!_inSummaryPeriod(saleDate))return;
+      const margin=calcMargin(i);if(margin!==null)items.push({...i,month:k,_margin:margin});
+    }
+  });});
+  items.sort((a,b)=>b._margin-a._margin);
+  const avg=items.length?items.reduce((s,i)=>s+i._margin,0)/items.length:0;
+  const html=`
+    <div style="margin-bottom:16px;display:flex;align-items:center;gap:12px;background:var(--surface2);border-radius:10px;padding:14px">
+      <div class="stat-num" style="color:var(--accent)">${avg.toFixed(1)}%</div>
+      <div><div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px">Average margin</div><div style="font-size:13px;color:var(--text-secondary)">${items.length} items calculated</div></div>
+    </div>
+    ${items.map(i=>`
+      <div style="padding:12px;background:var(--surface2);border-radius:8px;margin-bottom:8px;cursor:pointer;border-left:3px solid ${i._margin>=50?'var(--green)':i._margin>=30?'var(--accent)':'var(--muted)'}" onclick="openItemDetail('${i.month}','${i.id}')">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+          <div style="flex:1;font-weight:600;font-size:14px">${esc(i.item)}</div>
+          <div style="font-size:16px;font-weight:700;color:${i._margin>=50?'var(--green)':i._margin>=30?'var(--accent)':'var(--text)'}">${i._margin.toFixed(1)}%</div>
+        </div>
+        <div style="display:flex;gap:16px;font-size:12px;color:var(--text-secondary)">
+          <span>Sale: <strong>${fmt(i.salePrice)}</strong></span>
+          <span>Profit: <strong style="color:var(--green)">${fmt(calcGrossProfit(i))}</strong></span>
+          <span style="color:var(--muted)">${i.month}</span>
+        </div>
+      </div>
+    `).join('')}`;
+  openPanel('Avg Margin — All Items',html);
 }
 
 function showListedInPeriodItems(){
@@ -8844,7 +8951,7 @@ function showAvgBuyBreakdown(){
   </div>`;
   const rows=sorted.map(i=>{
     const sp=i.resaleSalePrice||i.salePrice||0;
-    const roi=calcROI(i);
+    const margin=calcMargin(i);
     return`<div style="padding:10px;background:var(--surface2);border-radius:8px;margin-bottom:8px;cursor:pointer;display:flex;align-items:center;gap:10px" onclick="openItemDetail('${i.month}','${i.id}')">
       <div style="flex:1">
         <div style="font-weight:600;font-size:13px">${esc(i.item)}</div>
@@ -8852,7 +8959,7 @@ function showAvgBuyBreakdown(){
       </div>
       <div style="text-align:right">
         <div style="font-weight:700;font-size:14px;color:var(--blue)">${fmt(i.costPrice||0)}</div>
-        ${roi!==null?`<div style="font-size:11px;color:var(--green)">${roi.toFixed(1)}% ROI</div>`:''}
+        ${margin!==null?`<div style="font-size:11px;color:var(--green)">${margin.toFixed(1)}% margin</div>`:''}
       </div>
     </div>`;
   }).join('');
@@ -8878,7 +8985,7 @@ function showAvgProfitBreakdown(){
   </div>`;
   const rows=sorted.map(i=>{
     const sp=i.resaleSalePrice||i.salePrice||0;
-    const roi=calcROI(i);
+    const margin=calcMargin(i);
     const profColor=(i._profit||0)>=0?'var(--green)':'var(--red)';
     return`<div style="padding:10px;background:var(--surface2);border-radius:8px;margin-bottom:8px;cursor:pointer;display:flex;align-items:center;gap:10px" onclick="openItemDetail('${i.month}','${i.id}')">
       <div style="flex:1">
@@ -8887,7 +8994,7 @@ function showAvgProfitBreakdown(){
       </div>
       <div style="text-align:right">
         <div style="font-weight:700;font-size:14px;color:${profColor}">${fmt(i._profit||0)}</div>
-        ${roi!==null?`<div style="font-size:11px;color:var(--muted)">${roi.toFixed(1)}% ROI</div>`:''}
+        ${margin!==null?`<div style="font-size:11px;color:var(--muted)">${margin.toFixed(1)}% margin</div>`:''}
       </div>
     </div>`;
   }).join('');
@@ -8989,10 +9096,10 @@ function showFilteredItems(filter){
       subRow=`<div style="font-size:12px;margin-top:4px;color:var(--muted)">${i._displayDate||'—'} · ${fmt(i._displayPrice)}</div>`;
     } else if(filter==='realised'){
       const profColor=(i._entryProfit||0)>=0?'var(--green)':'var(--red)';
-      const roiStr=i._entryType==='resold'&&calcROI(i)!==null
-        ?`<span style="color:var(--purple);font-weight:600;margin-left:6px">${calcROI(i).toFixed(1)}% ROI</span>`
-        :i._entryType==='normal'&&calcROI(i)!==null
-        ?`<span style="color:var(--muted);margin-left:6px">${calcROI(i).toFixed(1)}% ROI</span>`
+      const roiStr=i._entryType==='resold'&&calcMargin(i)!==null
+        ?`<span style="color:var(--purple);font-weight:600;margin-left:6px">${calcMargin(i).toFixed(1)}% margin</span>`
+        :i._entryType==='normal'&&calcMargin(i)!==null
+        ?`<span style="color:var(--muted);margin-left:6px">${calcMargin(i).toFixed(1)}% margin</span>`
         :'';
       const dateStr=i._displayDate?`<span style="color:var(--muted);margin-left:6px">${i._displayDate}</span>`:'';
       subRow=`<div style="font-size:12px;margin-top:4px;display:flex;align-items:center;flex-wrap:wrap;gap:2px"><span style="color:${profColor};font-weight:600">${fmt(i._entryProfit)}</span>${roiStr}${dateStr}</div>`;
@@ -9365,7 +9472,8 @@ function renderSummary(){
         if(!inRangeTF(saleDate))return;
         const profit=calcGrossProfit(i);
         const roi=calcROI(i);
-        if(profit!==null)sold.push({...i,month:k,profit,roi});
+        const margin=calcMargin(i);
+        if(profit!==null)sold.push({...i,month:k,profit,roi,margin});
       }
     }));
     sold.sort((a,b)=>(b.profit||0)-(a.profit||0));
@@ -9408,7 +9516,7 @@ function renderSummary(){
 
     const topRows=top.length ? top.map((i,idx)=>{
       const profitCol=(i.profit||0)>=0?'var(--green)':'var(--red)';
-      return `<div class="metric-inline clickable" onclick="openItemDetail('${i.month}','${i.id}')"><div><div class="metric-k">#${idx+1} · ${esc(i.item)}</div><div style="font-size:11px;color:var(--muted);margin-top:4px">${keyName(i.month)} · ${i.dateSold||i.resaleDateSold||''}</div></div><div style="text-align:right"><div class="metric-v" style="font-size:20px;color:${profitCol}">${fmt(i.profit)}</div><div style="font-size:11px;color:var(--text-secondary)">${i.roi!==null?i.roi.toFixed(1)+'% ROI':'—'}</div></div></div>`;
+      return `<div class="metric-inline clickable" onclick="openItemDetail('${i.month}','${i.id}')"><div><div class="metric-k">#${idx+1} · ${esc(i.item)}</div><div style="font-size:11px;color:var(--muted);margin-top:4px">${keyName(i.month)} · ${i.dateSold||i.resaleDateSold||''}</div></div><div style="text-align:right"><div class="metric-v" style="font-size:20px;color:${profitCol}">${fmt(i.profit)}</div><div style="font-size:11px;color:var(--text-secondary)">${i.margin!==null&&i.margin!==undefined?i.margin.toFixed(1)+'% margin':'—'}</div></div></div>`;
     }).join('') : `<div style="font-size:13px;color:var(--text-secondary)">No completed sales in this period yet.</div>`;
     // catRows removed — category rendering is inline in velocity section
     const html=`
@@ -9424,7 +9532,7 @@ function renderSummary(){
           <div class="kgrid kgrid-4 summary-kpis">
             <div class="kcard b clickable" onclick="showFilteredItems('revenue')"><div class="klabel">Total <br>revenue</div><div class="kval">${fmtK(stats.totalRev||0)}</div><div class="ksub">${stats.soldCount||0} sold in view</div></div>
             <div class="kcard g clickable" onclick="showFilteredItems('realised')"><div class="klabel">Net <br>profit</div><div class="kval">${fmtK(stats.realisedProfit||0)}</div><div class="ksub">${(stats.soldCount||0)>0&&(stats.totalRev||0)>0?((stats.realisedProfit/stats.totalRev)*100).toFixed(0)+'% margin':'No margin yet'}</div></div>
-            <div class="kcard clickable" onclick="showROIItems()"><div class="klabel">Avg <br>ROI</div><div class="kval">${Math.round(stats.avgROI||0)}%</div><div class="ksub">Sold items only</div></div>
+            <div class="kcard clickable" onclick="showMarginItems()"><div class="klabel">Avg <br>Margin</div><div class="kval">${Math.round(stats.avgMargin||0)}%</div><div class="ksub">Sold items only</div></div>
             <div class="kcard r clickable" onclick="showReturnedItems()"><div class="klabel">Refund <br>rate</div><div class="kval">${Number(stats.refundItemRate||0).toFixed(1)}%</div><div class="ksub">${stats.fullRefundCount||0} full · ${stats.partialOnlyCount||0} partial</div></div>
           </div>
           <div class="chart-wrap summary-chart">
@@ -9618,7 +9726,7 @@ function showMonthSnapshot(monthKey){
     return `<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);cursor:pointer" onclick="openItemDetail('${e.month}','${i.id}')">
       <div style="flex:1;min-width:0">
         <div style="font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(i.item)}</div>
-        <div style="font-size:11px;color:${profColor};margin-top:2px;font-weight:600">${fmt(e.profit||0)}${e.roi!==null?` <span style="color:var(--muted);font-weight:400">· ${e.roi.toFixed(1)}% ROI</span>`:''}<span style="color:var(--muted);font-weight:400"> · ${lineage} ${e.saleDate||''}</span></div>
+        <div style="font-size:11px;color:${profColor};margin-top:2px;font-weight:600">${fmt(e.profit||0)}${e.margin!==null&&e.margin!==undefined?` <span style="color:var(--muted);font-weight:400">· ${e.margin.toFixed(1)}% margin</span>`:''}<span style="color:var(--muted);font-weight:400"> · ${lineage} ${e.saleDate||''}</span></div>
       </div>
       <div style="font-size:13px;font-weight:600;font-family:var(--font-mono);color:var(--text);flex-shrink:0">${fmt(e.salePrice)}</div>
     </div>`;
@@ -9665,7 +9773,8 @@ function showRangeSnapshot(label, fromDate, toDate){
     if(sd && sd>=fromDate && sd<=toDate){
       const profit = calcGrossProfit(i);
       const roi = calcROI(i);
-      items.push({...i, _month:k, _profit:profit, _roi:roi, _sd:sd});
+      const margin = calcMargin(i);
+      items.push({...i, _month:k, _profit:profit, _roi:roi, _margin:margin, _sd:sd});
     }
   }));
 
@@ -9702,7 +9811,7 @@ function showRangeSnapshot(label, fromDate, toDate){
     <div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);cursor:pointer" onclick="openItemDetail('${i._month}','${i.id}')">
       <div style="flex:1;min-width:0">
         <div style="font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(i.item)}</div>
-        ${i._profit!==null?`<div style="font-size:11px;color:${(i._profit>=0)?'var(--green)':'var(--red)'};margin-top:2px;font-weight:600">${fmt(i._profit)}${i._roi!==null?` <span style="color:var(--muted);font-weight:400">· ${i._roi.toFixed(1)}% ROI</span>`:''}</div>`:''}
+        ${i._profit!==null?`<div style="font-size:11px;color:${(i._profit>=0)?'var(--green)':'var(--red)'};margin-top:2px;font-weight:600">${fmt(i._profit)}${i._margin!==null&&i._margin!==undefined?` <span style="color:var(--muted);font-weight:400">· ${i._margin.toFixed(1)}% margin</span>`:''}</div>`:''}
       </div>
       <div style="font-size:13px;font-weight:600;font-family:var(--font-mono);flex-shrink:0">${fmt(calcItemRevenue(i))}</div>
     </div>`).join('');
@@ -9797,7 +9906,7 @@ function renderMonthlyGrid(){
     } else { defaultCollapsed=true; }
     const isCollapsed=_fyCollapsed[fy]!==undefined?_fyCollapsed[fy]:defaultCollapsed;
 
-    let fyProfit=0,fySold=0,fyROISum=0,fyROICount=0;
+    let fyProfit=0,fySold=0,fyROISum=0,fyROICount=0,fyMarginSum=0,fyMarginCount=0;
     months.forEach(function(k){
       // Session B: FY rollups attribute by sale date, not listing month.
       const ms=calcMonthStatsBySale(k);
@@ -9806,16 +9915,18 @@ function renderMonthlyGrid(){
       // Roll up ROI from this month's sale events (not from items in DB[k]).
       getSaleEventsInMonth(k).forEach(function(ev){
         if(!ev.isReturned&&ev.roi!==null){fyROISum+=ev.roi;fyROICount++;}
+        if(!ev.isReturned&&ev.margin!==null&&ev.margin!==undefined){fyMarginSum+=ev.margin;fyMarginCount++;}
       });
     });
     const fyAvgROI=fyROICount>0?(fyROISum/fyROICount):null;
+    const fyAvgMargin=fyMarginCount>0?(fyMarginSum/fyMarginCount):null;
     const fyLabel=_getFYLabel(fy);
     const profitColor=fyProfit>0?'var(--green)':fyProfit<0?'var(--red)':'var(--muted)';
     const chevronRot=isCollapsed?'0deg':'180deg';
     const borderCol=isCurrentFY?'var(--accent)':'var(--border)';
     const labelCol=isCurrentFY?'var(--accent)':'var(--text)';
     const currentBadge=isCurrentFY?'<span class="fy-current-badge" style="font-size:10px;font-weight:700;background:var(--accent);color:#000;border-radius:4px;padding:2px 7px;letter-spacing:0.5px;flex-shrink:0;">CURRENT</span>':'';
-    const roiSpan=fyAvgROI!==null?'<span style="color:var(--text-secondary)">'+fyAvgROI.toFixed(1)+'% avg ROI</span>':'';
+    const roiSpan=fyAvgMargin!==null?'<span style="color:var(--text-secondary)">'+fyAvgMargin.toFixed(1)+'% avg margin</span>':'';
 
     let gridHTML='';
     if(!isCollapsed){
@@ -9964,22 +10075,24 @@ function setMonthSort(s){MONTH_SORT=s;renderMonth();}
 function downloadAnnualStatement(fyStart){
   const keys=_fyKeys(fyStart);
   const label=_getFYLabel(fyStart);
-  const rows=[['Month','Revenue (£)','Costs (£)','Gross Profit (£)','Items Sold','Returns','Avg ROI %']];
-  let totRev=0,totCost=0,totProfit=0,totSold=0,totRet=0,roiSum=0,roiCount=0;
+  const rows=[['Month','Revenue (£)','Costs (£)','Gross Profit (£)','Items Sold','Returns','Avg ROI %','Avg Margin %']];
+  let totRev=0,totCost=0,totProfit=0,totSold=0,totRet=0,roiSum=0,roiCount=0,marginSum=0,marginCount=0;
   keys.forEach(function(k){
     const ms=calcMonthStatsBySale(k);
     const evs=getSaleEventsInMonth(k);
     const costs=ms.totalRev-ms.realisedProfit;
     const monthROI=ms.avgROI!==null?ms.avgROI.toFixed(1):'';
+    const monthMargin=ms.avgMargin!==null&&ms.avgMargin!==undefined?ms.avgMargin.toFixed(1):'';
     if(ms.avgROI!==null){roiSum+=ms.avgROI;roiCount++;}
+    if(ms.avgMargin!==null&&ms.avgMargin!==undefined){marginSum+=ms.avgMargin;marginCount++;}
     totRev+=ms.totalRev;totCost+=costs;totProfit+=ms.realisedProfit;
     totSold+=ms.soldCount;totRet+=ms.returnedCount||0;
     rows.push([keyName(k),ms.totalRev.toFixed(2),costs.toFixed(2),ms.realisedProfit.toFixed(2),
-      ms.soldCount,ms.returnedCount||0,monthROI]);
+      ms.soldCount,ms.returnedCount||0,monthROI,monthMargin]);
   });
   rows.push([]);
   rows.push(['TOTAL FY '+label,totRev.toFixed(2),totCost.toFixed(2),totProfit.toFixed(2),
-    totSold,totRet,roiCount>0?(roiSum/roiCount).toFixed(1):'']);
+    totSold,totRet,roiCount>0?(roiSum/roiCount).toFixed(1):'',marginCount>0?(marginSum/marginCount).toFixed(1):'']);
   const csv=rows.map(function(r){return r.map(function(c){const s=String(c==null?'':c);return(s.includes(',')||s.includes('"'))?'"'+s.replace(/"/g,'""')+'"':s;}).join(',');}).join('\n');
   const blob=new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8'});
   const a=document.createElement('a');a.href=URL.createObjectURL(blob);
@@ -10091,7 +10204,7 @@ function _writeExcel(rows,sheetName,filename,opts){
 function downloadMonthlyExcel(m){
   const events=getSaleEventsInMonth(m);
   if(!events.length){toast('No sales in '+m,'error');return;}
-  const rows=[['Date','Item','GID','Platform','Sale Price','Postage Received','Net Profit','ROI %','Status']];
+  const rows=[['Date','Item','GID','Platform','Sale Price','Postage Received','Net Profit','ROI %','Margin %','Status']];
   events.forEach(function(ev){
     const i=ev.item;
     const pl=(PLATFORMS[_itemPlatform(i)]&&PLATFORMS[_itemPlatform(i)].short)||_itemPlatform(i);
@@ -10099,30 +10212,32 @@ function downloadMonthlyExcel(m){
       ev.salePrice||0,i.postage||0,
       ev.profit!=null?Number(ev.profit):0,
       ev.roi!=null?Number(ev.roi.toFixed(1)):0,
+      ev.margin!=null?Number(ev.margin.toFixed(1)):0,
       ev.isReturned?'Returned':'Sold']);
   });
   const totProfit=events.reduce(function(s,e){return s+(e.profit||0);},0);
   const totRev=events.filter(function(e){return!e.isReturned;}).reduce(function(s,e){return s+(e.salePrice||0);},0);
   rows.push([]);
-  rows.push(['TOTALS','','','',totRev,'',totProfit,'','']);
+  rows.push(['TOTALS','','','',totRev,'',totProfit,'','','']);
   _csvRowsToExcel(rows,'Sales','RETRADE_'+m+'_Statement.xlsx',{title:'Monthly Statement — '+keyName(m)});
 }
 
 function downloadAnnualExcel(fyStart){
   const keys=_fyKeys(fyStart);
   const label=_getFYLabel(fyStart);
-  const rows=[['Month','Revenue (£)','Costs (£)','Gross Profit (£)','Items Sold','Returns','Avg ROI %']];
-  let totRev=0,totCost=0,totProfit=0,totSold=0,totRet=0,roiSum=0,roiCount=0;
+  const rows=[['Month','Revenue (£)','Costs (£)','Gross Profit (£)','Items Sold','Returns','Avg ROI %','Avg Margin %']];
+  let totRev=0,totCost=0,totProfit=0,totSold=0,totRet=0,roiSum=0,roiCount=0,marginSum=0,marginCount=0;
   keys.forEach(function(k){
     const ms=calcMonthStatsBySale(k);
     const costs=ms.totalRev-ms.realisedProfit;
     if(ms.avgROI!==null){roiSum+=ms.avgROI;roiCount++;}
+    if(ms.avgMargin!==null&&ms.avgMargin!==undefined){marginSum+=ms.avgMargin;marginCount++;}
     totRev+=ms.totalRev;totCost+=costs;totProfit+=ms.realisedProfit;
     totSold+=ms.soldCount;totRet+=ms.returnedCount||0;
-    rows.push([keyName(k),ms.totalRev,costs,ms.realisedProfit,ms.soldCount,ms.returnedCount||0,ms.avgROI!=null?Number(ms.avgROI.toFixed(1)):0]);
+    rows.push([keyName(k),ms.totalRev,costs,ms.realisedProfit,ms.soldCount,ms.returnedCount||0,ms.avgROI!=null?Number(ms.avgROI.toFixed(1)):0,ms.avgMargin!=null?Number(ms.avgMargin.toFixed(1)):0]);
   });
   rows.push([]);
-  rows.push(['TOTAL FY '+label,totRev,totCost,totProfit,totSold,totRet,roiCount>0?Number((roiSum/roiCount).toFixed(1)):0]);
+  rows.push(['TOTAL FY '+label,totRev,totCost,totProfit,totSold,totRet,roiCount>0?Number((roiSum/roiCount).toFixed(1)):0,marginCount>0?Number((marginSum/marginCount).toFixed(1)):0]);
   _csvRowsToExcel(rows,'Annual P&L','RETRADE_FY'+label.replace('/','-')+'_Annual.xlsx',{title:'Annual P&L Summary — FY '+label});
 }
 
@@ -10155,21 +10270,22 @@ function downloadStockExcel(){
 function downloadMonthlyStatement(m){
   const events=getSaleEventsInMonth(m);
   if(!events.length){toast('No sales in '+m,'error');return;}
-  const rows=[['Date','Item','GID','Platform','Sale Price','Postage Received','Net Profit','ROI %','Status']];
+  const rows=[['Date','Item','GID','Platform','Sale Price','Postage Received','Net Profit','ROI %','Margin %','Status']];
   events.forEach(function(ev){
     const i=ev.item;
     const p=_itemPlatform(i);
     const pl=(PLATFORMS[p]&&PLATFORMS[p].short)||p;
     const profit=ev.profit!=null?Number(ev.profit).toFixed(2):'';
     const roi=ev.roi!=null?ev.roi.toFixed(1)+'%':'';
+    const margin=ev.margin!=null?ev.margin.toFixed(1)+'%':'';
     rows.push([ev.saleDate||'',(i.item||'').replace(/,/g,' '),i.gid||'',pl,
-      (ev.salePrice||0).toFixed(2),(i.postage||0).toFixed(2),profit,roi,
+      (ev.salePrice||0).toFixed(2),(i.postage||0).toFixed(2),profit,roi,margin,
       ev.isReturned?'Returned':'Sold']);
   });
   const totProfit=events.reduce(function(s,e){return s+(e.profit||0);},0);
   const totRev=events.filter(function(e){return!e.isReturned;}).reduce(function(s,e){return s+(e.salePrice||0);},0);
   rows.push([]);
-  rows.push(['TOTALS','','','',totRev.toFixed(2),'',totProfit.toFixed(2),'','']);
+  rows.push(['TOTALS','','','',totRev.toFixed(2),'',totProfit.toFixed(2),'','','']);
   const csv=rows.map(function(r){return r.map(function(c){const s=String(c==null?'':c);return(s.includes(',')||s.includes('"'))?'"'+s.replace(/"/g,'""')+'"':s;}).join(',');}).join('\n');
   const blob=new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8'});
   const a=document.createElement('a');a.href=URL.createObjectURL(blob);
@@ -10200,9 +10316,9 @@ function renderMonth(){
   visible=[...visible].sort((a,b)=>{
     if(MONTH_SORT==='profit')return (b.profit||0)-(a.profit||0);
     if(MONTH_SORT==='price')return (b.salePrice||0)-(a.salePrice||0);
-    if(MONTH_SORT==='roi'){
-      // null ROI sinks to bottom
-      const ra=a.roi==null?-Infinity:a.roi, rb=b.roi==null?-Infinity:b.roi;
+    if(MONTH_SORT==='margin'){
+      // null margin sinks to bottom
+      const ra=a.margin==null?-Infinity:a.margin, rb=b.margin==null?-Infinity:b.margin;
       return rb-ra;
     }
     // default: date-sold desc
@@ -10234,7 +10350,7 @@ function renderMonth(){
     <div class="page-header">
       <div style="display:flex;align-items:center;gap:12px;flex-wrap:nowrap;min-width:0;">
         <button class="btn btn-s" style="padding:7px 14px;font-size:13px;flex-shrink:0;" onclick="${backAction}">${backLabel}</button>
-        <div class="month-picker-wrap" id="month-picker" style="min-width:0;overflow:hidden;">
+        <div class="month-picker-wrap" id="month-picker" style="min-width:0;">
           <div class="month-picker-title" onclick="toggleMonthPicker()">
             ${keyName(m)}
             <span class="month-picker-chevron">▾</span>
@@ -10294,8 +10410,8 @@ function renderMonth(){
         <div class="ksub">${stats.totalRev>0?(stats.realisedProfit/stats.totalRev*100).toFixed(0)+'% margin':'—'}</div>
       </div>
       <div class="kcard">
-        <div class="klabel">Avg ROI</div>
-        <div class="kval">${stats.avgROI!==null?stats.avgROI.toFixed(1)+'%':'—'}</div>
+        <div class="klabel">Avg Margin</div>
+        <div class="kval">${stats.avgMargin!==null&&stats.avgMargin!==undefined?stats.avgMargin.toFixed(1)+'%':'—'}</div>
         <div class="ksub">${stats.avgDays!==null?stats.avgDays+'d avg to sell':stats.soldCount===0?'No sales':'—'}</div>
       </div>
       <div class="kcard r">
@@ -10335,7 +10451,7 @@ function renderMonth(){
         <option value="date-sold" ${MONTH_SORT==='date-sold'?'selected':''}>Date sold</option>
         <option value="profit" ${MONTH_SORT==='profit'?'selected':''}>Profit</option>
         <option value="price" ${MONTH_SORT==='price'?'selected':''}>Price</option>
-        <option value="roi" ${MONTH_SORT==='roi'?'selected':''}>ROI</option>
+        <option value="margin" ${MONTH_SORT==='margin'?'selected':''}>Margin</option>
       </select>
     </div>
 
@@ -10388,7 +10504,7 @@ function renderSaleEventRow(ev){
   const selected=SELECTED_ITEMS.has(i.id);
   const status=ev.isReturned?'returned':ev.sale==='2'?'resold':'sold';
   const profit=ev.profit;
-  const roi=ev.roi;
+  const margin=ev.margin;
 
   // Build meta lineage
   const metaParts=[];
@@ -10415,7 +10531,7 @@ function renderSaleEventRow(ev){
     profitEl='<div class="item-row-profit '+cls+'">net '+fmt(profit||0)+'</div>';
   } else {
     profitEl='<div class="item-row-profit '+cls+'">'+fmt(profit||0)+'</div>';
-    if(roi!==null)profitEl+='<div class="item-row-roi">'+roi.toFixed(1)+'% ROI</div>';
+    if(margin!==null&&margin!==undefined)profitEl+='<div class="item-row-roi">'+margin.toFixed(1)+'% margin</div>';
   }
 
   const leftSlot=SELECTION_MODE
@@ -10544,6 +10660,7 @@ function renderItemRow(m,i){
   const daysToSellVal=(i.dateSold||i.resaleSalePrice)&&!i.isReturned?calcDaysToSell(i):null;
   const profit=calcGrossProfit(i);
   const roi=calcROI(i);
+  const margin=calcMargin(i);
   const isRelisted=i.isReturned&&(i.returnHistory||[]).some(r=>r.type==='full_seller'||r.type==='full_ebay')&&!i.resaleSalePrice&&!!i.salePrice;
   const badgeClass=isRelisted?'relisted':status;
   const badgeLabel=isRelisted?'relisted':status;
@@ -10596,7 +10713,7 @@ function renderItemRow(m,i){
   if((i.dateSold||i.resaleSalePrice)&&!i.isReturned){
     const cls=profit>=0?'pos':'neg';
     profitEl='<div class="item-row-profit '+cls+'">'+fmt(profit)+'</div>';
-    if(roi!==null)profitEl+='<div class="item-row-roi">'+roi.toFixed(1)+'% ROI</div>';
+    if(margin!==null&&margin!==undefined)profitEl+='<div class="item-row-roi">'+margin.toFixed(1)+'% margin</div>';
   }else if(!i.dateSold&&!i.isReturned&&!i.resaleSalePrice&&profit!==null){
     // Active items: show "est. profit" using lifetime semantics — for normal
     // listings this equals calcGrossProfit, but for relisted-after-return items
@@ -10660,6 +10777,10 @@ function renderItemRow(m,i){
 function openItemDetail(m,id,noHistory){
   const i=(DB[m]||[]).find(x=>x.id===id);
   if(!i)return;
+  // Opening a fresh item panel invalidates any prior full-item-page context.
+  // Without this, _itemPageOrigin/_savedPanelState could linger from a previous
+  // item and cause exit/back to re-route to that OLD item.
+  if(!noHistory){_savedPanelState=null;_itemPageOrigin=(document.querySelector('.page.on')?document.querySelector('.page.on').id:'p-summary');}
 
   // T-03: Sourced items have no platform, sale price, or fees — render a
   // stripped-down panel instead of the listed-item layout to avoid empty/£0 fields.
@@ -14778,6 +14899,8 @@ function calcYearlyStats(period){
     });
   });
   const avgROI=soldItems.length?soldItems.reduce((s,i)=>s+calcROI(i),0)/soldItems.length:0;
+  const _marginVals=soldItems.map(i=>calcMargin(i)).filter(v=>v!==null&&v!==undefined);
+  const avgMargin=_marginVals.length?_marginVals.reduce((s,v)=>s+v,0)/_marginVals.length:0;
   const avgSale=saleTransactions.length?saleTransactions.reduce((s,v)=>s+v,0)/saleTransactions.length:0;
   const avgProfit=soldItems.length?realisedProfit/soldItems.length:0;
   // Sell-through: of items that were LISTED within this period, how many sold?
@@ -14916,7 +15039,7 @@ function calcYearlyStats(period){
     // Legacy aliases (now derived from the new single-pass counts):
     returnCount,returnRate,partialRefundCount,partialRefundRate,totalAffected,
     refundMoneyRate,refundMoneyTotal:_refundMoneyTotal,refundMoneyDenom:_refundMoneyDenom,
-    avgROI,avgSale,avgProfit,avgCostPrice,sellThrough,sellThrough14,sold14Count,
+    avgROI,avgMargin,avgSale,avgProfit,avgCostPrice,sellThrough,sellThrough14,sold14Count,
     eligible14Count:eligible14.length,avgDays,stale,byCat,totalStaleCount};
 }
 
@@ -14989,6 +15112,7 @@ function getSaleEventsInMonth(m){
             salePrice:sale1Price,
             profit:calcGrossProfit(sale1Item),
             roi:null,                   // ROI semantically belongs to the resale outcome
+            margin:null,                // margin likewise attributed to the resale event
             daysToSell:i.dateListed?daysBetween(i.dateListed,i.dateSold):null,
             isReturned:true             // show as returned in the month it was returned/relisted
           });
@@ -15000,6 +15124,7 @@ function getSaleEventsInMonth(m){
             salePrice:i.salePrice||0,
             profit:calcGrossProfit(i),
             roi:calcROI(i),
+            margin:calcMargin(i),
             daysToSell:calcDaysToSell(i),
             isReturned:false
           });
@@ -15011,6 +15136,7 @@ function getSaleEventsInMonth(m){
             salePrice:i.salePrice||0,
             profit:calcGrossProfit(i)||0,
             roi:null,
+            margin:null,
             daysToSell:i.dateListed?daysBetween(i.dateListed,i.dateSold):null,
             isReturned:true
           });
@@ -15024,6 +15150,7 @@ function getSaleEventsInMonth(m){
           salePrice:i.resaleSalePrice||0,
           profit:calcGrossProfit(i),         // full-lifecycle profit attributed to the resale event
           roi:calcROI(i),
+          margin:calcMargin(i),
           daysToSell:calcDaysToSell(i),
           isReturned:false                   // resale events are net-positive sales
         });
@@ -15049,6 +15176,7 @@ function calcMonthStatsBySale(m){
   const events=getSaleEventsInMonth(m);
   let totalRev=0,realisedProfit=0,soldCount=0,eventCount=0,returnedCount=0;
   let roiSum=0,roiCount=0,daysSum=0,daysCount=0;
+  let marginSum=0,marginCount=0;
   events.forEach(function(e){
     eventCount++;
     // For sale1 events that ended in a return+resale, revenue = 0 (counted on sale2).
@@ -15060,6 +15188,7 @@ function calcMonthStatsBySale(m){
     } else {
       soldCount++;
       if(e.roi!==null){roiSum+=e.roi;roiCount++;}
+      if(e.margin!==null&&e.margin!==undefined){marginSum+=e.margin;marginCount++;}
       if(e.daysToSell!==null){daysSum+=e.daysToSell;daysCount++;}
     }
   });
@@ -15093,9 +15222,10 @@ function calcMonthStatsBySale(m){
   const refundCount=fullRefundCount;
   const partialCount=partialOnlyCount;
   const avgROI=roiCount>0?(roiSum/roiCount):null;
+  const avgMargin=marginCount>0?(marginSum/marginCount):null;
   const avgDays=daysCount>0?Math.round(daysSum/daysCount):null;
   return {totalRev:+totalRev.toFixed(2),realisedProfit:+realisedProfit.toFixed(2),
-          soldCount,eventCount,returnedCount,avgROI,avgDays,
+          soldCount,eventCount,returnedCount,avgROI,avgMargin,avgDays,
           fullRefundCount,partialOnlyCount,refundedItemCount,refundDenom,refundItemRate,
           refundCount,partialCount,  // legacy aliases
           // Active stock for this listing month (kept so the grid card can show
@@ -15411,6 +15541,21 @@ function calcROI(i){
   }
   if(totalInvested<=0)return null;
   return+((calcGrossProfit(i)/totalInvested)*100).toFixed(1);
+}
+
+// Net profit margin = net profit ÷ revenue (sale price), ×100.
+// Answers "for every £1 of revenue, how much is take-home" — so target
+// revenue = target profit ÷ margin. Denominator is calcItemRevenue (which
+// already resolves returns/resales to the correct sale price); numerator is
+// the same net profit used everywhere else (calcGrossProfit). Mirrors
+// calcROI's null-guards: returns null until the item has actually sold.
+function calcMargin(i){
+  if(!i.dateSold&&!i.isReturned&&!i.resaleSalePrice)return null;
+  const rev=calcItemRevenue(i);
+  if(!rev||rev<=0)return null;
+  const profit=calcGrossProfit(i);
+  if(profit===null)return null;
+  return+((profit/rev)*100).toFixed(1);
 }
 
 // E4 P2 — Relist snapshot audit / backfill.
@@ -16266,7 +16411,15 @@ function _restoreAuthInputs(){
 //   relisted_at DATE,
 //   relist_condition TEXT,
 //   sale_price_at_return NUMERIC(10,2) DEFAULT NULL,  -- ALTER TABLE item_returns ADD COLUMN IF NOT EXISTS sale_price_at_return NUMERIC(10,2);
-//   date_sold_at_return DATE DEFAULT NULL              -- ALTER TABLE item_returns ADD COLUMN IF NOT EXISTS date_sold_at_return DATE;
+//   date_sold_at_return DATE DEFAULT NULL,             -- ALTER TABLE item_returns ADD COLUMN IF NOT EXISTS date_sold_at_return DATE;
+//   -- Sale-1 relist snapshot (E29) — makes each sale a durable layer:
+//   sale_price_at_relist NUMERIC(10,2) DEFAULT NULL,     -- ALTER TABLE item_returns ADD COLUMN IF NOT EXISTS sale_price_at_relist NUMERIC(10,2);
+//   postage_at_relist NUMERIC(10,2) DEFAULT NULL,        -- ALTER TABLE item_returns ADD COLUMN IF NOT EXISTS postage_at_relist NUMERIC(10,2);
+//   shipping_cost_at_relist NUMERIC(10,2) DEFAULT NULL,  -- ALTER TABLE item_returns ADD COLUMN IF NOT EXISTS shipping_cost_at_relist NUMERIC(10,2);
+//   packaging_cost_at_relist NUMERIC(10,2) DEFAULT NULL, -- ALTER TABLE item_returns ADD COLUMN IF NOT EXISTS packaging_cost_at_relist NUMERIC(10,2);
+//   promo_percent_at_relist NUMERIC(6,4) DEFAULT NULL,   -- ALTER TABLE item_returns ADD COLUMN IF NOT EXISTS promo_percent_at_relist NUMERIC(6,4);
+//   sd_rate_idx_at_relist INTEGER DEFAULT NULL,          -- ALTER TABLE item_returns ADD COLUMN IF NOT EXISTS sd_rate_idx_at_relist INTEGER;
+//   sd_buyer_pays_at_relist BOOLEAN DEFAULT NULL         -- ALTER TABLE item_returns ADD COLUMN IF NOT EXISTS sd_buyer_pays_at_relist BOOLEAN;
 // );
 //
 // -- Mileage trips
@@ -16330,7 +16483,9 @@ function exportForSupabase(){
   const trips=(DB.trips||[]).map(function(t){return{id:t.id||String(Date.now()),date:t.date,description:t.description||'',mileage:t.mileage||0,rate_per_mile:t.ratePerMile||0.45};});
   const expenses=(DB.expenses||[]).map(function(e){return{id:e.id||String(Date.now()),date:e.date,description:e.description||'',amount:e.amount||0,category:e.category||null};});
   const out={items,item_parts:parts,item_returns:returns,trips,expenses};
+  console.log('=== SUPABASE EXPORT ===');
   console.log(JSON.stringify(out,null,2));
+  console.log('Items:',items.length,'Parts:',parts.length,'Returns:',returns.length,'Trips:',trips.length,'Expenses:',expenses.length);
   return out;
 }
 // Usage: open browser console and run: exportForSupabase()
