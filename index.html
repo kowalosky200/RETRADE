@@ -3953,15 +3953,13 @@ function _rowToItem(row, parts, returns){
     state:           row.state || null,
     dateSourced:     row.date_sourced || null,
     sourcingRunId:   row.sourcing_run_id || null,
-    // E33 — Accounts (partners). accountId tags an item to a partner/vendor
-    // account (separate concept from sourcingRunId — a run is a time-boxed
-    // trip, an account is a standing relationship that can span many runs
-    // and months). accountSplitPercent is the partner's % share of THIS
-    // item's profit (null = no split, just tracked). accountSettled marks
-    // whether that share has actually been paid out.
+    // E33/E36 — Accounts. accountType per-item overrides the account's default
+    // type for this specific item (null = inherit from account).
     accountId:           row.account_id || null,
+    accountType:         row.account_item_type || null,
     accountSplitPercent: row.account_split_percent != null ? Number(row.account_split_percent) : null,
     accountSettled:      !!row.account_settled,
+    accountPaidAmount:   row.account_paid_amount != null ? Number(row.account_paid_amount) : null,
     estSalePrice:    row.est_sale_price != null ? Number(row.est_sale_price) : null,
     defaultPlatform: row.default_platform || null,
     soldOnPlatform:  row.sold_on_platform || null,
@@ -4036,8 +4034,10 @@ function _itemToRow(i, month){
     sourcing_run_id:  i.sourcingRunId || null,
     // E33 — Accounts (partners), see _rowToItem note above.
     account_id:             i.accountId || null,
+    account_item_type:      i.accountType || null,
     account_split_percent:  i.accountSplitPercent != null ? i.accountSplitPercent : null,
     account_settled:        !!i.accountSettled,
+    account_paid_amount:    i.accountPaidAmount != null ? i.accountPaidAmount : null,
     est_sale_price:   i.estSalePrice != null ? i.estSalePrice : null,
     default_platform: i.defaultPlatform || null,
     sold_on_platform: i.soldOnPlatform || null,
@@ -4215,12 +4215,12 @@ async function saveItemToSupabase(m, i){
   // item itself still saves. Account tagging stays in memory locally and
   // will sync on the next save once the columns are added — mirrors the
   // BUG-07 trip-expenses fallback above.
-  if(itemErr && /account_(id|split_percent|settled)/i.test(itemErr.message||'') && /column/i.test(itemErr.message||'')){
+  if(itemErr && /account_(id|split_percent|settled|paid_amount|item_type)/i.test(itemErr.message||'') && /column/i.test(itemErr.message||'')){
     if(!window._accountColumnsWarned){
       window._accountColumnsWarned=true;
       toast('Item saved locally. Add account columns in Supabase to sync partner tags.','err');
     }
-    delete row.account_id; delete row.account_split_percent; delete row.account_settled;
+    delete row.account_id; delete row.account_item_type; delete row.account_split_percent; delete row.account_settled; delete row.account_paid_amount;
     const retry = await _sbCall(()=>_sb.from('items').upsert(row, {onConflict: 'id,user_id'}));
     itemErr = retry.error;
   }
@@ -4378,13 +4378,16 @@ async function deleteRunFromSupabase(id){
   if(error) throw new Error('Delete run failed: '+error.message);
 }
 
-// E33 — Accounts (partners/vendors)
+// E33/E36 — Accounts (partners/vendors)
 function _accountToRow(a){
   return {
     id:      a.id,
     user_id: _currentUserId||null,
     name:    a.name,
     notes:   a.notes||null,
+    account_type:           a.accountType||'supplier',
+    default_split_percent:  a.defaultSplitPercent!=null ? a.defaultSplitPercent : null,
+    default_cost_contribution: a.defaultCostContribution!=null ? a.defaultCostContribution : null,
   };
 }
 function _rowToAccount(row){
@@ -4392,11 +4395,21 @@ function _rowToAccount(row){
     id:    row.id,
     name:  row.name,
     notes: row.notes||null,
+    accountType:             row.account_type||'supplier',
+    defaultSplitPercent:     row.default_split_percent!=null ? Number(row.default_split_percent) : null,
+    defaultCostContribution: row.default_cost_contribution!=null ? Number(row.default_cost_contribution) : null,
   };
 }
 async function saveAccountToSupabase(a){
   const row=_accountToRow(a);
-  const {error}=await _sbCall(()=>_sb.from('accounts').upsert(row,{onConflict:'id'}));
+  let {error}=await _sbCall(()=>_sb.from('accounts').upsert(row,{onConflict:'id'}));
+  // Graceful fallback: retry without newer columns if they don't exist yet in
+  // Supabase so accounts still save while migrations are pending.
+  if(error && /account_type|default_split_percent|default_cost_contribution/i.test(error.message||'') && /column/i.test(error.message||'')){
+    delete row.account_type; delete row.default_split_percent; delete row.default_cost_contribution;
+    const retry=await _sbCall(()=>_sb.from('accounts').upsert(row,{onConflict:'id'}));
+    error=retry.error;
+  }
   if(error) throw new Error('Save account failed: '+error.message);
 }
 async function deleteAccountFromSupabase(id){
@@ -5377,7 +5390,7 @@ function _renderItemPageInner(m,id){
   const _rcptPromo=_s1Snap&&_s1Snap._promoPercentAtRelist!==undefined?_s1Snap._promoPercentAtRelist:(i.promoPercent||0);
   const bpf=calcPlatformBPF(i,_origSalePrice,_rcptPostage);
   const grossInc=_origSalePrice-bpf;
-  const promoCost=grossInc*_rcptPromo*1.20;
+  const promoCost=_origSalePrice*_rcptPromo*1.20; // ad fee on full sale price, not on grossInc
   const profit=calcGrossProfit(i);
   const roi=calcROI(i);
   const margin=calcMargin(i);
@@ -5587,7 +5600,7 @@ function _renderItemPageInner(m,id){
     const rlDefaultPromo=+((i.promoPercent||0)*100).toFixed(1);
     const projTitle=i.isReturned?'Re-list Projection — at current price':'Relist Projection — if sold at '+fmt(rlSalePrice);
     const rlGrossInc=rlSalePrice-rlBPF;
-    const rlPromo=rlGrossInc*(i.promoPercent||0)*1.20;
+    const rlPromo=rlSalePrice*(i.promoPercent||0)*1.20; // ad fee on full sale price, not on grossInc
     const rlRev=rlSalePrice+rlPostage-rlBPF;
     const rlCost=rlShipping+rlPackaging+rlPromo;
     const rlProfit=+(rlRev-rlCost).toFixed(2);
@@ -7663,13 +7676,36 @@ function _accountItems(accountId){
 // Partner's owed amount on a single item: their % of that item's profit.
 // Returns null if the item hasn't sold yet (nothing owed on unsold stock) or
 // has no split % set (tracked but no money-split agreed).
+// What the partner is owed on a single sold item. Priority:
+//   1. accountPaidAmount — a manually-agreed figure (e.g. round £200 on £390
+//      profit), the source of truth when you'd rather not pay the exact split.
+//   2. accountSplitPercent — the calculated % of profit.
+// Returns null if the item isn't sold, or has neither a paid amount nor a %.
+// ── Account type resolution ───────────────────────────────────────────────────
+// Returns the effective type for an item: per-item override → account default
+// → 'supplier'. Types: 'consignment' | 'supplier' | 'hybrid'.
+//   consignment: partner gives you items, you split profit after sale, cost=0
+//   supplier:    you paid upfront (costPrice set), no ongoing split
+//   hybrid:      you paid something upfront AND agreed a profit split on top
+function _itemAccountType(i){
+  if(i.accountType)return i.accountType;
+  if(!i.accountId)return 'supplier';
+  const acct=_accounts.find(function(a){return a.id===i.accountId;});
+  return(acct&&acct.accountType)||'supplier';
+}
+
 function _accountItemOwed(i){
-  if(i.accountSplitPercent==null)return null;
   const isSold=i.state==='sold'||!!i.resaleSalePrice;
   if(!isSold)return null;
+  if(i.accountPaidAmount!=null)return +Number(i.accountPaidAmount).toFixed(2);
+  if(i.accountSplitPercent==null)return null;
   const profit=calcGrossProfit(i);
   if(profit===null)return null;
   return+(profit*(i.accountSplitPercent/100)).toFixed(2);
+}
+// True when the owed figure comes from a manual paid amount rather than the %.
+function _accountItemIsManual(i){
+  return i.accountPaidAmount!=null;
 }
 
 // Lifetime stats for one account: total items, sold count, your-side profit,
@@ -7743,40 +7779,68 @@ function _renderAccountPage(acct){
     const owed=_accountItemOwed(i);
     const profit=calcGrossProfit(i);
     const dateStr=(i.resaleSalePrice?i.resaleDateSold:i.dateSold)||'';
-    const splitStr=i.accountSplitPercent!=null?(i.accountSplitPercent+'% to partner'):'No split set';
+    const splitStr=i.accountPaidAmount!=null?('Fixed '+fmt(i.accountPaidAmount)+' to partner')
+      :(i.accountSplitPercent!=null?(i.accountSplitPercent+'% to partner'):'No split set');
+    const hasSplit=(i.accountSplitPercent!=null||i.accountPaidAmount!=null);
     const settledBadge=owed!==null?(i.accountSettled
       ?'<span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:20px;background:rgba(34,197,94,0.15);color:var(--green);">Settled</span>'
       :'<span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:20px;background:rgba(212,136,10,0.15);color:var(--accent);">Owed</span>')
       :'';
-    return '<div class="metric-inline clickable" data-itemid="'+i.id+'" data-month="'+i._month+'" onclick="openItemDetail(this.dataset.month,this.dataset.itemid)">'
-      +'<div style="min-width:0;"><div class="metric-k" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(i.item||'Untitled')+'</div>'
-      +'<div style="font-size:11px;color:var(--text-secondary);margin-top:2px;">'+dateStr+' \u00b7 '+splitStr+'</div></div>'
+    return '<div class="metric-inline" style="align-items:flex-start;">'
+      +'<div style="min-width:0;flex:1;">'
+        +'<div class="metric-k clickable" data-itemid="'+i.id+'" data-month="'+i._month+'" onclick="openItemDetail(this.dataset.month,this.dataset.itemid)" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(i.item||'Untitled')+'</div>'
+        +'<div style="font-size:11px;color:var(--text-secondary);margin-top:2px;">'+dateStr+' \u00b7 '+splitStr+'</div>'
+        +'<button class="btn btn-s" style="font-size:11px;padding:3px 9px;margin-top:6px;" data-itemid="'+i.id+'" data-month="'+i._month+'" onclick="openSetItemSplit(this.dataset.month,this.dataset.itemid)">'+(hasSplit?'Edit split':'Set split')+'</button>'
+      +'</div>'
       +'<div style="text-align:right;flex-shrink:0;">'
         +'<div class="metric-v" style="font-size:15px;color:'+(profit>=0?'var(--green)':'var(--red)')+';">'+(profit!==null?fmt(profit):'\u2014')+'</div>'
-        +(owed!==null?'<div style="margin-top:3px;display:flex;align-items:center;gap:6px;justify-content:flex-end;"><span style="font-size:11px;color:var(--text-secondary);">owed '+fmt(owed)+'</span>'+settledBadge+'</div>':'')
+        +(owed!==null?'<div style="margin-top:3px;display:flex;align-items:center;gap:6px;justify-content:flex-end;flex-wrap:wrap;"><span style="font-size:11px;color:var(--text-secondary);">owed '+fmt(owed)+'</span>'+settledBadge+'</div>':'')
       +'</div></div>';
   }).join('') : '<div style="padding:20px;text-align:center;color:var(--muted);font-size:13px;">No sales yet from this account</div>';
 
   const activeRows=active.length?active.map(function(i){
-    return '<div class="metric-inline clickable" data-itemid="'+i.id+'" data-month="'+i._month+'" onclick="openItemDetail(this.dataset.month,this.dataset.itemid)">'
-      +'<div style="min-width:0;"><div class="metric-k" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(i.item||'Untitled')+'</div>'
-      +'<div style="font-size:11px;color:var(--text-secondary);margin-top:2px;"><span class="item-badge '+i.state+'" style="font-size:10px;padding:2px 6px;">'+i.state+'</span></div></div>'
+    const splitStr=i.accountPaidAmount!=null?('Fixed '+fmt(i.accountPaidAmount)+' to partner')
+      :(i.accountSplitPercent!=null?(i.accountSplitPercent+'% to partner'):'No split set');
+    const hasSplit=(i.accountSplitPercent!=null||i.accountPaidAmount!=null);
+    return '<div class="metric-inline" style="align-items:flex-start;">'
+      +'<div style="min-width:0;flex:1;">'
+        +'<div class="metric-k clickable" data-itemid="'+i.id+'" data-month="'+i._month+'" onclick="openItemDetail(this.dataset.month,this.dataset.itemid)" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(i.item||'Untitled')+'</div>'
+        +'<div style="font-size:11px;color:var(--text-secondary);margin-top:2px;"><span class="item-badge '+i.state+'" style="font-size:10px;padding:2px 6px;">'+i.state+'</span> \u00b7 '+splitStr+'</div>'
+        +'<button class="btn btn-s" style="font-size:11px;padding:3px 9px;margin-top:6px;" data-itemid="'+i.id+'" data-month="'+i._month+'" onclick="openSetItemSplit(this.dataset.month,this.dataset.itemid)">'+(hasSplit?'Edit split':'Set split')+'</button>'
+      +'</div>'
       +'<div class="metric-v" style="font-size:14px;flex-shrink:0;">'+fmt(i.salePrice||0)+'</div></div>';
   }).join('') : '<div style="padding:20px;text-align:center;color:var(--muted);font-size:13px;">No active stock from this account</div>';
 
   const unsettledCount=sold.filter(function(i){return _accountItemOwed(i)!==null&&!i.accountSettled;}).length;
+  // Items with neither a % nor a fixed amount set — candidates for "apply default".
+  const noSplitCount=items.filter(function(i){return i.accountSplitPercent==null&&i.accountPaidAmount==null;}).length;
+  const _typeLabels={consignment:'Consignment',supplier:'Supplier',hybrid:'Hybrid'};
+  const _typeColors={consignment:'var(--accent)',supplier:'var(--blue)',hybrid:'var(--green)'};
+  const _typeTag='<span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:12px;background:rgba(255,255,255,0.08);color:'
+    +(_typeColors[acct.accountType]||'var(--muted)')+';">'+(_typeLabels[acct.accountType]||'Supplier')+'</span>';
+
+  const hasDefault=acct.defaultSplitPercent!=null;
+  const defaultLine=(acct.accountType==='supplier')
+    ? '<div style="font-size:12px;color:var(--text-secondary);margin-bottom:12px;">Supplier account — you pay upfront per item. No profit split.</div>'
+    : hasDefault
+      ? '<div style="font-size:12px;color:var(--text-secondary);margin-bottom:12px;">Default split: <strong style="color:var(--text);">'+acct.defaultSplitPercent+'% to partner</strong>'
+        +(acct.accountType==='consignment'?' · costPrice auto-set to £0 on assign':'')+'.</div>'
+      : '<div style="font-size:12px;color:var(--text-secondary);margin-bottom:12px;">No default split set. Tap <strong style="color:var(--text);">Edit</strong> to set the arrangement.</div>';
 
   const html='<div style="padding:16px 0 40px;">'
     +'<button class="btn btn-s" onclick="backToAccountsList()" style="margin-bottom:14px;">\u2190 Accounts</button>'
     +'<div class="page-header" style="margin-bottom:14px;">'
       +'<div><div class="page-title">'+esc(acct.name)+'</div>'
-      +(acct.notes?'<div class="page-subtitle" style="font-size:12px;margin-top:4px;">'+esc(acct.notes)+'</div>':'')+'</div>'
+      +'<div style="display:flex;align-items:center;gap:6px;margin-top:4px;">'+_typeTag
+      +(acct.notes?'<span style="font-size:12px;color:var(--text-secondary);">'+esc(acct.notes)+'</span>':'')+'</div></div>'
       +'<div style="display:flex;gap:8px;">'
         +'<button class="btn btn-s" style="font-size:12px;padding:6px 10px;" onclick="openEditAccount(\''+acct.id+'\')">Edit</button>'
         +'<button class="btn btn-s" style="font-size:12px;padding:6px 10px;" onclick="openBulkAssignAccountModal(\''+acct.id+'\')">+ Add existing</button>'
       +'</div>'
     +'</div>'
+    +defaultLine
     +heroHTML
+    +(hasDefault&&noSplitCount>0?'<button class="btn btn-s" style="width:100%;margin-bottom:10px;" onclick="applyDefaultSplitToAll(\''+acct.id+'\')">Apply '+acct.defaultSplitPercent+'% to '+noSplitCount+' item'+(noSplitCount!==1?'s':'')+' with no split</button>':'')
     +(unsettledCount>0?'<button class="btn btn-p" style="width:100%;margin-bottom:14px;" onclick="settleAllForAccount(\''+acct.id+'\')">Mark all '+unsettledCount+' unsettled as paid</button>':'')
     +'<div class="panel-card" style="margin-bottom:14px;"><div class="sl">Sold items</div>'+soldRows+'</div>'
     +'<div class="panel-card"><div class="sl">Active stock</div>'+activeRows+'</div>'
@@ -7801,6 +7865,163 @@ function settleAllForAccount(accountId){
   }
 }
 
+// Per-item split editor — set/change/clear the partner's % on a single item
+// without leaving the account page. This is the in-place way to apply an
+// agreement to items that were assigned without a split.
+function openSetItemSplit(month,itemId){
+  const item=(DB[month]||[]).find(function(i){return i.id===itemId;});
+  if(!item){toast('Item not found','error');return;}
+  const acct=_accounts.find(function(a){return a.id===item.accountId;});
+  const effType=_itemAccountType(item);
+  const curItemType=item.accountType||''; // '' means inherit from account
+  const acctTypeName=(acct&&acct.accountType)||'supplier';
+  const curPct=item.accountSplitPercent!=null?item.accountSplitPercent:'';
+  const curPaid=item.accountPaidAmount!=null?item.accountPaidAmount:'';
+  const profit=calcGrossProfit(item);
+  const pNum=(profit!==null)?profit:null;
+  const defBtn=(acct&&acct.defaultSplitPercent!=null)
+    ? '<button class="btn btn-s" style="font-size:11px;padding:4px 10px;margin-top:8px;" onclick="document.getElementById(\'split-pct\').value='+acct.defaultSplitPercent+';_splitPreview('+(pNum!=null?pNum:'null')+')">Use default ('+acct.defaultSplitPercent+'%)</button>'
+    : '';
+  const soldNote=(profit===null)
+    ? '<div style="font-size:12px;color:var(--text-secondary);margin-top:4px;">This item hasn\u2019t sold yet \u2014 figures apply once it sells.</div>'
+    : '';
+  const html=`
+    <div style="font-size:12px;color:var(--text-secondary);margin-bottom:10px;">${profit!==null?('Item profit: <strong style="color:var(--text);">'+fmt(profit)+'</strong>'):'Item not yet sold'}</div>
+
+    <div class="fg"><label>Arrangement type for this item</label>
+      <select id="item-type-override" style="width:100%;font-size:13px;">
+        <option value="" ${curItemType===''?'selected':''}>Use account default (${acctTypeName})</option>
+        <option value="supplier" ${curItemType==='supplier'?'selected':''}>Supplier — standard cost, no split</option>
+        <option value="consignment" ${curItemType==='consignment'?'selected':''}>Consignment — £0 cost, split profit</option>
+        <option value="hybrid" ${curItemType==='hybrid'?'selected':''}>Hybrid — cost paid upfront + profit split</option>
+      </select>
+    </div>
+
+    <div class="fg"><label>Option A — Partner's profit share (%)</label>
+      <input type="number" id="split-pct" min="0" max="100" step="0.5" value="${curPct}" placeholder="e.g. 50" autocomplete="off"
+        oninput="document.getElementById('split-paid').value='';_splitPreview(${pNum!=null?pNum:'null'})">
+      ${defBtn}
+    </div>
+
+    <div style="text-align:center;font-size:11px;color:var(--muted);margin:6px 0;">\u2014 or \u2014</div>
+
+    <div class="fg"><label>Option B — Fixed amount to pay partner (\u00a3)</label>
+      <input type="number" id="split-paid" min="0" step="0.01" value="${curPaid}" placeholder="e.g. 200" autocomplete="off"
+        oninput="document.getElementById('split-pct').value='';_splitPreview(${pNum!=null?pNum:'null'})">
+      <div style="font-size:11px;color:var(--text-secondary);margin-top:4px;">Use when rounding \u2014 e.g. \u00a3390 profit, pay \u00a3200, keep the rest. Overrides the % split.</div>
+    </div>
+
+    <div id="split-preview" style="font-size:13px;color:var(--text-secondary);margin:12px 0;padding:10px 12px;background:var(--surface2);border-radius:8px;">Enter a % or a fixed amount to preview the split.</div>
+    ${soldNote}
+
+    <button class="btn btn-p" style="width:100%;margin-top:6px" onclick="submitItemSplit('${month}','${itemId}')">Save</button>
+    ${(item.accountSplitPercent!=null||item.accountPaidAmount!=null)?`<button class="btn btn-s" style="width:100%;margin-top:8px;" onclick="clearItemSplit('${month}','${itemId}')">Remove split (track only)</button>`:''}`;
+  openPanel('Profit split \u00b7 '+esc(item.item||'Item'), html);
+  setTimeout(function(){
+    if(typeof _splitPreview==='function')_splitPreview(pNum);
+  },80);
+}
+// Shared live-preview for the split editor. Reads whichever field has a value
+// (fixed amount wins) and shows partner-gets / you-keep.
+function _splitPreview(profit){
+  const el=document.getElementById('split-preview');
+  if(!el)return;
+  const pctEl=document.getElementById('split-pct');
+  const paidEl=document.getElementById('split-paid');
+  const pct=pctEl&&pctEl.value!==''?parseFloat(pctEl.value):null;
+  const paid=paidEl&&paidEl.value!==''?parseFloat(paidEl.value):null;
+  if(profit==null){
+    if(paid!=null&&!isNaN(paid)){el.innerHTML='Partner gets <strong style="color:var(--text)">'+fmt(paid)+'</strong> once sold.';}
+    else{el.textContent='Figures apply once this item sells.';}
+    return;
+  }
+  if(paid!=null&&!isNaN(paid)){
+    const keep=profit-paid;
+    el.innerHTML='Partner gets <strong style="color:var(--accent)">'+fmt(paid)+'</strong>, you keep <strong style="color:var(--green)">'+fmt(keep)+'</strong>'
+      +(keep<0?' <span style="color:var(--red)">(you\u2019re paying more than the profit)</span>':'')+'.';
+  } else if(pct!=null&&!isNaN(pct)){
+    const owed=profit*pct/100;
+    el.innerHTML='Partner gets <strong style="color:var(--accent)">'+fmt(owed)+'</strong>, you keep <strong style="color:var(--green)">'+fmt(profit-owed)+'</strong>.';
+  } else {
+    el.textContent='Enter a % or a fixed amount to preview the split.';
+  }
+}
+function submitItemSplit(month,itemId){
+  const item=(DB[month]||[]).find(function(i){return i.id===itemId;});
+  if(!item)return;
+  const pctRaw=(document.getElementById('split-pct').value||'').trim();
+  const paidRaw=(document.getElementById('split-paid').value||'').trim();
+  if(pctRaw===''&&paidRaw===''){toast('Enter a % or a fixed amount, or use Remove split','error');return;}
+
+  // Save per-item type override ('' = inherit from account)
+  const typeOverride=document.getElementById('item-type-override').value||'';
+  item.accountType=typeOverride||null;
+  // If overriding to consignment on a previously costed item, auto-zero.
+  if(typeOverride==='consignment'&&item.costPrice>0){
+    item.costPrice=0;
+    toast('costPrice set to £0 for consignment item');
+  }
+
+  if(paidRaw!==''){
+    item.accountPaidAmount=Math.max(0,parseFloat(paidRaw)||0);
+    item.accountSplitPercent=null;
+    toast('Set to pay '+fmt(item.accountPaidAmount));
+  } else {
+    item.accountSplitPercent=Math.max(0,Math.min(100,parseFloat(pctRaw)||0));
+    item.accountPaidAmount=null;
+    toast('Split set to '+item.accountSplitPercent+'%');
+  }
+  if(item.accountSettled===undefined)item.accountSettled=false;
+  saveDB();
+  closePanel();
+  const acct=_accounts.find(function(a){return a.id===item.accountId;});
+  if(acct&&document.getElementById('p-item')&&document.getElementById('p-item').classList.contains('on')){
+    _renderAccountPage(acct);
+  }
+}
+function clearItemSplit(month,itemId){
+  const item=(DB[month]||[]).find(function(i){return i.id===itemId;});
+  if(!item)return;
+  item.accountSplitPercent=null;
+  item.accountPaidAmount=null;
+  item.accountSettled=false;
+  saveDB();
+  closePanel();
+  toast('Split removed');
+  const acct=_accounts.find(function(a){return a.id===item.accountId;});
+  if(acct&&document.getElementById('p-item')&&document.getElementById('p-item').classList.contains('on')){
+    _renderAccountPage(acct);
+  }
+}
+// Apply the account's default split % to every tagged item that doesn't yet
+// have one set. Items with an explicit per-item override are left untouched.
+function applyDefaultSplitToAll(accountId){
+  const acct=_accounts.find(function(a){return a.id===accountId;});
+  if(!acct||acct.defaultSplitPercent==null)return;
+  showConfirm(
+    'Apply '+acct.defaultSplitPercent+'% to all?',
+    'Sets the partner\u2019s split to '+acct.defaultSplitPercent+'% on every item in this account that doesn\u2019t already have one. Items you\u2019ve set individually won\u2019t change.',
+    {okLabel:'Apply'}
+  ).then(function(ok){
+    if(!ok)return;
+    let n=0;
+    allDBKeys().forEach(function(k){
+      (DB[k]||[]).forEach(function(i){
+        if(i.accountId===accountId&&i.accountSplitPercent==null){
+          i.accountSplitPercent=acct.defaultSplitPercent;
+          if(i.accountSettled===undefined)i.accountSettled=false;
+          n++;
+        }
+      });
+    });
+    saveDB();
+    toast('Applied to '+n+' item'+(n!==1?'s':''));
+    if(document.getElementById('p-item')&&document.getElementById('p-item').classList.contains('on')){
+      _renderAccountPage(acct);
+    }
+  });
+}
+
 function toggleItemSettled(month,itemId){
   const item=(DB[month]||[]).find(function(i){return i.id===itemId;});
   if(!item)return;
@@ -7813,24 +8034,77 @@ function toggleItemSettled(month,itemId){
 }
 
 // ── Account create / edit ────────────────────────────────────────────────
+// Shared HTML builder for the account type selector + contextual fields.
+// Used by both Add and Edit modals so the logic is always in sync.
+function _accountModalFields(acct){
+  const t=(acct&&acct.accountType)||'supplier';
+  const split=(acct&&acct.defaultSplitPercent!=null)?acct.defaultSplitPercent:'';
+  const costContr=(acct&&acct.defaultCostContribution!=null)?acct.defaultCostContribution:'';
+  return `
+    <div class="fg"><label>Arrangement type <span style="color:var(--red);font-weight:600">*</span></label>
+      <select id="acc-type" style="width:100%;" onchange="_accTypeChange(this.value)">
+        <option value="supplier" ${t==='supplier'?'selected':''}>Supplier — you pay upfront, no ongoing split</option>
+        <option value="consignment" ${t==='consignment'?'selected':''}>Consignment — they supply, you split profit after sale</option>
+        <option value="hybrid" ${t==='hybrid'?'selected':''}>Hybrid — you pay something upfront AND split profit on top</option>
+      </select>
+      <div id="acc-type-hint" style="font-size:11px;color:var(--text-secondary);margin-top:4px;"></div>
+    </div>
+
+    <div id="acc-split-row" class="fg" style="display:none;">
+      <label>Default profit split to partner (%)</label>
+      <input type="number" id="acc-split" min="0" max="100" step="0.5" value="${split}" placeholder="e.g. 50" autocomplete="off">
+      <div style="font-size:11px;color:var(--text-secondary);margin-top:4px;">Their % of gross profit per item. Used as the default; you can override per item.</div>
+    </div>
+
+    <div id="acc-cost-row" class="fg" style="display:none;">
+      <label>Default upfront cost contribution to partner (£)</label>
+      <input type="number" id="acc-cost-contrib" min="0" step="0.01" value="${costContr}" placeholder="e.g. 5.00" autocomplete="off">
+      <div style="font-size:11px;color:var(--text-secondary);margin-top:4px;">What you pay them per item upfront (goes into costPrice when you assign an item). Override per item as needed.</div>
+    </div>`;
+}
+function _accTypeChange(v){
+  const hintEl=document.getElementById('acc-type-hint');
+  const splitRow=document.getElementById('acc-split-row');
+  const costRow=document.getElementById('acc-cost-row');
+  const hints={
+    supplier:'Standard buy-then-sell. Set costPrice per item as normal. No ongoing split.',
+    consignment:'They give you items, you sell them, then you pay their share. costPrice auto-set to £0 on assign; split is paid from proceeds.',
+    hybrid:'You pay something upfront (e.g. their cost price or a fixed fee), AND share a % of profit on top. Both fields apply.'
+  };
+  if(hintEl)hintEl.textContent=hints[v]||'';
+  if(splitRow)splitRow.style.display=(v==='consignment'||v==='hybrid')?'block':'none';
+  if(costRow)costRow.style.display=(v==='hybrid')?'block':'none';
+}
 function openAddAccountModal(){
   const html=`
     <div class="fg"><label>Name <span style="color:var(--red);font-weight:600">*</span></label>
-      <input type="text" id="acc-name" placeholder="e.g. Dave (boot sale partner)" autocomplete="off">
+      <input type="text" id="acc-name" placeholder="e.g. Matt (SSD consignment)" autocomplete="off">
     </div>
-    <div class="fg"><label>Notes</label>
-      <textarea id="acc-notes" rows="3" style="width:100%;resize:vertical;" placeholder="Arrangement details, contact info…"></textarea>
+    ${_accountModalFields(null)}
+    <div class="fg"><label>Notes / agreement</label>
+      <textarea id="acc-notes" rows="2" style="width:100%;resize:vertical;" placeholder="Terms, contact info, arrangement details…"></textarea>
     </div>
     <button class="btn btn-p" style="width:100%;margin-top:6px" onclick="submitAddAccount()">Add account</button>`;
   openPanel('New account', html);
-  setTimeout(function(){const n=document.getElementById('acc-name');if(n)n.focus();},80);
+  setTimeout(function(){
+    const n=document.getElementById('acc-name');if(n)n.focus();
+    _accTypeChange('supplier');
+  },80);
 }
 function submitAddAccount(){
   const name=(document.getElementById('acc-name').value||'').trim();
   if(!name){toast('Name required','error');return;}
+  const type=document.getElementById('acc-type').value||'supplier';
+  const splitRaw=(document.getElementById('acc-split').value||'').trim();
+  const splitNum=(type!=='supplier'&&splitRaw!=='')?Math.max(0,Math.min(100,parseFloat(splitRaw)||0)):null;
+  const costRaw=(document.getElementById('acc-cost-contrib').value||'').trim();
+  const costNum=(type==='hybrid'&&costRaw!=='')?Math.max(0,parseFloat(costRaw)||0):null;
   const acct={
     id:'acct_'+Date.now()+'_'+Math.random().toString(36).slice(2,9),
     name:name,
+    accountType:type,
+    defaultSplitPercent:splitNum,
+    defaultCostContribution:costNum,
     notes:(document.getElementById('acc-notes').value||'').trim()||null
   };
   _accounts.push(acct);
@@ -7846,13 +8120,17 @@ function openEditAccount(accountId){
     <div class="fg"><label>Name <span style="color:var(--red);font-weight:600">*</span></label>
       <input type="text" id="acc-name" value="${esc(acct.name||'')}" autocomplete="off">
     </div>
-    <div class="fg"><label>Notes</label>
-      <textarea id="acc-notes" rows="3" style="width:100%;resize:vertical;">${esc(acct.notes||'')}</textarea>
+    ${_accountModalFields(acct)}
+    <div class="fg"><label>Notes / agreement</label>
+      <textarea id="acc-notes" rows="2" style="width:100%;resize:vertical;">${esc(acct.notes||'')}</textarea>
     </div>
     <button class="btn btn-p" style="width:100%;margin-top:6px" onclick="submitEditAccount('${acct.id}')">Save</button>
     <button class="btn btn-s" style="width:100%;margin-top:8px;color:var(--red);" onclick="deleteAccount('${acct.id}')">Delete account</button>`;
   openPanel('Edit account', html);
-  setTimeout(function(){const n=document.getElementById('acc-name');if(n)n.focus();},80);
+  setTimeout(function(){
+    const n=document.getElementById('acc-name');if(n)n.focus();
+    _accTypeChange(acct.accountType||'supplier');
+  },80);
 }
 function submitEditAccount(accountId){
   const acct=_accounts.find(function(a){return a.id===accountId;});
@@ -7860,16 +8138,18 @@ function submitEditAccount(accountId){
   const name=(document.getElementById('acc-name').value||'').trim();
   if(!name){toast('Name required','error');return;}
   acct.name=name;
+  acct.accountType=document.getElementById('acc-type').value||'supplier';
+  const splitRaw=(document.getElementById('acc-split').value||'').trim();
+  acct.defaultSplitPercent=(acct.accountType!=='supplier'&&splitRaw!=='')?Math.max(0,Math.min(100,parseFloat(splitRaw)||0)):null;
+  const costRaw=(document.getElementById('acc-cost-contrib').value||'').trim();
+  acct.defaultCostContribution=(acct.accountType==='hybrid'&&costRaw!=='')?Math.max(0,parseFloat(costRaw)||0):null;
   acct.notes=(document.getElementById('acc-notes').value||'').trim()||null;
   saveDB();
   closePanel();
   toast('Account updated');
   const _curPage=document.querySelector('.page.on');
-  if(_curPage&&_curPage.id==='p-item'){
-    _renderAccountPage(acct);
-  }else if(_curPage&&_curPage.id==='p-accounts'){
-    renderAccountsPage();
-  }
+  if(_curPage&&_curPage.id==='p-item'){_renderAccountPage(acct);}
+  else if(_curPage&&_curPage.id==='p-accounts'){renderAccountsPage();}
 }
 function deleteAccount(accountId){
   const acct=_accounts.find(function(a){return a.id===accountId;});
@@ -7931,11 +8211,16 @@ function openBulkAssignAccountModal(accountId){
     if(items.length===0){
       html+='<div style="padding:20px;text-align:center;color:var(--muted);font-size:13px;">No items match</div>';
     } else {
-      html+='<div style="font-size:11px;color:var(--muted);margin-bottom:8px;">Set a split % per item (optional \u2014 leave blank to just tag it)</div>';
+      const _defHint=(acct.defaultSplitPercent!=null)
+        ? 'Split % pre-filled with this account\u2019s default ('+acct.defaultSplitPercent+'%) \u2014 adjust or clear per item.'
+        : 'Set a split % per item (optional \u2014 leave blank to just tag it).';
+      html+='<div style="font-size:11px;color:var(--muted);margin-bottom:8px;">'+_defHint+'</div>';
       html+='<div data-ba-acct-list style="background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden;max-height:340px;overflow-y:auto;">';
       items.forEach(function(i,idx){
         const checked=_baAcctSelected.has(i.id);
-        const splitVal=_baAcctSplits[i.id]!=null?_baAcctSplits[i.id]:'';
+        // Pre-fill with account default unless the user has already typed something
+        const _pref=_baAcctSplits[i.id]!=null?_baAcctSplits[i.id]:(acct.defaultSplitPercent!=null?String(acct.defaultSplitPercent):'');
+        const splitVal=_pref;
         html+='<div style="display:flex;align-items:center;gap:10px;padding:10px 14px;'+(idx>0?'border-top:1px solid var(--border)':'')+';">'
           +'<input type="checkbox" '+(checked?'checked ':'')+' onchange="_baAcctToggle(\''+i.id+'\',this.checked)" style="width:16px;height:16px;flex-shrink:0;">'
           +'<div style="flex:1;min-width:0;"><div style="font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(i.item||'Untitled')+'</div>'
@@ -7970,21 +8255,31 @@ function openBulkAssignAccountModal(accountId){
   window._baAcctSplitChange=function(id,v){ _baAcctSplits[id]=v; }; // no re-render needed — just stores as-typed
   window._baAcctConfirm=function(){
     if(_baAcctSelected.size===0)return;
-    let count=0;
+    let count=0,zeroed=0;
     _baAcctSelected.forEach(function(id){
       let found=null;
       allDBKeys().forEach(function(k){const x=(DB[k]||[]).find(y=>y.id===id);if(x)found=x;});
       if(!found)return;
       found.accountId=accountId;
-      const splitRaw=_baAcctSplits[id];
+      // If the user never touched the field, _baAcctSplits[id] is undefined but
+      // the input was visually pre-filled with the account default — honour that.
+      const splitRaw=_baAcctSplits[id]!=null?_baAcctSplits[id]:(acct.defaultSplitPercent!=null?String(acct.defaultSplitPercent):'');
       const splitNum=splitRaw!=null&&splitRaw!==''?Math.max(0,Math.min(100,parseFloat(splitRaw)||0)):null;
       found.accountSplitPercent=splitNum;
       found.accountSettled=false;
+      // E36 — consignment: auto-zero costPrice so P&L isn't double-counted.
+      // If the account is consignment type, the partner hasn't been paid upfront
+      // and the cost field should reflect that (£0 until settled via the split).
+      if(acct.accountType==='consignment'&&found.costPrice>0){
+        found.costPrice=0;
+        zeroed++;
+      }
       count++;
     });
     saveDB();
     closePanel();
-    toast('Added '+count+' item'+(count!==1?'s':'')+' to '+acct.name);
+    const zMsg=zeroed>0?' ('+zeroed+' item cost'+(zeroed!==1?'s':'')+' set to £0 for consignment)':'';
+    toast('Added '+count+' item'+(count!==1?'s':'')+' to '+acct.name+zMsg);
     if(document.getElementById('p-item')&&document.getElementById('p-item').classList.contains('on')){
       _renderAccountPage(acct);
     }
@@ -8022,10 +8317,13 @@ function renderAccountsPage(){
     });
     listHTML=withStats.map(function(w){
       const a=w.acct,s=w.stats;
-      const owedStr=s.unsettledOwed>0?'<span style="color:var(--accent);font-weight:700;">'+fmt(s.unsettledOwed)+' owed</span>':'<span style="color:var(--green);">Settled up</span>';
+    const _tLabel={consignment:'Consignment',supplier:'Supplier',hybrid:'Hybrid'};
+    const _tClr={consignment:'var(--accent)',supplier:'var(--blue)',hybrid:'var(--green)'};
+    const _tTag='<span style="font-size:10px;font-weight:700;padding:1px 6px;border-radius:10px;background:rgba(255,255,255,0.07);color:'+(_tClr[a.accountType]||'var(--muted)')+';">'+(_tLabel[a.accountType]||'Supplier')+'</span>';
+    const owedStr=s.unsettledOwed>0?'<span style="color:var(--accent);font-weight:700;">'+fmt(s.unsettledOwed)+' owed</span>':'<span style="color:var(--green);">Settled up</span>';
       return '<div class="run-history-row" data-acctid="'+a.id+'" onclick="openAccountPage(this.dataset.acctid)">'
         +'<div class="rh-body">'
-          +'<div class="rh-name">'+esc(a.name)+'</div>'
+          +'<div class="rh-name" style="display:flex;align-items:center;gap:6px;">'+esc(a.name)+_tTag+'</div>'
           +'<div class="rh-meta rh-meta-full">'+s.itemCount+' item'+(s.itemCount!==1?'s':'')+' \u00b7 '+s.activeCount+' active \u00b7 '+owedStr+'</div>'
           +'<div class="rh-meta rh-meta-compact">'+s.itemCount+' items \u00b7 '+owedStr+'</div>'
         +'</div>'
@@ -9347,7 +9645,7 @@ function updateBPFPreview(){
   packaging=parseFloat(document.getElementById('qa-packaging')?.value)||0;
   const promoRaw=parseFloat(document.getElementById('qa-promo').value)||0;
   const promoPercent=promoRaw/100;
-  const promoCost=net*promoPercent*1.20;
+  const promoCost=price*promoPercent*1.20; // ad fee on full sale price, not net after BPF
   const rev=price+buyerPostage-bpf;
   const totalCost=cost+shipping+packaging+promoCost+_sourcedPartsCost;
   const profit=+(rev-totalCost).toFixed(2);
@@ -9747,7 +10045,7 @@ function showFilteredItems(filter){
       if(i.resaleSalePrice){
         const bpf=calcPlatformBPF(i,i.salePrice);
         const grossInc=i.salePrice-bpf;
-        const promoCost=grossInc*(i.promoPercent||0)*1.20;
+        const promoCost=(i.salePrice||0)*(i.promoPercent||0)*1.20; // ad fee on full sale price
         const rev=i.salePrice+(i.postage||0)-bpf;
         const returnCost=(i.returnHistory||[]).reduce(function(s,r){
           const fullReturn=(r.type==='full_seller'||r.type==='full_ebay');
@@ -11590,7 +11888,7 @@ function openItemDetail(m,id,noHistory){
   const _panelPostage=(i.postage||0);
   const bpf=calcPlatformBPF(i,_origSalePrice,_panelPostage);
   const grossInc=_origSalePrice-bpf;
-  const promoCost=grossInc*(i.promoPercent||0)*1.20;
+  const promoCost=_origSalePrice*(i.promoPercent||0)*1.20; // ad fee on full sale price, not grossInc
   const profit=calcGrossProfit(i);
   const roi=calcROI(i);
   const _isZeroCost2=(i.costPrice==null||i.costPrice===0)&&!(i.shippingCost>0)&&!(i.packagingCost>0)&&!calcPartsCost(i);
@@ -15112,7 +15410,7 @@ function renderTax(){
     :_usedPlatKeys.length<=3?'Gross receipts ('+_usedPlatKeys.map(function(k){return PLATFORMS[k]?PLATFORMS[k].short:k;}).join(', ')+')'
     :'Gross receipts (multiple platforms)';
   const totalBPF=soldItems.reduce(function(s,i){return s+calcPlatformBPF(i,i.salePrice||0,i.postage||0)+(i.resaleSalePrice?calcPlatformBPF(i,i.resaleSalePrice,i.resalePostage!=null?i.resalePostage:(i.postage||0),i.resalePlatform):0);},0);
-  const totalPromo=soldItems.reduce(function(s,i){var bpf=calcPlatformBPF(i,i.salePrice||0,i.postage||0);return s+((i.salePrice||0)-bpf)*(i.promoPercent||0)*1.20;},0);
+  const totalPromo=soldItems.reduce(function(s,i){return s+(i.salePrice||0)*(i.promoPercent||0)*1.20+(i.resaleSalePrice||0)*(i.promoPercent||0)*1.20;},0);
   const totalPostage=soldItems.reduce(function(s,i){return s+(i.shippingCost||0)+(i.resaleShippingCost||0);},0);
   const totalPackaging=soldItems.reduce(function(s,i){return s+(i.packagingCost||0);},0);
   const totalStockCost=soldItems.reduce(function(s,i){return s+(i.costPrice||0);},0);
@@ -15340,7 +15638,7 @@ function renderTax(){
     const packaging=items.reduce(function(s,i){return s+(i.packagingCost||0);},0);
     const stock=items.reduce(function(s,i){return s+(i.costPrice||0);},0);
     const parts=items.reduce(function(s,i){return s+calcPartsCost(i);},0);
-    const promo=items.reduce(function(s,i){var bpf=calcPlatformBPF(i,i.salePrice||0,i.postage||0);return s+((i.salePrice||0)-bpf)*(i.promoPercent||0)*1.20;},0);
+    const promo=items.reduce(function(s,i){return s+(i.salePrice||0)*(i.promoPercent||0)*1.20+(i.resaleSalePrice||0)*(i.promoPercent||0)*1.20;},0);
     const costs=+(fees+postage+packaging+stock+parts+promo+monthTripCosts+monthExpsCost).toFixed(2);
     const profit=+(rev-costs).toFixed(2);
     return{label:MONTH_NAMES[tm.month]+' '+(tm.year).toString().slice(2),rev:+rev.toFixed(2),costs:costs,profit:profit,count:items.length};
@@ -16329,7 +16627,10 @@ function calcGrossProfit(i){
   const effectiveSaleForFees=Math.max(0,_baseSale-partialSellerRefund);
   const bpf=calcPlatformBPF(i,effectiveSaleForFees,_s1Postage);
   const grossInc=effectiveSaleForFees-bpf;
-  const promoCost=grossInc*_s1Promo*1.20;
+  // Ad/promo fee is charged on the full sale price (same base as FVF), NOT on
+  // grossInc. Using grossInc understated it — verified against a real eBay
+  // invoice: £155 sale × 3% × 1.20 VAT = £5.58 (eBay actual), not £4.65.
+  const promoCost=effectiveSaleForFees*_s1Promo*1.20;
   // Determine if this item has been relisted after a full return
   // (isReturned=false but returnHistory has a full return entry, and no dateSold / resaleSalePrice)
   // Full returns only: eBay refunds BPF back to seller (transaction fully reversed)
@@ -16400,7 +16701,7 @@ function calcEstProfit(i){
   //   est = costPrice-sunk + returnPostages + (relistRev - relistFees)
   const rlBPF=calcPlatformBPF(i,i.salePrice||0,i.postage||0);
   const rlGrossInc=(i.salePrice||0)-rlBPF;
-  const rlPromoCost=rlGrossInc*(i.promoPercent||0)*1.20;
+  const rlPromoCost=(i.salePrice||0)*(i.promoPercent||0)*1.20; // ad fee on full sale price
   const rlRev=(i.salePrice||0)+(i.postage||0)-rlBPF;
   const rlCost=(i.shippingCost||0)+(i.packagingCost||0)+rlPromoCost;
   const rlProfit=rlRev-rlCost;
@@ -16781,7 +17082,7 @@ window.addEventListener('load',handleNavResize);
 function _recalcRelist(currentPL,salePrice,bpf,shipping,packaging,postage){
   const promoInput=parseFloat(document.getElementById('rl-promo-input').value)||0;
   const grossInc=salePrice-bpf;
-  const promoCost=grossInc*(promoInput/100)*1.20;
+  const promoCost=salePrice*(promoInput/100)*1.20; // ad fee on full sale price
   const rev=salePrice+postage-bpf;
   const cost=shipping+packaging+promoCost;
   const rlProfit=+(rev-cost).toFixed(2);
