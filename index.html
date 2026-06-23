@@ -4954,7 +4954,7 @@ function exitItemPage(){
     // Restore the page the panel was on top of
     const pageId=_savedPanelState.pageId||'p-summary';
     document.getElementById(pageId).classList.add('on');
-    const tabMap={'p-summary':'summary','p-monthly':'monthly','p-stock':'stock','p-expenses':'expenses','p-tax':'tax','p-data':'data','p-runs':'runs'};
+    const tabMap={'p-summary':'summary','p-monthly':'monthly','p-stock':'stock','p-expenses':'expenses','p-tax':'tax','p-data':'data','p-runs':'runs','p-accounts':'accounts'};
     const tabName=tabMap[pageId];
     if(tabName){const tab=document.querySelector('[data-tab="'+tabName+'"]');if(tab)tab.classList.add('on');}
     handleNavResize();
@@ -4981,13 +4981,16 @@ function exitItemPage(){
     return;
   }
   document.getElementById(origin).classList.add('on');
-  const tabMap={'p-summary':'summary','p-monthly':'monthly','p-stock':'stock','p-expenses':'expenses','p-tax':'tax','p-data':'data','p-runs':'runs'};
+  const tabMap={'p-summary':'summary','p-monthly':'monthly','p-stock':'stock','p-expenses':'expenses','p-tax':'tax','p-data':'data','p-runs':'runs','p-accounts':'accounts'};
   const tabName=tabMap[origin];
   if(tabName){const tab=document.querySelector('[data-tab="'+tabName+'"]');if(tab)tab.classList.add('on');}
   handleNavResize();
-  if(origin==='p-monthly')renderMonth();
+  if(origin==='p-monthly'){renderMonth();_restoreTabScroll('monthly');}
   else if(origin==='p-stock'){renderStock();_restoreTabScroll('stock');}
   else if(origin==='p-summary'){renderSummary();_restoreTabScroll('summary');}
+  else if(origin==='p-accounts'){
+    if(typeof renderAccountsPage==='function'){renderAccountsPage();_restoreTabScroll('accounts');}
+  }
   else if(origin==='p-search'){
     // Hide nav search wrap on mobile only (desktop nav bar always stays visible)
     const _navSW2=document.querySelector('.nav-inner .search-wrap');
@@ -4998,6 +5001,7 @@ function exitItemPage(){
     const _sim=document.getElementById('global-search-mobile');
     if(_sim&&_lastSearchQuery)_sim.value=_lastSearchQuery;
     renderSearchResults(_lastSearchQuery||undefined);
+    _restoreTabScroll('search');
   }
   else if(origin==='p-active-run'){
     if(_activeSourcingRun&&typeof renderActiveRunPage==='function'){renderActiveRunPage();}
@@ -5016,10 +5020,10 @@ function exitItemPage(){
     if(_currentRunId){
       openRunPageFromRuns(_currentRunId);
     } else if(typeof renderRunsPage==='function'){
-      renderRunsPage();
+      renderRunsPage();_restoreTabScroll('runs');
     }
   }
-  else if(origin==='p-runs'&&typeof renderRunsPage==='function')renderRunsPage();
+  else if(origin==='p-runs'&&typeof renderRunsPage==='function'){renderRunsPage();_restoreTabScroll('runs');}
 }
 
 // ── Simple Delivery rate bands (UK, current as of late 2025) ─────────────────
@@ -7113,7 +7117,7 @@ function _renderRunPage(run){
 
   // ── Realised ──────────────────────────────────────────────────────────────
   const revenue=soldItems.reduce(function(s,i){return s+calcItemRevenue(i);},0);
-  const realisedProfit=soldItems.reduce(function(s,i){return s+(calcGrossProfit(i)||0);},0);
+  const realisedProfit=soldItems.reduce(function(s,i){return s+(calcNetProfit(i)||0);},0);
 
   // ── Potential ─────────────────────────────────────────────────────────────
   const unsoldItems=[...sourcedItems,...listedItems];
@@ -9744,7 +9748,7 @@ function showCategoryItems(cat,_fromBack){
     const dateB=(b.resaleDateSold||b.dateSold||'');
     return dateB.localeCompare(dateA);
   });
-  const totalProfit=sold.reduce((s,i)=>s+calcGrossProfit(i),0);
+  const totalProfit=sold.reduce((s,i)=>s+calcNetProfit(i),0);
   const soldWithDate=sold.filter(i=>calcDaysToSell(i)!==null);
   const avgDays=soldWithDate.length?Math.round(soldWithDate.reduce((s,i)=>s+calcDaysToSell(i),0)/soldWithDate.length):null;
   const backBtn=!_fromBack?`<button onclick="closePanel();showAllCategoriesModal(window.__summaryByCat)" style="background:none;border:none;color:var(--accent);font-size:13px;font-weight:600;padding:0 0 14px;cursor:pointer;font-family:inherit;-webkit-tap-highlight-color:transparent">← All categories</button>`:'';
@@ -11813,7 +11817,11 @@ function openItemDetail(m,id,noHistory){
   // Opening a fresh item panel invalidates any prior full-item-page context.
   // Without this, _itemPageOrigin/_savedPanelState could linger from a previous
   // item and cause exit/back to re-route to that OLD item.
-  if(!noHistory){_savedPanelState=null;_itemPageOrigin=(document.querySelector('.page.on')?document.querySelector('.page.on').id:'p-summary');}
+  if(!noHistory){
+    _savedPanelState=null;
+    _itemPageOrigin=(document.querySelector('.page.on')?document.querySelector('.page.on').id:'p-summary');
+    _saveTabScroll(); // capture scroll before leaving this page
+  }
 
   // T-03: Sourced items have no platform, sale price, or fees — render a
   // stripped-down panel instead of the listed-item layout to avoid empty/£0 fields.
@@ -12139,6 +12147,85 @@ async function stockBulkAction(action,items){
     });
     saveDB();STOCK_SELECTED.clear();STOCK_SELECTION_MODE=false;toast('Items deleted');renderStock();
   }
+}
+
+// ── Bundle sale modal ─────────────────────────────────────────────────────────
+// Marks multiple selected items as sold on the same date, splits one shared
+// shipping cost evenly across them, and applies a single platform to all.
+// Each item keeps its own salePrice and calculates its own P&L independently.
+function openBundleSaleModal(){
+  const ids=[...STOCK_SELECTED];
+  if(ids.length<2){toast('Select at least 2 items for a bundle','error');return;}
+  const items=[];
+  ids.forEach(function(id){
+    allDBKeys().forEach(function(k){
+      const x=(DB[k]||[]).find(function(i){return i.id===id;});
+      if(x&&!x.dateSold&&!x.isReturned)items.push({...x,_month:k});
+    });
+  });
+  if(items.length<2){toast('Select at least 2 unsold items','error');return;}
+  const today=new Date().toISOString().split('T')[0];
+  const totalAsk=items.reduce(function(s,i){return s+(i.salePrice||0);},0);
+  const html=`
+    <div style="font-size:12px;color:var(--text-secondary);margin-bottom:14px;">${items.length} items \u00b7 total ask price: <strong>${fmt(totalAsk)}</strong></div>
+
+    <div class="fg"><label>Sale date</label>
+      <input type="date" id="bundle-date" value="${today}" style="width:100%">
+    </div>
+    <div class="fg"><label>Platform</label>
+      <select id="bundle-platform" style="width:100%">
+        ${Object.values(PLATFORMS).filter(function(p){return p.live;}).map(function(p){
+          return '<option value="'+p.id+'">'+(p.label||p.short)+'</option>';
+        }).join('')}
+      </select>
+    </div>
+    <div class="fg"><label>Total shipping cost for the whole bundle (\u00a3)</label>
+      <input type="number" id="bundle-shipping" min="0" step="0.01" placeholder="e.g. 5.38" autocomplete="off"
+        oninput="(function(v){var el=document.getElementById('bundle-ship-hint');if(el){var n=parseFloat(v);var c=${items.length};if(!isNaN(n)&&n>0){el.textContent='= \u00a3'+(n/c).toFixed(2)+' per item';}else{el.textContent='';}}})(this.value)">
+      <div id="bundle-ship-hint" style="font-size:11px;color:var(--text-secondary);margin-top:4px;"></div>
+    </div>
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;overflow:hidden;margin-bottom:14px;">
+      ${items.map(function(i,idx){
+        return '<div style="display:flex;align-items:center;gap:8px;padding:9px 14px;font-size:13px;'+(idx?'border-top:1px solid var(--border)':'')+'">'
+          +'<span style="flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(i.item||'Item')+'</span>'
+          +'<span style="font-weight:700;flex-shrink:0;">'+fmt(i.salePrice||0)+'</span></div>';
+      }).join('')}
+    </div>
+    <button class="btn btn-p" style="width:100%;" onclick="submitBundleSale()">Mark all ${items.length} items sold</button>`;
+
+  // Store ids for submitBundleSale
+  window._bundleIds=ids;
+  openPanel('Bundle sale', html);
+}
+function submitBundleSale(){
+  const ids=window._bundleIds||[];
+  if(!ids.length)return;
+  const dateVal=(document.getElementById('bundle-date').value||'').trim();
+  if(!dateVal){toast('Select a sale date','error');return;}
+  const platform=document.getElementById('bundle-platform').value||'';
+  const totalShipping=parseFloat(document.getElementById('bundle-shipping').value)||0;
+  const items=[];
+  ids.forEach(function(id){
+    allDBKeys().forEach(function(k){
+      const x=(DB[k]||[]).find(function(i){return i.id===id;});
+      if(x&&!x.dateSold&&!x.isReturned)items.push(x);
+    });
+  });
+  if(!items.length){toast('No unsold items found','error');return;}
+  const shippingPerItem=items.length>0?+(totalShipping/items.length).toFixed(2):0;
+  items.forEach(function(item){
+    item.dateSold=dateVal;
+    if(platform)item.platform=platform;
+    if(shippingPerItem>0)item.shippingCost=(item.shippingCost||0)+shippingPerItem;
+    item.grossProfit=calcGrossProfit(item);
+  });
+  saveDB();
+  window._bundleIds=[];
+  STOCK_SELECTED.clear();
+  STOCK_SELECTION_MODE=false;
+  closePanel();
+  toast('Bundle: '+items.length+' items sold'+(shippingPerItem>0?' · '+fmt(shippingPerItem)+' shipping each':''));
+  renderStock();
 }
 
 // Bulk platform change — works for both Stock page (source='stock') and Monthly page (source='month')
@@ -12536,6 +12623,7 @@ function renderStock(){
           </button>
           ${STOCK_SELECTED.size>0?`
             <button class="bulk-ctrl is-sold" onclick="stockBulkAction('sold',window.__stockItems||[])">${icon('sold',14)} Mark Sold</button>
+            <button class="bulk-ctrl" style="background:var(--accent);color:#000;font-weight:700;" onclick="openBundleSaleModal()">${icon('sold',14)} Bundle sale</button>
             <select class="bulk-ctrl bulk-plat-sel" data-source="stock" onchange="if(this.value){bulkChangePlatform(this.value,'stock');this.value=''}"><option value="">Platform</option>${Object.values(PLATFORMS).filter(p=>p.live).map(p=>`<option value="${p.id}">${p.short}</option>`).join('')}</select>
             <button class="bulk-ctrl is-danger" onclick="stockBulkAction('delete',window.__stockItems||[])">${icon('trash',14)} Delete</button>
           `:''}
@@ -15639,7 +15727,10 @@ function renderTax(){
     const stock=items.reduce(function(s,i){return s+(i.costPrice||0);},0);
     const parts=items.reduce(function(s,i){return s+calcPartsCost(i);},0);
     const promo=items.reduce(function(s,i){return s+(i.salePrice||0)*(i.promoPercent||0)*1.20+(i.resaleSalePrice||0)*(i.promoPercent||0)*1.20;},0);
-    const costs=+(fees+postage+packaging+stock+parts+promo+monthTripCosts+monthExpsCost).toFixed(2);
+    // Partner split payments are a direct cost of sale — deducted here so
+    // SA103 Box 16 / profit reflects what you actually keep after settling.
+    const partnerPayments=items.reduce(function(s,i){return s+(_accountItemOwed(i)||0);},0);
+    const costs=+(fees+postage+packaging+stock+parts+promo+monthTripCosts+monthExpsCost+partnerPayments).toFixed(2);
     const profit=+(rev-costs).toFixed(2);
     return{label:MONTH_NAMES[tm.month]+' '+(tm.year).toString().slice(2),rev:+rev.toFixed(2),costs:costs,profit:profit,count:items.length};
   }).filter(Boolean);
@@ -15941,13 +16032,13 @@ function calcYearlyStats(period){
           && (i.returnHistory||[]).some(r=>r.type==='full_seller'||r.type==='full_ebay');
         if(!i.isReturned && !_isRelistedAwaiting){
           soldCount++;
-          const prof=calcGrossProfit(i);
+          const prof=calcNetProfit(i); // net of partner split — partner payment is a cost of sale
           realisedProfit+=prof;
           soldItems.push({...i,profit:prof});
         }else{
           // Returned (not yet resold) OR relisted-awaiting-resale —
           // 0 revenue but profit (loss/cost) still counts toward the period.
-          realisedProfit+=calcGrossProfit(i)||0;
+          realisedProfit+=calcNetProfit(i)||0;
         }
       }else if(!i.isReturned&&!i.resaleSalePrice){
         listedCount++;
@@ -16678,6 +16769,20 @@ function calcGrossProfit(i){
     profit+=rRev;
   }
   return+profit.toFixed(2);
+}
+
+// calcNetProfit: gross profit minus the partner's agreed payment (if any).
+// This is the number that represents what you actually keep after settling
+// with the account — treat the partner payment as a direct cost of sale,
+// same as fees or postage. Used on the dashboard, monthly totals, and SA103.
+// calcGrossProfit is still the building block (and what _accountItemOwed uses
+// to calculate the split on, so there's no circular dependency).
+function calcNetProfit(i){
+  const gross=calcGrossProfit(i);
+  if(gross===null)return null;
+  const owed=_accountItemOwed(i); // null if no split set, or item unsold
+  if(owed===null)return gross;
+  return+(gross-owed).toFixed(2);
 }
 
 // Session E2 — Stock-list "estimated profit" semantics.
