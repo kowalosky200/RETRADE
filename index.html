@@ -1740,6 +1740,7 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
         <button class="nav-more-btn has-items" id="nav-more-trigger" onclick="event.stopPropagation();toggleNavMore()" title="More pages" style="gap:5px;padding:0 12px;" title="More"><span class="tab-ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/></svg></span><span class="tab-label">More</span></button>
         <div class="nav-more-menu" id="nav-more-menu">
           <button data-tab="expenses" onclick="goToTab('expenses',this);closeNavMore()"><span style="width:28px;height:28px;border-radius:6px;background:rgba(212,136,10,0.12);color:var(--accent);display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 2h14a1 1 0 0 1 1 1v18l-2.5-1.5L15 21l-2.5-1.5L10 21l-2.5-1.5L5 21V3a1 1 0 0 1 0-1z"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="12" y2="16"/></svg></span><span style="display:flex;flex-direction:column;gap:1px;"><span>Expenses</span><span style="font-size:11px;font-weight:400;color:var(--muted);">Track your spend</span></span></button>
+          <button data-tab="accounts" onclick="goToTab('accounts',this);closeNavMore()"><span style="width:28px;height:28px;border-radius:6px;background:rgba(34,197,94,0.12);color:var(--green);display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span><span style="display:flex;flex-direction:column;gap:1px;"><span>Accounts</span><span style="font-size:11px;font-weight:400;color:var(--muted);">Partners &amp; vendors</span></span></button>
           <button data-tab="tax" onclick="goToTab('tax',this);closeNavMore()"><span style="width:28px;height:28px;border-radius:6px;background:rgba(29,95,168,0.10);color:var(--blue);display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="15" x2="15" y2="9"/><circle cx="9.5" cy="9.5" r="1" fill="currentColor" stroke="none"/><circle cx="14.5" cy="14.5" r="1" fill="currentColor" stroke="none"/></svg></span><span style="display:flex;flex-direction:column;gap:1px;"><span>Tax / SA103</span><span style="font-size:11px;font-weight:400;color:var(--muted);">Generate reports</span></span></button>
           <button data-tab="data" onclick="goToTab('data',this);closeNavMore()"><span style="width:28px;height:28px;border-radius:6px;background:rgba(107,63,160,0.10);color:var(--purple);display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v4c0 1.66 4 3 9 3s9-1.34 9-3V5"/><path d="M3 9v5c0 1.66 4 3 9 3s9-1.34 9-3V9"/><path d="M3 14v5c0 1.66 4 3 9 3s9-1.34 9-3v-5"/></svg></span><span style="display:flex;flex-direction:column;gap:1px;"><span>Data</span><span style="font-size:11px;font-weight:400;color:var(--muted);">Export &amp; manage</span></span></button>
         </div>
@@ -1862,6 +1863,10 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
     <button onclick="closeMoreSheet();goToTab('expenses',document.querySelector('[data-tab=\'expenses\']'))" class="more-sheet-row" data-sheet-tab="expenses">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 2h14a1 1 0 0 1 1 1v18l-2.5-1.5L15 21l-2.5-1.5L10 21l-2.5-1.5L5 21V3a1 1 0 0 1 0-1z"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="12" y2="16"/></svg>
       <span>Expenses</span>
+    </button>
+    <button onclick="closeMoreSheet();goToTab('accounts',document.querySelector('[data-tab=\'accounts\']'))" class="more-sheet-row" data-sheet-tab="accounts">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+      <span>Accounts</span>
     </button>
     <button onclick="closeMoreSheet();goToTab('tax',document.querySelector('[data-tab=\'tax\']'))" class="more-sheet-row" data-sheet-tab="tax">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="15" x2="15" y2="9"/><circle cx="9.5" cy="9.5" r="1" fill="currentColor" stroke="none"/><circle cx="14.5" cy="14.5" r="1" fill="currentColor" stroke="none"/></svg>
@@ -2040,6 +2045,7 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
 <div class="page" id="p-monthly"></div>
 <div class="page" id="p-stock"></div>
 <div class="page" id="p-expenses"></div>
+<div class="page" id="p-accounts"></div>
 <div class="page" id="p-tax"></div>
 <div class="page" id="p-data"></div>
 <div class="page" id="p-search"></div>
@@ -2364,11 +2370,54 @@ const ITEM_SOURCES=[
 ];
 
 const ITEM_CATEGORIES=[
-  'Electronics & Tech','Cameras & Photography','Audio & Music',
-  'Books & Media','Toys & Games','Video Games & Consoles',
-  'Home & Garden','Clothing & Fashion','Sneakers & Trainers',
-  'Health & Beauty','Sporting Goods','Jewellery & Watches',
-  'Collectibles & Vintage','Other'
+  // 9.9% — media & general electronics (banded sub-cats listed separately below)
+  'Books, Comics & Magazines',
+  'Films & TV',
+  'Music (CDs & Vinyl)',
+  'Cameras & Photography',
+  'Computers & Tablets',
+  'Mobile Phones & Accessories',
+  'Sound & Vision',
+  'Video Games',
+  // 9.9%→ banded electronics sub-categories (the expensive stuff)
+  'Laptops, Desktops & Tablets',
+  'TVs, Headphones & HiFi',
+  'Digital Cameras & Lenses',
+  'Mobile & Smart Phones',
+  'Video Game Consoles',
+  // 10.9%
+  'Antiques',
+  'Art',
+  'Baby',
+  'Collectables',
+  'Coins',
+  'Dolls & Bears',
+  'Garden & Patio',
+  'Health & Beauty',
+  'Musical Instruments',
+  'Pottery, Ceramics & Glass',
+  'Sporting Goods',
+  'Sports Memorabilia',
+  'Stamps',
+  'Toys & Games',
+  // 11.9% — fashion
+  'Clothes, Shoes & Accessories',
+  'Trainers',
+  "Women's Bags & Handbags",
+  'Home, Furniture & DIY',
+  // banded / high value
+  'Jewellery & Watches',
+  'Watches',
+  'Vehicle Parts & Accessories',
+  // 12.5% / 12.9%
+  'Business, Office & Industrial',
+  'Crafts',
+  'Event Tickets',
+  'Pet Supplies',
+  'Wholesale & Job Lots',
+  'Memorials & Funerals',
+  // default
+  'Other',
 ];
 
 // ============================================================================
@@ -2430,11 +2479,64 @@ function icon(name,size,extraStyle){
 }
 // Map item category → icon name (single lookup used everywhere a category glyph appears)
 const _CAT_ICON={
-  'Electronics & Tech':'cat_tech','Cameras & Photography':'cat_camera','Audio & Music':'cat_audio',
-  'Books & Media':'cat_books','Toys & Games':'cat_toys','Video Games & Consoles':'cat_toys',
-  'Home & Garden':'cat_home','Clothing & Fashion':'cat_fashion','Sneakers & Trainers':'cat_fashion',
-  'Health & Beauty':'cat_other','Sporting Goods':'cat_other','Jewellery & Watches':'cat_vintage',
-  'Collectibles & Vintage':'cat_vintage','Other':'cat_other'
+  // Media
+  'Books, Comics & Magazines':'cat_books',
+  'Films & TV':              'cat_books',
+  'Music (CDs & Vinyl)':     'cat_audio',
+  'Video Games':             'cat_toys',
+  // Electronics (general + banded)
+  'Cameras & Photography':   'cat_camera',
+  'Digital Cameras & Lenses':'cat_camera',
+  'Computers & Tablets':     'cat_tech',
+  'Laptops, Desktops & Tablets':'cat_tech',
+  'Mobile Phones & Accessories':'cat_tech',
+  'Mobile & Smart Phones':   'cat_tech',
+  'Sound & Vision':          'cat_audio',
+  'TVs, Headphones & HiFi':  'cat_audio',
+  'Video Game Consoles':     'cat_toys',
+  'Business, Office & Industrial':'cat_tech',
+  // 10.9% general
+  'Antiques':                'cat_vintage',
+  'Art':                     'cat_vintage',
+  'Baby':                    'cat_other',
+  'Collectables':            'cat_vintage',
+  'Coins':                   'cat_vintage',
+  'Dolls & Bears':           'cat_toys',
+  'Garden & Patio':          'cat_home',
+  'Health & Beauty':         'cat_other',
+  'Musical Instruments':     'cat_audio',
+  'Pottery, Ceramics & Glass':'cat_vintage',
+  'Sporting Goods':          'cat_other',
+  'Sports Memorabilia':      'cat_vintage',
+  'Stamps':                  'cat_vintage',
+  'Toys & Games':            'cat_toys',
+  // Fashion
+  'Clothes, Shoes & Accessories':'cat_fashion',
+  'Trainers':                'cat_fashion',
+  "Women's Bags & Handbags": 'cat_fashion',
+  // Home / high value
+  'Home, Furniture & DIY':   'cat_home',
+  'Jewellery & Watches':     'cat_vintage',
+  'Watches':                 'cat_vintage',
+  'Vehicle Parts & Accessories':'cat_tech',
+  // 12.9%
+  'Crafts':                  'cat_other',
+  'Event Tickets':           'cat_other',
+  'Pet Supplies':            'cat_other',
+  'Wholesale & Job Lots':    'cat_other',
+  'Memorials & Funerals':    'cat_other',
+  'Other':                   'cat_other',
+  // Backward-compat for items stored under older category names
+  'Electronics & Tech':      'cat_tech',
+  'Electronics (banded)':    'cat_tech',
+  'Audio & Music':           'cat_audio',
+  'Books & Media':           'cat_books',
+  'Video Games & Consoles':  'cat_toys',
+  'Clothing & Fashion':      'cat_fashion',
+  'Sneakers & Trainers':     'cat_fashion',
+  'Home & Garden':           'cat_home',
+  'Collectibles & Vintage':  'cat_vintage',
+  'Business & Industrial':   'cat_tech',
 };
 function catIcon(category,size){return icon(_CAT_ICON[category]||'cat_other',size||16);}
 
@@ -2863,6 +2965,9 @@ let STOCK_SELECTED=new Set();     // stock page selection
 // Patch C — Sourcing Runs
 let _sourcingRuns=[];             // all runs loaded from Supabase (active + ended)
 let _activeSourcingRun=null;      // convenience pointer: run with status==='active', or null
+// E33 — Accounts (partners/vendors). Unlike Runs (time-boxed sourcing trips),
+// an account is a standing relationship that can span many runs and months.
+let _accounts=[];                 // all accounts loaded from Supabase
 let MONTHLY_VIEW='grid';          // 'grid' | 'detail'
 let SUMMARY_PERIOD='current_fy';  // summary period filter
 let _sourcedPartsCost=0;          // parts cost carried from sourced item into List Item form (BPF preview)
@@ -3045,6 +3150,14 @@ function toggleMoreSheet(){
     overlay.style.opacity='1';
   });
   document.getElementById('bnt-more').classList.add('on');
+  // E34 fix — the FAB (.fab-dial, z-index:330) sits ABOVE the More-sheet
+  // overlay (z-index:320), and its .fab-main button has pointer-events:auto
+  // even while the dial wrapper itself is pointer-events:none. Without
+  // hiding it here, the + button kept floating over the dimmed area in the
+  // bottom-right corner and silently absorbed taps meant to dismiss the
+  // sheet by tapping outside it.
+  const _fabDialMS=document.getElementById('fab-dial');
+  if(_fabDialMS)_fabDialMS.style.visibility='hidden';
 }
 function _refreshDefaultPlatLabel(){
   const el=document.getElementById('user-menu-defplat-label');
@@ -3143,6 +3256,9 @@ function closeMoreSheet(){
   const _bm=document.getElementById('bnt-more');
   if(_bm)_bm.classList.remove('on');
   if(typeof moreSheetShowMain==='function')moreSheetShowMain();
+  // E34 fix — restore the FAB, hidden in toggleMoreSheet while the sheet was open.
+  const _fabDialMS=document.getElementById('fab-dial');
+  if(_fabDialMS)_fabDialMS.style.visibility='';
 }
 
 // ── More-sheet: country pane swap (mobile equivalent of desktop country panel)
@@ -3837,6 +3953,15 @@ function _rowToItem(row, parts, returns){
     state:           row.state || null,
     dateSourced:     row.date_sourced || null,
     sourcingRunId:   row.sourcing_run_id || null,
+    // E33 — Accounts (partners). accountId tags an item to a partner/vendor
+    // account (separate concept from sourcingRunId — a run is a time-boxed
+    // trip, an account is a standing relationship that can span many runs
+    // and months). accountSplitPercent is the partner's % share of THIS
+    // item's profit (null = no split, just tracked). accountSettled marks
+    // whether that share has actually been paid out.
+    accountId:           row.account_id || null,
+    accountSplitPercent: row.account_split_percent != null ? Number(row.account_split_percent) : null,
+    accountSettled:      !!row.account_settled,
     estSalePrice:    row.est_sale_price != null ? Number(row.est_sale_price) : null,
     defaultPlatform: row.default_platform || null,
     soldOnPlatform:  row.sold_on_platform || null,
@@ -3909,6 +4034,10 @@ function _itemToRow(i, month){
     state:            i.state || 'listed',
     date_sourced:     i.dateSourced || null,
     sourcing_run_id:  i.sourcingRunId || null,
+    // E33 — Accounts (partners), see _rowToItem note above.
+    account_id:             i.accountId || null,
+    account_split_percent:  i.accountSplitPercent != null ? i.accountSplitPercent : null,
+    account_settled:        !!i.accountSettled,
     est_sale_price:   i.estSalePrice != null ? i.estSalePrice : null,
     default_platform: i.defaultPlatform || null,
     sold_on_platform: i.soldOnPlatform || null,
@@ -3929,13 +4058,14 @@ async function loadFromSupabase(){
   // Fetch all tables in parallel — explicit .eq('user_id') on every query as
   // belt-and-braces on top of RLS. Prevents NULL-user_id orphan rows or
   // misconfigured policies from bleeding into the loaded DB.
-  const [itemsRes, partsRes, returnsRes, tripsRes, expensesRes, runsRes] = await Promise.all([
+  const [itemsRes, partsRes, returnsRes, tripsRes, expensesRes, runsRes, accountsRes] = await Promise.all([
     _sb.from('items').select('*').eq('user_id', uid).order('date_listed', {ascending: true}),
     _sb.from('item_parts').select('*').eq('user_id', uid),
     _sb.from('item_returns').select('*').eq('user_id', uid).order('logged_at', {ascending: true}),
     _sb.from('trips').select('*').eq('user_id', uid).order('date', {ascending: true}),
     _sb.from('expenses').select('*').eq('user_id', uid).order('date', {ascending: true}),
     _sb.from('sourcing_runs').select('*').eq('user_id', uid).order('date_started', {ascending: false}),
+    _sb.from('accounts').select('*').eq('user_id', uid).order('name', {ascending: true}),
   ]);
 
   if(itemsRes.error) throw new Error('Items load failed: ' + itemsRes.error.message);
@@ -3989,6 +4119,15 @@ async function loadFromSupabase(){
     console.warn('sourcing_runs load skipped (table may not exist yet):', runsRes.error.message);
     _sourcingRuns = [];
     _activeSourcingRun = null;
+  }
+  // E33 — load accounts (graceful: if table doesn't exist yet, skip — same
+  // pattern as sourcing_runs above, so users who haven't run the migration
+  // yet see an empty Accounts page rather than a broken one).
+  if(!accountsRes.error){
+    _accounts = (accountsRes.data||[]).map(_rowToAccount);
+  } else {
+    console.warn('accounts load skipped (table may not exist yet):', accountsRes.error.message);
+    _accounts = [];
   }
   DB._userOwned = true;
   // Guarantee all expected month arrays exist, even if user has no data yet.
@@ -4070,7 +4209,21 @@ async function saveItemToSupabase(m, i){
 
   // Upsert main item row — conflict on (id, user_id) so two users with the
   // same item ID never overwrite each other
-  const {error: itemErr} = await _sbCall(()=>_sb.from('items').upsert(row, {onConflict: 'id,user_id'}));
+  let {error: itemErr} = await _sbCall(()=>_sb.from('items').upsert(row, {onConflict: 'id,user_id'}));
+  // E33 graceful fallback: if Supabase doesn't have the account_* columns yet
+  // (user hasn't run the migration SQL), retry without those fields so the
+  // item itself still saves. Account tagging stays in memory locally and
+  // will sync on the next save once the columns are added — mirrors the
+  // BUG-07 trip-expenses fallback above.
+  if(itemErr && /account_(id|split_percent|settled)/i.test(itemErr.message||'') && /column/i.test(itemErr.message||'')){
+    if(!window._accountColumnsWarned){
+      window._accountColumnsWarned=true;
+      toast('Item saved locally. Add account columns in Supabase to sync partner tags.','err');
+    }
+    delete row.account_id; delete row.account_split_percent; delete row.account_settled;
+    const retry = await _sbCall(()=>_sb.from('items').upsert(row, {onConflict: 'id,user_id'}));
+    itemErr = retry.error;
+  }
   if(itemErr) throw new Error('Save item failed: ' + itemErr.message);
 
   // Replace parts: delete old, insert new
@@ -4180,6 +4333,13 @@ function _runToRow(run){
     date_started:   run.dateStarted,
     started_at_iso: run.startedAtIso||null,
     date_ended:     run.dateEnded||null,
+    // BUGFIX (E32 follow-up) — endedAtIso was set in memory by the manual
+    // duration-edit flow (submitEditRun) and read by the duration/per-hour
+    // calcs, but never persisted: this field was missing from both directions
+    // of the Supabase mapping. An edited duration would silently revert on
+    // the next page reload since the saved row never carried it. Requires a
+    // new `ended_at_iso` column on sourcing_runs (see migration note).
+    ended_at_iso:   run.endedAtIso||null,
     status:         run.status,
     notes:          run.notes||null
   };
@@ -4193,6 +4353,7 @@ function _rowToRun(row){
     dateStarted:    row.date_started,
     startedAtIso:   row.started_at_iso||null,
     dateEnded:      row.date_ended||null,
+    endedAtIso:     row.ended_at_iso||null,
     status:         row.status,
     notes:          row.notes||null
   };
@@ -4215,6 +4376,32 @@ async function saveRunToSupabase(run){
 async function deleteRunFromSupabase(id){
   const {error}=await _sbCall(()=>_sb.from('sourcing_runs').delete().eq('id',id).eq('user_id',_currentUserId));
   if(error) throw new Error('Delete run failed: '+error.message);
+}
+
+// E33 — Accounts (partners/vendors)
+function _accountToRow(a){
+  return {
+    id:      a.id,
+    user_id: _currentUserId||null,
+    name:    a.name,
+    notes:   a.notes||null,
+  };
+}
+function _rowToAccount(row){
+  return {
+    id:    row.id,
+    name:  row.name,
+    notes: row.notes||null,
+  };
+}
+async function saveAccountToSupabase(a){
+  const row=_accountToRow(a);
+  const {error}=await _sbCall(()=>_sb.from('accounts').upsert(row,{onConflict:'id'}));
+  if(error) throw new Error('Save account failed: '+error.message);
+}
+async function deleteAccountFromSupabase(id){
+  const {error}=await _sbCall(()=>_sb.from('accounts').delete().eq('id',id).eq('user_id',_currentUserId));
+  if(error) throw new Error('Delete account failed: '+error.message);
 }
 
 // saveDB() is called after every mutation throughout the app.
@@ -4268,6 +4455,7 @@ function _dbFingerprint(){
   (DB.trips||[]).forEach(t => { fp['trip:'+t.id] = JSON.stringify(t); });
   (DB.expenses||[]).forEach(e => { fp['exp:'+e.id] = JSON.stringify(e); });
   (_sourcingRuns||[]).forEach(r => { fp['run:'+r.id] = JSON.stringify(r); });
+  (_accounts||[]).forEach(a => { fp['acct:'+a.id] = JSON.stringify(a); });
   return fp;
 }
 
@@ -4307,6 +4495,10 @@ async function _persistChanges(){
           const id = key.slice(4);
           const run = (_sourcingRuns||[]).find(r => r.id === id);
           if(run) await saveRunToSupabase(run);
+        } else if(key.startsWith('acct:')){
+          const id = key.slice(5);
+          const acct = (_accounts||[]).find(a => a.id === id);
+          if(acct) await saveAccountToSupabase(acct);
         }
       }catch(e){ errors.push(e.message); }
     }
@@ -4328,6 +4520,9 @@ async function _persistChanges(){
         } else if(key.startsWith('run:')){
           const id = key.slice(4);
           await deleteRunFromSupabase(id);
+        } else if(key.startsWith('acct:')){
+          const id = key.slice(5);
+          await deleteAccountFromSupabase(id);
         }
       }catch(e){ errors.push(e.message); }
     }
@@ -4457,6 +4652,7 @@ function refreshActivePage(){
   else if(id==='p-monthly')renderMonth();
   else if(id==='p-stock')renderStock();
   else if(id==='p-expenses')renderExpenses();
+  else if(id==='p-accounts'&&typeof renderAccountsPage==='function')renderAccountsPage();
   else if(id==='p-tax'&&typeof renderTax==='function')renderTax();
   else if(id==='p-active-run'&&typeof renderActiveRunPage==='function')renderActiveRunPage();
   else if(id==='p-runs'&&typeof renderRunsPage==='function')renderRunsPage();
@@ -4662,6 +4858,7 @@ function goToTab(name,sourceEl){
   else if(name==='monthly'){SELECTED_MONTH=currentMonthKey();MONTHLY_VIEW='detail';MONTH_FILTER='all';MONTH_SORT='date-sold';renderMonthlyPage();}
   else if(name==='stock'){_stockFromSummary=false;renderStock();}
   else if(name==='expenses')renderExpenses();
+  else if(name==='accounts')renderAccountsPage();
   else if(name==='tax')renderTax();
   else if(name==='data')renderData();
   else if(name==='search')renderSearchResults();
@@ -6174,6 +6371,11 @@ function closePanel(){
   PANEL_STACK=[];
   unlockBodyScroll();
   updatePanelNav();
+  // E34 — safety net: if a trip/expense edit panel opened from a run page
+  // was cancelled (not saved/deleted), the save/delete handlers never ran to
+  // clear this. Without resetting here, the NEXT trip/expense edit opened
+  // from the Expenses page would incorrectly redirect back to a run.
+  _runOverheadReturnId=null;
 }
 function panelBack(){
   if(!PANEL_STACK.length){closePanel();return;}
@@ -6285,7 +6487,7 @@ const _FAB_PAGE_OPTIONS = {
   'p-runs':        _FAB_ALL_OPTIONS,
   // p-item, p-search, p-tax, p-data → no FAB, see _FAB_HIDDEN_PAGES
 };
-const _FAB_HIDDEN_PAGES = new Set(['p-search','p-tax','p-data']); // p-item removed: FAB visible on item page for quick adds
+const _FAB_HIDDEN_PAGES = new Set(['p-search','p-tax','p-data','p-accounts']); // p-item removed: FAB visible on item page for quick adds
 
 // Patch C-2: per-page FAB single-tap override. Returns 'speed-dial' or a specific action.
 function getFabTapAction(pageId){
@@ -6416,13 +6618,21 @@ function _syncFabVisibility(){
   // sign-in / preview entry sets display:'').
   if(dial.style.display==='none' && !DB._userOwned && !_previewMode) return;
   const activePage=(document.querySelector('.page.on')||{id:''}).id;
+  // The search loop FAB sits beside the + FAB. On pages where the + FAB is
+  // hidden (Accounts, Tax, Data, Search), a lone search loop looks orphaned
+  // and — on Accounts especially — searching the list isn't a useful action,
+  // so hide it alongside the dial. CSS shows it via display:flex!important on
+  // mobile, so we override with visibility (which beats the !important rule).
+  const searchFab=document.getElementById('search-fab');
   if(_FAB_HIDDEN_PAGES.has(activePage)){
     dial.classList.remove('open');
     dial.style.visibility='hidden';
     dial.setAttribute('aria-hidden','true');
+    if(searchFab){searchFab.style.visibility='hidden';searchFab.setAttribute('aria-hidden','true');}
   } else {
     dial.style.visibility='';
     dial.removeAttribute('aria-hidden');
+    if(searchFab){searchFab.style.visibility='';searchFab.removeAttribute('aria-hidden');}
   }
 }
 
@@ -6757,7 +6967,7 @@ function openEditRun(runId){
     </div>
     <div class="fg"><label>Duration</label>
       <div style="display:flex;gap:8px;align-items:center;">
-        <input type="number" id="er-hours" min="0" max="23" value="${existHours||''}" placeholder="0" style="width:70px;" autocomplete="off">
+        <input type="number" id="er-hours" min="0" max="23" step="0.1" value="${existHours||''}" placeholder="0" style="width:70px;" autocomplete="off">
         <span style="font-size:13px;color:var(--text-secondary);">h</span>
         <input type="number" id="er-mins" min="0" max="59" value="${existMins||''}" placeholder="0" style="width:70px;" autocomplete="off">
         <span style="font-size:13px;color:var(--text-secondary);">min</span>
@@ -6781,21 +6991,33 @@ function submitEditRun(runId){
   run.location=(document.getElementById('er-location').value||'').trim()||null;
   const newDate=document.getElementById('er-date').value||run.dateStarted;
   run.dateStarted=newDate;
-  // Update duration
-  const hours=parseInt(document.getElementById('er-hours')?.value||'0',10)||0;
+  // E32 fix — hours field now accepts decimals (e.g. "0.1" = 6 minutes) and
+  // is parsed with parseFloat, not parseInt. parseInt("0.1",10) silently
+  // truncates to 0 — a user-typed fractional hour was being read as "no
+  // duration entered" and discarded with no warning, leaving the run's old
+  // (often much larger, real elapsed-time) duration untouched. That stale
+  // value is what resurfaced later and looked like the save had reverted.
+  const hours=parseFloat(document.getElementById('er-hours')?.value||'0')||0;
   const mins=parseInt(document.getElementById('er-mins')?.value||'0',10)||0;
-  if(hours>0||mins>0){
-    run.startedAtIso=new Date(newDate+'T09:00:00').toISOString();
-    run.endedAtIso=new Date(new Date(newDate+'T09:00:00').getTime()+(hours*60+mins)*60000).toISOString();
-  }
+  // E32 fix — duration is always applied now (was gated behind hours>0||
+  // mins>0, which meant entering 0h 0m to intentionally clear a duration
+  // silently did nothing instead of clearing it).
+  run.startedAtIso=new Date(newDate+'T09:00:00').toISOString();
+  run.endedAtIso=new Date(new Date(newDate+'T09:00:00').getTime()+Math.round(hours*60+mins)*60000).toISOString();
   run.notes=(document.getElementById('er-notes').value||'').trim()||null;
   saveDB();
   closePanel();
   toast('Run updated');
   // Re-render whichever runs view is open so the edit shows immediately.
+  // E32 fix — the run detail page renders into #p-item (same container used
+  // for regular items), NOT a separate '#p-run' page. '#p-run' is a dead,
+  // never-activated placeholder div left over from before the run page was
+  // consolidated into #p-item — checking for it here meant this branch could
+  // never fire, so editing a run's duration while looking at it never
+  // refreshed the displayed numbers until the user left and came back in.
   const _curPage=document.querySelector('.page.on');
-  if(_curPage&&_curPage.id==='p-run'){
-    openRunPage(runId);
+  if(_curPage&&_curPage.id==='p-item'){
+    _renderRunPage(run);
   }else if(_curPage&&_curPage.id==='p-runs'){
     renderRunsPage();
   }
@@ -6896,11 +7118,22 @@ function _renderRunPage(run){
 
   // ── Efficiency metrics ────────────────────────────────────────────────────
   // Time spent on this run (use duration if ended, else session time)
+  // E32 fix — endedAtIso (set by the manual duration-edit flow in
+  // submitEditRun) takes priority over dateEnded (set only when a LIVE run
+  // is ended via the "End Run" flow). The old code read dateEnded only, so
+  // editing a run's duration never updated "profit per hour" — it kept
+  // showing "No time logged" for any run that hadn't also been live-ended,
+  // or silently used a stale dateEnded that had nothing to do with the
+  // edited duration. This mirrors the fallback _fmtRunDuration already uses
+  // correctly for the header's duration display, just below.
   let runHours=null;
-  if(run.startedAtIso&&run.dateEnded){
-    const ms=new Date(run.dateEnded).getTime()-new Date(run.startedAtIso).getTime();
-    runHours=ms/(1000*60*60);
-    if(runHours<0.1)runHours=0.1; // floor at 6min to avoid divide weirdness
+  const _runEndMs=run.endedAtIso?new Date(run.endedAtIso).getTime():(run.dateEnded?new Date(run.dateEnded).getTime():null);
+  if(run.startedAtIso&&_runEndMs){
+    const ms=_runEndMs-new Date(run.startedAtIso).getTime();
+    if(ms>0){
+      runHours=ms/(1000*60*60);
+      if(runHours<0.1)runHours=0.1; // floor at 6min to avoid divide weirdness
+    }
   }
   const profitPerHour=runHours?(netBestCase/runHours):null;
   const profitPerMile=totalMiles>0?(netBestCase/totalMiles):null;
@@ -7042,10 +7275,17 @@ function _renderRunPage(run){
       runTrips.forEach(function(t,idx){
         const mc=(t.mileage||0)*(t.ratePerMile||0.45);
         const ec=(Array.isArray(t.expenses)?t.expenses:[]).reduce(function(a,e){return a+(e.amount||0);},0);
-        costsHTML+='<div style="display:flex;align-items:center;gap:8px;padding:10px 14px;'+(idx?'border-top:1px solid var(--border)':'')+'">'
+        // E34 fix — these rows were pure display with no tap target at all,
+        // so there was no way to view or edit a trip/expense from the run
+        // page. Index must be looked up in the FULL DB.trips array (editTrip
+        // takes a global index, not a position within this run's filtered
+        // subset), found by matching the stable trip id.
+        const fullIdx=(DB.trips||[]).findIndex(function(x){return x.id===t.id;});
+        costsHTML+='<div class="clickable" data-trip-idx="'+fullIdx+'" onclick="_openRunOverheadTrip(this.dataset.tripIdx)" style="display:flex;align-items:center;gap:8px;padding:10px 14px;cursor:pointer;'+(idx?'border-top:1px solid var(--border)':'')+'">'
           +'<div style="flex:1;min-width:0;"><div style="font-size:13px;font-weight:600;">'+esc(t.description||'Trip')+'</div>'
           +'<div style="font-size:11px;color:var(--text-secondary);">'+(t.date||'')+' \u00b7 '+(t.mileage||0)+' mi</div></div>'
           +'<span style="font-size:13px;font-weight:600;">\u00a3'+(mc+ec).toFixed(2)+'</span>'
+          +'<svg width="12" height="12" viewBox="0 0 16 16" fill="none" style="flex-shrink:0;color:var(--muted);"><path d="M6 4l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>'
         +'</div>';
       });
       costsHTML+='</div>';
@@ -7053,10 +7293,12 @@ function _renderRunPage(run){
     if(runExps.length){
       costsHTML+='<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;">';
       runExps.forEach(function(e,idx){
-        costsHTML+='<div style="display:flex;align-items:center;gap:8px;padding:10px 14px;'+(idx?'border-top:1px solid var(--border)':'')+'">'
+        const fullIdx=(DB.expenses||[]).findIndex(function(x){return x.id===e.id;});
+        costsHTML+='<div class="clickable" data-exp-idx="'+fullIdx+'" onclick="_openRunOverheadExpense(this.dataset.expIdx)" style="display:flex;align-items:center;gap:8px;padding:10px 14px;cursor:pointer;'+(idx?'border-top:1px solid var(--border)':'')+'">'
           +'<div style="flex:1;min-width:0;"><div style="font-size:13px;font-weight:600;">'+esc(e.description||'Expense')+'</div>'
           +'<div style="font-size:11px;color:var(--text-secondary);">'+(e.date||'')+(e.category?' \u00b7 '+esc(e.category):'')+'</div></div>'
           +'<span style="font-size:13px;font-weight:600;">\u00a3'+(e.amount||0).toFixed(2)+'</span>'
+          +'<svg width="12" height="12" viewBox="0 0 16 16" fill="none" style="flex-shrink:0;color:var(--muted);"><path d="M6 4l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>'
         +'</div>';
       });
       costsHTML+='</div>';
@@ -7117,6 +7359,30 @@ function _renderRunPage(run){
       </div>
     </div>`;
   page.innerHTML=html;
+  // E34 — remember which run is currently shown so a trip/expense edit
+  // opened from the overhead list knows which run page to refresh back to.
+  _lastOpenedRunId=run.id;
+}
+
+// E34 — open a trip/expense edit from the Run overhead list. editTrip/
+// editExpense are shared with the Expenses page and (before this fix) always
+// refreshed back to renderExpenses() on save, regardless of where they were
+// opened from. _runOverheadReturnId remembers which run to come back to so
+// saveTripEdit/saveExpenseEdit/deleteTrip/deleteExpense can refresh the RIGHT
+// page instead of assuming Expenses.
+let _runOverheadReturnId=null;
+let _lastOpenedRunId=null;
+function _openRunOverheadTrip(idxStr){
+  const idx=parseInt(idxStr,10);
+  if(!isFinite(idx)||idx<0)return;
+  _runOverheadReturnId=_lastOpenedRunId;
+  editTrip(idx);
+}
+function _openRunOverheadExpense(idxStr){
+  const idx=parseInt(idxStr,10);
+  if(!isFinite(idx)||idx<0)return;
+  _runOverheadReturnId=_lastOpenedRunId;
+  editExpense(idx);
 }
 
 
@@ -7378,6 +7644,424 @@ function _runROI(runId){
   return(_runProfit(runId)/cost)*100;
 }
 
+// E33 — Accounts (partners/vendors). An account is a standing relationship
+// (unlike a Run, which is one time-boxed sourcing trip) — items tagged to it
+// can span any number of months and runs. Each item carries its own
+// accountSplitPercent (the partner's % share of THAT item's profit; null =
+// no split, item is just tracked under this account) and accountSettled
+// (whether their share has actually been paid out).
+function _accountItems(accountId){
+  const items=[];
+  allDBKeys().forEach(function(k){
+    (DB[k]||[]).forEach(function(i){
+      if(i.accountId===accountId) items.push(Object.assign({},i,{_month:k}));
+    });
+  });
+  return items;
+}
+
+// Partner's owed amount on a single item: their % of that item's profit.
+// Returns null if the item hasn't sold yet (nothing owed on unsold stock) or
+// has no split % set (tracked but no money-split agreed).
+function _accountItemOwed(i){
+  if(i.accountSplitPercent==null)return null;
+  const isSold=i.state==='sold'||!!i.resaleSalePrice;
+  if(!isSold)return null;
+  const profit=calcGrossProfit(i);
+  if(profit===null)return null;
+  return+(profit*(i.accountSplitPercent/100)).toFixed(2);
+}
+
+// Lifetime stats for one account: total items, sold count, your-side profit,
+// partner's total owed, and how much of that owed amount is still unsettled.
+function _accountStats(accountId){
+  const items=_accountItems(accountId);
+  const sold=items.filter(function(i){return i.state==='sold'||!!i.resaleSalePrice;});
+  const active=items.filter(function(i){return i.state!=='sold'&&!i.resaleSalePrice&&!i.isReturned;});
+  const grossProfit=sold.reduce(function(s,i){return s+(calcGrossProfit(i)||0);},0);
+  let totalOwed=0,unsettledOwed=0,settledOwed=0,splitItemCount=0;
+  sold.forEach(function(i){
+    const owed=_accountItemOwed(i);
+    if(owed===null)return;
+    splitItemCount++;
+    totalOwed+=owed;
+    if(i.accountSettled)settledOwed+=owed;
+    else unsettledOwed+=owed;
+  });
+  const yourShare=grossProfit-totalOwed;
+  return{
+    itemCount:items.length, soldCount:sold.length, activeCount:active.length,
+    activeStockValue:active.reduce(function(s,i){return s+(i.salePrice||0);},0),
+    grossProfit:+grossProfit.toFixed(2), yourShare:+yourShare.toFixed(2),
+    totalOwed:+totalOwed.toFixed(2), settledOwed:+settledOwed.toFixed(2),
+    unsettledOwed:+unsettledOwed.toFixed(2), splitItemCount
+  };
+}
+
+function openAccountPage(accountId){
+  const acct=_accounts.find(function(a){return a.id===accountId;});
+  if(!acct){toast('Account not found','error');return;}
+  _itemPageOrigin='p-accounts';
+  document.querySelectorAll('.page').forEach(function(p){p.classList.remove('on');});
+  document.querySelectorAll('.tab').forEach(function(t){t.classList.remove('on');});
+  document.querySelectorAll('.bnt').forEach(function(b){b.classList.remove('on');});
+  document.getElementById('p-item').classList.add('on');
+  _syncFabVisibility();
+  _renderAccountPage(acct);
+}
+
+function backToAccountsList(){
+  goToTab('accounts',document.querySelector('[data-tab="accounts"]'));
+}
+
+function _renderAccountPage(acct){
+  const page=document.getElementById('p-item');
+  if(!page)return;
+  const stats=_accountStats(acct.id);
+  const items=_accountItems(acct.id);
+  const sold=items.filter(function(i){return i.state==='sold'||!!i.resaleSalePrice;})
+    .sort(function(a,b){
+      const da=(a.resaleSalePrice?a.resaleDateSold:a.dateSold)||'';
+      const db=(b.resaleSalePrice?b.resaleDateSold:b.dateSold)||'';
+      return db.localeCompare(da);
+    });
+  const active=items.filter(function(i){return i.state!=='sold'&&!i.resaleSalePrice&&!i.isReturned;});
+
+  const mc=function(label,val,sub,valCol){
+    return '<div class="kcard"><div class="klabel">'+label+'</div>'
+      +'<div class="kval" style="color:'+(valCol||'var(--text)')+';">'+val+'</div>'
+      +(sub?'<div class="ksub">'+sub+'</div>':'')+'</div>';
+  };
+  const heroHTML='<div class="kgrid kgrid-4" style="margin-bottom:18px;">'
+    +mc('Your share','\u00a3'+stats.yourShare.toFixed(0),stats.soldCount+' sold',stats.yourShare>=0?'var(--green)':'var(--red)')
+    +mc('Owed to partner','\u00a3'+stats.totalOwed.toFixed(0),stats.splitItemCount+' split item'+(stats.splitItemCount!==1?'s':''))
+    +mc('Unsettled','\u00a3'+stats.unsettledOwed.toFixed(0),stats.unsettledOwed>0?'Tap items to settle':'All settled \u2713',stats.unsettledOwed>0?'var(--warn)':'var(--green)')
+    +mc('Active stock',stats.activeCount,'\u00a3'+stats.activeStockValue.toFixed(0)+' at ask')
+  +'</div>';
+
+  const soldRows=sold.length?sold.map(function(i){
+    const owed=_accountItemOwed(i);
+    const profit=calcGrossProfit(i);
+    const dateStr=(i.resaleSalePrice?i.resaleDateSold:i.dateSold)||'';
+    const splitStr=i.accountSplitPercent!=null?(i.accountSplitPercent+'% to partner'):'No split set';
+    const settledBadge=owed!==null?(i.accountSettled
+      ?'<span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:20px;background:rgba(34,197,94,0.15);color:var(--green);">Settled</span>'
+      :'<span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:20px;background:rgba(212,136,10,0.15);color:var(--accent);">Owed</span>')
+      :'';
+    return '<div class="metric-inline clickable" data-itemid="'+i.id+'" data-month="'+i._month+'" onclick="openItemDetail(this.dataset.month,this.dataset.itemid)">'
+      +'<div style="min-width:0;"><div class="metric-k" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(i.item||'Untitled')+'</div>'
+      +'<div style="font-size:11px;color:var(--text-secondary);margin-top:2px;">'+dateStr+' \u00b7 '+splitStr+'</div></div>'
+      +'<div style="text-align:right;flex-shrink:0;">'
+        +'<div class="metric-v" style="font-size:15px;color:'+(profit>=0?'var(--green)':'var(--red)')+';">'+(profit!==null?fmt(profit):'\u2014')+'</div>'
+        +(owed!==null?'<div style="margin-top:3px;display:flex;align-items:center;gap:6px;justify-content:flex-end;"><span style="font-size:11px;color:var(--text-secondary);">owed '+fmt(owed)+'</span>'+settledBadge+'</div>':'')
+      +'</div></div>';
+  }).join('') : '<div style="padding:20px;text-align:center;color:var(--muted);font-size:13px;">No sales yet from this account</div>';
+
+  const activeRows=active.length?active.map(function(i){
+    return '<div class="metric-inline clickable" data-itemid="'+i.id+'" data-month="'+i._month+'" onclick="openItemDetail(this.dataset.month,this.dataset.itemid)">'
+      +'<div style="min-width:0;"><div class="metric-k" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(i.item||'Untitled')+'</div>'
+      +'<div style="font-size:11px;color:var(--text-secondary);margin-top:2px;"><span class="item-badge '+i.state+'" style="font-size:10px;padding:2px 6px;">'+i.state+'</span></div></div>'
+      +'<div class="metric-v" style="font-size:14px;flex-shrink:0;">'+fmt(i.salePrice||0)+'</div></div>';
+  }).join('') : '<div style="padding:20px;text-align:center;color:var(--muted);font-size:13px;">No active stock from this account</div>';
+
+  const unsettledCount=sold.filter(function(i){return _accountItemOwed(i)!==null&&!i.accountSettled;}).length;
+
+  const html='<div style="padding:16px 0 40px;">'
+    +'<button class="btn btn-s" onclick="backToAccountsList()" style="margin-bottom:14px;">\u2190 Accounts</button>'
+    +'<div class="page-header" style="margin-bottom:14px;">'
+      +'<div><div class="page-title">'+esc(acct.name)+'</div>'
+      +(acct.notes?'<div class="page-subtitle" style="font-size:12px;margin-top:4px;">'+esc(acct.notes)+'</div>':'')+'</div>'
+      +'<div style="display:flex;gap:8px;">'
+        +'<button class="btn btn-s" style="font-size:12px;padding:6px 10px;" onclick="openEditAccount(\''+acct.id+'\')">Edit</button>'
+        +'<button class="btn btn-s" style="font-size:12px;padding:6px 10px;" onclick="openBulkAssignAccountModal(\''+acct.id+'\')">+ Add existing</button>'
+      +'</div>'
+    +'</div>'
+    +heroHTML
+    +(unsettledCount>0?'<button class="btn btn-p" style="width:100%;margin-bottom:14px;" onclick="settleAllForAccount(\''+acct.id+'\')">Mark all '+unsettledCount+' unsettled as paid</button>':'')
+    +'<div class="panel-card" style="margin-bottom:14px;"><div class="sl">Sold items</div>'+soldRows+'</div>'
+    +'<div class="panel-card"><div class="sl">Active stock</div>'+activeRows+'</div>'
+  +'</div>';
+  page.innerHTML=html;
+}
+
+function settleAllForAccount(accountId){
+  let n=0;
+  allDBKeys().forEach(function(k){
+    (DB[k]||[]).forEach(function(i){
+      if(i.accountId===accountId&&_accountItemOwed(i)!==null&&!i.accountSettled){
+        i.accountSettled=true; n++;
+      }
+    });
+  });
+  saveDB();
+  toast('Marked '+n+' item'+(n!==1?'s':'')+' as settled');
+  const acct=_accounts.find(function(a){return a.id===accountId;});
+  if(acct&&document.getElementById('p-item')&&document.getElementById('p-item').classList.contains('on')){
+    _renderAccountPage(acct);
+  }
+}
+
+function toggleItemSettled(month,itemId){
+  const item=(DB[month]||[]).find(function(i){return i.id===itemId;});
+  if(!item)return;
+  item.accountSettled=!item.accountSettled;
+  saveDB();
+  const acct=_accounts.find(function(a){return a.id===item.accountId;});
+  if(acct&&document.getElementById('p-item')&&document.getElementById('p-item').classList.contains('on')){
+    _renderAccountPage(acct);
+  }
+}
+
+// ── Account create / edit ────────────────────────────────────────────────
+function openAddAccountModal(){
+  const html=`
+    <div class="fg"><label>Name <span style="color:var(--red);font-weight:600">*</span></label>
+      <input type="text" id="acc-name" placeholder="e.g. Dave (boot sale partner)" autocomplete="off">
+    </div>
+    <div class="fg"><label>Notes</label>
+      <textarea id="acc-notes" rows="3" style="width:100%;resize:vertical;" placeholder="Arrangement details, contact info…"></textarea>
+    </div>
+    <button class="btn btn-p" style="width:100%;margin-top:6px" onclick="submitAddAccount()">Add account</button>`;
+  openPanel('New account', html);
+  setTimeout(function(){const n=document.getElementById('acc-name');if(n)n.focus();},80);
+}
+function submitAddAccount(){
+  const name=(document.getElementById('acc-name').value||'').trim();
+  if(!name){toast('Name required','error');return;}
+  const acct={
+    id:'acct_'+Date.now()+'_'+Math.random().toString(36).slice(2,9),
+    name:name,
+    notes:(document.getElementById('acc-notes').value||'').trim()||null
+  };
+  _accounts.push(acct);
+  saveDB();
+  closePanel();
+  toast('Account added');
+  if(document.getElementById('p-accounts')&&document.getElementById('p-accounts').classList.contains('on')) renderAccountsPage();
+}
+function openEditAccount(accountId){
+  const acct=_accounts.find(function(a){return a.id===accountId;});
+  if(!acct)return;
+  const html=`
+    <div class="fg"><label>Name <span style="color:var(--red);font-weight:600">*</span></label>
+      <input type="text" id="acc-name" value="${esc(acct.name||'')}" autocomplete="off">
+    </div>
+    <div class="fg"><label>Notes</label>
+      <textarea id="acc-notes" rows="3" style="width:100%;resize:vertical;">${esc(acct.notes||'')}</textarea>
+    </div>
+    <button class="btn btn-p" style="width:100%;margin-top:6px" onclick="submitEditAccount('${acct.id}')">Save</button>
+    <button class="btn btn-s" style="width:100%;margin-top:8px;color:var(--red);" onclick="deleteAccount('${acct.id}')">Delete account</button>`;
+  openPanel('Edit account', html);
+  setTimeout(function(){const n=document.getElementById('acc-name');if(n)n.focus();},80);
+}
+function submitEditAccount(accountId){
+  const acct=_accounts.find(function(a){return a.id===accountId;});
+  if(!acct)return;
+  const name=(document.getElementById('acc-name').value||'').trim();
+  if(!name){toast('Name required','error');return;}
+  acct.name=name;
+  acct.notes=(document.getElementById('acc-notes').value||'').trim()||null;
+  saveDB();
+  closePanel();
+  toast('Account updated');
+  const _curPage=document.querySelector('.page.on');
+  if(_curPage&&_curPage.id==='p-item'){
+    _renderAccountPage(acct);
+  }else if(_curPage&&_curPage.id==='p-accounts'){
+    renderAccountsPage();
+  }
+}
+function deleteAccount(accountId){
+  const acct=_accounts.find(function(a){return a.id===accountId;});
+  if(!acct)return;
+  showConfirm(
+    'Delete "'+acct.name+'"?',
+    'Items tagged to this account will be un-tagged but not deleted.',
+    {icon:'delete',okLabel:'Delete account'}
+  ).then(function(ok){
+    if(!ok)return;
+    allDBKeys().forEach(function(k){
+      (DB[k]||[]).forEach(function(i){
+        if(i.accountId===accountId){ i.accountId=null; i.accountSplitPercent=null; i.accountSettled=false; }
+      });
+    });
+    _accounts=_accounts.filter(function(a){return a.id!==accountId;});
+    saveDB();
+    closePanel();
+    toast('Account deleted');
+    goToTab('accounts',document.querySelector('[data-tab="accounts"]'));
+  });
+}
+
+// ── Bulk-assign existing items to an account (with per-item split %) ──────
+// Mirrors the Runs bulk-assign modal, including the E31 fix: _baAcctRender
+// targets its container by a stable id looked up fresh on every call, never
+// via a temporary id-swap/rename trick.
+function openBulkAssignAccountModal(accountId){
+  const acct=_accounts.find(function(a){return a.id===accountId;});
+  if(!acct)return;
+  let _baAcctSearch='';
+  let _baAcctSelected=new Set();
+  let _baAcctSplits={}; // itemId -> split % (string, as typed)
+
+  const _baAcctItems=function(){
+    let all=[];
+    allDBKeys().forEach(function(k){
+      (DB[k]||[]).forEach(function(i){
+        if((i.item||'').trim().toUpperCase()==='MONTH END')return;
+        if(i.accountId===accountId)return; // already tagged — hide from picker
+        all.push(Object.assign({},i,{_month:k}));
+      });
+    });
+    if(_baAcctSearch){
+      const q=_baAcctSearch.toLowerCase();
+      all=all.filter(function(i){return (i.item||'').toLowerCase().includes(q);});
+    }
+    // Most recently sourced/listed first
+    all.sort(function(a,b){return (b.dateSourced||b.dateListed||'').localeCompare(a.dateSourced||a.dateListed||'');});
+    return all.slice(0,100); // cap render for performance
+  };
+
+  const _baAcctRender=function(){
+    const items=_baAcctItems();
+    const selCount=_baAcctSelected.size;
+    let html='<div style="margin-bottom:10px;">'
+      +'<input type="text" id="ba-acct-search" value="'+esc(_baAcctSearch)+'" placeholder="Search items\u2026" style="width:100%;padding:7px 10px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);font-size:12px;color:var(--text);" oninput="_baAcctSearchChange(this.value)">'
+      +'</div>';
+    if(items.length===0){
+      html+='<div style="padding:20px;text-align:center;color:var(--muted);font-size:13px;">No items match</div>';
+    } else {
+      html+='<div style="font-size:11px;color:var(--muted);margin-bottom:8px;">Set a split % per item (optional \u2014 leave blank to just tag it)</div>';
+      html+='<div data-ba-acct-list style="background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden;max-height:340px;overflow-y:auto;">';
+      items.forEach(function(i,idx){
+        const checked=_baAcctSelected.has(i.id);
+        const splitVal=_baAcctSplits[i.id]!=null?_baAcctSplits[i.id]:'';
+        html+='<div style="display:flex;align-items:center;gap:10px;padding:10px 14px;'+(idx>0?'border-top:1px solid var(--border)':'')+';">'
+          +'<input type="checkbox" '+(checked?'checked ':'')+' onchange="_baAcctToggle(\''+i.id+'\',this.checked)" style="width:16px;height:16px;flex-shrink:0;">'
+          +'<div style="flex:1;min-width:0;"><div style="font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(i.item||'Untitled')+'</div>'
+          +'<div style="font-size:11px;color:var(--text-secondary);"><span class="item-badge '+i.state+'" style="font-size:10px;padding:2px 6px;margin-right:4px;">'+i.state+'</span>\u00a3'+(i.costPrice||0).toFixed(2)+'</div></div>'
+          +'<input type="number" min="0" max="100" placeholder="%" value="'+esc(splitVal)+'" style="width:56px;padding:6px 8px;border:1px solid var(--border);border-radius:6px;background:var(--surface2);font-size:12px;text-align:center;" oninput="_baAcctSplitChange(\''+i.id+'\',this.value)">'
+        +'</div>';
+      });
+      html+='</div>';
+    }
+    html+='<div style="display:flex;align-items:center;justify-content:space-between;margin-top:12px;gap:8px;">'
+      +'<div style="font-size:13px;color:var(--text-secondary);">'+selCount+' selected</div>'
+      +'<div style="display:flex;gap:8px;">'
+        +'<button class="btn btn-s" onclick="closePanel()">Cancel</button>'
+        +'<button class="btn btn-p" style="'+(selCount===0?'opacity:0.5;pointer-events:none;':'')+'" onclick="_baAcctConfirm()">Add '+selCount+' item'+(selCount!==1?'s':'')+'</button>'
+      +'</div>'
+    +'</div>';
+    // E31 pattern — target the container directly by its real, stable id;
+    // never via a temporary rename trick (see E31 fix notes on the Runs
+    // bulk-assign modal for why that approach silently breaks re-renders).
+    const wrap=document.getElementById('ba-acct-wrap');
+    if(wrap){
+      const listEl=wrap.querySelector('[data-ba-acct-list]');
+      const prevScroll=listEl?listEl.scrollTop:0;
+      wrap.innerHTML=html;
+      const newList=wrap.querySelector('[data-ba-acct-list]');
+      if(newList&&prevScroll)newList.scrollTop=prevScroll;
+    }
+  };
+
+  window._baAcctSearchChange=function(v){ _baAcctSearch=v; _baAcctRender(); };
+  window._baAcctToggle=function(id,checked){ if(checked)_baAcctSelected.add(id); else _baAcctSelected.delete(id); _baAcctRender(); };
+  window._baAcctSplitChange=function(id,v){ _baAcctSplits[id]=v; }; // no re-render needed — just stores as-typed
+  window._baAcctConfirm=function(){
+    if(_baAcctSelected.size===0)return;
+    let count=0;
+    _baAcctSelected.forEach(function(id){
+      let found=null;
+      allDBKeys().forEach(function(k){const x=(DB[k]||[]).find(y=>y.id===id);if(x)found=x;});
+      if(!found)return;
+      found.accountId=accountId;
+      const splitRaw=_baAcctSplits[id];
+      const splitNum=splitRaw!=null&&splitRaw!==''?Math.max(0,Math.min(100,parseFloat(splitRaw)||0)):null;
+      found.accountSplitPercent=splitNum;
+      found.accountSettled=false;
+      count++;
+    });
+    saveDB();
+    closePanel();
+    toast('Added '+count+' item'+(count!==1?'s':'')+' to '+acct.name);
+    if(document.getElementById('p-item')&&document.getElementById('p-item').classList.contains('on')){
+      _renderAccountPage(acct);
+    }
+  };
+
+  const outerHtml='<div id="ba-acct-wrap"></div>';
+  openPanel('Add existing to \u201c'+esc(acct.name)+'\u201d', outerHtml);
+  setTimeout(function(){ _baAcctRender(); },40);
+}
+
+// ── Accounts list page ─────────────────────────────────────────────────────
+function renderAccountsPage(){
+  const page=document.getElementById('p-accounts');
+  if(!page)return;
+
+  const hasAccounts=_accounts.length>0;
+
+  const emptyHTML=
+    '<div style="text-align:center;padding:48px 24px;color:var(--text-secondary)">'
+      +'<div style="font-size:15px;font-weight:600;color:var(--text);margin-bottom:6px">No accounts yet</div>'
+      +'<div style="font-size:13px;line-height:1.6;max-width:320px;margin:0 auto 18px">Track stock from sourcing partners or vendors \u2014 see their lifetime performance and what you owe them, all in one place.</div>'
+      +'<button class="btn btn-p" style="gap:6px;padding:10px 18px;font-size:13px" onclick="openAddAccountModal()">'
+        +'<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>'
+        +'Add your first account</button>'
+    +'</div>';
+
+  let listHTML='';
+  if(hasAccounts){
+    // Sort: any account with unsettled money owed first (most owed first),
+    // then alphabetically — surfaces what needs attention without a manual sort control.
+    const withStats=_accounts.map(function(a){return {acct:a,stats:_accountStats(a.id)};});
+    withStats.sort(function(a,b){
+      if(a.stats.unsettledOwed!==b.stats.unsettledOwed)return b.stats.unsettledOwed-a.stats.unsettledOwed;
+      return (a.acct.name||'').localeCompare(b.acct.name||'');
+    });
+    listHTML=withStats.map(function(w){
+      const a=w.acct,s=w.stats;
+      const owedStr=s.unsettledOwed>0?'<span style="color:var(--accent);font-weight:700;">'+fmt(s.unsettledOwed)+' owed</span>':'<span style="color:var(--green);">Settled up</span>';
+      return '<div class="run-history-row" data-acctid="'+a.id+'" onclick="openAccountPage(this.dataset.acctid)">'
+        +'<div class="rh-body">'
+          +'<div class="rh-name">'+esc(a.name)+'</div>'
+          +'<div class="rh-meta rh-meta-full">'+s.itemCount+' item'+(s.itemCount!==1?'s':'')+' \u00b7 '+s.activeCount+' active \u00b7 '+owedStr+'</div>'
+          +'<div class="rh-meta rh-meta-compact">'+s.itemCount+' items \u00b7 '+owedStr+'</div>'
+        +'</div>'
+        +'<span class="rh-profit" style="color:'+(s.yourShare>=0?'var(--green)':'var(--red)')+';">'+fmt(s.yourShare)+'</span>'
+        +'<svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M6 4l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>'
+      +'</div>';
+    }).join('');
+
+    // Summary strip — total owed across all accounts is the one number worth
+    // surfacing at a glance, since it's money that's left your business but
+    // isn't yet officially settled.
+    const totalUnsettled=withStats.reduce(function(s,w){return s+w.stats.unsettledOwed;},0);
+    const totalYourShare=withStats.reduce(function(s,w){return s+w.stats.yourShare;},0);
+    if(totalUnsettled>0){
+      listHTML='<div class="panel-card" style="margin-bottom:14px;background:rgba(212,136,10,0.06);border-color:rgba(212,136,10,0.25);">'
+        +'<div style="display:flex;align-items:center;justify-content:space-between;">'
+          +'<div><div style="font-size:12px;color:var(--text-secondary);font-weight:600;">Total owed across all accounts</div>'
+          +'<div style="font-size:20px;font-weight:800;color:var(--accent);margin-top:2px;">'+fmt(totalUnsettled)+'</div></div>'
+        +'</div></div>'
+        +listHTML;
+    }
+  }
+
+  const html=
+    '<div class="page-header" style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;">'
+      +'<div><div class="page-title">Accounts</div>'
+      +'<div class="page-subtitle" style="font-size:12px;margin-top:2px;">Partners &amp; vendors \u2014 stock, profit split &amp; settlement.</div></div>'
+      +(hasAccounts?'<button class="btn btn-p" style="gap:6px;padding:9px 14px;font-size:13px;white-space:nowrap;" onclick="openAddAccountModal()">'
+        +'<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>'
+        +'<span class="btn-label-hide-xs">Add account</span></button>':'')
+    +'</div>'
+    +(hasAccounts?listHTML:emptyHTML);
+
+  page.innerHTML=html;
+}
+
 function openRunPageFromRuns(runId){
   const run=_sourcingRuns.find(function(r){return r.id===runId;});
   if(!run){toast('Run not found','error');return;}
@@ -7490,7 +8174,21 @@ function openBulkAssignModal(runId){
       +'</div>'
     +'</div>';
 
-    const wrap=document.getElementById('ba-modal-wrap');
+    // E31 fix — _baRender always targets #ba-items-inner directly. This is
+    // the items tab's real, permanent container (written once per tab-switch
+    // by _baRenderTabs at line ~7602). The old code instead looked up
+    // '#ba-modal-wrap' and relied on _baRenderTabs temporarily renaming
+    // #ba-items-inner to that id before calling _baRender, then renaming it
+    // back. That worked for the very FIRST paint only: _baRender's own
+    // wrap.innerHTML=html call replaced #ba-modal-wrap's children (the outer
+    // panel container, found via getElementById since the rename target and
+    // the outer wrap shared an id at that moment) — destroying the original
+    // #ba-items-inner node the rename-back line still pointed at, leaving it
+    // orphaned. Every later call from a checkbox tick, search, filter change,
+    // or select-all then found no '#ba-modal-wrap' inner target and silently
+    // no-opped: _baSelected kept updating correctly, but the screen — and the
+    // Add button's label/enabled-state — froze on the first paint forever.
+    const wrap=document.getElementById('ba-items-inner');
     if(wrap){
       // Preserve scroll position of the items list
       const listEl=wrap.querySelector('[data-ba-list]');
@@ -7649,10 +8347,11 @@ function openBulkAssignModal(runId){
     const applyExpBtn=wrap.querySelector('.ba-apply-exp');
     if(applyExpBtn) applyExpBtn.addEventListener('click',function(){ window._baApplyExp(rId); });
 
-    // For items tab, delegate to _baRender
+    // For items tab, delegate to _baRender — it targets #ba-items-inner
+    // directly now (see E31 fix note above _baRender's wrap lookup), so no
+    // id-swap is needed here.
     if(tab==='items'){
-      const itemsDiv=wrap.querySelector('#ba-items-inner');
-      if(itemsDiv){ itemsDiv.id='ba-modal-wrap'; _baRender(); itemsDiv.id='ba-items-inner'; }
+      _baRender();
     }
   };
 
@@ -8663,20 +9362,59 @@ function updateBPFPreview(){
 function autoCategory(name){
   if(!name)return'Other';
   const n=name.toLowerCase();
+  // ORDER MATTERS. More specific / higher-value banded subcategories are checked
+  // FIRST so they win over their general parent (e.g. a laptop must resolve to the
+  // 6.9% banded 'Laptops, Desktops & Tablets', not general 9.9% 'Computers & Tablets').
   const rules=[
-    ['Cameras & Photography',['camera','canon','nikon','fuji','olympus','pentax','dslr','mirrorless','lens','flash unit','tripod','gopro','dashcam','550d','600d','700d','1300d','astro mod','kit and lens']],
-    ['Video Games & Consoles',['ps1','ps2','ps3','ps4','ps5','playstation','xbox','xbox 360','xbox one','xbox series','nintendo','switch console','nintendo switch','wii','gamecube','game boy','gameboy','nintendo ds','3ds','sega','megadrive','mega drive','dreamcast','console','games console','gaming console']],
-    ['Audio & Music',['headphones','earphones','earbuds','speaker','amplifier','receiver','hi-fi','hifi','walkman','docking station','docking speaker','dock','stereo','turntable','vinyl player','soundbar','subwoofer','microphone','musical instrument','piano','guitar','bass','drum','yamaha','roland','casio','korg','singing machine','karaoke','geermac','amplidect','landline phone','bt4600','big button phone','cordless phone','azatom','sony wh','sony xm','wh-1','xm3','xm4','xm5','bose','jbl','marshall','denon','pioneer','onkyo','psr-','psr ']],
-    ['Electronics & Tech',['laptop','macbook','pc ','computer','monitor','gpu','graphics card','processor','cpu','ram','ssd','hard drive','router','netgear','switch','hub','raspberry','arduino','tablet','ipad','kindle','printer','scanner','webcam','iphone','samsung','nokia','motorola','motorolla','blackberry','htc','huawei','pixel','oneplus','android','smartphone','ericsson','siemens','smartwatch','fitbit','garmin','apple watch','geforce','radeon','gtx','rtx','nvidia','amd','intel','asus','msi','gigabyte','corsair','logitech','razer','steelseries','nest','echo','alexa','smart home','thermostat','cctv','security camera','wifi','bluetooth','usb hub','hdmi','charger','power bank','acer','dell','lenovo','toshiba','surface','chromebook','joystick','gamepad','controller','vr headset','oculus','magic keyboard','magic trackpad','apple magic','keyboard 1314','keyboard 1255','keyboard 1655','saitek','smarter','fridgecam','remote control adaptor','tv ','television','projector','salus','wireless thermostat','grand turismo','gran turismo']],
-    ['Books & Media',['book','novel','paperback','hardback','hardcover','comic','manga','graphic novel','magazine','dvd','blu-ray','blu ray','vhs','cassette','vinyl','record','cd ','audiobook','box set','trilogy','collection','encyclopedia','dictionary','textbook','manual','guide','biography','cookbook','star wars','lord of the rings','lotr','harry potter','band of brothers','game of thrones','george rr martin','dk illustrated','power rangers','season 1','complete series']],
-    ['Health & Beauty',['makeup','make-up','cosmetic','perfume','aftershave','fragrance','skincare','moisturiser','serum','shampoo','conditioner','hair dryer','hairdryer','straighteners','ghd','clippers','shaver','electric toothbrush','oral-b','razor','beauty','nail','lipstick','foundation','mascara','vitamins','supplement','wig','hair extension']],
-    ['Sporting Goods',['bike','bicycle','cycle','dumbbell','weights','kettlebell','treadmill','exercise','fitness','gym','yoga','football','rugby','cricket','tennis','golf club','golf','fishing','rod','reel','tackle','ski','snowboard','skateboard','scooter','helmet','boxing','darts','dartboard','camping','tent','sleeping bag','rucksack hiking','wetsuit','surfboard']],
-    ['Jewellery & Watches',['ring','necklace','bracelet','earring','pendant','brooch','jewellery','jewelry','watch','rolex','omega','seiko','citizen','tissot','gold chain','silver chain','diamond','gemstone','sapphire','cufflink']],
-    ['Toys & Games',['lego','playmobil','toy','doll','action figure','board game','puzzle','jigsaw','card game','chess','monopoly','scrabble','jenga','nerf','hot wheels','matchbox','barbie','figurine','soft toy','teddy','plush','baby toy','rc car','train set','meccano','pokemon','warhammer','dice','playset','blocks','building set','mr potato','potato head','saturn v','marble run','game piece']],
-    ['Home & Garden',['sofa','chair','table','shelving','shelf','bookcase','wardrobe','drawer','cabinet','mirror','lamp','light','bulb','curtain','blind','rug','carpet','cushion','pillow','duvet','bedding','towel','cookware','pan','pot','kettle','toaster','microwave','blender','mixer','juicer','coffee','cutlery','crockery','plates','mugs','glasses','storage','bin','basket','garden','plant','hose','lawnmower','spade','rake','drill','saw','hammer','wrench','screwdriver','toolbox','ladder','paint','tile','flooring','shower','tap','toilet','sink','radiator','heater','fan','vacuum','dyson','hoover','mop','broom','cleaning','laundry','iron','sewing','torch','mag-lite','maglite','tyre chains','husky','tool']],
-    ['Sneakers & Trainers',['trainers','sneakers','trainer','running shoes','nike air','jordan','yeezy','air max','air force','adidas ultra','new balance']],
-    ['Clothing & Fashion',['shirt','t-shirt','jumper','hoodie','jacket','coat','trousers','jeans','dress','skirt','suit','tie','scarf','gloves','hat','cap','boots','shoes','sandals','handbag','purse','wallet','belt','socks','underwear','swimwear','sportswear','activewear','shoe care','shoe shine','top shine','backpack','rucksack','bag ']],
-    ['Collectibles & Vintage',['collectible','collectable','antique','vintage','retro','rare','limited edition','signed','memorabilia','stamp','coin','badge','pin','medal','trophy','ornament','vase','pottery','ceramic','china','silver','clock','postcard','poster','print','painting','art','sculpture','model kit','die cast','diecast','miniature']],
+    // ── Banded electronics subcategories (check before general electronics) ──
+    ['Laptops, Desktops & Tablets',['laptop','macbook','notebook','netbook','chromebook','desktop pc','desktop computer','all-in-one','imac','mac mini','mac pro','tower pc','gaming pc','tablet','ipad','galaxy tab','surface pro','surface go','kindle','ebook reader','e-reader','printer','scanner','server','nas ','hard drive','ssd','external drive']],
+    ['TVs, Headphones & HiFi',['television',' tv ','smart tv','oled','qled','4k tv','led tv','plasma tv','soundbar','headphones','earphones','earbuds','airpods','sony wh','sony xm','wh-1','xm3','xm4','xm5','bose','beats','hifi','hi-fi','home cinema','amplifier','av receiver','dvd player','blu-ray player','bluray player','home audio','speaker','subwoofer','turntable']],
+    ['Digital Cameras & Lenses',['dslr','mirrorless','digital camera','camcorder','camera lens','camera body','lens','55-200','18-55','50mm','telephoto','prime lens','zoom lens','gopro','canon eos','nikon d','sony alpha','fujifilm x','olympus om','lumix','550d','600d','700d','1300d','5d mark','60d','70d','80d','90d']],
+    ['Mobile & Smart Phones',['iphone','smartphone','smart phone','galaxy s','galaxy note','galaxy a','pixel phone','google pixel','oneplus','huawei p','xiaomi','redmi','sony xperia','mobile phone','android phone','nokia phone']],
+    // Video game SOFTWARE before consoles: a title with "game"/franchise name is
+    // software (9.9%); bare hardware terms fall through to consoles (6.9% banded).
+    ['Video Games',['ps4 game','ps5 game','xbox game','nintendo game','switch game','wii game','video game','pc game','game disc','steam key','fifa','call of duty','grand theft auto','gta ','mario kart','zelda','pokemon game','gran turismo','grand turismo']],
+    ['Video Game Consoles',['ps1','ps2','ps3','ps4 console','ps5 console','playstation 1','playstation 2','playstation 3','playstation 4','playstation 5','playstation console','xbox 360','xbox one','xbox series','xbox console','nintendo switch','switch console','wii console','wii u','gamecube','game boy','gameboy','nintendo ds','nintendo 3ds','3ds console','sega megadrive','mega drive','dreamcast','games console','gaming console','console bundle','console disc','console digital']],
+    // ── General electronics & media (9.9% parents) ──
+    ['Cameras & Photography',['camera','tripod','flash unit','dashcam','memory card','sd card','camera bag','film camera','instax','polaroid','film photography']],
+    ['Computers & Tablets',['computer','monitor','gaming keyboard','mechanical keyboard','wireless keyboard','usb keyboard','mouse','gpu','graphics card','processor','cpu','ram ','motherboard','router','netgear','webcam','usb hub','docking station','raspberry pi','arduino','geforce','radeon','gtx','rtx','nvidia','corsair','logitech','razer']],
+    ['Mobile Phones & Accessories',['phone case','phone charger','phone cover','screen protector','power bank','phone holder','sim ','phone cable']],
+    ['Sound & Vision',['walkman','stereo','radio','dab radio','microphone','karaoke','singing machine','mp3 player','ipod']],
+    ['Music (CDs & Vinyl)',['vinyl','vinyl record','lp record','cd album','music cd','cassette tape','box set cd']],
+    ['Films & TV',['dvd','blu-ray','blu ray','vhs','box set','complete series','season 1','season 2','complete collection','tv series','boxset']],
+    ['Books, Comics & Magazines',['novel','paperback','hardback','hardcover','comic','manga','graphic novel','magazine','annual','textbook','encyclopedia','dictionary','biography','cookbook','audiobook','book set','childrens book','story book','book bundle','book collection']],
+    // ── Fashion (Trainers + Bags before general clothing) ──
+    ['Trainers',['trainers','sneakers','running shoes','nike air','jordan','yeezy','air max','air force','adidas ultra','new balance','dunk low','dunk high']],
+    ["Women's Bags & Handbags",['handbag','shoulder bag','tote bag','clutch bag','designer bag','michael kors bag','coach bag','radley','ladies bag','ladies handbag']],
+    ['Clothes, Shoes & Accessories',['shirt','t-shirt','jumper','hoodie','jacket','coat','trousers','jeans','dress','skirt','suit','tie','scarf','gloves','hat','cap','boots','shoes','sandals','heels','belt','socks','underwear','swimwear','sportswear','activewear','wallet','purse','backpack','rucksack']],
+    // ── Jewellery & Watches (Watches before general Jewellery) ──
+    ['Watches',['wristwatch','wrist watch','rolex','omega watch','seiko watch','citizen watch','tissot','casio watch','g-shock','smartwatch','apple watch','garmin watch','fitbit','watch strap']],
+    ['Jewellery & Watches',['ring','necklace','bracelet','earring','pendant','brooch','jewellery','jewelry','gold chain','silver chain','diamond','gemstone','sapphire','cufflink']],
+    // ── Vehicle parts ──
+    ['Vehicle Parts & Accessories',['car part','alloy wheel','tyre','car battery','brake pad','wing mirror','headlight','car stereo','dash cam','sat nav','tow bar','roof rack','number plate','bumper','exhaust','spark plug']],
+    // ── 10.9% categories ──
+    ['Musical Instruments',['guitar','bass guitar','electric guitar','acoustic guitar','piano','keyboard piano','electronic keyboard','music keyboard','digital piano','drum kit','drums','violin','cello','flute','clarinet','trumpet','saxophone','ukulele','yamaha psr','psr-','roland','korg','casio keyboard','casio ctk','dj controller','synthesizer','amp head','midi keyboard']],
+    ['Health & Beauty',['makeup','make-up','cosmetic','perfume','aftershave','fragrance','skincare','moisturiser','serum','shampoo','conditioner','hair dryer','hairdryer','straighteners','ghd','clippers','shaver','electric toothbrush','oral-b','razor','lipstick','foundation','mascara','vitamins','supplement','wig','hair extension']],
+    ['Sporting Goods',['bike','bicycle','dumbbell','weights','kettlebell','treadmill','exercise bike','fitness','gym ','yoga','football','rugby','cricket bat','tennis racket','golf club','golf','fishing rod','reel','tackle','ski','snowboard','skateboard','helmet','boxing','darts','dartboard','camping','tent','sleeping bag','wetsuit','surfboard']],
+    ['Garden & Patio',['lawnmower','garden','plant pot','planter','hose','strimmer','hedge trimmer','patio','bbq','barbecue','garden furniture','parasol','greenhouse','compost','wheelbarrow','shed']],
+    ['Baby',['pram','pushchair','buggy','stroller','baby carrier','cot ','baby monitor','high chair','car seat','nappy','baby bottle','ster1liser','baby clothes','moses basket']],
+    ['Toys & Games',['lego','playmobil','toy','doll','action figure','board game','puzzle','jigsaw','card game','chess','monopoly','scrabble','jenga','nerf','hot wheels','matchbox','barbie','figurine','soft toy','teddy','plush','train set','meccano','warhammer','dice','playset','building blocks','marble run']],
+    ['Dolls & Bears',['teddy bear','collectible doll','porcelain doll','steiff','sindy','bear collection']],
+    ['Pottery, Ceramics & Glass',['pottery','ceramic','vase','glassware','crystal','porcelain','stoneware','dinner set','tea set','royal doulton','wedgwood']],
+    ['Stamps',['postage stamp','stamp collection','stamp album','first day cover','philatelic']],
+    ['Coins',['coin','coin collection','sovereign','krugerrand','bullion','commemorative coin','old coins','rare coin']],
+    ['Antiques',['antique','victorian','edwardian','georgian','antique furniture']],
+    ['Art',['painting','original art','art print','canvas art','watercolour','oil painting','sculpture','signed print']],
+    ['Sports Memorabilia',['signed shirt','match worn','football programme','sports memorabilia','autographed','signed photo','trading card','panini']],
+    ['Collectables',['collectible','collectable','vintage','retro','rare','limited edition','memorabilia','badge','medal','trophy','ornament','postcard','model kit','die cast','diecast','figurine','commemorative']],
+    // ── Home (after garden/pottery so those win) ──
+    ['Home, Furniture & DIY',['sofa','armchair','chair','table','desk','shelving','shelf','bookcase','wardrobe','chest of drawers','cabinet','mirror','lamp','light fitting','curtain','blind','rug','carpet','cushion','duvet','bedding','towel','cookware','frying pan','saucepan','kettle','toaster','microwave','blender','mixer','juicer','coffee machine','cutlery','crockery','dinner plates','storage box','drill','saw','hammer','screwdriver','toolbox','ladder','paint','tile','shower','tap','toilet','sink','radiator','heater','fan ','vacuum','dyson','hoover','mop','iron ','sewing machine','power tool','workshop','appliance']],
+    // ── 12.5% / 12.9% ──
+    ['Business, Office & Industrial',['industrial','catering equipment','commercial','office desk','shop fitting','warehouse','test equipment','3d printer','cnc','workbench']],
+    ['Pet Supplies',['pet ','dog ','cat ','aquarium','fish tank','dog bed','cat tree','pet carrier','dog crate','bird cage','reptile','vivarium','hamster','rabbit hutch']],
+    ['Crafts',['craft','knitting','crochet','wool ','fabric','sewing pattern','scrapbook','beads','cross stitch','embroidery','card making']],
+    ['Event Tickets',['concert ticket','event ticket','gig ticket','festival ticket','match ticket']],
+    ['Wholesale & Job Lots',['job lot','wholesale','bulk lot','bundle lot','joblot','clearance lot']],
   ];
   for(const[cat,kws]of rules){if(kws.some(k=>n.includes(k)))return cat;}
   return'Other';
@@ -12056,11 +12794,27 @@ function saveTripEdit(idx){
     expenses:_readTripExtras(),
     sourcingRunId:(document.getElementById('trip-run-id')?.value)||trips[idx].sourcingRunId||null
   };
-  DB.trips=trips;saveDB();closePanel();toast('Trip updated');renderExpenses();
+  // E34 — capture BEFORE closePanel(), which resets this as a safety net for
+  // the cancel-without-saving case. Reading it after closePanel() would
+  // always see null here, silently breaking the save-path redirect too.
+  const _overheadReturnId=_runOverheadReturnId;
+  DB.trips=trips;saveDB();closePanel();toast('Trip updated');
+  // E34 — refresh whichever page this edit was actually opened from.
+  if(_overheadReturnId){
+    const _r=_sourcingRuns.find(function(r){return r.id===_overheadReturnId;});
+    if(_r&&document.getElementById('p-item')&&document.getElementById('p-item').classList.contains('on')){ _renderRunPage(_r); return; }
+  }
+  renderExpenses();
 }
 async function deleteTrip(idx){
   if(!await showConfirm('Delete this trip?','This sourcing trip will be permanently removed.'))return;
-  (DB.trips=DB.trips||[]).splice(idx,1);saveDB();toast('Trip deleted');renderExpenses();
+  const _overheadReturnId=_runOverheadReturnId; // capture before any fn that could reset it
+  (DB.trips=DB.trips||[]).splice(idx,1);saveDB();toast('Trip deleted');
+  if(_overheadReturnId){
+    const _r=_sourcingRuns.find(function(r){return r.id===_overheadReturnId;});
+    if(_r&&document.getElementById('p-item')&&document.getElementById('p-item').classList.contains('on')){ _renderRunPage(_r); return; }
+  }
+  renderExpenses();
 }
 
 // BUG-07: Trip cost breakdown panel — opened by tapping a trip row.
@@ -12162,11 +12916,23 @@ function saveExpenseEdit(idx){
   }
   const existingId = expenses[idx].id || ('exp_'+Date.now());
   expenses[idx]={id:existingId,date:document.getElementById('exp-date').value,description:desc,category:document.getElementById('exp-cat').value,amount:amt,sourcingRunId:(document.getElementById('exp-run-id')?.value)||expenses[idx].sourcingRunId||null};
-  DB.expenses=expenses;saveDB();closePanel();toast('Expense updated');renderExpenses();
+  const _overheadReturnId=_runOverheadReturnId; // capture before closePanel resets it
+  DB.expenses=expenses;saveDB();closePanel();toast('Expense updated');
+  if(_overheadReturnId){
+    const _r=_sourcingRuns.find(function(r){return r.id===_overheadReturnId;});
+    if(_r&&document.getElementById('p-item')&&document.getElementById('p-item').classList.contains('on')){ _renderRunPage(_r); return; }
+  }
+  renderExpenses();
 }
 async function deleteExpense(idx){
   if(!await showConfirm('Delete this expense?','This expense will be permanently removed.'))return;
-  (DB.expenses=DB.expenses||[]).splice(idx,1);saveDB();toast('Expense deleted');renderExpenses();
+  const _overheadReturnId=_runOverheadReturnId; // capture before saveDB/toast
+  (DB.expenses=DB.expenses||[]).splice(idx,1);saveDB();toast('Expense deleted');
+  if(_overheadReturnId){
+    const _r=_sourcingRuns.find(function(r){return r.id===_overheadReturnId;});
+    if(_r&&document.getElementById('p-item')&&document.getElementById('p-item').classList.contains('on')){ _renderRunPage(_r); return; }
+  }
+  renderExpenses();
 }
 
 // DATA PAGE
@@ -13410,7 +14176,7 @@ function saveEdit(m,id){
 
 // Patch A — stock-specific edit panel (no salePrice / platform / fees fields).
 function _editStockItem(m,item){
-  const catOpts=['Electronics & Tech','Cameras & Photography','Audio & Music','Books & Media','Toys & Games','Home & Garden','Clothing & Fashion','Sports & Leisure','Collectables','Other'].map(function(c){
+  const catOpts=ITEM_CATEGORIES.map(function(c){
     return '<option value="'+c+'"'+(item.category===c?' selected':'')+'>'+c+'</option>';
   }).join('');
   const html=`
@@ -15314,47 +16080,129 @@ function calcAmazonUKBPF(item,salePrice){
 // Banding is how eBay keeps high-ticket categories competitive — a flat rate
 // would massively over-state fees on expensive items. All rates are the
 // variable FVF only; the formula adds per-order, 0.35% regulatory and 20% VAT.
+// eBay UK Business Final Value Fees — verified against eBay official fee page
+// https://www.ebay.co.uk/help/selling/fees-credits-invoices/fees-business-sellers-activated-managed-payments?id=4809
+// Last checked: Jun 2026. Rate card updated by eBay on 12 February 2026.
+//
+// Formula on every sale (all fees + 20% VAT):
+//   FVF (category rate × total sale incl. postage)
+//   + Regulatory Operating Fee (0.35% of total sale)
+//   + Per-order fee (£0.30 if order ≤£10; £0.40 if >£10; £0.10 in Home/Collectables ≤£10)
+//   All three combined then × 1.20 (20% VAT)
+//
+// BANDED notation: {rate, threshold, above}
+//   rate = FVF% on portion up to threshold
+//   above = FVF% on portion above threshold
+// Each RETRADE category maps to one official eBay category/rate. Where eBay's
+// banded subcategories carry materially different rates (e.g. laptops vs general
+// computing), they are split into their own RETRADE category so the FVF is right.
+// Category names chosen to match how eBay auto-files the typical reseller item.
 const EBAY_BIZ_FVF={
-  'Electronics & Tech':       {rate:0.069, threshold:1000, above:0.03}, // Phones/Laptops/TVs/HiFi banded; general tech ~9.9% but banded is the common reseller case
-  'Cameras & Photography':    0.099,
-  'Audio & Music':            0.099,
-  'Books & Media':            0.099,
-  'Toys & Games':             0.109,
-  'Video Games & Consoles':   {rate:0.069, threshold:400, above:0.02}, // console banding
-  'Home & Garden':            {rate:0.119, threshold:500, above:0.079},
-  'Clothing & Fashion':       0.119,
-  'Sneakers & Trainers':      0.119, // special: flips to flat 7% at item price >= £100 (handled in formula)
-  'Health & Beauty':          0.109,
-  'Sporting Goods':           0.109,
-  'Jewellery & Watches':      {rate:0.149, threshold:1000, above:0.04},
-  'Collectibles & Vintage':   0.109,
-  'Other':                    0.129
+  // ── 9.9% flat (eBay parent rate for these top-level categories) ─────────────
+  'Books, Comics & Magazines': 0.099, // #267
+  'Films & TV':                0.099, // #11232
+  'Music (CDs & Vinyl)':       0.099, // #11233
+  'Cameras & Photography':     0.099, // #625 general (lenses/digital cameras banded below)
+  'Computers & Tablets':       0.099, // #58058 general (laptops/desktops/tablets banded below)
+  'Mobile Phones & Accessories':0.099,// #15032 general (handsets banded below)
+  'Sound & Vision':            0.099, // #293 general (TVs/headphones/hifi banded below)
+  'Video Games':               0.099, // #1249 general — game SOFTWARE (consoles banded below)
+
+  // ── 10.9% flat ──────────────────────────────────────────────────────────────
+  'Antiques':                  0.109, // #20081
+  'Art':                       0.109, // #550
+  'Baby':                      0.109, // #2984
+  'Collectables':              0.109, // #1
+  'Dolls & Bears':             0.109, // #237
+  'Garden & Patio':            0.109, // #159912
+  'Health & Beauty':           0.109, // #26395 general (wigs/vaping banded below)
+  'Musical Instruments':       0.109, // #619
+  'Pottery, Ceramics & Glass': 0.109, // #870
+  'Sporting Goods':            0.109, // #888
+  'Sports Memorabilia':        0.109, // #64482
+  'Stamps':                    0.109, // #260
+  'Toys & Games':              0.109, // #220 general (tents banded below)
+
+  // ── 11.9% flat ────────────────────────────────────────────────────────────
+  'Clothes, Shoes & Accessories':0.119,// #11450 general (bags/trainers handled separately)
+  'Memorials & Funerals':      0.119, // #88739 (Everything Else exception)
+
+  // ── 12.5% flat ──────────────────────────────────────────────────────────────
+  'Business, Office & Industrial':0.125, // #12576
+
+  // ── 12.9% flat ────────────────────────────────────────────────────────────
+  'Crafts':                    0.129, // #14339
+  'Event Tickets':             0.129, // #1305
+  'Pet Supplies':              0.129, // #1281
+  'Wholesale & Job Lots':      0.129, // #40005
+  'Other':                     0.129, // #99 Everything Else / default catch-all
+
+  // ── Banded high-value ───────────────────────────────────────────────────────
+  // Computers banded: Desktops, Laptops, Tablets, Drives, Servers, Printers — 6.9%→3% @£1,000
+  'Laptops, Desktops & Tablets':{rate:0.069, threshold:1000, above:0.03},
+  // Sound & Vision banded: TVs, Headphones, Home Audio & HiFi, DVD/Blu-ray players — 6.9%→3% @£1,000
+  'TVs, Headphones & HiFi':    {rate:0.069, threshold:1000, above:0.03},
+  // Cameras banded: Camcorders, Digital Cameras, Film Photography, Lenses & Filters — 6.9%→3% @£1,000
+  'Digital Cameras & Lenses':  {rate:0.069, threshold:1000, above:0.03},
+  // Mobile & Smart Phones (handsets) — 6.9%→3% @£1,000
+  'Mobile & Smart Phones':     {rate:0.069, threshold:1000, above:0.03},
+  // Video Game Consoles hardware — 6.9%→2% @£400
+  'Video Game Consoles':       {rate:0.069, threshold:400, above:0.02},
+  // Home, Furniture & DIY general — 11.9%→7.9% @£500
+  'Home, Furniture & DIY':     {rate:0.119, threshold:500, above:0.079},
+  // Jewellery & Watches general — 14.9%→4% @£1,000
+  'Jewellery & Watches':       {rate:0.149, threshold:1000, above:0.04},
+  // Watches, Parts & Accessories — 12.9%→3% @£750
+  'Watches':                   {rate:0.129, threshold:750, above:0.03},
+  // Women's Bags & Handbags — 12.9%→7% @£800
+  "Women's Bags & Handbags":   {rate:0.129, threshold:800, above:0.07},
+  // Coins — 10.9%→3% @£450
+  'Coins':                     {rate:0.109, threshold:450, above:0.03},
+  // Vehicle Parts & Accessories general — 9.5%→3% @£750
+  'Vehicle Parts & Accessories':{rate:0.095, threshold:750, above:0.03},
+
+  // ── Trainers: 11.9% general, flips to flat 7% when item price ≥ £100.
+  //    The threshold flip is handled in calcEbayBizBPF, not the rate table.
+  'Trainers':                  0.119,
 };
 
-// eBay Business UK fee formula (verified Feb 2026):
-// FVF: category-rate% on (item + buyer postage)
-// Regulatory Operating Fee: 0.35% of total transaction
-// Per-order fee: £0.40 on orders over £10, £0.30 on orders ≤£10
-// VAT: 20% charged on (FVF + regulatory + per-order) combined
-// All fees on (item price + buyer-paid postage) — salePrice already includes postage.
-// Note: if VAT-registered, you can reclaim the 20% VAT.
-// Banded tiers (6.9%→3% above £1,000 for tech etc.) deferred — flat per-category rate
-// is correct for the vast majority of reseller price points (<£400).
-// salePrice here is the FVF base = item price + buyer-paid postage (combined).
-// itemPriceOnly (optional) is the item price WITHOUT postage — needed only for
-// the Trainers >= £100 threshold, which eBay assesses on item price alone.
+// eBay UK Business FVF formula (verified against official eBay fee page, Jun 2026):
+// FVF (category rate × total sale incl. postage)
+// + Regulatory Operating Fee (0.35% of total sale)
+// + Per-order fee (£0.40 if >£10; £0.30 if ≤£10; £0.10 in Home/Collectables ≤£10)
+// All three combined × 1.20 (20% VAT — reclaimable if VAT-registered)
+// salePrice = item price + buyer-paid postage (FVF base per eBay rules)
+// itemPriceOnly = item price WITHOUT postage (needed for Trainers ≥£100 threshold only)
 function calcEbayBizBPF(salePrice, category, itemPriceOnly){
   if(!salePrice||salePrice<=0)return 0;
-  let spec=EBAY_BIZ_FVF[category];
-  if(spec===undefined&&category){
-    console.warn('[RETRADE] eBay Biz: unknown category "'+category+'" — defaulting to 12.9%');
+  // Backward-compat map: items saved under any earlier category naming scheme
+  // still calculate correctly without requiring a data migration. Maps old
+  // RETRADE category names → current eBay-aligned keys.
+  const _legacyMap={
+    // Pre-Feb-2026 names
+    'Electronics & Tech':       'Laptops, Desktops & Tablets',
+    'Electronics (banded)':     'Laptops, Desktops & Tablets',
+    'Cameras & Photography':    'Cameras & Photography', // unchanged
+    'Audio & Music':            'Sound & Vision',
+    'Books & Media':            'Books, Comics & Magazines',
+    'Video Games & Consoles':   'Video Games',
+    'Clothing & Fashion':       'Clothes, Shoes & Accessories',
+    'Sneakers & Trainers':      'Trainers',
+    'Home & Garden':            'Home, Furniture & DIY',
+    'Collectibles & Vintage':   'Collectables',
+    'Business & Industrial':    'Business, Office & Industrial',
+  };
+  const _cat=_legacyMap[category]||category;
+  let spec=EBAY_BIZ_FVF[_cat];
+  if(spec===undefined&&_cat){
+    console.warn('[RETRADE] eBay Biz: unknown category "'+_cat+'" — defaulting to 12.9%');
     spec=0.129;
   }
   if(spec===undefined)spec=0.129;
 
-  // Sneakers & Trainers special: if the ITEM price (excl. postage) is >= £100,
-  // the WHOLE transaction flips to a flat 7% (no band) — a clean threshold flip.
-  if(category==='Sneakers & Trainers'){
+  // Trainers special: if the ITEM price (excl. postage) is >= £100, the WHOLE
+  // transaction flips to a flat 7% (no band) — a clean threshold flip.
+  if(_cat==='Trainers'){
     const itemPx=(itemPriceOnly!=null)?itemPriceOnly:salePrice;
     spec=(itemPx>=100)?0.07:0.119;
   }
@@ -15372,9 +16220,11 @@ function calcEbayBizBPF(salePrice, category, itemPriceOnly){
   }
 
   const reg=salePrice*0.0035;          // 0.35% regulatory operating fee
-  // Per-order fee: £0.40 over £10, else £0.30 — reduced to £0.10 (orders <=£10)
-  // in Collectables and Home, Furniture & DIY.
-  const lowPerOrderCat=(category==='Collectibles & Vintage'||category==='Home & Garden');
+  // Per-order fee: £0.40 over £10, else £0.30 — reduced to £0.10 (orders ≤£10)
+  // in selected Collectables categories and Home, Furniture & DIY.
+  const lowPerOrderCat=(_cat==='Collectables'||_cat==='Antiques'||_cat==='Art'||
+    _cat==='Coins'||_cat==='Dolls & Bears'||_cat==='Pottery, Ceramics & Glass'||
+    _cat==='Sports Memorabilia'||_cat==='Stamps'||_cat==='Home, Furniture & DIY');
   const perOrder=salePrice>10?0.40:(lowPerOrderCat?0.10:0.30);
   const subtotal=fvf+reg+perOrder;
   return+(subtotal*1.20).toFixed(2);   // 20% VAT on all fees
@@ -15384,9 +16234,22 @@ function calcEbayBizBPF(salePrice, category, itemPriceOnly){
 // for display in the fee label (e.g. "11.9%" or "6.9%→3%" for banded). Pure
 // presentation helper — the real money comes from calcEbayBizBPF.
 function _ebayBizRateLabel(category, salePrice, itemPriceOnly){
-  let spec=EBAY_BIZ_FVF[category];
+  const _legacyMap={
+    'Electronics & Tech':'Laptops, Desktops & Tablets',
+    'Electronics (banded)':'Laptops, Desktops & Tablets',
+    'Audio & Music':'Sound & Vision',
+    'Books & Media':'Books, Comics & Magazines',
+    'Video Games & Consoles':'Video Games',
+    'Clothing & Fashion':'Clothes, Shoes & Accessories',
+    'Sneakers & Trainers':'Trainers',
+    'Home & Garden':'Home, Furniture & DIY',
+    'Collectibles & Vintage':'Collectables',
+    'Business & Industrial':'Business, Office & Industrial',
+  };
+  const _cat=_legacyMap[category]||category;
+  let spec=EBAY_BIZ_FVF[_cat];
   if(spec===undefined)spec=0.129;
-  if(category==='Sneakers & Trainers'){
+  if(_cat==='Trainers'){
     const itemPx=(itemPriceOnly!=null)?itemPriceOnly:(salePrice||0);
     return (itemPx>=100)?'7.0%':'11.9%';
   }
