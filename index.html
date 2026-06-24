@@ -2968,6 +2968,8 @@ let _activeSourcingRun=null;      // convenience pointer: run with status==='act
 // E33 — Accounts (partners/vendors). Unlike Runs (time-boxed sourcing trips),
 // an account is a standing relationship that can span many runs and months.
 let _accounts=[];                 // all accounts loaded from Supabase
+let _acctSelectMode=false;        // selection mode active on account detail page
+let _acctSelected=new Set();      // set of item IDs selected on account detail page
 let MONTHLY_VIEW='grid';          // 'grid' | 'detail'
 let SUMMARY_PERIOD='current_fy';  // summary period filter
 let _sourcedPartsCost=0;          // parts cost carried from sourced item into List Item form (BPF preview)
@@ -7751,7 +7753,108 @@ function openAccountPage(accountId){
 }
 
 function backToAccountsList(){
+  _acctSelectMode=false;
+  _acctSelected.clear();
   goToTab('accounts',document.querySelector('[data-tab="accounts"]'));
+}
+
+// ── Account detail page selection mode ────────────────────────────────────────
+function _acctCurrentAcct(){
+  const page=document.getElementById('p-item');
+  const titleEl=page&&page.querySelector('.page-title');
+  return titleEl?(_accounts.find(function(a){return a.name===titleEl.textContent;})||null):null;
+}
+function _acctToggleSelectMode(){
+  _acctSelectMode=!_acctSelectMode;
+  if(!_acctSelectMode)_acctSelected.clear();
+  const acct=_acctCurrentAcct();
+  if(acct)_renderAccountPage(acct);
+}
+function _acctToggleSelect(id){
+  if(_acctSelected.has(id))_acctSelected.delete(id);
+  else _acctSelected.add(id);
+  const scrollY=window.scrollY;
+  const acct=_acctCurrentAcct();
+  if(acct)_renderAccountPage(acct);
+  window.scrollTo(0,scrollY);
+}
+function _acctSelectAll(){
+  const page=document.getElementById('p-item');
+  if(!page)return;
+  // Collect all items shown (sold + active from the current account)
+  const acct=_acctCurrentAcct();
+  if(!acct)return;
+  _accountItems(acct.id).forEach(function(i){_acctSelected.add(i.id);});
+  _renderAccountPage(acct);
+}
+function _acctClearSelect(){
+  _acctSelected.clear();
+  const acct=_acctCurrentAcct();
+  if(acct)_renderAccountPage(acct);
+}
+function _acctBulkSettle(){
+  if(!_acctSelected.size)return;
+  let n=0;
+  _acctSelected.forEach(function(id){
+    allDBKeys().forEach(function(k){
+      const item=(DB[k]||[]).find(function(i){return i.id===id;});
+      if(item&&_accountItemOwed(item)!==null&&!item.accountSettled){item.accountSettled=true;n++;}
+    });
+  });
+  saveDB();
+  toast('Settled '+n+' item'+(n!==1?'s':''));
+  _acctSelected.clear();
+  _acctSelectMode=false;
+  const acct=_acctCurrentAcct();
+  if(acct)_renderAccountPage(acct);
+}
+function _acctBulkSetSplit(){
+  if(!_acctSelected.size)return;
+  const acct=_acctCurrentAcct();
+  const defPct=acct&&acct.defaultSplitPercent!=null?acct.defaultSplitPercent:'';
+  const count=_acctSelected.size;
+  const html=`
+    <div style="font-size:12px;color:var(--text-secondary);margin-bottom:14px;">${count} item${count!==1?'s':''} selected</div>
+    <div class="fg"><label>Option A \u2014 Partner's profit share (%)</label>
+      <input type="number" id="bulk-split-pct" min="0" max="100" step="0.5" value="${defPct}" placeholder="e.g. 50" autocomplete="off"
+        oninput="document.getElementById('bulk-split-paid').value=''">
+    </div>
+    <div style="text-align:center;font-size:11px;color:var(--muted);margin:6px 0;">\u2014 or \u2014</div>
+    <div class="fg"><label>Option B \u2014 Fixed amount to pay partner (\u00a3)</label>
+      <input type="number" id="bulk-split-paid" min="0" step="0.01" placeholder="e.g. 200" autocomplete="off"
+        oninput="document.getElementById('bulk-split-pct').value=''">
+    </div>
+    <button class="btn btn-p" style="width:100%;margin-top:6px" onclick="_acctBulkSplitConfirm()">Apply to ${count} item${count!==1?'s':''}</button>`;
+  openPanel('Set split \u00b7 '+count+' items', html);
+  setTimeout(function(){const n=document.getElementById('bulk-split-pct');if(n)n.focus();},80);
+}
+function _acctBulkSplitConfirm(){
+  const pctRaw=(document.getElementById('bulk-split-pct').value||'').trim();
+  const paidRaw=(document.getElementById('bulk-split-paid').value||'').trim();
+  if(pctRaw===''&&paidRaw===''){toast('Enter a % or a fixed amount','error');return;}
+  let n=0;
+  _acctSelected.forEach(function(id){
+    allDBKeys().forEach(function(k){
+      const item=(DB[k]||[]).find(function(i){return i.id===id;});
+      if(!item)return;
+      if(paidRaw!==''){
+        item.accountPaidAmount=Math.max(0,parseFloat(paidRaw)||0);
+        item.accountSplitPercent=null;
+      } else {
+        item.accountSplitPercent=Math.max(0,Math.min(100,parseFloat(pctRaw)||0));
+        item.accountPaidAmount=null;
+      }
+      if(item.accountSettled===undefined)item.accountSettled=false;
+      n++;
+    });
+  });
+  saveDB();
+  closePanel();
+  toast('Set split on '+n+' item'+(n!==1?'s':''));
+  _acctSelected.clear();
+  _acctSelectMode=false;
+  const acct=_acctCurrentAcct();
+  if(acct)_renderAccountPage(acct);
 }
 
 function _renderAccountPage(acct){
@@ -7790,6 +7893,21 @@ function _renderAccountPage(acct){
       ?'<span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:20px;background:rgba(34,197,94,0.15);color:var(--green);">Settled</span>'
       :'<span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:20px;background:rgba(212,136,10,0.15);color:var(--accent);">Owed</span>')
       :'';
+    const isSel=_acctSelected.has(i.id);
+    if(_acctSelectMode){
+      return '<div class="metric-inline" style="align-items:center;cursor:pointer;" onclick="_acctToggleSelect(\''+i.id+'\')">'
+        +'<div style="flex-shrink:0;width:20px;height:20px;border-radius:4px;border:1.5px solid '+(isSel?'var(--accent)':'var(--border)')+';background:'+(isSel?'var(--accent)':'transparent')+';display:flex;align-items:center;justify-content:center;margin-right:8px;">'
+        +(isSel?'<svg width="12" height="12" viewBox="0 0 12 12"><path d="M2 6l3 3 5-5" stroke="#000" stroke-width="1.8" stroke-linecap="round" fill="none"/></svg>':'')
+        +'</div>'
+        +'<div style="min-width:0;flex:1;">'
+          +'<div style="font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(i.item||'Untitled')+'</div>'
+          +'<div style="font-size:11px;color:var(--text-secondary);margin-top:1px;">'+dateStr+' \u00b7 '+splitStr+'</div>'
+        +'</div>'
+        +'<div style="text-align:right;flex-shrink:0;margin-left:8px;">'
+          +'<div style="font-size:14px;font-weight:700;color:'+(profit>=0?'var(--green)':'var(--red)')+';">'+(profit!==null?fmt(profit):'\u2014')+'</div>'
+          +(owed!==null?'<div style="font-size:11px;color:var(--text-secondary);">owed '+fmt(owed)+'</div>':'')
+        +'</div></div>';
+    }
     return '<div class="metric-inline" style="align-items:flex-start;">'
       +'<div style="min-width:0;flex:1;">'
         +'<div class="metric-k clickable" data-itemid="'+i.id+'" data-month="'+i._month+'" onclick="openItemDetail(this.dataset.month,this.dataset.itemid)" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(i.item||'Untitled')+'</div>'
@@ -7806,6 +7924,16 @@ function _renderAccountPage(acct){
     const splitStr=i.accountPaidAmount!=null?('Fixed '+fmt(i.accountPaidAmount)+' to partner')
       :(i.accountSplitPercent!=null?(i.accountSplitPercent+'% to partner'):'No split set');
     const hasSplit=(i.accountSplitPercent!=null||i.accountPaidAmount!=null);
+    const isSel=_acctSelected.has(i.id);
+    if(_acctSelectMode){
+      return '<div class="metric-inline" style="align-items:center;cursor:pointer;" onclick="_acctToggleSelect(\''+i.id+'\')">'
+        +'<div style="flex-shrink:0;width:20px;height:20px;border-radius:4px;border:1.5px solid '+(isSel?'var(--accent)':'var(--border)')+';background:'+(isSel?'var(--accent)':'transparent')+';display:flex;align-items:center;justify-content:center;margin-right:8px;">'
+        +(isSel?'<svg width="12" height="12" viewBox="0 0 12 12"><path d="M2 6l3 3 5-5" stroke="#000" stroke-width="1.8" stroke-linecap="round" fill="none"/></svg>':'')
+        +'</div>'
+        +'<div style="min-width:0;flex:1;"><div style="font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(i.item||'Untitled')+'</div>'
+        +'<div style="font-size:11px;color:var(--text-secondary);"><span class="item-badge '+i.state+'" style="font-size:10px;padding:2px 6px;">'+i.state+'</span> \u00b7 '+splitStr+'</div></div>'
+        +'<div class="metric-v" style="font-size:14px;flex-shrink:0;">'+fmt(i.salePrice||0)+'</div></div>';
+    }
     return '<div class="metric-inline" style="align-items:flex-start;">'
       +'<div style="min-width:0;flex:1;">'
         +'<div class="metric-k clickable" data-itemid="'+i.id+'" data-month="'+i._month+'" onclick="openItemDetail(this.dataset.month,this.dataset.itemid)" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(i.item||'Untitled')+'</div>'
@@ -7831,6 +7959,16 @@ function _renderAccountPage(acct){
         +(acct.accountType==='consignment'?' · costPrice auto-set to £0 on assign':'')+'.</div>'
       : '<div style="font-size:12px;color:var(--text-secondary);margin-bottom:12px;">No default split set. Tap <strong style="color:var(--text);">Edit</strong> to set the arrangement.</div>';
 
+  const selBar=_acctSelectMode&&_acctSelected.size>0
+    ? '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:10px 14px;background:var(--surface2);border:1px solid var(--accent);border-radius:10px;margin-bottom:12px;">'
+        +'<span style="font-size:13px;font-weight:700;color:var(--accent);flex:1;">'+_acctSelected.size+' selected</span>'
+        +'<button class="btn btn-s" style="font-size:12px;" onclick="_acctBulkSettle()">Settle selected</button>'
+        +'<button class="btn btn-s" style="font-size:12px;" onclick="_acctBulkSetSplit()">Set split %</button>'
+        +'<button class="btn btn-s" style="font-size:12px;" onclick="_acctSelectAll()">All</button>'
+        +'<button class="btn btn-s" style="font-size:12px;color:var(--text-secondary);" onclick="_acctClearSelect()">Clear</button>'
+      +'</div>'
+    : '';
+
   const html='<div style="padding:16px 0 40px;">'
     +'<button class="btn btn-s" onclick="backToAccountsList()" style="margin-bottom:14px;">\u2190 Accounts</button>'
     +'<div class="page-header" style="margin-bottom:14px;">'
@@ -7839,13 +7977,15 @@ function _renderAccountPage(acct){
       +(acct.notes?'<span style="font-size:12px;color:var(--text-secondary);">'+esc(acct.notes)+'</span>':'')+'</div></div>'
       +'<div style="display:flex;gap:8px;">'
         +'<button class="btn btn-s" style="font-size:12px;padding:6px 10px;" onclick="openEditAccount(\''+acct.id+'\')">Edit</button>'
-        +'<button class="btn btn-s" style="font-size:12px;padding:6px 10px;" onclick="openBulkAssignAccountModal(\''+acct.id+'\')">+ Add existing</button>'
+        +'<button class="btn btn-s" style="font-size:12px;padding:6px 10px;" onclick="openBulkAssignAccountModal(\''+acct.id+'\')">+ Add</button>'
+        +'<button class="btn btn-s" style="font-size:12px;padding:6px 10px;'+(_acctSelectMode?'color:var(--accent);border-color:var(--accent)':'')+'" onclick="_acctToggleSelectMode()">'+(_acctSelectMode?'\u2715 Done':'Select')+'</button>'
       +'</div>'
     +'</div>'
     +defaultLine
     +heroHTML
-    +(hasDefault&&noSplitCount>0?'<button class="btn btn-s" style="width:100%;margin-bottom:10px;" onclick="applyDefaultSplitToAll(\''+acct.id+'\')">Apply '+acct.defaultSplitPercent+'% to '+noSplitCount+' item'+(noSplitCount!==1?'s':'')+' with no split</button>':'')
-    +(unsettledCount>0?'<button class="btn btn-p" style="width:100%;margin-bottom:14px;" onclick="settleAllForAccount(\''+acct.id+'\')">Mark all '+unsettledCount+' unsettled as paid</button>':'')
+    +selBar
+    +(hasDefault&&noSplitCount>0&&!_acctSelectMode?'<button class="btn btn-s" style="width:100%;margin-bottom:10px;" onclick="applyDefaultSplitToAll(\''+acct.id+'\')">Apply '+acct.defaultSplitPercent+'% to '+noSplitCount+' item'+(noSplitCount!==1?'s':'')+' with no split</button>':'')
+    +(unsettledCount>0&&!_acctSelectMode?'<button class="btn btn-p" style="width:100%;margin-bottom:14px;" onclick="settleAllForAccount(\''+acct.id+'\')">Mark all '+unsettledCount+' unsettled as paid</button>':'')
     +'<div class="panel-card" style="margin-bottom:14px;"><div class="sl">Sold items</div>'+soldRows+'</div>'
     +'<div class="panel-card"><div class="sl">Active stock</div>'+activeRows+'</div>'
   +'</div>';
@@ -11112,6 +11252,8 @@ function setMonthSort(s){MONTH_SORT=s;renderMonth();}
 function downloadAnnualStatement(fyStart){
   const keys=_fyKeys(fyStart);
   const label=_getFYLabel(fyStart);
+
+  // Monthly summary section
   const rows=[['Month','Revenue (£)','Costs (£)','Gross Profit (£)','Items Sold','Returns','Avg ROI %','Avg Margin %']];
   let totRev=0,totCost=0,totProfit=0,totSold=0,totRet=0,roiSum=0,roiCount=0,marginSum=0,marginCount=0;
   keys.forEach(function(k){
@@ -11130,6 +11272,34 @@ function downloadAnnualStatement(fyStart){
   rows.push([]);
   rows.push(['TOTAL FY '+label,totRev.toFixed(2),totCost.toFixed(2),totProfit.toFixed(2),
     totSold,totRet,roiCount>0?(roiSum/roiCount).toFixed(1):'',marginCount>0?(marginSum/marginCount).toFixed(1):'']);
+
+  // Expenses & mileage section for the full FY
+  const fyFrom=fyStart+'-04-06', fyTo=(fyStart+1)+'-04-05';
+  const inFY=function(dateStr){return dateStr&&dateStr>=fyFrom&&dateStr<=fyTo;};
+  const fyTrips=(DB.trips||[]).filter(function(t){return inFY(t.date);});
+  const fyExps=(DB.expenses||[]).filter(function(e){return inFY(e.date);});
+
+  if(fyTrips.length||fyExps.length){
+    rows.push([]);
+    rows.push(['EXPENSES & MILEAGE — FY '+label]);
+    rows.push(['Date','Description','Category','Amount (£)','Miles','HMRC Rate','Mileage Cost (£)','Total (£)']);
+    let expTotal=0;
+    fyTrips.forEach(function(t){
+      const miles=t.mileage||0, rate=t.ratePerMile||0.45;
+      const mileageCost=+(miles*rate).toFixed(2);
+      const extraExps=(Array.isArray(t.expenses)?t.expenses:[]).reduce(function(s,e){return s+(e.amount||0);},0);
+      const total=+(mileageCost+extraExps).toFixed(2);
+      expTotal+=total;
+      rows.push([t.date||'',(t.description||'Sourcing trip').replace(/,/g,' '),'Mileage','',miles,(t.ratePerMile||0.45).toFixed(2),mileageCost.toFixed(2),total.toFixed(2)]);
+    });
+    fyExps.forEach(function(e){
+      const amt=e.amount||0; expTotal+=amt;
+      rows.push([e.date||'',(e.description||'Expense').replace(/,/g,' '),e.category||'',amt.toFixed(2),'','','',amt.toFixed(2)]);
+    });
+    rows.push([]);
+    rows.push(['EXPENSE TOTAL','','','','','','',expTotal.toFixed(2)]);
+  }
+
   const csv=rows.map(function(r){return r.map(function(c){const s=String(c==null?'':c);return(s.includes(',')||s.includes('"'))?'"'+s.replace(/"/g,'""')+'"':s;}).join(',');}).join('\n');
   const blob=new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8'});
   const a=document.createElement('a');a.href=URL.createObjectURL(blob);
@@ -11241,11 +11411,12 @@ function _writeExcel(rows,sheetName,filename,opts){
 function downloadMonthlyExcel(m){
   const events=getSaleEventsInMonth(m);
   if(!events.length){toast('No sales in '+m,'error');return;}
-  const rows=[['Date','Item','GID','Platform','Sale Price','Postage Received','Net Profit','ROI %','Margin %','Status']];
+
+  const salesRows=[['Date','Item','GID','Platform','Sale Price','Postage Received','Net Profit','ROI %','Margin %','Status']];
   events.forEach(function(ev){
     const i=ev.item;
     const pl=(PLATFORMS[_itemPlatform(i)]&&PLATFORMS[_itemPlatform(i)].short)||_itemPlatform(i);
-    rows.push([ev.saleDate||'',i.item||'',i.gid||'',pl,
+    salesRows.push([ev.saleDate||'',i.item||'',i.gid||'',pl,
       ev.salePrice||0,i.postage||0,
       ev.profit!=null?Number(ev.profit):0,
       ev.roi!=null?Number(ev.roi.toFixed(1)):0,
@@ -11254,15 +11425,65 @@ function downloadMonthlyExcel(m){
   });
   const totProfit=events.reduce(function(s,e){return s+(e.profit||0);},0);
   const totRev=events.filter(function(e){return!e.isReturned;}).reduce(function(s,e){return s+(e.salePrice||0);},0);
-  rows.push([]);
-  rows.push(['TOTALS','','','',totRev,'',totProfit,'','','']);
-  _csvRowsToExcel(rows,'Sales','RETRADE_'+m+'_Statement.xlsx',{title:'Monthly Statement — '+keyName(m)});
+  salesRows.push([]);
+  salesRows.push(['TOTALS','','','',totRev,'',totProfit,'','','']);
+
+  // Expenses sheet
+  const mYear=keyYear(m), mIdx=MONTHS.indexOf(keyCode(m));
+  const inMonth=function(dateStr){
+    if(!dateStr)return false;
+    const d=new Date(dateStr);
+    return d.getFullYear()===mYear && d.getMonth()===mIdx;
+  };
+  const monthTrips=(DB.trips||[]).filter(function(t){return inMonth(t.date);});
+  const monthExps=(DB.expenses||[]).filter(function(e){return inMonth(e.date);});
+  const expRows=[['Date','Description','Category','Amount (£)','Miles','HMRC Rate','Mileage Cost (£)','Total (£)']];
+  let expTotal=0;
+  monthTrips.forEach(function(t){
+    const miles=t.mileage||0, rate=t.ratePerMile||0.45;
+    const mileageCost=+(miles*rate).toFixed(2);
+    const extraExps=(Array.isArray(t.expenses)?t.expenses:[]).reduce(function(s,e){return s+(e.amount||0);},0);
+    const total=+(mileageCost+extraExps).toFixed(2);
+    expTotal+=total;
+    expRows.push([t.date||'',t.description||'Sourcing trip','Mileage','',miles,rate,mileageCost,total]);
+  });
+  monthExps.forEach(function(e){
+    const amt=e.amount||0; expTotal+=amt;
+    expRows.push([e.date||'',e.description||'Expense',e.category||'',amt,'','','',amt]);
+  });
+  if(expRows.length>1){expRows.push([]);expRows.push(['TOTAL','','','','','','',expTotal]);}
+
+  // Build multi-sheet workbook
+  if(!window.XLSX){
+    const s=document.createElement('script');s.src='./xlsx.min.js';
+    s.onload=function(){_writeMonthlyExcelBook(m,salesRows,expRows);};
+    s.onerror=function(){toast('Failed to load Excel library','error');};
+    document.head.appendChild(s);
+  }else{_writeMonthlyExcelBook(m,salesRows,expRows);}
+}
+function _writeMonthlyExcelBook(m,salesRows,expRows){
+  const today=new Date().toLocaleDateString('en-GB',{year:'numeric',month:'short',day:'numeric'});
+  const wb=XLSX.utils.book_new();
+  const meta=[['Monthly Statement — '+keyName(m)],['Exported '+today+' from RETRADE'],[]];
+  const salesAll=meta.concat(salesRows);
+  const ws1=XLSX.utils.aoa_to_sheet(salesAll);
+  ws1['!cols']=salesAll[0]?salesAll[0].map(function(){return{wch:18};}):[];
+  XLSX.utils.book_append_sheet(wb,ws1,'Sales');
+  if(expRows.length>1){
+    const expAll=meta.concat(expRows);
+    const ws2=XLSX.utils.aoa_to_sheet(expAll);
+    ws2['!cols']=expAll[0]?expAll[0].map(function(){return{wch:20};}):[];
+    XLSX.utils.book_append_sheet(wb,ws2,'Expenses & Mileage');
+  }
+  const filename='RETRADE_'+m+'_Statement.xlsx';
+  XLSX.writeFile(wb,filename);
+  toast('Downloaded '+filename);
 }
 
 function downloadAnnualExcel(fyStart){
   const keys=_fyKeys(fyStart);
   const label=_getFYLabel(fyStart);
-  const rows=[['Month','Revenue (£)','Costs (£)','Gross Profit (£)','Items Sold','Returns','Avg ROI %','Avg Margin %']];
+  const salesRows=[['Month','Revenue (£)','Costs (£)','Gross Profit (£)','Items Sold','Returns','Avg ROI %','Avg Margin %']];
   let totRev=0,totCost=0,totProfit=0,totSold=0,totRet=0,roiSum=0,roiCount=0,marginSum=0,marginCount=0;
   keys.forEach(function(k){
     const ms=calcMonthStatsBySale(k);
@@ -11271,11 +11492,54 @@ function downloadAnnualExcel(fyStart){
     if(ms.avgMargin!==null&&ms.avgMargin!==undefined){marginSum+=ms.avgMargin;marginCount++;}
     totRev+=ms.totalRev;totCost+=costs;totProfit+=ms.realisedProfit;
     totSold+=ms.soldCount;totRet+=ms.returnedCount||0;
-    rows.push([keyName(k),ms.totalRev,costs,ms.realisedProfit,ms.soldCount,ms.returnedCount||0,ms.avgROI!=null?Number(ms.avgROI.toFixed(1)):0,ms.avgMargin!=null?Number(ms.avgMargin.toFixed(1)):0]);
+    salesRows.push([keyName(k),ms.totalRev,costs,ms.realisedProfit,ms.soldCount,ms.returnedCount||0,ms.avgROI!=null?Number(ms.avgROI.toFixed(1)):0,ms.avgMargin!=null?Number(ms.avgMargin.toFixed(1)):0]);
   });
-  rows.push([]);
-  rows.push(['TOTAL FY '+label,totRev,totCost,totProfit,totSold,totRet,roiCount>0?Number((roiSum/roiCount).toFixed(1)):0,marginCount>0?Number((marginSum/marginCount).toFixed(1)):0]);
-  _csvRowsToExcel(rows,'Annual P&L','RETRADE_FY'+label.replace('/','-')+'_Annual.xlsx',{title:'Annual P&L Summary — FY '+label});
+  salesRows.push([]);
+  salesRows.push(['TOTAL FY '+label,totRev,totCost,totProfit,totSold,totRet,roiCount>0?Number((roiSum/roiCount).toFixed(1)):0,marginCount>0?Number((marginSum/marginCount).toFixed(1)):0]);
+
+  // Expenses sheet
+  const fyFrom=fyStart+'-04-06', fyTo=(fyStart+1)+'-04-05';
+  const inFY=function(dateStr){return dateStr&&dateStr>=fyFrom&&dateStr<=fyTo;};
+  const fyTrips=(DB.trips||[]).filter(function(t){return inFY(t.date);});
+  const fyExps=(DB.expenses||[]).filter(function(e){return inFY(e.date);});
+  const expRows=[['Date','Description','Category','Amount (£)','Miles','HMRC Rate','Mileage Cost (£)','Total (£)']];
+  let expTotal=0;
+  fyTrips.forEach(function(t){
+    const miles=t.mileage||0, rate=t.ratePerMile||0.45;
+    const mileageCost=+(miles*rate).toFixed(2);
+    const extraExps=(Array.isArray(t.expenses)?t.expenses:[]).reduce(function(s,e){return s+(e.amount||0);},0);
+    const total=+(mileageCost+extraExps).toFixed(2);
+    expTotal+=total;
+    expRows.push([t.date||'',t.description||'Sourcing trip','Mileage','',miles,rate,mileageCost,total]);
+  });
+  fyExps.forEach(function(e){
+    const amt=e.amount||0; expTotal+=amt;
+    expRows.push([e.date||'',e.description||'Expense',e.category||'',amt,'','','',amt]);
+  });
+  if(expRows.length>1){expRows.push([]);expRows.push(['TOTAL','','','','','','',expTotal]);}
+
+  if(!window.XLSX){
+    const s=document.createElement('script');s.src='./xlsx.min.js';
+    s.onload=function(){_writeAnnualExcelBook(fyStart,label,salesRows,expRows);};
+    s.onerror=function(){toast('Failed to load Excel library','error');};
+    document.head.appendChild(s);
+  }else{_writeAnnualExcelBook(fyStart,label,salesRows,expRows);}
+}
+function _writeAnnualExcelBook(fyStart,label,salesRows,expRows){
+  const today=new Date().toLocaleDateString('en-GB',{year:'numeric',month:'short',day:'numeric'});
+  const wb=XLSX.utils.book_new();
+  const meta=[['Annual P&L Summary — FY '+label],['Exported '+today+' from RETRADE'],[]];
+  const ws1=XLSX.utils.aoa_to_sheet(meta.concat(salesRows));
+  ws1['!cols']=salesRows[0]?salesRows[0].map(function(){return{wch:18};}):[];
+  XLSX.utils.book_append_sheet(wb,ws1,'Annual P&L');
+  if(expRows.length>1){
+    const ws2=XLSX.utils.aoa_to_sheet(meta.concat(expRows));
+    ws2['!cols']=expRows[0]?expRows[0].map(function(){return{wch:20};}):[];
+    XLSX.utils.book_append_sheet(wb,ws2,'Expenses & Mileage');
+  }
+  const filename='RETRADE_FY'+label.replace('/','-')+'_Annual.xlsx';
+  XLSX.writeFile(wb,filename);
+  toast('Downloaded '+filename);
 }
 
 function downloadStockExcel(){
@@ -11307,6 +11571,8 @@ function downloadStockExcel(){
 function downloadMonthlyStatement(m){
   const events=getSaleEventsInMonth(m);
   if(!events.length){toast('No sales in '+m,'error');return;}
+
+  // Sales section
   const rows=[['Date','Item','GID','Platform','Sale Price','Postage Received','Net Profit','ROI %','Margin %','Status']];
   events.forEach(function(ev){
     const i=ev.item;
@@ -11323,6 +11589,40 @@ function downloadMonthlyStatement(m){
   const totRev=events.filter(function(e){return!e.isReturned;}).reduce(function(s,e){return s+(e.salePrice||0);},0);
   rows.push([]);
   rows.push(['TOTALS','','','',totRev.toFixed(2),'',totProfit.toFixed(2),'','','']);
+
+  // Expenses section — filtered to this calendar month by date
+  const mYear=keyYear(m), mIdx=MONTHS.indexOf(keyCode(m));
+  const inMonth=function(dateStr){
+    if(!dateStr)return false;
+    const d=new Date(dateStr);
+    return d.getFullYear()===mYear && d.getMonth()===mIdx;
+  };
+  const monthTrips=(DB.trips||[]).filter(function(t){return inMonth(t.date);});
+  const monthExps=(DB.expenses||[]).filter(function(e){return inMonth(e.date);});
+
+  if(monthTrips.length||monthExps.length){
+    rows.push([]);
+    rows.push(['EXPENSES & MILEAGE']);
+    rows.push(['Date','Description','Category','Amount (£)','Miles','HMRC Rate','Mileage Cost (£)','Total (£)']);
+    let expTotal=0;
+    monthTrips.forEach(function(t){
+      const miles=t.mileage||0;
+      const rate=t.ratePerMile||0.45;
+      const mileageCost=+(miles*rate).toFixed(2);
+      const extraExps=(Array.isArray(t.expenses)?t.expenses:[]).reduce(function(s,e){return s+(e.amount||0);},0);
+      const total=+(mileageCost+extraExps).toFixed(2);
+      expTotal+=total;
+      rows.push([t.date||'',(t.description||'Sourcing trip').replace(/,/g,' '),'Mileage','',miles,rate.toFixed(2),mileageCost.toFixed(2),total.toFixed(2)]);
+    });
+    monthExps.forEach(function(e){
+      const amt=e.amount||0;
+      expTotal+=amt;
+      rows.push([e.date||'',(e.description||'Expense').replace(/,/g,' '),e.category||'',amt.toFixed(2),'','','',amt.toFixed(2)]);
+    });
+    rows.push([]);
+    rows.push(['EXPENSE TOTAL','','','','','','',expTotal.toFixed(2)]);
+  }
+
   const csv=rows.map(function(r){return r.map(function(c){const s=String(c==null?'':c);return(s.includes(',')||s.includes('"'))?'"'+s.replace(/"/g,'""')+'"':s;}).join(',');}).join('\n');
   const blob=new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8'});
   const a=document.createElement('a');a.href=URL.createObjectURL(blob);
