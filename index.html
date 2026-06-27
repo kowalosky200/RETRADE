@@ -2251,6 +2251,48 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
   fill:var(--state-listed);stroke:var(--surface-1);stroke-width:2;
 }
 
+/* ── Press-and-hold chart scrubber (Trading-212 / Coinbase pattern) ─────
+   `touch-action:none` — the chart owns every touch inside its bounds.
+   Without this, mobile browsers hijack any vertical drift as page-scroll,
+   killing the scrubber mid-gesture. Trade-off: user can't scroll past
+   the chart by swiping *over* it. They swipe above or below — the chart
+   is short enough on mobile that this is fine. */
+.rt #summary-chart-svg,
+.rt #summary-chart-svg-mobile{touch-action:none;-webkit-user-select:none;user-select:none;}
+.rt .rt-chart-scrub-tip{
+  position:absolute;top:6px;left:0;
+  background:var(--surface-2,#1a2236);
+  border:1px solid var(--border-strong,rgba(255,255,255,0.12));
+  border-radius:10px;
+  padding:8px 12px;
+  font-family:var(--font-body);
+  color:var(--text-primary);
+  pointer-events:none;
+  z-index:6;
+  white-space:nowrap;
+  box-shadow:0 8px 22px rgba(0,0,0,0.32);
+  transition:opacity var(--dur-fast,150ms) var(--ease-out,ease-out);
+  min-width:120px;
+}
+.rt .rt-chart-scrub-tip .tip-period{
+  font-size:10px;color:var(--text-tertiary);
+  text-transform:uppercase;letter-spacing:0.06em;font-weight:600;
+  margin-bottom:6px;
+}
+.rt .rt-chart-scrub-tip .tip-row{
+  display:flex;align-items:center;gap:8px;
+  font-size:12px;color:var(--text-secondary);line-height:18px;
+}
+.rt .rt-chart-scrub-tip .tip-row + .tip-row{margin-top:2px;}
+.rt .rt-chart-scrub-tip .tip-row strong{
+  color:var(--text-primary);font-weight:700;
+  font-variant-numeric:tabular-nums;margin-left:auto;
+}
+.rt .rt-chart-scrub-tip .tip-dot{
+  width:8px;height:8px;border-radius:50%;
+  display:inline-block;flex:none;
+}
+
 /* ── 3-up KPI row below the hero ── */
 .rt .summary-kpis-v2{
   display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;
@@ -2326,7 +2368,7 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
 }
 .rt .summary-kpis-v3{
   grid-column:1 / -1;
-  display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;
+  display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px;
 }
 .rt .summary-kpis-v3 .kpi{
   cursor:pointer;
@@ -2344,61 +2386,53 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
 .rt .summary-kpis-v3 .kpi{min-height:0;padding:16px 18px;gap:4px;}
 .rt .summary-kpis-v3 .kpi .kpi-foot{margin-top:6px;padding-top:0;}
 
-/* ── Explicit placement. Desktop (>1099px). ──
-   r1: KPI grid (2 rows × 3 cards, handled by inner grid)
-   r2: Revenue chart (cols 1–9, span 8)  · Top Categories (cols 9–13, span 4)
-   r3: Inventory (1–5) · Velocity (5–9) · Top Flips (9–13) — operations row, equal
-   r4: Snapshot strip (full width, quiet footer)                              */
-.rt .summary-chart-card{grid-column:1 / 9; grid-row:2; display:flex;flex-direction:column;}
-.rt .summary-categories {grid-column:9 / 13;grid-row:2; display:flex;flex-direction:column;}
-.rt .summary-inventory  {grid-column:1 / 5; grid-row:3; display:flex;flex-direction:column;}
-.rt .summary-velocity   {grid-column:5 / 9; grid-row:3; display:flex;flex-direction:column;}
-.rt .summary-topflips   {grid-column:9 / 13;grid-row:3; display:flex;flex-direction:column;}
-.rt .summary-snapshot   {grid-column:1 / -1;grid-row:4;}
+/* ── Desktop placement (>1099px). Previous arrangement, restored from a
+   period of experimentation. Reads top-to-bottom as five rows:
+     r1: KPI grid (4 cards in one row, inner grid)
+     r2: chart (1-8, 7-col) · top categories (8-13, 5-col)
+     r3: Snapshot — per-sale band, full width, 3 sub-cards
+     r4: Inventory health — full-width band, 3 stats left + age bar right
+     r5: Velocity (1-6, 5-col) · Top Flips (6-13, 7-col) — wider flips so
+         item names breathe                                            */
+.rt .summary-chart-card{grid-column:1 / 8; grid-row:2; display:flex;flex-direction:column;}
+.rt .summary-categories {grid-column:8 / 13;grid-row:2; display:flex;flex-direction:column;}
+.rt .summary-snapshot   {grid-column:1 / -1;grid-row:3;}
+.rt .summary-inventory  {grid-column:1 / -1;grid-row:4; display:flex;flex-direction:column;}
+.rt .summary-velocity   {grid-column:1 / 6; grid-row:5; display:flex;flex-direction:column;}
+.rt .summary-topflips   {grid-column:6 / 13;grid-row:5; display:flex;flex-direction:column;}
 
-/* Inventory band: card is now 4-col-wide, so metrics stack vertically.
-   Each stat is a tight label/value row; age bar lives below with a divider. */
-.rt .summary-inventory .inv-band-grid{display:flex;flex-direction:column;gap:14px;}
-.rt .summary-inventory .inv-metrics{display:flex;flex-direction:column;gap:8px;}
-.rt .summary-inventory .inv-stat{
-  display:flex;align-items:baseline;justify-content:space-between;gap:12px;
-  padding:10px 12px;border:1px solid var(--border);border-radius:var(--r-s);
-  cursor:pointer;transition:border-color var(--dur-fast) var(--ease-out);
-  -webkit-tap-highlight-color:transparent;
-}
+/* Inventory band on desktop: 3 stat cards on the left, stock-age bar on
+   the right, divided by a vertical border. Full-width band on its own row. */
+.rt .summary-inventory .inv-band-grid{display:grid;grid-template-columns:1.5fr 1fr;gap:24px;align-items:center;}
+.rt .summary-inventory .inv-metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;}
+.rt .summary-inventory .inv-stat{padding:14px 16px;border:1px solid var(--border);border-radius:var(--r-s);cursor:pointer;transition:border-color var(--dur-fast) var(--ease-out);-webkit-tap-highlight-color:transparent;}
 @media(hover:hover){.rt .summary-inventory .inv-stat:hover{border-color:var(--border-strong);}}
-.rt .summary-inventory .inv-stat-k{font-size:11px;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.03em;font-weight:500;flex:1;min-width:0;}
-.rt .summary-inventory .inv-stat-v{font-size:18px;font-weight:700;letter-spacing:-0.02em;color:var(--text-primary);margin:0;flex:0 0 auto;}
-.rt .summary-inventory .inv-stat-sub{display:none;} /* subs hidden in compact card */
-.rt .summary-inventory .inv-age{padding-left:0;border-left:none;padding-top:14px;border-top:1px solid var(--border);}
+.rt .summary-inventory .inv-stat-k{font-size:11px;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.03em;font-weight:500;}
+.rt .summary-inventory .inv-stat-v{font-size:22px;font-weight:700;letter-spacing:-0.02em;color:var(--text-primary);margin-top:5px;}
+.rt .summary-inventory .inv-stat-sub{font-size:11px;color:var(--text-tertiary);margin-top:4px;}
+.rt .summary-inventory .inv-age{padding-left:24px;border-left:1px solid var(--border);}
 .rt .summary-inventory .inv-age-title{font-size:11px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.08em;font-weight:700;margin-bottom:10px;}
 
-/* Snapshot footer strip — quiet "context row" at the bottom of the dashboard.
-   Stats sit inline with thin vertical dividers (last-child has no divider),
-   no per-stat borders so it reads as a summary footer not a row of cards. */
+/* Snapshot band — per-sale reality check, full-width row above Inventory.
+   3 stat sub-cards arranged horizontally on desktop, label-left/value-
+   right rows on mobile (overridden by the ≤600px breakpoint). */
 .rt .summary-snapshot-strip .snap-strip-head{display:flex;align-items:baseline;gap:10px;margin-bottom:14px;flex-wrap:wrap;}
 .rt .summary-snapshot-strip .summary-snapshot-sub{font-size:11px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.06em;}
 .rt .summary-snapshot-strip .snap-strip-row{
-  display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:0;align-content:start;
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;align-content:start;
 }
 .rt .summary-snapshot-strip .snap-stat{
-  padding:6px 22px;border:none;border-radius:0;border-left:1px solid var(--border);
-  cursor:pointer;transition:background var(--dur-fast) var(--ease-out);
+  padding:14px 16px;border:1px solid var(--border);border-radius:var(--r-s);
+  cursor:pointer;transition:border-color var(--dur-fast) var(--ease-out);
   -webkit-tap-highlight-color:transparent;
 }
-.rt .summary-snapshot-strip .snap-stat:first-child{border-left:none;padding-left:4px;}
-@media(hover:hover){.rt .summary-snapshot-strip .snap-stat:hover{background:var(--surface-2);}}
+@media(hover:hover){.rt .summary-snapshot-strip .snap-stat:hover{border-color:var(--border-strong);}}
 .rt .summary-snapshot-strip .snap-stat-k{font-size:11px;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.03em;font-weight:500;}
-.rt .summary-snapshot-strip .snap-stat-v{font-size:20px;font-weight:700;letter-spacing:-0.02em;color:var(--text-primary);margin-top:4px;}
+.rt .summary-snapshot-strip .snap-stat-v{font-size:22px;font-weight:700;letter-spacing:-0.02em;color:var(--text-primary);margin-top:5px;}
 
-/* Velocity category breakdown: single column when narrow (it's beside snapshot now) */
+/* Velocity category breakdown: visible on all breakpoints. The card sits
+   beside Top Flips on desktop (5-col + 7-col), so it has room. */
 .rt .summary-velocity .category-mini-grid{display:grid;grid-template-columns:1fr;gap:8px;}
-/* Desktop: hide velocity's category breakdown — Top Categories donut already
-   carries the categorical info. Velocity becomes a focused 2-metric speed card
-   (avg days · sell-through). Breakdown returns at ≤1099px where space is freer. */
-@media(min-width:1100px){
-  .rt .summary-velocity .vel-cat-wrap{display:none;}
-}
 
 /* Tier 2 internals */
 .rt .summary-chart-card .summary-chart-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;gap:12px;flex-wrap:wrap;}
@@ -2421,29 +2455,22 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
 .rt .summary-viewall:hover{color:var(--brand);}
 
 /* ── MEDIUM / tablet (601–1099px) ──
-   Stack all content cards full-width — predictable, readable, preserves the
-   top-to-bottom zone order (KPIs → trends → operations → context).
-   KPI grid stays 3-col down to 980, then 2-col. */
+   Stack all content cards full-width — predictable, readable, preserves
+   the top-to-bottom desktop reading order: trends (chart + categories) →
+   snapshot context → inventory state → velocity + topflips. */
 @media(max-width:1099px){
   .rt .summary-grid-v3{grid-template-columns:repeat(12,minmax(0,1fr));gap:16px;}
   .rt .summary-kpis-v3{grid-column:1 / -1;}
   .rt .summary-chart-card  {grid-column:1 / -1;grid-row:auto;order:1;}
   .rt .summary-categories  {grid-column:1 / -1;grid-row:auto;order:2;}
-  .rt .summary-inventory   {grid-column:1 / -1;grid-row:auto;order:3;}
-  .rt .summary-velocity    {grid-column:1 / -1;grid-row:auto;order:4;}
-  .rt .summary-topflips    {grid-column:1 / -1;grid-row:auto;order:5;}
-  .rt .summary-snapshot    {grid-column:1 / -1;grid-row:auto;order:6;}
-  /* Inventory band returns to its horizontal layout when full-width again */
-  .rt .summary-inventory .inv-band-grid{display:grid;grid-template-columns:1.5fr 1fr;gap:24px;align-items:center;}
-  .rt .summary-inventory .inv-metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;flex-direction:row;}
-  .rt .summary-inventory .inv-stat{flex-direction:column;align-items:flex-start;padding:14px 16px;}
-  .rt .summary-inventory .inv-stat-v{font-size:22px;margin-top:5px;}
-  .rt .summary-inventory .inv-stat-sub{display:block;font-size:11px;color:var(--text-tertiary);margin-top:4px;}
-  .rt .summary-inventory .inv-age{padding-left:24px;border-left:1px solid var(--border);padding-top:0;border-top:none;}
+  .rt .summary-snapshot    {grid-column:1 / -1;grid-row:auto;order:3;}
+  .rt .summary-inventory   {grid-column:1 / -1;grid-row:auto;order:4;}
+  .rt .summary-velocity    {grid-column:1 / -1;grid-row:auto;order:5;}
+  .rt .summary-topflips    {grid-column:1 / -1;grid-row:auto;order:6;}
+  /* Inventory band stays horizontal until 980px (defined below) */
   .rt .summary-velocity .category-mini-grid{grid-template-columns:repeat(2,1fr);gap:8px 20px;}
 }
-/* KPI grid: 2-col below 980 (matches old proven behaviour). With 6 KPIs this
-   produces 3 rows × 2 cards on tablet/small-laptop. */
+/* KPI grid: 4-col down to 980, then 2-col (4 KPIs → 2×2 on tablet) */
 @media(max-width:980px){
   .rt .summary-kpis-v3{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;}
   .rt .summary-kpis-v3 .kpi{min-width:0;overflow:hidden;}
@@ -11846,7 +11873,9 @@ function renderSummaryChart(labels,revData,profitData){
     return '<text x="'+sx(i).toFixed(1)+'" y="'+(H-pad.b+18)+'" font-size="10" fill="var(--text-tertiary)" text-anchor="middle" font-family="var(--font-body)">'+esc(l)+'</text>';
   }).join('');
 
-  // Profit area path (filled, anchored to y=0)
+  // Profit area path (filled, anchored to y=0). Rendered as a soft gradient
+  // area with no stroke — the area itself communicates the profit trend
+  // and reads as a quiet supporting layer beneath the revenue line.
   let area='M '+sx(0).toFixed(1)+' '+sy(0).toFixed(1);
   for(let i=0;i<n;i++)area+=' L '+sx(i).toFixed(1)+' '+sy(profitData[i]||0).toFixed(1);
   area+=' L '+sx(n-1).toFixed(1)+' '+sy(0).toFixed(1)+' Z';
@@ -11883,13 +11912,131 @@ function renderSummaryChart(labels,revData,profitData){
     +grid+yLab+xLab
     +'<path d="'+area+'" fill="url(#rt-profit-fill)" stroke="none"/>'
     +'<path d="'+line+'" fill="none" stroke="var(--state-listed)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>'
-    +hits;
+    +hits
+    // Scrub indicator: vertical dashed line + dot on each series. Hidden by
+    // default, positioned via JS during press-and-drag interaction. Drawn
+    // last so it overlays the lines.
+    +'<g class="rt-chart-scrub" style="display:none;pointer-events:none">'
+    +  '<line class="rt-scrub-line" x1="0" x2="0" y1="'+pad.t+'" y2="'+(H-pad.b)+'" stroke="var(--text-secondary)" stroke-width="1" stroke-dasharray="3 3" opacity="0.7"/>'
+    +  '<circle class="rt-scrub-rev" cx="0" cy="0" r="4.5" fill="var(--state-listed)" stroke="var(--surface-1)" stroke-width="2"/>'
+    +  '<circle class="rt-scrub-prof" cx="0" cy="0" r="4.5" fill="var(--profit)" stroke="var(--surface-1)" stroke-width="2"/>'
+    +'</g>';
+
+  // ── Press-and-hold scrubber (trading-app pattern) ─────────────────────
+  // Touch the chart → vertical indicator + tooltip appears at touch X.
+  // Drag horizontally → indicator follows, snapping to nearest data point.
+  // Release without dragging → existing drill behavior fires (showMonth/
+  // RangeSnapshot). Release after a drag → indicator hides, no drill.
+  // Vertical drag → page scrolls normally (only horizontal-dominant moves
+  // are captured). Implemented with Pointer Events for unified mouse+touch.
+  const fmtMoneyTip=v=>'£'+(v||0).toLocaleString('en-GB',{minimumFractionDigits:0,maximumFractionDigits:0});
+  function setupChartScrub(svgEl){
+    const parent=svgEl.parentElement;
+    if(!parent)return;
+    // Ensure parent can host the absolute-positioned tooltip
+    const cs=getComputedStyle(parent);
+    if(cs.position==='static')parent.style.position='relative';
+    // Reuse or create the tooltip element
+    let tip=parent.querySelector('.rt-chart-scrub-tip');
+    if(!tip){tip=document.createElement('div');tip.className='rt-chart-scrub-tip';tip.style.display='none';parent.appendChild(tip);}
+    const scrubG=svgEl.querySelector('.rt-chart-scrub');
+    if(!scrubG)return;
+    const sLine=scrubG.querySelector('.rt-scrub-line');
+    const sRev=scrubG.querySelector('.rt-scrub-rev');
+    const sProf=scrubG.querySelector('.rt-scrub-prof');
+    let startX=null,startY=null,startT=0,moved=false,scrubbing=false,wasScrub=false,scrubClearT=null;
+    const THRESH=6;       // movement threshold to mark interaction as "moved"
+    const TAP_MAX_MS=220; // a held-and-released gesture under this is a tap
+    function pointerToIdx(clientX){
+      const rect=svgEl.getBoundingClientRect();
+      const ratio=(clientX-rect.left)/Math.max(1,rect.width);
+      const vbX=ratio*W;
+      const i=Math.round(((vbX-pad.l)/Math.max(1,innerW))*(n-1));
+      return Math.max(0,Math.min(n-1,i));
+    }
+    function showAt(idx){
+      const cx=sx(idx);
+      sLine.setAttribute('x1',cx.toFixed(1));sLine.setAttribute('x2',cx.toFixed(1));
+      const r=revData[idx]||0,p=profitData[idx]||0;
+      if(r>0){sRev.setAttribute('cx',cx.toFixed(1));sRev.setAttribute('cy',sy(r).toFixed(1));sRev.style.display='';}
+      else{sRev.style.display='none';}
+      if(p>0){sProf.setAttribute('cx',cx.toFixed(1));sProf.setAttribute('cy',sy(p).toFixed(1));sProf.style.display='';}
+      else{sProf.style.display='none';}
+      scrubG.style.display='';
+      tip.innerHTML=
+        '<div class="tip-period">'+esc(labels[idx])+'</div>'
+        +'<div class="tip-row"><span class="tip-dot" style="background:var(--state-listed)"></span>Revenue <strong>'+fmtMoneyTip(r)+'</strong></div>'
+        +'<div class="tip-row"><span class="tip-dot" style="background:var(--profit)"></span>Profit <strong>'+fmtMoneyTip(p)+'</strong></div>';
+      tip.style.display='block';
+      const rect=svgEl.getBoundingClientRect();
+      const cssX=(cx/W)*rect.width;
+      const tipW=tip.offsetWidth||140;
+      let left=cssX-tipW/2;
+      left=Math.max(6,Math.min(rect.width-tipW-6,left));
+      tip.style.left=left+'px';
+    }
+    function hideScrub(){scrubG.style.display='none';tip.style.display='none';}
+    // ── New lifecycle (Trading-212 style): scrubber shows IMMEDIATELY on
+    // pointerdown at the nearest data point. Holding still keeps it
+    // visible. Releasing quickly with no drag = tap (drill fires).
+    // Releasing after movement OR after a long press = scrub (drill
+    // suppressed via wasScrub flag).
+    function onDown(e){
+      startX=e.clientX;startY=e.clientY;startT=Date.now();
+      moved=false;scrubbing=true;
+      try{svgEl.setPointerCapture(e.pointerId);}catch(_){}
+      showAt(pointerToIdx(e.clientX));
+    }
+    function onMove(e){
+      // Hover (no buttons pressed, not actively scrubbing): show indicator
+      // following the cursor. Works for mouse + pen with hover support.
+      // Doesn't set wasScrub — clicks still drill normally on release.
+      if(!scrubbing&&e.buttons===0){showAt(pointerToIdx(e.clientX));return;}
+      if(!scrubbing)return;
+      const dx=Math.abs(e.clientX-startX),dy=Math.abs(e.clientY-startY);
+      if(dx>THRESH||dy>THRESH)moved=true;
+      showAt(pointerToIdx(e.clientX));
+    }
+    function onUp(e){
+      if(!scrubbing)return;
+      const heldMs=Date.now()-startT;
+      const isTap=!moved&&heldMs<TAP_MAX_MS;
+      scrubbing=false;
+      try{svgEl.releasePointerCapture(e.pointerId);}catch(_){}
+      if(isTap){
+        // Quick tap — let the click event fire (drill behavior).
+        wasScrub=false;
+        hideScrub();
+      }else{
+        // Held or dragged — suppress the imminent click (no drill).
+        // Keep scrubber visible briefly so user sees the final value.
+        wasScrub=true;
+        setTimeout(hideScrub,250);
+        if(scrubClearT)clearTimeout(scrubClearT);
+        scrubClearT=setTimeout(function(){wasScrub=false;},300);
+      }
+    }
+    function onCancel(){hideScrub();startX=startY=null;scrubbing=false;}
+    svgEl.addEventListener('pointerdown',onDown);
+    svgEl.addEventListener('pointermove',onMove);
+    svgEl.addEventListener('pointerup',onUp);
+    svgEl.addEventListener('pointercancel',onCancel);
+    // Hover ends — hide on mouse exit. Skip if we're mid-scrub (pointer
+    // capture keeps the press alive even when finger drifts off-element).
+    svgEl.addEventListener('pointerleave',function(){if(!scrubbing)hideScrub();});
+    // Gate the click event so a drag-release doesn't accidentally drill.
+    svgEl.addEventListener('click',function(e){if(wasScrub){e.stopPropagation();e.preventDefault();}},true);
+    // Expose flag so the existing svg.onclick drill handler can check it.
+    svgEl.__wasScrub=function(){return wasScrub;};
+  }
 
   // Delegated click — preserves __chartClickHandlers contract.
   // stopPropagation: on mobile, the hero card has its own card-level onclick
   // ('view all realised'). Without this, a column tap would fire both the
-  // bucket snapshot AND the card click. Chart owns column taps.
+  // bucket snapshot AND the card click. Chart owns column taps. Also gated
+  // on the scrubber's wasScrub flag so a drag doesn't accidentally drill.
   svg.onclick=function(e){
+    if(svg.__wasScrub&&svg.__wasScrub())return;
     const col=e.target.closest('.rt-chart-col');
     if(!col)return;
     e.stopPropagation();
@@ -11901,6 +12048,10 @@ function renderSummaryChart(labels,revData,profitData){
       else if(h.fn==='showRangeSnapshot')showRangeSnapshot.apply(null,h.args);
     }catch(_){}
   };
+
+  // Activate the scrubber on the desktop SVG. Mobile SVG is activated below
+  // (after innerHTML mirror), since the handlers attach per element.
+  setupChartScrub(svg);
 
   // Mini sparkline in the hero top-right — profit trend, no axes. Profit-green
   // (NOT amber) to respect the single-occupancy amber rule on the hero number.
@@ -11937,7 +12088,21 @@ function renderSummaryChart(labels,revData,profitData){
   const svgMobile=document.getElementById('summary-chart-svg-mobile');
   if(svgMobile){
     svgMobile.innerHTML=svg.innerHTML;
-    svgMobile.onclick=svg.onclick;
+    // Mirror the click handler logic with the same wasScrub gate
+    svgMobile.onclick=function(e){
+      if(svgMobile.__wasScrub&&svgMobile.__wasScrub())return;
+      const col=e.target.closest('.rt-chart-col');
+      if(!col)return;
+      e.stopPropagation();
+      const idx=parseInt(col.getAttribute('data-idx'),10);
+      const h=handlers[idx];
+      if(!h)return;
+      try{
+        if(h.fn==='showMonthSnapshot')showMonthSnapshot.apply(null,h.args);
+        else if(h.fn==='showRangeSnapshot')showRangeSnapshot.apply(null,h.args);
+      }catch(_){}
+    };
+    setupChartScrub(svgMobile);
   }
 }
 
@@ -12086,9 +12251,7 @@ function renderSummary(){
           <div class="card kpi clickable" onclick="showFilteredItems('revenue')"><div class="kpi-label">Total revenue</div><div class="kpi-value num">${fmtK(stats.totalRev||0)}</div><div class="kpi-foot">${deltaChip(deltas&&deltas.totalRev)||((stats.soldCount||0)+' sold in view')}</div></div>
           <div class="card kpi clickable kpi-netprofit" onclick="showFilteredItems('realised')"><div class="kpi-label">Net profit</div><div class="kpi-value num">${fmtK(stats.netProfit||0)}</div><div class="kpi-foot">${deltaChip(deltas&&deltas.netProfit)||(fmtK(stats.grossProfit||0)+' gross')}</div></div>
           <div class="card kpi clickable" onclick="showMarginItems()"><div class="kpi-label">Avg margin</div><div class="kpi-value num">${Math.round(stats.netMargin||0)}%</div><div class="kpi-foot">${deltaChip(deltas&&deltas.netMargin,{pp:true})||(Math.round(stats.grossMargin||0)+'% gross')}</div></div>
-          <div class="card kpi clickable" onclick="showFilteredItems('realised')"><div class="kpi-label">Sold items</div><div class="kpi-value num">${stats.soldCount||0}</div><div class="kpi-foot">${deltaChip(deltas&&deltas.soldCount)||'in selected period'}</div></div>
           <div class="card kpi clickable" onclick="showReturnedItems()"><div class="kpi-label">Refund rate</div><div class="kpi-value num">${Number(stats.refundItemRate||0).toFixed(1)}%</div><div class="kpi-foot">${deltaChip(deltas&&deltas.refundItemRate,{pp:true,invert:true})||((stats.fullRefundCount||0)+' full · '+(stats.partialOnlyCount||0)+' partial')}</div></div>
-          <div class="card kpi clickable" onclick="showAvgProfitBreakdown()"><div class="kpi-label">Avg profit / sale</div><div class="kpi-value num">${fmt(stats.avgProfit||0)}</div><div class="kpi-foot">${deltaChip(deltas&&deltas.avgProfit)||'per sale, this period'}</div></div>
         </div>
 
         <!-- Tier 2: chart + categories -->
