@@ -2326,7 +2326,7 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
 }
 .rt .summary-kpis-v3{
   grid-column:1 / -1;
-  display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px;
+  display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;
 }
 .rt .summary-kpis-v3 .kpi{
   cursor:pointer;
@@ -2344,44 +2344,61 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
 .rt .summary-kpis-v3 .kpi{min-height:0;padding:16px 18px;gap:4px;}
 .rt .summary-kpis-v3 .kpi .kpi-foot{margin-top:6px;padding-top:0;}
 
-/* ── Explicit placement. Three layouts across breakpoints. ──
-   LARGE (>1099px): chart+categories; thin Snapshot strip; Inventory Health as a
-   full-width horizontal band on its own row; Velocity + Top Flips paired (both
-   tall, so they balance).
-     r2: chart(1-8)  categories(8-13)
-     r3: snapshot strip (full width)
-     r4: inventory band (full width)
-     r5: velocity(1-7)  topflips(7-13)                              */
-.rt .summary-chart-card{grid-column:1 / 8; grid-row:2; display:flex;flex-direction:column;}
-.rt .summary-categories {grid-column:8 / 13;grid-row:2; display:flex;flex-direction:column;}
-.rt .summary-snapshot   {grid-column:1 / -1;grid-row:3;}
-.rt .summary-inventory  {grid-column:1 / -1;grid-row:4;}
-.rt .summary-velocity   {grid-column:1 / 7; grid-row:5; display:flex;flex-direction:column;}
-.rt .summary-topflips   {grid-column:7 / 13;grid-row:5; display:flex;flex-direction:column;}
+/* ── Explicit placement. Desktop (>1099px). ──
+   r1: KPI grid (2 rows × 3 cards, handled by inner grid)
+   r2: Revenue chart (cols 1–9, span 8)  · Top Categories (cols 9–13, span 4)
+   r3: Inventory (1–5) · Velocity (5–9) · Top Flips (9–13) — operations row, equal
+   r4: Snapshot strip (full width, quiet footer)                              */
+.rt .summary-chart-card{grid-column:1 / 9; grid-row:2; display:flex;flex-direction:column;}
+.rt .summary-categories {grid-column:9 / 13;grid-row:2; display:flex;flex-direction:column;}
+.rt .summary-inventory  {grid-column:1 / 5; grid-row:3; display:flex;flex-direction:column;}
+.rt .summary-velocity   {grid-column:5 / 9; grid-row:3; display:flex;flex-direction:column;}
+.rt .summary-topflips   {grid-column:9 / 13;grid-row:3; display:flex;flex-direction:column;}
+.rt .summary-snapshot   {grid-column:1 / -1;grid-row:4;}
 
-/* Inventory band: 3 stat cards + stock-age laid out horizontally */
-.rt .summary-inventory .inv-band-grid{display:grid;grid-template-columns:1.5fr 1fr;gap:24px;align-items:center;}
-.rt .summary-inventory .inv-metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;}
-.rt .summary-inventory .inv-stat{padding:14px 16px;border:1px solid var(--border);border-radius:var(--r-s);cursor:pointer;transition:border-color var(--dur-fast) var(--ease-out);-webkit-tap-highlight-color:transparent;}
+/* Inventory band: card is now 4-col-wide, so metrics stack vertically.
+   Each stat is a tight label/value row; age bar lives below with a divider. */
+.rt .summary-inventory .inv-band-grid{display:flex;flex-direction:column;gap:14px;}
+.rt .summary-inventory .inv-metrics{display:flex;flex-direction:column;gap:8px;}
+.rt .summary-inventory .inv-stat{
+  display:flex;align-items:baseline;justify-content:space-between;gap:12px;
+  padding:10px 12px;border:1px solid var(--border);border-radius:var(--r-s);
+  cursor:pointer;transition:border-color var(--dur-fast) var(--ease-out);
+  -webkit-tap-highlight-color:transparent;
+}
 @media(hover:hover){.rt .summary-inventory .inv-stat:hover{border-color:var(--border-strong);}}
-.rt .summary-inventory .inv-stat-k{font-size:11px;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.03em;font-weight:500;}
-.rt .summary-inventory .inv-stat-v{font-size:22px;font-weight:700;letter-spacing:-0.02em;color:var(--text-primary);margin-top:5px;}
-.rt .summary-inventory .inv-stat-sub{font-size:11px;color:var(--text-tertiary);margin-top:4px;}
-.rt .summary-inventory .inv-age{padding-left:24px;border-left:1px solid var(--border);}
+.rt .summary-inventory .inv-stat-k{font-size:11px;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.03em;font-weight:500;flex:1;min-width:0;}
+.rt .summary-inventory .inv-stat-v{font-size:18px;font-weight:700;letter-spacing:-0.02em;color:var(--text-primary);margin:0;flex:0 0 auto;}
+.rt .summary-inventory .inv-stat-sub{display:none;} /* subs hidden in compact card */
+.rt .summary-inventory .inv-age{padding-left:0;border-left:none;padding-top:14px;border-top:1px solid var(--border);}
 .rt .summary-inventory .inv-age-title{font-size:11px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.08em;font-weight:700;margin-bottom:10px;}
 
-/* Snapshot stats auto-fit so they sit 1-up when the card is narrow (beside
-   velocity) and spread when it's wide — no position-specific rules needed. */
+/* Snapshot footer strip — quiet "context row" at the bottom of the dashboard.
+   Stats sit inline with thin vertical dividers (last-child has no divider),
+   no per-stat borders so it reads as a summary footer not a row of cards. */
 .rt .summary-snapshot-strip .snap-strip-head{display:flex;align-items:baseline;gap:10px;margin-bottom:14px;flex-wrap:wrap;}
 .rt .summary-snapshot-strip .summary-snapshot-sub{font-size:11px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.06em;}
-.rt .summary-snapshot-strip .snap-strip-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;flex:1;align-content:start;}
-.rt .summary-snapshot-strip .snap-stat{padding:14px 16px;border:1px solid var(--border);border-radius:var(--r-s);cursor:pointer;transition:border-color var(--dur-fast) var(--ease-out);-webkit-tap-highlight-color:transparent;}
-@media(hover:hover){.rt .summary-snapshot-strip .snap-stat:hover{border-color:var(--border-strong);}}
+.rt .summary-snapshot-strip .snap-strip-row{
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:0;align-content:start;
+}
+.rt .summary-snapshot-strip .snap-stat{
+  padding:6px 22px;border:none;border-radius:0;border-left:1px solid var(--border);
+  cursor:pointer;transition:background var(--dur-fast) var(--ease-out);
+  -webkit-tap-highlight-color:transparent;
+}
+.rt .summary-snapshot-strip .snap-stat:first-child{border-left:none;padding-left:4px;}
+@media(hover:hover){.rt .summary-snapshot-strip .snap-stat:hover{background:var(--surface-2);}}
 .rt .summary-snapshot-strip .snap-stat-k{font-size:11px;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.03em;font-weight:500;}
-.rt .summary-snapshot-strip .snap-stat-v{font-size:22px;font-weight:700;letter-spacing:-0.02em;color:var(--text-primary);margin-top:5px;}
+.rt .summary-snapshot-strip .snap-stat-v{font-size:20px;font-weight:700;letter-spacing:-0.02em;color:var(--text-primary);margin-top:4px;}
 
 /* Velocity category breakdown: single column when narrow (it's beside snapshot now) */
 .rt .summary-velocity .category-mini-grid{display:grid;grid-template-columns:1fr;gap:8px;}
+/* Desktop: hide velocity's category breakdown — Top Categories donut already
+   carries the categorical info. Velocity becomes a focused 2-metric speed card
+   (avg days · sell-through). Breakdown returns at ≤1099px where space is freer. */
+@media(min-width:1100px){
+  .rt .summary-velocity .vel-cat-wrap{display:none;}
+}
 
 /* Tier 2 internals */
 .rt .summary-chart-card .summary-chart-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;gap:12px;flex-wrap:wrap;}
@@ -2404,25 +2421,29 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
 .rt .summary-viewall:hover{color:var(--brand);}
 
 /* ── MEDIUM / tablet (601–1099px) ──
-   Chart full-width → Inventory Health full-width → Snapshot + Top Categories
-   side by side → Top Flips → Velocity. Kills the wasteful full-width donut. */
+   Stack all content cards full-width — predictable, readable, preserves the
+   top-to-bottom zone order (KPIs → trends → operations → context).
+   KPI grid stays 3-col down to 980, then 2-col. */
 @media(max-width:1099px){
-  .rt .summary-grid-v3{grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;}
+  .rt .summary-grid-v3{grid-template-columns:repeat(12,minmax(0,1fr));gap:16px;}
   .rt .summary-kpis-v3{grid-column:1 / -1;}
-  .rt .summary-chart-card  {grid-column:1 / -1;grid-row:auto;}
-  .rt .summary-inventory   {grid-column:1 / -1;grid-row:auto;}
-  .rt .summary-snapshot    {grid-column:1 / 2; grid-row:auto;}
-  .rt .summary-categories  {grid-column:2 / 3; grid-row:auto;}
-  .rt .summary-topflips    {grid-column:1 / -1;grid-row:auto;}
-  .rt .summary-velocity    {grid-column:1 / -1;grid-row:auto;}
-  /* re-order: chart, inventory, snapshot, categories, topflips, velocity */
-  .rt .summary-chart-card{order:1;} .rt .summary-inventory{order:2;}
-  .rt .summary-snapshot{order:3;}   .rt .summary-categories{order:4;}
-  .rt .summary-topflips{order:5;}   .rt .summary-velocity{order:6;}
+  .rt .summary-chart-card  {grid-column:1 / -1;grid-row:auto;order:1;}
+  .rt .summary-categories  {grid-column:1 / -1;grid-row:auto;order:2;}
+  .rt .summary-inventory   {grid-column:1 / -1;grid-row:auto;order:3;}
+  .rt .summary-velocity    {grid-column:1 / -1;grid-row:auto;order:4;}
+  .rt .summary-topflips    {grid-column:1 / -1;grid-row:auto;order:5;}
+  .rt .summary-snapshot    {grid-column:1 / -1;grid-row:auto;order:6;}
+  /* Inventory band returns to its horizontal layout when full-width again */
+  .rt .summary-inventory .inv-band-grid{display:grid;grid-template-columns:1.5fr 1fr;gap:24px;align-items:center;}
+  .rt .summary-inventory .inv-metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;flex-direction:row;}
+  .rt .summary-inventory .inv-stat{flex-direction:column;align-items:flex-start;padding:14px 16px;}
+  .rt .summary-inventory .inv-stat-v{font-size:22px;margin-top:5px;}
+  .rt .summary-inventory .inv-stat-sub{display:block;font-size:11px;color:var(--text-tertiary);margin-top:4px;}
+  .rt .summary-inventory .inv-age{padding-left:24px;border-left:1px solid var(--border);padding-top:0;border-top:none;}
   .rt .summary-velocity .category-mini-grid{grid-template-columns:repeat(2,1fr);gap:8px 20px;}
-  /* Inventory band still horizontal (it's full-width here) */
 }
-/* KPI grid: 2-col below 980 (matches old proven behaviour) */
+/* KPI grid: 2-col below 980 (matches old proven behaviour). With 6 KPIs this
+   produces 3 rows × 2 cards on tablet/small-laptop. */
 @media(max-width:980px){
   .rt .summary-kpis-v3{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;}
   .rt .summary-kpis-v3 .kpi{min-width:0;overflow:hidden;}
@@ -2432,33 +2453,171 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
   .rt .summary-inventory .inv-band-grid{grid-template-columns:1fr;gap:16px;}
   .rt .summary-inventory .inv-age{padding-left:0;border-left:none;padding-top:16px;border-top:1px solid var(--border);}
 }
-/* ── PHONE (≤600px) ── single column, everything full width. */
+/* ── PHONE (≤600px) — Mobile rebuild (Session 2).
+   Desktop 6-KPI grid + standalone chart card hide; their job is taken over
+   by the mobile-only hero card (Net Profit + sparkline + embedded chart)
+   and the 2-up Active Stock / Avg Margin row beneath it. Remaining cards
+   re-order top-to-bottom by "what gets checked": Inventory (actionable) →
+   Categories (where money flows) → Snapshot (reference) → Velocity
+   (strategic) → Top Flips (celebration). ───────────────────────────────── */
+
+/* Default: mobile-only blocks are invisible at desktop/tablet widths. */
+.rt .summary-mobile-only{display:none;}
+
 @media(max-width:600px){
   .rt .summary-grid-v3{grid-template-columns:1fr;gap:14px;}
-  .rt .summary-chart-card,.rt .summary-categories,
-  .rt .summary-inventory,.rt .summary-snapshot,
-  .rt .summary-topflips,.rt .summary-velocity{
-    grid-column:1 / -1 !important;grid-row:auto !important;order:0 !important;
-  }
-  .rt .summary-chart-card #summary-chart-svg{min-height:200px;max-height:240px;}
+
+  /* Desktop-only surfaces: hidden on phone. The hero card subsumes both. */
+  .rt .summary-kpis-v3{display:none;}
+  .rt .summary-chart-card{display:none;}
+
+  /* Mobile-only surfaces become visible and slot into the grid. */
+  .rt .summary-sourcing-cta{display:flex;}
+  .rt .summary-hero-card{display:block;}
+  .rt .summary-mobile-twoup{display:grid;}
+
+  /* Reading order (top-to-bottom on phone) — set by `order:` since the grid
+     is single-column and grid-row is auto. Frequency × actionability:    */
+  .rt .summary-sourcing-cta {grid-column:1 / -1; grid-row:auto; order:1;}
+  .rt .summary-hero-card    {grid-column:1 / -1; grid-row:auto; order:2;}
+  .rt .summary-mobile-twoup {grid-column:1 / -1; grid-row:auto; order:3;}
+  .rt .summary-inventory    {grid-column:1 / -1 !important; grid-row:auto !important; order:4 !important;}
+  .rt .summary-categories   {grid-column:1 / -1 !important; grid-row:auto !important; order:5 !important;}
+  .rt .summary-snapshot     {grid-column:1 / -1 !important; grid-row:auto !important; order:6 !important;}
+  .rt .summary-velocity     {grid-column:1 / -1 !important; grid-row:auto !important; order:7 !important;}
+  .rt .summary-topflips     {grid-column:1 / -1 !important; grid-row:auto !important; order:8 !important;}
+
   .rt .summary-categories-empty{display:none !important;}
   .rt .summary-velocity .category-mini-grid{grid-template-columns:1fr;}
 }
-/* Snapshot strip stacks its 3 stats below 560 */
-@media(max-width:560px){
-  .rt .summary-snapshot-strip .snap-strip-row{grid-template-columns:1fr;}
-  .rt .summary-inventory .inv-band-grid{grid-template-columns:1fr;gap:16px;}
-  .rt .summary-inventory .inv-metrics{grid-template-columns:1fr;}
-  .rt .summary-inventory .inv-age{padding-left:0;border-left:none;padding-top:16px;border-top:1px solid var(--border);}
+
+/* ── Sourcing CTA card (mobile-only, conditional on no active run) ───── */
+.rt .summary-sourcing-cta{
+  align-items:center;gap:14px;padding:14px 16px;width:100%;
+  background:var(--surface-1);border:1px solid var(--border);border-radius:var(--r-l,16px);
+  cursor:pointer;text-align:left;font-family:var(--font-body);
+  -webkit-tap-highlight-color:transparent;
+  transition:border-color var(--dur-fast) var(--ease-out),background var(--dur-fast) var(--ease-out);
 }
-/* Narrow phones: trim value size + drop the delta label so the
-   "▲ 63.8pp" chip never forces horizontal overflow. */
+.rt .summary-sourcing-cta:active{background:var(--surface-2);}
+.rt .summary-sourcing-cta .cta-icon{
+  flex:0 0 auto;width:38px;height:38px;border-radius:10px;
+  display:inline-flex;align-items:center;justify-content:center;
+  background:rgba(242,179,61,0.12);color:var(--brand);
+}
+.rt .summary-sourcing-cta .cta-text{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px;}
+.rt .summary-sourcing-cta .cta-title{font-size:15px;font-weight:600;color:var(--text-primary);letter-spacing:-0.01em;}
+.rt .summary-sourcing-cta .cta-sub{font-size:12px;color:var(--text-secondary);}
+.rt .summary-sourcing-cta .cta-chev{font-size:22px;color:var(--text-tertiary);flex:0 0 auto;line-height:1;margin-top:-2px;}
+
+/* ── Hero card (mobile-only) ─ piggybacks on the existing summary-hero-*
+   element styles. The card is its own container; .summary-hero-top is the
+   header row (label + value + delta on the left, sparkline on the right),
+   .summary-hero-chart hosts the embedded area chart below. ────────────── */
+.rt .summary-hero-card{
+  padding:0;overflow:hidden;cursor:pointer;
+  -webkit-tap-highlight-color:transparent;
+  transition:border-color var(--dur-fast) var(--ease-out);
+}
+.rt .summary-hero-card .summary-hero-top{
+  display:flex;align-items:flex-start;justify-content:space-between;gap:14px;
+  padding:18px 18px 6px;
+}
+.rt .summary-hero-card .summary-hero-head{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px;}
+.rt .summary-hero-card .summary-hero-value{
+  font-size:42px;line-height:46px;font-weight:700;letter-spacing:-0.03em;
+  color:var(--brand);margin-top:4px;
+}
+.rt .summary-hero-card .kpi-foot{font-size:12px;color:var(--text-tertiary);margin-top:6px;}
+.rt .summary-hero-card .summary-hero-spark{width:96px;height:38px;flex:none;margin-top:4px;}
+.rt .summary-hero-card .summary-hero-chart{padding:0 14px 14px;position:relative;}
+.rt .summary-hero-card .summary-hero-chart .summary-chart-legend{
+  display:flex;gap:14px;font-size:11px;color:var(--text-tertiary);
+  justify-content:flex-end;margin-bottom:4px;
+}
+.rt .summary-hero-card #summary-chart-svg-mobile{width:100%;height:160px;display:block;}
+
+/* ── 2-up: Active Stock + Avg Margin (mobile-only) ───────────────────── */
+.rt .summary-mobile-twoup{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;}
+.rt .summary-mobile-twoup .kpi{padding:14px 14px;min-height:0;}
+.rt .summary-mobile-twoup .kpi-label{font-size:11px;line-height:14px;letter-spacing:0.03em;font-weight:500;color:var(--text-secondary);text-transform:uppercase;}
+.rt .summary-mobile-twoup .kpi-value{font-size:22px;line-height:26px;font-weight:700;letter-spacing:-0.025em;color:var(--text-primary);margin-top:4px;}
+.rt .summary-mobile-twoup .kpi-foot{font-size:11px;color:var(--text-tertiary);margin-top:6px;}
+
+/* ── Mobile Snapshot: card-of-rows pattern. The desktop footer-strip with
+   vertical dividers doesn't read well stacked; on phone, snapshot becomes
+   a clean list of label-left / value-right rows (per mockup image 2). ── */
+@media(max-width:600px){
+  .rt .summary-snapshot-strip .snap-strip-head{margin-bottom:6px;}
+  .rt .summary-snapshot-strip .snap-strip-row{grid-template-columns:1fr;gap:0;}
+  .rt .summary-snapshot-strip .snap-stat{
+    display:flex;align-items:baseline;justify-content:space-between;gap:12px;
+    padding:12px 0;border-left:none;border-top:1px solid var(--border);
+  }
+  .rt .summary-snapshot-strip .snap-stat:first-child{border-top:none;padding-top:6px;}
+  .rt .summary-snapshot-strip .snap-stat-k{
+    font-size:13px;color:var(--text-primary);text-transform:none;
+    letter-spacing:0;font-weight:400;
+  }
+  .rt .summary-snapshot-strip .snap-stat-v{font-size:17px;margin-top:0;font-weight:700;}
+  /* Inventory health on mobile — 3 stats in a single compact row across
+     the top (Active stock count · Active stock value · Listed in period),
+     followed by the stock-age bar + legend. Labels stay uppercase mini-caps
+     with a min-height of 2 lines so value baselines align across columns
+     regardless of label length ("Active stock value" wraps; "Active stock"
+     stays one line). No nested card borders — these read as label/value
+     pairs, not sub-cards. The whole row sits above a thin divider that
+     separates it from the age section below. */
+  .rt .summary-inventory .inv-band-grid{display:flex;flex-direction:column;gap:14px;}
+  .rt .summary-inventory .inv-metrics{
+    display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;
+    padding-bottom:14px;border-bottom:1px solid var(--border);
+    grid-template-columns:repeat(3,minmax(0,1fr)) !important;
+  }
+  .rt .summary-inventory .inv-metrics .inv-stat,
+  .rt .summary-inventory .inv-metrics .inv-stat:nth-child(1),
+  .rt .summary-inventory .inv-metrics .inv-stat:nth-child(2),
+  .rt .summary-inventory .inv-metrics .inv-stat:nth-child(3){
+    display:flex;flex-direction:column;align-items:flex-start;justify-content:flex-start;
+    gap:4px;padding:0;border:none;border-radius:0;
+  }
+  .rt .summary-inventory .inv-metrics .inv-stat-k{
+    font-size:10px;line-height:13px;font-weight:500;letter-spacing:0.05em;
+    text-transform:uppercase;color:var(--text-secondary);
+    min-height:26px;display:flex;align-items:flex-start;
+    flex:none;width:100%;
+  }
+  .rt .summary-inventory .inv-metrics .inv-stat-v{
+    font-size:19px;line-height:22px;font-weight:700;letter-spacing:-0.02em;
+    color:var(--text-primary);margin-top:0;
+  }
+  .rt .summary-inventory .inv-metrics .inv-stat-sub{display:none;}
+  /* Age section: tighter padding now that the divider lives above it */
+  .rt .summary-inventory .inv-age{padding-top:0;border-top:none;}
+  /* Drop the wrapping "By age in current state" subtitle on mobile — title is self-evident */
+  .rt .summary-inventory .summary-cat-head .summary-cat-count{display:none;}
+}
+
+/* Age-bar legend: zero-count buckets stay visible (so the user sees the
+   full 4-bucket range) but de-emphasized so they don't compete with the
+   real counts. */
+.rt .age-legend-btn--zero{opacity:0.45;}
+.rt .age-legend-btn--zero .age-legend-dot{opacity:0.5;}
+/* Narrow phones: trim hero value and tighten 2-up cards so chips don't
+   force horizontal overflow. Desktop KPI grid is hidden at this width
+   but we keep its rule defensive in case it ever re-shows. */
 @media(max-width:430px){
   .rt .summary-kpis-v3{gap:10px;}
   .rt .summary-kpis-v3 .kpi{padding:14px 14px;}
   .rt .summary-kpis-v3 .kpi-value{font-size:22px;line-height:26px;}
   .rt .kpi-delta{font-size:11px;}
   .rt .kpi-delta .kpi-delta-lbl{display:none;}
+  /* Mobile-only blocks: tighten for very narrow screens */
+  .rt .summary-hero-card .summary-hero-value{font-size:38px;line-height:42px;}
+  .rt .summary-hero-card .summary-hero-spark{width:80px;height:34px;}
+  .rt .summary-mobile-twoup{gap:8px;}
+  .rt .summary-mobile-twoup .kpi{padding:12px 12px;}
+  .rt .summary-mobile-twoup .kpi-value{font-size:20px;line-height:24px;}
 }
 
 /* ── KPI delta chips (period-over-period) ── */
@@ -4573,7 +4732,7 @@ const _previewParam = new URLSearchParams(window.location.search).get('preview')
 const PREVIEW_STORAGE_KEY='retrade_preview_mode';
 const LEGACY_PREVIEW_STORAGE_KEYS=['general_preview_mode'];
 const _previewStored = localStorage.getItem(PREVIEW_STORAGE_KEY) === '1' || LEGACY_PREVIEW_STORAGE_KEYS.some(function(k){ return localStorage.getItem(k) === '1'; });
-const PREVIEW_MODE_ENABLED = false; // Production build — preview/dev-bypass button hidden.
+const PREVIEW_MODE_ENABLED = false; // DEV ONLY — set false in push file. Controls preview-btn visibility.
 
 function _buildPreviewDB(){
   // ── Date helpers ──────────────────────────────────────────────────────────
@@ -11726,10 +11885,14 @@ function renderSummaryChart(labels,revData,profitData){
     +'<path d="'+line+'" fill="none" stroke="var(--state-listed)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>'
     +hits;
 
-  // Delegated click — preserves __chartClickHandlers contract
+  // Delegated click — preserves __chartClickHandlers contract.
+  // stopPropagation: on mobile, the hero card has its own card-level onclick
+  // ('view all realised'). Without this, a column tap would fire both the
+  // bucket snapshot AND the card click. Chart owns column taps.
   svg.onclick=function(e){
     const col=e.target.closest('.rt-chart-col');
     if(!col)return;
+    e.stopPropagation();
     const idx=parseInt(col.getAttribute('data-idx'),10);
     const h=handlers[idx];
     if(!h)return;
@@ -11766,6 +11929,15 @@ function renderSummaryChart(labels,revData,profitData){
         +'<path d="'+sarea+'" fill="url(#rt-spark-fill)" stroke="none"/>'
         +'<path d="'+sline+'" fill="none" stroke="var(--profit)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>';
     }
+  }
+  // Mirror the main chart into the mobile hero's embedded SVG (same viewBox,
+  // same data — the SVG scales by container). The hero card subsumes the
+  // standalone chart card on mobile; this keeps a single source of truth in
+  // renderSummaryChart and avoids re-computing paths.
+  const svgMobile=document.getElementById('summary-chart-svg-mobile');
+  if(svgMobile){
+    svgMobile.innerHTML=svg.innerHTML;
+    svgMobile.onclick=svg.onclick;
   }
 }
 
@@ -11875,12 +12047,48 @@ function renderSummary(){
         <select class="period-select-inline summary-period-sel" onchange="setSummaryPeriod(this.value)">${periods.map(p=>`<option value="${p.key}"${SUMMARY_PERIOD===p.key?' selected':''}>${p.label}</option>`).join('')}</select>
       </div>
       <div class="summary-grid-v3">
+        <!-- ─ Mobile-only blocks. Hidden on desktop via .summary-mobile-only.
+             Rendered first in the DOM, then ordered into position via the
+             ≤600px breakpoint. CTA is conditional on no active run. ─────── -->
+        ${!_activeSourcingRun?`<button class="card summary-sourcing-cta summary-mobile-only" onclick="goToTab('runs',document.querySelector('[data-tab=\\'runs\\']'))">
+          <span class="cta-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></span>
+          <span class="cta-text"><span class="cta-title">Start a sourcing run</span><span class="cta-sub">Tag items to a trip as you find them</span></span>
+          <span class="cta-chev">›</span>
+        </button>`:''}
+        <div class="card summary-hero-card summary-mobile-only" onclick="showFilteredItems('realised')">
+          <div class="summary-hero-top">
+            <div class="summary-hero-head">
+              <div class="kpi-label">Net profit · ${(periods.find(p=>p.key===SUMMARY_PERIOD)||{}).label||''}</div>
+              <div class="summary-hero-value num">${fmt(stats.netProfit||0)}</div>
+              <div class="kpi-foot">${deltaChip(deltas&&deltas.netProfit)||(fmtK(stats.grossProfit||0)+' gross')}</div>
+            </div>
+            <svg class="summary-hero-spark" viewBox="0 0 120 44" preserveAspectRatio="none" aria-hidden="true"></svg>
+          </div>
+          <div class="summary-hero-chart">
+            <div class="summary-chart-legend"><span class="legend-item"><span class="legend-dot" style="background:var(--state-listed)"></span>Revenue</span><span class="legend-item"><span class="legend-dot" style="background:var(--profit)"></span>Profit</span></div>
+            <svg id="summary-chart-svg-mobile" viewBox="0 0 800 280" preserveAspectRatio="none" role="img" aria-label="Revenue over time"></svg>
+          </div>
+        </div>
+        <div class="summary-mobile-twoup summary-mobile-only">
+          <div class="card kpi clickable" onclick="showFilteredItems('revenue')">
+            <div class="kpi-label">Revenue</div>
+            <div class="kpi-value num">${fmtK(stats.totalRev||0)}</div>
+            <div class="kpi-foot">${deltaChip(deltas&&deltas.totalRev)||((stats.soldCount||0)+' sold')}</div>
+          </div>
+          <div class="card kpi clickable" onclick="showMarginItems()">
+            <div class="kpi-label">Avg margin</div>
+            <div class="kpi-value num">${Math.round(stats.netMargin||0)}%</div>
+            <div class="kpi-foot">${deltaChip(deltas&&deltas.netMargin,{pp:true})||(Math.round(stats.grossMargin||0)+'% gross')}</div>
+          </div>
+        </div>
         <!-- Tier 1: 4-KPI grid -->
         <div class="summary-kpis-v3">
           <div class="card kpi clickable" onclick="showFilteredItems('revenue')"><div class="kpi-label">Total revenue</div><div class="kpi-value num">${fmtK(stats.totalRev||0)}</div><div class="kpi-foot">${deltaChip(deltas&&deltas.totalRev)||((stats.soldCount||0)+' sold in view')}</div></div>
           <div class="card kpi clickable kpi-netprofit" onclick="showFilteredItems('realised')"><div class="kpi-label">Net profit</div><div class="kpi-value num">${fmtK(stats.netProfit||0)}</div><div class="kpi-foot">${deltaChip(deltas&&deltas.netProfit)||(fmtK(stats.grossProfit||0)+' gross')}</div></div>
           <div class="card kpi clickable" onclick="showMarginItems()"><div class="kpi-label">Avg margin</div><div class="kpi-value num">${Math.round(stats.netMargin||0)}%</div><div class="kpi-foot">${deltaChip(deltas&&deltas.netMargin,{pp:true})||(Math.round(stats.grossMargin||0)+'% gross')}</div></div>
+          <div class="card kpi clickable" onclick="showFilteredItems('realised')"><div class="kpi-label">Sold items</div><div class="kpi-value num">${stats.soldCount||0}</div><div class="kpi-foot">${deltaChip(deltas&&deltas.soldCount)||'in selected period'}</div></div>
           <div class="card kpi clickable" onclick="showReturnedItems()"><div class="kpi-label">Refund rate</div><div class="kpi-value num">${Number(stats.refundItemRate||0).toFixed(1)}%</div><div class="kpi-foot">${deltaChip(deltas&&deltas.refundItemRate,{pp:true,invert:true})||((stats.fullRefundCount||0)+' full · '+(stats.partialOnlyCount||0)+' partial')}</div></div>
+          <div class="card kpi clickable" onclick="showAvgProfitBreakdown()"><div class="kpi-label">Avg profit / sale</div><div class="kpi-value num">${fmt(stats.avgProfit||0)}</div><div class="kpi-foot">${deltaChip(deltas&&deltas.avgProfit)||'per sale, this period'}</div></div>
         </div>
 
         <!-- Tier 2: chart + categories -->
@@ -11908,12 +12116,12 @@ function renderSummary(){
 
         <!-- Tier 3: inventory health + top flips -->
         <div class="card summary-panel summary-inventory">
-          <div class="sl">Inventory health</div>
+          <div class="summary-cat-head"><div class="sl">Inventory health</div><div class="summary-cat-count">By age in current state</div></div>
           <div class="inv-band-grid">
             <div class="inv-metrics">
-              <div class="inv-stat clickable" onclick="openDashboardStock('all')"><div class="inv-stat-k">Active stock</div><div class="inv-stat-v num">${activeStockCount}</div><div class="inv-stat-sub">Current live inventory</div></div>
               <div class="inv-stat clickable" onclick="showFilteredItems('sourced')"><div class="inv-stat-k">Active stock value</div><div class="inv-stat-v num">${fmt(activeStockVal)}</div><div class="inv-stat-sub">At current ask</div></div>
-              <div class="inv-stat clickable" onclick="showListedInPeriodItems()"><div class="inv-stat-k">Listed in period</div><div class="inv-stat-v num" style="color:var(--accent)">${listedInPeriod}</div><div class="inv-stat-sub">Fresh sourcing pace</div></div>
+              <div class="inv-stat clickable" onclick="openDashboardStock('all')"><div class="inv-stat-k">Active stock</div><div class="inv-stat-v num">${activeStockCount}</div><div class="inv-stat-sub">Current live inventory</div></div>
+              <div class="inv-stat clickable" onclick="showListedInPeriodItems()"><div class="inv-stat-k">Listed in period</div><div class="inv-stat-v num">${listedInPeriod}</div><div class="inv-stat-sub">Fresh sourcing pace</div></div>
             </div>
             ${activeStockCount>0?(()=>{
               const segs=[
@@ -11929,8 +12137,8 @@ function renderSummary(){
                 return `<div class="age-bar-seg" style="width:${pct}%;background:${s.col};" title="${s.label}: ${s.count}" onclick="openDashboardStock('${s.key}')"></div>`;
               }).join('');
               const legend=segs.map(s=>{
-                if(s.count===0)return '';
-                return `<button class="age-legend-btn" onclick="openDashboardStock('${s.key}')">
+                const zeroCls=s.count===0?' age-legend-btn--zero':'';
+                return `<button class="age-legend-btn${zeroCls}" onclick="openDashboardStock('${s.key}')">
                   <span class="age-legend-dot" style="background:${s.col};"></span>
                   <span class="age-legend-label">${s.label}</span>
                   <span class="age-legend-count">${s.count}</span>
@@ -11945,7 +12153,7 @@ function renderSummary(){
           </div>
         </div>
         <div class="card summary-panel summary-topflips">
-          <div class="sl">Top flips</div>
+          <div class="summary-cat-head"><div class="sl">Top flips</div><div class="summary-cat-count">${(periods.find(p=>p.key===SUMMARY_PERIOD)||{}).label||''}</div></div>
           ${topRows}
           ${_topFlipsHidden>0?`<button class="summary-viewall" onclick="showFilteredItems('realised')">View all (${_topFlipsHidden} more) →</button>`:''}
         </div>
