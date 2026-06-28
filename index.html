@@ -1299,7 +1299,7 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
 .item-row-profit{font-size:13px;font-weight:700;}
 .item-row-roi{font-size:11px;color:var(--text-secondary);}
 .filter-row,.list-toolbar{margin-bottom:14px;}
-.month-select,.period-select-inline,.period-select{height:42px;padding:0 40px 0 14px;border-radius:14px;background:color-mix(in srgb,var(--surface2) 78%, var(--surface));font-weight:600;border:1px solid var(--border);}
+.month-select,.period-select-inline,.period-select,.tax-year-select{height:42px;padding:0 40px 0 14px;border-radius:14px;background:color-mix(in srgb,var(--surface2) 78%, var(--surface));font-weight:600;border:1px solid var(--border);}
 /* Desktop: sort-select matches filter-pill-dd-btn height — keep at 38px, just bump radius to match desktop btn scale */
 .sort-select{height:38px;border-radius:10px;} 
 .btn{border-radius:14px;height:42px;padding:0 16px;font-weight:700;}
@@ -2154,6 +2154,93 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
 .rt .more-sheet-row { border-radius: var(--r-s); }
 
 /* ============================================================================
+   ──────────────  V2 — PICKER FAMILY (unification + calendar icon)  ───────────
+   Five existing picker classes (.period-select-inline, .period-select,
+   .month-select, .tax-year-select, .sort-select) share a single V2 visual
+   treatment: navy-tinted surface-2 fill, hairline border, brand-amber focus
+   ring, V2 caret. Date / period / year pickers additionally get a calendar
+   icon prefix; sort picker keeps caret-only since "sort" is content-not-date.
+
+   Shape (height/radius) is preserved from line 1302 (42px × 14px radius for
+   date family, 38px × 10px for sort) — only colour, focus chrome, and the
+   icon prefix change here. No markup changes required; .tax-year-select's
+   inline style block is stripped separately below.
+
+   Two SVG sets — dark and light — because <select> background-image can't
+   inherit currentColor; we hardcode the stroke fill in the URL per theme.
+   ============================================================================ */
+.rt .period-select-inline,
+.rt .period-select,
+.rt .month-select,
+.rt .tax-year-select,
+.rt .sort-select{
+  background-color:var(--surface-2);
+  border:1px solid var(--border);
+  color:var(--text-primary);
+  font-family:var(--font-body);
+  font-weight:600;
+  transition:border-color var(--dur-fast) var(--ease-out),
+             box-shadow var(--dur-fast) var(--ease-out);
+}
+.rt .period-select-inline:hover,
+.rt .period-select:hover,
+.rt .month-select:hover,
+.rt .tax-year-select:hover,
+.rt .sort-select:hover{
+  border-color:var(--border-strong);
+}
+.rt .period-select-inline:focus,
+.rt .period-select:focus,
+.rt .month-select:focus,
+.rt .tax-year-select:focus,
+.rt .sort-select:focus{
+  border-color:var(--brand);
+  box-shadow:0 0 0 2px rgba(242,179,61,0.22);
+  outline:none;
+}
+/* Dark-mode SVG set (--text-tertiary = #7E7F79 → URL %237E7F79) */
+.rt .sort-select{
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath stroke='%237E7F79' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round' fill='none' d='M2 4.5L6 8.5L10 4.5'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;
+  background-position:right 12px center;
+}
+.rt .period-select-inline,
+.rt .period-select,
+.rt .month-select,
+.rt .tax-year-select{
+  padding-left:38px;
+  background-image:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='15' height='15' viewBox='0 0 24 24' fill='none' stroke='%23B5B6B0' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='4' width='18' height='18' rx='2.5' ry='2.5'/%3E%3Cline x1='16' y1='2' x2='16' y2='6'/%3E%3Cline x1='8' y1='2' x2='8' y2='6'/%3E%3Cline x1='3' y1='10' x2='21' y2='10'/%3E%3C/svg%3E"),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath stroke='%237E7F79' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round' fill='none' d='M2 4.5L6 8.5L10 4.5'/%3E%3C/svg%3E");
+  background-position:left 14px center, right 12px center;
+  background-repeat:no-repeat, no-repeat;
+}
+/* Light-mode SVG set (--text-tertiary = #84867F → URL %2384867F,
+   --text-secondary = #54565B for calendar icon → %2354565B) */
+.rt[data-theme="light"] .sort-select,
+[data-theme="light"] .rt .sort-select{
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath stroke='%2384867F' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round' fill='none' d='M2 4.5L6 8.5L10 4.5'/%3E%3C/svg%3E");
+}
+.rt[data-theme="light"] .period-select-inline,
+.rt[data-theme="light"] .period-select,
+.rt[data-theme="light"] .month-select,
+.rt[data-theme="light"] .tax-year-select,
+[data-theme="light"] .rt .period-select-inline,
+[data-theme="light"] .rt .period-select,
+[data-theme="light"] .rt .month-select,
+[data-theme="light"] .rt .tax-year-select{
+  background-image:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='15' height='15' viewBox='0 0 24 24' fill='none' stroke='%2354565B' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='4' width='18' height='18' rx='2.5' ry='2.5'/%3E%3Cline x1='16' y1='2' x2='16' y2='6'/%3E%3Cline x1='8' y1='2' x2='8' y2='6'/%3E%3Cline x1='3' y1='10' x2='21' y2='10'/%3E%3C/svg%3E"),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath stroke='%2384867F' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round' fill='none' d='M2 4.5L6 8.5L10 4.5'/%3E%3C/svg%3E");
+}
+/* color-scheme keeps native option list theme-aware */
+[data-theme="dark"] .rt .period-select-inline,
+[data-theme="dark"] .rt .period-select,
+[data-theme="dark"] .rt .month-select,
+[data-theme="dark"] .rt .tax-year-select,
+[data-theme="dark"] .rt .sort-select{color-scheme:dark;}
+
+/* ============================================================================
    ─────────────  V2 SESSION 1 — TOKEN GUARD (collision shield)  ──────────────
    The §2 block above declares `--border`, `--text-secondary`, and `--font-mono`
    on global :root, which collides with the live app's existing tokens of the
@@ -2455,9 +2542,12 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
 .rt .summary-viewall:hover{color:var(--brand);}
 
 /* ── MEDIUM / tablet (601–1099px) ──
-   Stack all content cards full-width — predictable, readable, preserves
-   the top-to-bottom desktop reading order: trends (chart + categories) →
-   snapshot context → inventory state → velocity + topflips. */
+   Below 1099px the chart loses its 7/5 split with categories and goes
+   full-width (a wide chart needs all the horizontal space it can get for
+   trend reading). At 800–1099px, pair Categories + Snapshot and
+   Velocity + Top Flips side-by-side — both pairs have natural visual
+   weight matches. Below 800px (small tablet / large phone in landscape),
+   everything stacks single-column. */
 @media(max-width:1099px){
   .rt .summary-grid-v3{grid-template-columns:repeat(12,minmax(0,1fr));gap:16px;}
   .rt .summary-kpis-v3{grid-column:1 / -1;}
@@ -2467,8 +2557,18 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
   .rt .summary-inventory   {grid-column:1 / -1;grid-row:auto;order:4;}
   .rt .summary-velocity    {grid-column:1 / -1;grid-row:auto;order:5;}
   .rt .summary-topflips    {grid-column:1 / -1;grid-row:auto;order:6;}
-  /* Inventory band stays horizontal until 980px (defined below) */
   .rt .summary-velocity .category-mini-grid{grid-template-columns:repeat(2,1fr);gap:8px 20px;}
+}
+@media(min-width:800px) and (max-width:1099px){
+  /* Pair Categories + Snapshot (both medium-density panels) and
+     Velocity + Top Flips (already paired on full desktop) */
+  .rt .summary-categories  {grid-column:1 / 7;}
+  .rt .summary-snapshot    {grid-column:7 / -1;}
+  .rt .summary-velocity    {grid-column:1 / 7;}
+  .rt .summary-topflips    {grid-column:7 / -1;}
+  /* Velocity inner: category breakdown back to single column since the
+     card itself is narrower in the pair */
+  .rt .summary-velocity .category-mini-grid{grid-template-columns:1fr;gap:8px;}
 }
 /* KPI grid: 4-col down to 980, then 2-col (4 KPIs → 2×2 on tablet) */
 @media(max-width:980px){
@@ -2504,12 +2604,14 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
   .rt .summary-mobile-twoup{display:grid;}
 
   /* Reading order (top-to-bottom on phone) — set by `order:` since the grid
-     is single-column and grid-row is auto. Frequency × actionability:    */
+     is single-column and grid-row is auto. Categories' donut visual pairs
+     nicely after the two-up numerics; Inventory's heavier stat row + age
+     bar lands after, then snapshot/velocity/topflips: */
   .rt .summary-sourcing-cta {grid-column:1 / -1; grid-row:auto; order:1;}
   .rt .summary-hero-card    {grid-column:1 / -1; grid-row:auto; order:2;}
   .rt .summary-mobile-twoup {grid-column:1 / -1; grid-row:auto; order:3;}
-  .rt .summary-inventory    {grid-column:1 / -1 !important; grid-row:auto !important; order:4 !important;}
-  .rt .summary-categories   {grid-column:1 / -1 !important; grid-row:auto !important; order:5 !important;}
+  .rt .summary-categories   {grid-column:1 / -1 !important; grid-row:auto !important; order:4 !important;}
+  .rt .summary-inventory    {grid-column:1 / -1 !important; grid-row:auto !important; order:5 !important;}
   .rt .summary-snapshot     {grid-column:1 / -1 !important; grid-row:auto !important; order:6 !important;}
   .rt .summary-velocity     {grid-column:1 / -1 !important; grid-row:auto !important; order:7 !important;}
   .rt .summary-topflips     {grid-column:1 / -1 !important; grid-row:auto !important; order:8 !important;}
@@ -2573,17 +2675,23 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
 
 /* ── Mobile Snapshot: card-of-rows pattern. The desktop footer-strip with
    vertical dividers doesn't read well stacked; on phone, snapshot becomes
-   a clean list of label-left / value-right rows (per mockup image 2). ── */
+   a clean list of label-left / value-right rows (per mockup image 2).
+   Explicitly clears the desktop border/border-radius — without this the
+   bordered card style leaks through and shows a 3-sided outline. Matches
+   the Velocity card's row aesthetic just below it. ── */
 @media(max-width:600px){
   .rt .summary-snapshot-strip .snap-strip-head{margin-bottom:6px;}
   .rt .summary-snapshot-strip .snap-strip-row{grid-template-columns:1fr;gap:0;}
   .rt .summary-snapshot-strip .snap-stat{
     display:flex;align-items:baseline;justify-content:space-between;gap:12px;
-    padding:12px 0;border-left:none;border-top:1px solid var(--border);
+    padding:14px 0;
+    border:none;
+    border-top:1px solid var(--border);
+    border-radius:0;
   }
-  .rt .summary-snapshot-strip .snap-stat:first-child{border-top:none;padding-top:6px;}
+  .rt .summary-snapshot-strip .snap-stat:first-child{border-top:none;padding-top:8px;}
   .rt .summary-snapshot-strip .snap-stat-k{
-    font-size:13px;color:var(--text-primary);text-transform:none;
+    font-size:14px;color:var(--text-primary);text-transform:none;
     letter-spacing:0;font-weight:400;
   }
   .rt .summary-snapshot-strip .snap-stat-v{font-size:17px;margin-top:0;font-weight:700;}
@@ -2617,6 +2725,22 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
   .rt .summary-inventory .inv-metrics .inv-stat-v{
     font-size:19px;line-height:22px;font-weight:700;letter-spacing:-0.02em;
     color:var(--text-primary);margin-top:0;
+    width:100%;
+  }
+  /* Per-stat alignment (Oskar Drop-1 review):
+       1. Active stock value (£) — left, anchors the section
+       2. Active stock count    — centered
+       3. Listed in period      — centered
+     Labels track the same alignment as the value beneath them. */
+  .rt .summary-inventory .inv-metrics .inv-stat:nth-child(1) .inv-stat-k,
+  .rt .summary-inventory .inv-metrics .inv-stat:nth-child(1) .inv-stat-v{
+    text-align:left;
+  }
+  .rt .summary-inventory .inv-metrics .inv-stat:nth-child(2) .inv-stat-k,
+  .rt .summary-inventory .inv-metrics .inv-stat:nth-child(2) .inv-stat-v,
+  .rt .summary-inventory .inv-metrics .inv-stat:nth-child(3) .inv-stat-k,
+  .rt .summary-inventory .inv-metrics .inv-stat:nth-child(3) .inv-stat-v{
+    text-align:center;
   }
   .rt .summary-inventory .inv-metrics .inv-stat-sub{display:none;}
   /* Age section: tighter padding now that the divider lives above it */
@@ -2720,24 +2844,48 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
    Desktop (>600px) keeps the floating corner FAB untouched.
    ============================================================================ */
 @media(max-width:600px){
-  /* Taller bar w/ blurred surface for depth */
+  /* Bottom nav sits on the same navy as the page (--surface-0) so the chrome
+     feels like part of the canvas, not a separate panel. A single hairline
+     border-top is the only separation; the heavy multi-layer shadow + the
+     backdrop-blur were V1 holdovers — both removed now that the nav is opaque
+     and surface-matched. The FAB's box-shadow ring (below) also uses
+     --surface-0 so its punch-out blends with the new nav. */
   #bottom-nav{
     height:calc(64px + env(safe-area-inset-bottom,0px));
-    background:var(--surface-1);
+    background:var(--surface-0);
     border-top:1px solid var(--border);
-    box-shadow:0 -1px 0 var(--border),0 -8px 28px rgba(0,0,0,0.18);
+    box-shadow:none;
   }
   [data-theme="dark"] #bottom-nav{
-    background:rgba(20,20,28,0.96);
-    backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);
+    background:var(--surface-0);
+    backdrop-filter:none;-webkit-backdrop-filter:none;
   }
   /* Tab labels a touch tighter + clearer active state */
   .rt .bnt{font-size:10.5px;font-weight:600;gap:3px;color:var(--text-tertiary);}
   .rt .bnt.on{color:var(--brand);}
   .rt .bnt.on svg{transform:scale(1.12);}
 
-  /* ── Centre FAB slot ── */
-  .bnt-fab-slot{flex:1 1 0;min-width:0;height:100%;pointer-events:none;}
+  /* ── Centre FAB slot ──
+     Flex-column with the FAB label pinned to the bottom so the text sits on
+     the same baseline as the other tab labels (Home / Sales / Stock / More).
+     The label is purely visual — accessibility lives on .fab-main's aria-label.
+     Active-run state swaps "ADD" → "ADD TO RUN" via the body.rt-run-active
+     class set by _refreshNav. */
+  .bnt-fab-slot{
+    flex:1 1 0;min-width:0;height:100%;
+    pointer-events:none;
+    display:flex;flex-direction:column;justify-content:flex-end;align-items:center;
+    padding-bottom:12px;
+  }
+  .bnt-fab-slot .fab-slot-label{
+    font-size:10.5px;font-weight:600;line-height:1;letter-spacing:0.02em;
+    color:var(--text-tertiary);
+    text-align:center;
+    transition:color var(--dur-fast,150ms) var(--ease-out,ease-out);
+  }
+  .bnt-fab-slot .label-active{display:none;}
+  .rt-run-active .bnt-fab-slot .label-idle{display:none;}
+  .rt-run-active .bnt-fab-slot .label-active{display:inline;color:var(--brand);}
 
   /* ── Horizontal speed-dial: FAB nested in the bar; tapping it reveals a row
      of labelled option buttons in the band directly above the nav. No CSS trig
@@ -2782,15 +2930,47 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
     color:var(--text-secondary);background:none;border:none;padding:0;box-shadow:none;
     max-width:60px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
   }
-  /* FAB main — bigger, nested, amber, ringed so it reads above the bar */
+  /* FAB main — bigger, nested, amber, ringed so it reads above the bar.
+     Box-shadow's 5px solid ring uses --surface-0 (same as the new nav + page),
+     so the FAB sits cleanly on a continuous navy surface — the ring still
+     gives the FAB a subtle "lifted" punch-out from the surrounding pulse
+     ring while never bleeding a foreign colour onto the surface. */
   .fab-main{
     position:relative;z-index:2;
     width:60px;height:60px;font-size:27px;
     background:var(--brand);color:#1a1205;
-    box-shadow:0 5px 16px rgba(0,0,0,0.3),0 0 0 5px var(--surface-1);
+    box-shadow:0 5px 16px rgba(0,0,0,0.3),0 0 0 5px var(--surface-0);
   }
-  [data-theme="dark"] .fab-main{box-shadow:0 5px 16px rgba(0,0,0,0.5),0 0 0 5px rgba(20,20,28,1);}
+  [data-theme="dark"] .fab-main{box-shadow:0 5px 16px rgba(0,0,0,0.5),0 0 0 5px var(--surface-0);}
   .fab-main:hover{background:var(--brand);}
+  /* Active-run pulse ring — V2 brand green (--profit, #5BC470) ring positioned
+     just outside the surface-1 "punch-out" box-shadow ring. Border stays at
+     full token-colour; opacity is driven entirely by the keyframe (peak 0.75
+     → 0), so the visual softness lives in the animation, not in a hardcoded
+     rgba. Sits idle (opacity 0) and only animates when body.rt-run-active is
+     set by _refreshNav. Pseudo-element keeps the FAB's own transform untouched
+     so hover-scale + click-feedback still work. */
+  .rt .fab-main::after{
+    content:'';
+    position:absolute;
+    top:50%;left:50%;
+    width:76px;height:76px;
+    margin-top:-38px;margin-left:-38px;
+    border-radius:50%;
+    border:2px solid var(--profit);
+    box-sizing:border-box;
+    opacity:0;
+    pointer-events:none;
+  }
+  .rt-run-active .rt .fab-main::after,
+  body.rt-run-active .fab-main::after{
+    animation:fabRunPulse 1.6s cubic-bezier(0.32,0.66,0.4,1) infinite;
+  }
+  @keyframes fabRunPulse{
+    0%   {transform:scale(0.92);opacity:0.75;}
+    80%  {transform:scale(1.42);opacity:0;}
+    100% {transform:scale(1.42);opacity:0;}
+  }
 
   /* Hide the search FAB while the dial is open — frees the row */
   body:has(.fab-dial.open) #search-fab{
@@ -2946,10 +3126,15 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
     Home
   </button>
   <button class="bnt" data-tab="monthly" onclick="goToTab('monthly',this)">
-    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2.5"/><path d="M8 3v4M16 3v4"/><line x1="3" y1="10" x2="21" y2="10"/><rect x="7" y="13" width="3" height="3" rx="0.5" fill="currentColor" stroke="none" opacity="0.7"/></svg>
-    Calendar
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>
+    Sales
   </button>
-  <div class="bnt-fab-slot" aria-hidden="true"></div>
+  <div class="bnt-fab-slot">
+    <span class="fab-slot-label" aria-hidden="true">
+      <span class="label-idle">ADD</span>
+      <span class="label-active">ADD TO RUN</span>
+    </span>
+  </div>
   <button class="bnt" data-tab="stock" onclick="goToTab('stock',this)">
     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="14" width="20" height="7" rx="1.5"/><rect x="4" y="9" width="16" height="6" rx="1.5"/><rect x="7" y="4" width="10" height="6" rx="1.5"/></svg>
     Stock
@@ -4102,7 +4287,7 @@ let _accounts=[];                 // all accounts loaded from Supabase
 let _acctSelectMode=false;        // selection mode active on account detail page
 let _acctSelected=new Set();      // set of item IDs selected on account detail page
 let MONTHLY_VIEW='grid';          // 'grid' | 'detail'
-let SUMMARY_PERIOD='current_fy';  // summary period filter
+let SUMMARY_PERIOD='7d';  // summary period filter — default Last 7 days (daily-use framing)
 let _sourcedPartsCost=0;          // parts cost carried from sourced item into List Item form (BPF preview)
 
 // CUSTOM CONFIRM MODAL
@@ -5729,6 +5914,16 @@ async function _persistChanges(){
     const current = _dbFingerprint();
     const prev    = _dbSnapshot || {};
     const errors  = [];
+    // Drop-1 follow-up fix: track which keys FAILED to save/delete so we
+    // can exclude them from the new snapshot. Previously _dbSnapshot was
+    // updated wholesale at the end of every run, which meant a failed
+    // save still got marked "synced" — and the next pass thought there
+    // was nothing to do until the user touched the entity again. Stale
+    // failed entities (typically: accounts on a schema-mismatched DB)
+    // would never recover. With this set, failed keys keep their prev
+    // fingerprint in the new snapshot, so on the next save trigger
+    // current[key] !== prev[key] → retry is automatic.
+    const failedKeys = new Set();
 
     // Detect changed / new items
     for(const key of Object.keys(current)){
@@ -5758,7 +5953,7 @@ async function _persistChanges(){
           const acct = (_accounts||[]).find(a => a.id === id);
           if(acct) await saveAccountToSupabase(acct);
         }
-      }catch(e){ errors.push(e.message); }
+      }catch(e){ errors.push(e.message); failedKeys.add(key); }
     }
 
     // Detect deletions
@@ -5782,7 +5977,7 @@ async function _persistChanges(){
           const id = key.slice(5);
           await deleteAccountFromSupabase(id);
         }
-      }catch(e){ errors.push(e.message); }
+      }catch(e){ errors.push(e.message); failedKeys.add(key); }
     }
 
     if(errors.length > 0){
@@ -5804,14 +5999,44 @@ async function _persistChanges(){
       }
     }
 
-    // Update snapshot to reflect what we just saved
-    _dbSnapshot = _dbFingerprint();
+    // Build the new snapshot from current state, then restore prev[key] for
+    // any keys that failed — that way next sync sees them as still "needs
+    // sync" (current !== prev) and retries automatically. Brand-new entities
+    // that failed (no prev entry) get deleted from the snapshot so they
+    // still trigger on next pass.
+    const newSnapshot = _dbFingerprint();
+    failedKeys.forEach(function(k){
+      if(prev[k] !== undefined){ newSnapshot[k] = prev[k]; }
+      else                    { delete newSnapshot[k]; }
+    });
+    _dbSnapshot = newSnapshot;
   } finally {
     _setSyncing(false);
   }
 }
 
 let _dbLoading = false;
+
+// Drop-1 follow-up: force-resync. Wipes the in-memory sync snapshot so every
+// entity in the DB (items, accounts, trips, expenses, sourcing runs) reads
+// as "needs sync" on the next pass, then triggers _persistChanges immediately
+// (bypassing the saveDB debounce). Wired to the Force resync button in the
+// Data tab; also callable from console as retradeForceResync(). Idempotent
+// — safe to call repeatedly.
+async function retradeForceResync(){
+  if(!_currentUserId){ toast('Not signed in — cannot resync','err'); return; }
+  console.log('[RETRADE] Force resync starting — wiping snapshot');
+  _dbSnapshot = {};
+  toast('Resyncing to cloud…');
+  try{
+    await _persistChanges();
+    toast('Resync complete','success');
+    console.log('[RETRADE] Force resync complete');
+  }catch(e){
+    console.error('[RETRADE] Force resync error:', e);
+    toast('Resync hit an error — check console','err');
+  }
+}
 
 // DATABASE (entry point — called on app init after auth confirmed)
 async function initDB(){
@@ -8873,6 +9098,8 @@ function renderRunsPage(){
 }
 
 // ── Patch C-3: Nav refresh — updates active-run dot on Runs nav item ─────────
+// V2 Drop 1 extension: also drives the mobile FAB pulse ring + label swap via
+// body.rt-run-active class; keeps the FAB's accessible name in sync.
 function _refreshNav(){
   document.querySelectorAll('.nav-item-runs').forEach(function(btn){
     btn.querySelectorAll('.nav-active-dot').forEach(function(d){d.remove();});
@@ -8882,6 +9109,15 @@ function _refreshNav(){
       btn.appendChild(dot);
     }
   });
+  // V2 nav chrome — mobile FAB pulse ring + slot label state, body-class driven
+  document.body.classList.toggle('rt-run-active', !!_activeSourcingRun);
+  // Keep the FAB's accessible name aligned with the visible label
+  const _fm=document.querySelector('.fab-main');
+  if(_fm){
+    _fm.setAttribute('aria-label', _activeSourcingRun
+      ? 'Add item to current sourcing run'
+      : 'Add new item');
+  }
 }
 
 function _runCost(runId){
@@ -11884,8 +12120,11 @@ function renderSummaryChart(labels,revData,profitData){
   let line='';
   for(let i=0;i<n;i++)line+=(i===0?'M ':' L ')+sx(i).toFixed(1)+' '+sy(revData[i]||0).toFixed(1);
 
-  // Interactive columns — full-height hit zones + revenue dot. <title>
-  // provides native tooltip without a JS hover stack.
+  // Interactive columns — full-height hit zones + revenue dot + profit dot.
+  // Both series get markers so the profit trend is visible even when the
+  // gradient area is thin (e.g. low profit values vs a high revenue peak
+  // dominating the Y-axis). Profit dot is slightly smaller so revenue
+  // stays the primary visual line. <title> provides native hover tooltip.
   const colW=n>1?xStep:innerW;
   const fmtMoney=v=>'£'+(v||0).toLocaleString('en-GB',{minimumFractionDigits:2,maximumFractionDigits:2});
   const hits=labels.map((l,i)=>{
@@ -11893,8 +12132,10 @@ function renderSummaryChart(labels,revData,profitData){
     const r=revData[i]||0;
     const p=profitData[i]||0;
     const has=r>0;
+    const hasP=p>0;
     return '<g class="rt-chart-col'+(has?' clickable':'')+'" data-idx="'+i+'">'
       +'<rect x="'+(cx-colW/2).toFixed(1)+'" y="'+pad.t+'" width="'+colW.toFixed(1)+'" height="'+innerH+'" fill="transparent"/>'
+      +(hasP?'<circle cx="'+cx.toFixed(1)+'" cy="'+sy(p).toFixed(1)+'" r="2.5" fill="var(--profit)" stroke="var(--surface-1)" stroke-width="1.2"/>':'')
       +(has?'<circle cx="'+cx.toFixed(1)+'" cy="'+sy(r).toFixed(1)+'" r="3" fill="var(--state-listed)" stroke="var(--surface-1)" stroke-width="1.5"/>':'')
       +'<title>'+esc(l)+' · Rev '+fmtMoney(r)+' · Profit '+fmtMoney(p)+'</title>'
       +'</g>';
@@ -11905,7 +12146,7 @@ function renderSummaryChart(labels,revData,profitData){
   svg.innerHTML=
      '<defs>'
     +'<linearGradient id="rt-profit-fill" x1="0" x2="0" y1="0" y2="1">'
-    +'<stop offset="0%" stop-color="var(--profit)" stop-opacity="0.34"/>'
+    +'<stop offset="0%" stop-color="var(--profit)" stop-opacity="0.5"/>'
     +'<stop offset="100%" stop-color="var(--profit)" stop-opacity="0"/>'
     +'</linearGradient>'
     +'</defs>'
@@ -15365,6 +15606,14 @@ function renderData(){
         <div id="relist-audit-out" style="margin-top:16px"></div>
       </div>
 
+      <!-- ── CLOUD SYNC ─────────────────────────────────────────── -->
+      <div class="sl">Cloud Sync</div>
+      <div class="section-card">
+        <div class="section-card-title">Force resync to Supabase</div>
+        <div class="section-card-desc">Pushes every item, account, trip, expense, and sourcing run currently in the app up to Supabase. Use this once after running a schema migration, or any time you suspect local data hasn't synced (e.g. after a "saved locally" toast).</div>
+        <button class="btn btn-secondary" onclick="retradeForceResync()">${icon('refresh',14)} Force resync</button>
+      </div>
+
       <!-- ── DANGER ──────────────────────────────────────────────── -->
       <div class="sl">Danger Zone</div>
       <div class="section-card danger">
@@ -17439,7 +17688,7 @@ function renderTax(){
     // Tax year selector — full width on mobile
     +'<div style="margin-bottom:20px">'
     +'<label style="display:block;font-weight:600;font-size:11px;color:var(--text-secondary);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">Tax Year</label>'
-    +'<select class="tax-year-select" style="padding:10px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:14px;cursor:pointer;font-family:inherit;font-weight:500;width:100%;max-width:360px" onchange="DB._taxYear=parseInt(this.value);DB._taxMethod=null;saveDB();renderTax()">'+yearOptions.join('')+'</select>'
+    +'<select class="tax-year-select" style="width:100%;max-width:360px" onchange="DB._taxYear=parseInt(this.value);DB._taxMethod=null;saveDB();renderTax()">'+yearOptions.join('')+'</select>'
     +'</div>';
 
   // Below threshold banner
