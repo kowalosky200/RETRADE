@@ -3627,7 +3627,6 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
     </button>
     <button onclick="startPreviewMode()" id="preview-btn"
       style="display:none;width:100%;padding:12px;background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:8px;font-weight:700;font-size:15px;cursor:pointer;transition:background 0.15s;margin-top:10px;">
-      Developer preview
     </button>
 
     <button onclick="showForgotPassword()"
@@ -5308,7 +5307,6 @@ function toggleAuthPass(){
 
 function startPreviewMode(){
   if(!PREVIEW_MODE_ENABLED){
-    console.warn('Developer preview is disabled on this build/domain.');
     return;
   }
   enablePreviewMode();
@@ -20044,7 +20042,6 @@ function _restoreAuthInputs(){
     _dbSnapshot = _dbFingerprint();
     await _hydrateUserSettings(_currentUserId); // F6: sync settings from cloud on login
   } else {
-    // DEV: always show login so you can sign in normally OR tap "Developer preview"
     showLogin();
   }
 
