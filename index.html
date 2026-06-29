@@ -3626,7 +3626,7 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
       Sign In
     </button>
     <button onclick="startPreviewMode()" id="preview-btn"
-      style="width:100%;padding:12px;background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:8px;font-weight:700;font-size:15px;cursor:pointer;transition:background 0.15s;margin-top:10px;">
+      style="display:none;width:100%;padding:12px;background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:8px;font-weight:700;font-size:15px;cursor:pointer;transition:background 0.15s;margin-top:10px;">
       Developer preview
     </button>
 
@@ -5105,7 +5105,13 @@ const _previewParam = new URLSearchParams(window.location.search).get('preview')
 const PREVIEW_STORAGE_KEY='retrade_preview_mode';
 const LEGACY_PREVIEW_STORAGE_KEYS=['general_preview_mode'];
 const _previewStored = localStorage.getItem(PREVIEW_STORAGE_KEY) === '1' || LEGACY_PREVIEW_STORAGE_KEYS.some(function(k){ return localStorage.getItem(k) === '1'; });
-const PREVIEW_MODE_ENABLED = false; // DEV ONLY — set false in push file. Controls preview-btn visibility.
+const PREVIEW_MODE_ENABLED = false; // Production lock: preview/bypass is never available in the live build.
+if(!PREVIEW_MODE_ENABLED){
+  try{
+    localStorage.removeItem(PREVIEW_STORAGE_KEY);
+    LEGACY_PREVIEW_STORAGE_KEYS.forEach(function(k){ localStorage.removeItem(k); });
+  }catch(e){ /* ignore storage restrictions */ }
+}
 
 function _buildPreviewDB(){
   // ── Date helpers ──────────────────────────────────────────────────────────
@@ -5301,6 +5307,10 @@ function toggleAuthPass(){
 }
 
 function startPreviewMode(){
+  if(!PREVIEW_MODE_ENABLED){
+    console.warn('Developer preview is disabled on this build/domain.');
+    return;
+  }
   enablePreviewMode();
   try{
     const url = new URL(window.location.href);
@@ -20321,5 +20331,6 @@ window.addEventListener('load', function(){
 </script>
 
 <!-- RETRADE dashboard spacing cleanup: mobile/tablet/narrow-desktop rhythm v3 - 2026-06-29 -->
+<!-- RETRADE login lock + responsive spacing cleanup 2026-06-29 (prod) -->
 </body>
 </html>
