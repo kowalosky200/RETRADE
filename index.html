@@ -2473,8 +2473,9 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
 .rt .summary-kpis-v3 .kpi{min-height:0;padding:16px 18px;gap:4px;}
 .rt .summary-kpis-v3 .kpi .kpi-foot{margin-top:6px;padding-top:0;}
 
-/* ── Desktop placement (>1099px). Previous arrangement, restored from a
-   period of experimentation. Reads top-to-bottom as five rows:
+/* ── Desktop placement (≥1000px). Previous threshold was 1100px which left
+   the chart full-width on screens ~1050-1099 — overwhelming with no
+   horizontal partner (Oskar review). Reads top-to-bottom as five rows:
      r1: KPI grid (4 cards in one row, inner grid)
      r2: chart (1-8, 7-col) · top categories (8-13, 5-col)
      r3: Snapshot — per-sale band, full width, 3 sub-cards
@@ -2541,14 +2542,14 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
 }
 .rt .summary-viewall:hover{color:var(--brand);}
 
-/* ── MEDIUM / tablet (601–1099px) ──
-   Below 1099px the chart loses its 7/5 split with categories and goes
+/* ── MEDIUM / tablet (601–999px) ──
+   Below 1000px the chart loses its 7/5 split with categories and goes
    full-width (a wide chart needs all the horizontal space it can get for
-   trend reading). At 800–1099px, pair Categories + Snapshot and
+   trend reading). At 800–999px, pair Categories + Snapshot and
    Velocity + Top Flips side-by-side — both pairs have natural visual
    weight matches. Below 800px (small tablet / large phone in landscape),
    everything stacks single-column. */
-@media(max-width:1099px){
+@media(max-width:999px){
   .rt .summary-grid-v3{grid-template-columns:repeat(12,minmax(0,1fr));gap:16px;}
   .rt .summary-kpis-v3{grid-column:1 / -1;}
   .rt .summary-chart-card  {grid-column:1 / -1;grid-row:auto;order:1;}
@@ -2559,7 +2560,7 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
   .rt .summary-topflips    {grid-column:1 / -1;grid-row:auto;order:6;}
   .rt .summary-velocity .category-mini-grid{grid-template-columns:repeat(2,1fr);gap:8px 20px;}
 }
-@media(min-width:800px) and (max-width:1099px){
+@media(min-width:800px) and (max-width:999px){
   /* Pair Categories + Snapshot (both medium-density panels) and
      Velocity + Top Flips (already paired on full desktop) */
   .rt .summary-categories  {grid-column:1 / 7;}
@@ -2569,6 +2570,38 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
   /* Velocity inner: category breakdown back to single column since the
      card itself is narrower in the pair */
   .rt .summary-velocity .category-mini-grid{grid-template-columns:1fr;gap:8px;}
+
+  /* Chart in this band sits full-width above the Categories/Snapshot pair.
+     Without an explicit cap the default desktop-card rule (max-height 320px,
+     line 2529) still applied for the 981-999 sliver — chart felt overwhelming
+     at that width since it had no horizontal partner. The ≤980 block already
+     caps it at 260px; this rule extends that cap across the whole medium
+     band so the chart stays in a balanced 200-260px range until the layout
+     shifts to chart+categories paired at ≥1000px. */
+  .rt .summary-chart-card #summary-chart-svg{min-height:200px;max-height:260px;}
+
+  /* Snapshot strip at this breakpoint — the strip's auto-fit minmax(150,1fr)
+     grid wraps to 2+1 inside the half-width card, leaving an empty cell to
+     the right of "Average net profit". Re-use the mobile row pattern
+     (label-left / value-right rows with hairline dividers) so the panel
+     fills cleanly without dead space. Same rule set as the ≤600px mobile
+     block at line ~2682 — kept inlined here so the two contexts can drift
+     independently if needed later. */
+  .rt .summary-snapshot-strip .snap-strip-head{margin-bottom:6px;}
+  .rt .summary-snapshot-strip .snap-strip-row{grid-template-columns:1fr;gap:0;}
+  .rt .summary-snapshot-strip .snap-stat{
+    display:flex;align-items:baseline;justify-content:space-between;gap:12px;
+    padding:14px 0;
+    border:none;
+    border-top:1px solid var(--border);
+    border-radius:0;
+  }
+  .rt .summary-snapshot-strip .snap-stat:first-child{border-top:none;padding-top:8px;}
+  .rt .summary-snapshot-strip .snap-stat-k{
+    font-size:14px;color:var(--text-primary);text-transform:none;
+    letter-spacing:0;font-weight:400;
+  }
+  .rt .summary-snapshot-strip .snap-stat-v{font-size:18px;margin-top:0;font-weight:700;}
 }
 /* KPI grid: 4-col down to 980, then 2-col (4 KPIs → 2×2 on tablet) */
 @media(max-width:980px){
@@ -2991,6 +3024,132 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
 @media(max-width:900px) and (orientation:landscape) and (max-height:500px){
   .fab-dial{left:50%!important;right:auto!important;transform:translateX(-50%);display:block!important;
     bottom:calc(62px + env(safe-area-inset-bottom,0px) - 46px)!important;}
+}
+
+/* Dashboard responsive spacing rhythm
+   Keeps the dashboard sections visually even from phone through narrow desktop. */
+@media(max-width:600px){
+  body.rt{padding-bottom:calc(82px + env(safe-area-inset-bottom,0px))!important;}
+  .rt #p-summary.page{padding:18px 16px calc(104px + env(safe-area-inset-bottom,0px))!important;}
+  .rt #p-summary .summary-header{margin:2px 0 18px!important;gap:12px!important;align-items:center!important;}
+  .rt #p-summary .summary-title{font-size:24px!important;line-height:1.05!important;}
+  .rt #p-summary .summary-period-sel{height:38px!important;min-width:136px!important;border-radius:14px!important;}
+  .rt #p-summary .summary-grid-v3{display:grid!important;grid-template-columns:1fr!important;gap:16px!important;align-items:stretch!important;}
+  .rt #p-summary .summary-grid-v3 > *{margin:0!important;}
+  .rt #p-summary .summary-sourcing-cta,
+  .rt #p-summary .summary-hero-card,
+  .rt #p-summary .summary-mobile-twoup,
+  .rt #p-summary .summary-categories,
+  .rt #p-summary .summary-inventory,
+  .rt #p-summary .summary-snapshot,
+  .rt #p-summary .summary-velocity,
+  .rt #p-summary .summary-topflips{width:100%!important;grid-column:1 / -1!important;}
+  .rt #p-summary .summary-panel{padding:16px!important;border-radius:18px!important;}
+  .rt #p-summary .summary-sourcing-cta{padding:14px 16px!important;border-radius:18px!important;min-height:66px!important;}
+  .rt #p-summary .summary-mobile-twoup{gap:12px!important;}
+  .rt #p-summary .summary-mobile-twoup .kpi{padding:14px!important;border-radius:18px!important;}
+  .rt #p-summary .summary-hero-card{border-radius:20px!important;overflow:hidden!important;}
+  .rt #p-summary .summary-hero-card .summary-hero-top{padding:18px 16px 8px!important;gap:12px!important;}
+  .rt #p-summary .summary-hero-card .summary-hero-value{margin-top:4px!important;margin-bottom:0!important;}
+  .rt #p-summary .summary-hero-card .kpi-foot{margin-top:6px!important;}
+  .rt #p-summary .summary-hero-card .summary-hero-chart{padding:0 12px 16px!important;}
+  .rt #p-summary .summary-hero-card .summary-chart-legend{margin:2px 0 8px!important;}
+  .rt #p-summary .summary-hero-card #summary-chart-svg-mobile{height:150px!important;}
+  .rt #p-summary .sl{margin:0!important;line-height:1.2!important;}
+  .rt #p-summary .summary-cat-head,
+  .rt #p-summary .snap-strip-head{margin:0 0 12px!important;align-items:center!important;}
+  .rt #p-summary .summary-categories .cat-donut-wrap{margin-top:2px!important;gap:14px!important;align-items:center!important;}
+  .rt #p-summary .cat-donut-legend{gap:10px!important;}
+  .rt #p-summary .summary-inventory .inv-band-grid{gap:16px!important;}
+  .rt #p-summary .summary-inventory .inv-metrics{gap:10px!important;padding-bottom:16px!important;}
+  .rt #p-summary .summary-inventory .inv-age-title{margin-bottom:10px!important;}
+  .rt #p-summary .summary-inventory .age-legend{margin-top:12px!important;gap:8px!important;justify-content:space-between!important;}
+  .rt #p-summary .summary-inventory .age-legend-btn{flex:1 1 0!important;justify-content:center!important;padding:6px 5px!important;}
+  .rt #p-summary .summary-snapshot-strip .snap-stat{padding:14px 0!important;}
+  .rt #p-summary .summary-snapshot-strip .snap-stat:first-child{padding-top:6px!important;}
+  .rt #p-summary .metric-inline{padding:14px 0!important;gap:12px!important;}
+  .rt #p-summary .metric-inline:first-child{padding-top:0!important;}
+  .rt #p-summary .metric-inline:last-child{padding-bottom:0!important;}
+  .rt #p-summary .vel-cat-wrap{margin-top:16px!important;}
+  .rt #p-summary .category-mini-grid{gap:9px!important;}
+  .rt #p-summary .category-mini-row{padding:11px 12px!important;}
+  .rt #bottom-nav{height:calc(64px + env(safe-area-inset-bottom,0px))!important;}
+}
+
+@media(max-width:380px){
+  .rt #p-summary.page{padding-left:14px!important;padding-right:14px!important;}
+  .rt #p-summary .summary-period-sel{min-width:124px!important;}
+  .rt #p-summary .summary-hero-card .summary-hero-value{font-size:36px!important;line-height:40px!important;}
+  .rt #p-summary .summary-inventory .age-legend{gap:6px!important;}
+  .rt #p-summary .summary-inventory .age-legend-btn{font-size:10px!important;padding:6px 4px!important;}
+}
+
+@media(min-width:601px) and (max-width:1280px){
+  .rt #p-summary.page{padding-left:20px!important;padding-right:20px!important;padding-bottom:calc(96px + env(safe-area-inset-bottom,0px))!important;}
+  .rt #p-summary .summary-header{margin:4px 0 18px!important;gap:14px!important;align-items:center!important;}
+  .rt #p-summary .summary-grid-v3{gap:18px!important;align-items:stretch!important;}
+  .rt #p-summary .summary-grid-v3 > *,
+  .rt #p-summary .summary-chart-card,
+  .rt #p-summary .summary-categories,
+  .rt #p-summary .summary-snapshot,
+  .rt #p-summary .summary-inventory,
+  .rt #p-summary .summary-velocity,
+  .rt #p-summary .summary-topflips,
+  .rt #p-summary .summary-kpis-v3{margin:0!important;}
+  .rt #p-summary .summary-panel{padding:20px!important;border-radius:18px!important;}
+  .rt #p-summary .summary-cat-head,
+  .rt #p-summary .snap-strip-head{margin:0 0 14px!important;align-items:center!important;}
+  .rt #p-summary .summary-inventory .inv-band-grid{gap:18px!important;}
+  .rt #p-summary .summary-inventory .inv-metrics{gap:12px!important;}
+  .rt #p-summary .summary-inventory .inv-stat{padding:14px 16px!important;}
+  .rt #p-summary .summary-inventory .inv-age-title{margin-bottom:10px!important;}
+  .rt #p-summary .summary-inventory .age-legend{margin-top:12px!important;gap:8px!important;}
+  .rt #p-summary .summary-snapshot-strip .snap-stat{padding:14px 16px!important;}
+  .rt #p-summary .metric-inline{padding:14px 0!important;gap:12px!important;}
+  .rt #p-summary .metric-inline:first-child{padding-top:2px!important;}
+  .rt #p-summary .metric-inline:last-child{padding-bottom:2px!important;}
+  .rt #p-summary .vel-cat-wrap{margin-top:16px!important;}
+  .rt #p-summary .category-mini-grid{gap:10px!important;}
+  .rt #p-summary .category-mini-row{padding:12px 14px!important;}
+}
+
+@media(min-width:601px) and (max-width:799px){
+  .rt #p-summary.page{padding-left:18px!important;padding-right:18px!important;}
+  .rt #p-summary .summary-grid-v3{grid-template-columns:1fr!important;gap:18px!important;}
+  .rt #p-summary .summary-kpis-v3,
+  .rt #p-summary .summary-chart-card,
+  .rt #p-summary .summary-categories,
+  .rt #p-summary .summary-snapshot,
+  .rt #p-summary .summary-inventory,
+  .rt #p-summary .summary-velocity,
+  .rt #p-summary .summary-topflips{grid-column:1 / -1!important;grid-row:auto!important;width:100%!important;}
+  .rt #p-summary .summary-kpis-v3{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:18px!important;}
+  .rt #p-summary .summary-panel{padding:18px!important;}
+  .rt #p-summary .summary-inventory .inv-band-grid{grid-template-columns:1fr!important;}
+  .rt #p-summary .summary-inventory .inv-age{padding-left:0!important;border-left:none!important;padding-top:16px!important;border-top:1px solid var(--border)!important;}
+  .rt #p-summary .summary-velocity .category-mini-grid{grid-template-columns:1fr!important;}
+}
+
+@media(min-width:800px) and (max-width:999px){
+  .rt #p-summary .summary-grid-v3,
+  .rt #p-summary .summary-kpis-v3{gap:18px!important;}
+  .rt #p-summary .summary-panel{padding:20px!important;}
+  .rt #p-summary .summary-categories,
+  .rt #p-summary .summary-snapshot,
+  .rt #p-summary .summary-velocity,
+  .rt #p-summary .summary-topflips{min-height:100%;}
+  .rt #p-summary .summary-snapshot-strip .snap-stat{padding:14px 0!important;}
+  .rt #p-summary .summary-snapshot-strip .snap-stat:first-child{padding-top:6px!important;}
+  .rt #p-summary .summary-snapshot-strip .snap-stat:last-child{padding-bottom:2px!important;}
+}
+
+@media(min-width:1000px) and (max-width:1280px){
+  .rt #p-summary.page{max-width:1180px!important;padding-left:22px!important;padding-right:22px!important;}
+  .rt #p-summary .summary-grid-v3,
+  .rt #p-summary .summary-kpis-v3{gap:20px!important;}
+  .rt #p-summary .summary-panel{padding:22px!important;}
+  .rt #p-summary .summary-inventory .inv-band-grid{grid-template-columns:1.55fr 1fr!important;gap:22px!important;}
+  .rt #p-summary .summary-chart-card #summary-chart-svg{min-height:220px!important;max-height:300px!important;}
 }
 
 </style>
@@ -12237,6 +12396,16 @@ function renderSummaryChart(labels,revData,profitData){
   let line='';
   for(let i=0;i<n;i++)line+=(i===0?'M ':' L ')+sx(i).toFixed(1)+' '+sy(revData[i]||0).toFixed(1);
 
+  // Profit line path — soft green stroke. Was previously rendered as only
+  // a filled gradient area + dots, but on desktop with tall charts the
+  // gradient sits low (when profit values are small vs. revenue peaks the
+  // y-axis scales to revenue), so the profit signal vanishes and the dots
+  // look orphaned. An explicit stroke gives profit its own readable line
+  // matching the mobile mockup. Rendered above the area, below the revenue
+  // line, so revenue still reads as the primary visual.
+  let profitLine='';
+  for(let i=0;i<n;i++)profitLine+=(i===0?'M ':' L ')+sx(i).toFixed(1)+' '+sy(profitData[i]||0).toFixed(1);
+
   // Interactive columns — full-height hit zones + revenue dot + profit dot.
   // Both series get markers so the profit trend is visible even when the
   // gradient area is thin (e.g. low profit values vs a high revenue peak
@@ -12269,6 +12438,7 @@ function renderSummaryChart(labels,revData,profitData){
     +'</defs>'
     +grid+yLab+xLab
     +'<path d="'+area+'" fill="url(#rt-profit-fill)" stroke="none"/>'
+    +'<path d="'+profitLine+'" fill="none" stroke="var(--profit)" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round" opacity="0.95"/>'
     +'<path d="'+line+'" fill="none" stroke="var(--state-listed)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>'
     +hits
     // Scrub indicator: vertical dashed line + dot on each series. Hidden by
@@ -12445,7 +12615,17 @@ function renderSummaryChart(labels,revData,profitData){
   // renderSummaryChart and avoids re-computing paths.
   const svgMobile=document.getElementById('summary-chart-svg-mobile');
   if(svgMobile){
-    svgMobile.innerHTML=svg.innerHTML;
+    // The mirror previously copied svg.innerHTML verbatim, which dropped two
+    // <linearGradient id="rt-profit-fill"> elements into the DOM with the
+    // same ID. Browsers resolve url(#id) to the FIRST match in document
+    // order — the mobile SVG (line ~12626) wins, leaving the desktop path's
+    // fill referencing a gradient in another SVG. Safari + some other
+    // browsers don't honour cross-SVG paint-server references, so the
+    // desktop area rendered transparent while mobile rendered correctly.
+    // Replacing the ID on the mobile copy gives each SVG its own gradient
+    // and resolves the bug. Pattern applied to the fill reference too via
+    // the same /g replace.
+    svgMobile.innerHTML=svg.innerHTML.replace(/rt-profit-fill/g,'rt-profit-fill-m');
     // Mirror the click handler logic with the same wasScrub gate
     svgMobile.onclick=function(e){
       if(svgMobile.__wasScrub&&svgMobile.__wasScrub())return;
@@ -20140,6 +20320,8 @@ window.addEventListener('load', function(){
 })();
 </script>
 
+<!-- RETRADE dashboard spacing cleanup: mobile/tablet/narrow-desktop rhythm v3 - 2026-06-29 -->
 </body>
 </html>
-<!-- RETRADE spacing update marker 2026-06-29 -->
+
+<!-- RETRADE clean spacing commit marker 2026-06-29 v2 -->
