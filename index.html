@@ -2697,7 +2697,19 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
   display:flex;gap:14px;font-size:11px;color:var(--text-tertiary);
   justify-content:flex-end;margin-bottom:4px;
 }
-.rt .summary-hero-card #summary-chart-svg-mobile{width:100%;height:160px;display:block;}
+.rt .summary-hero-card #summary-chart-svg-mobile{width:100%;height:200px;display:block;}
+
+/* Mobile chart — bolder lines + polished detail (Drop 3.4 pass).
+   Following the Trading 212 / Robinhood / Coinbase mobile-chart pattern:
+   the chart is the hero, so lines get thicker for prominence on a
+   small screen. CSS overrides the stroke-width attribute at the ~0.42x
+   horizontal scale of the stretched mobile viewBox so the lines actually
+   read at phone distance. Gridlines stay faint at their attribute value
+   (0.55 opacity) — restraint keeps focus on the trend. */
+.rt #summary-chart-svg-mobile path[stroke="var(--profit)"]{stroke-width:2.6;}
+.rt #summary-chart-svg-mobile path[stroke="var(--state-listed)"]{stroke-width:2.8;}
+/* Gradient area beneath profit line — softer at edges for a cleaner mobile look */
+.rt #summary-chart-svg-mobile path[fill^="url(#rt-profit-fill"]{opacity:0.9;}
 
 /* ── 2-up: Active Stock + Avg Margin (mobile-only) ───────────────────── */
 .rt .summary-mobile-twoup{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;}
@@ -3173,8 +3185,37 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
     color:var(--text-primary);
   }
 
-  /* ── Search — V2 picker family treatment ── */
-  .rt #nav .search-wrap{width:280px!important;}
+  /* Search — V2 picker family treatment. Width is fluid up to 280px so the
+     search can shrink instead of crowd the tabs at narrower tablet widths
+     (Drop 3.2 tweak). Previously fixed 280 caused visual overlap around
+     800-950px viewport where brand + search + tabs + user got tight. */
+  .rt #nav .search-wrap{width:100%!important;max-width:280px!important;min-width:0!important;}
+
+  /* Focus-expand (Drop 3.3 tweak) — when the search input is focused, the
+     tabs column collapses so the search area grows to fill the middle of
+     the nav-inner. Tabs animate out (fade + slide right + clip); search
+     expands its max-width to fill. Reverses on blur. `:has()` gates the
+     effect to the actual input focus, so navigating with keyboard from
+     brand → tabs → user-menu doesn't spuriously trigger it. */
+  .rt #nav .tabs-row{
+    transition:opacity 0.18s var(--ease-out),transform 0.22s var(--ease-out);
+  }
+  .rt #nav .search-wrap,
+  .rt #nav .search-wrap input{
+    transition:max-width 0.22s var(--ease-out),border-color var(--dur-fast) var(--ease-out),box-shadow var(--dur-fast) var(--ease-out);
+  }
+  .rt #nav .nav-inner:has(.search-wrap input:focus){
+    grid-template-columns:auto 1fr 0 auto!important;
+  }
+  .rt #nav .nav-inner:has(.search-wrap input:focus) .tabs-row{
+    opacity:0;
+    transform:translateX(24px);
+    pointer-events:none;
+    overflow:hidden;
+  }
+  .rt #nav .nav-inner:has(.search-wrap input:focus) .search-wrap{
+    max-width:none!important;
+  }
   .rt #nav .search-wrap input{
     background:var(--surface-2);
     border:1px solid var(--border);
@@ -3858,7 +3899,7 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
   .rt #p-summary .summary-hero-card .kpi-foot{margin-top:6px!important;}
   .rt #p-summary .summary-hero-card .summary-hero-chart{padding:0 12px 16px!important;}
   .rt #p-summary .summary-hero-card .summary-chart-legend{margin:2px 0 8px!important;}
-  .rt #p-summary .summary-hero-card #summary-chart-svg-mobile{height:150px!important;}
+  .rt #p-summary .summary-hero-card #summary-chart-svg-mobile{height:200px!important;}
   .rt #p-summary .sl{margin:0!important;line-height:1.2!important;}
   .rt #p-summary .summary-cat-head,
   .rt #p-summary .snap-strip-head{margin:0 0 12px!important;align-items:center!important;}
@@ -3954,6 +3995,17 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
   .rt #p-summary .summary-panel{padding:22px!important;}
   .rt #p-summary .summary-inventory .inv-band-grid{grid-template-columns:1.55fr 1fr!important;gap:22px!important;}
   .rt #p-summary .summary-chart-card #summary-chart-svg{min-height:220px!important;max-height:300px!important;}
+}
+
+/* Wide-monitor page max-width (Drop 4.2 tweak).
+   Default 1280 max leaves ~200px dead space on each side at 1920 viewport
+   (after the 240 sidebar). Bumping to 1600 at ≥1400 gives content breathing
+   room without becoming absurd — 1920 laptops fill nearly full width, 2560
+   monitors keep symmetric ~360px margins. Affects all pages, not just
+   Dashboard; individual card layouts scale up gracefully within the wider
+   container. */
+@media(min-width:1400px){
+  .rt .page{max-width:1600px;}
 }
 
 </style>
@@ -4611,6 +4663,7 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
       style="width:100%;padding:12px;background:var(--accent);color:#000;border:none;border-radius:8px;font-weight:700;font-size:15px;cursor:pointer;transition:background 0.15s;">
       Sign In
     </button>
+
     <button onclick="showForgotPassword()"
       style="width:100%;padding:10px;background:none;border:none;color:var(--text-secondary);font-size:13px;cursor:pointer;margin-top:8px;text-decoration:underline;text-underline-offset:3px;">
       Forgot password?
@@ -13533,9 +13586,13 @@ function renderSummaryChart(labels,revData,profitData){
   const n=labels.length;
   if(!n){svg.innerHTML='';return;}
 
-  // Layout — fixed viewBox, scales by container
+  // Layout — fixed viewBox, scales by container.
+  // Padding: bumped in Drop 3.3 (b:30→38, l:52→60) so the bigger axis text
+  // (10→13) has room. Y-label offset pushed to pad.l-12 (was -8) and
+  // X-label offset to pad.b+22 (was +18) so labels aren't kissing the
+  // plot area at the bottom-left origin corner.
   const W=800,H=280;
-  const pad={t:14,r:14,b:30,l:52};
+  const pad={t:14,r:14,b:38,l:60};
   const innerW=W-pad.l-pad.r;
   const innerH=H-pad.t-pad.b;
 
@@ -13572,14 +13629,14 @@ function renderSummaryChart(labels,revData,profitData){
   }).join('');
   const yLab=tickVals.map(v=>{
     const y=(sy(v)+3.5).toFixed(1);
-    return '<text x="'+(pad.l-8)+'" y="'+y+'" font-size="10" fill="var(--text-tertiary)" text-anchor="end" font-family="var(--font-body)" style="font-variant-numeric:tabular-nums">'+fmtY(v)+'</text>';
+    return '<text x="'+(pad.l-12)+'" y="'+y+'" font-size="13" fill="var(--text-tertiary)" text-anchor="end" font-family="var(--font-body)" style="font-variant-numeric:tabular-nums">'+fmtY(v)+'</text>';
   }).join('');
 
   // X labels — auto-skip when too dense
   const skip=Math.max(1,Math.ceil(n/10));
   const xLab=labels.map((l,i)=>{
     if(i%skip!==0&&i!==n-1)return '';
-    return '<text x="'+sx(i).toFixed(1)+'" y="'+(H-pad.b+18)+'" font-size="10" fill="var(--text-tertiary)" text-anchor="middle" font-family="var(--font-body)">'+esc(l)+'</text>';
+    return '<text x="'+sx(i).toFixed(1)+'" y="'+(H-pad.b+22)+'" font-size="13" fill="var(--text-tertiary)" text-anchor="middle" font-family="var(--font-body)">'+esc(l)+'</text>';
   }).join('');
 
   // Profit area path (filled, anchored to y=0). Rendered as a soft gradient
@@ -13832,7 +13889,23 @@ function renderSummaryChart(labels,revData,profitData){
     // Replacing the ID on the mobile copy gives each SVG its own gradient
     // and resolves the bug. Pattern applied to the fill reference too via
     // the same /g replace.
-    svgMobile.innerHTML=svg.innerHTML.replace(/rt-profit-fill/g,'rt-profit-fill-m');
+    //
+    // Drop 3.2/3.3/3.4 — also bump text + dot sizes on the mobile mirror
+    // AND extend the viewBox to give labels breathing room. Desktop viewBox
+    // 800×280 stretched into ~340×200 phone container (via preserveAspectRatio
+    // ="none") scales SVG units by ~0.42 horizontally / ~0.71 vertically.
+    // At the bumped mobile font-size (22 units), "£500" is 54 units wide,
+    // anchored at x=48 with text-anchor="end" — the "£" character starts
+    // at x=-6, OUTSIDE the viewBox origin, and got clipped by the SVG
+    // boundary (visible as "200" / "150" in the mobile screenshots).
+    // Extending the viewBox to x=-24 gives 24 SVG units of left gutter
+    // for labels — enough for £ + 3 digits + a small margin.
+    svgMobile.setAttribute('viewBox','-24 0 824 280');
+    svgMobile.innerHTML=svg.innerHTML
+      .replace(/rt-profit-fill/g,'rt-profit-fill-m')
+      .replace(/font-size="13"/g,'font-size="22"')
+      .replace(/r="2\.5"/g,'r="4.5"')
+      .replace(/r="3"(?!\.)/g,'r="5"');
     // Mirror the click handler logic with the same wasScrub gate
     svgMobile.onclick=function(e){
       if(svgMobile.__wasScrub&&svgMobile.__wasScrub())return;
@@ -13929,12 +14002,13 @@ function renderSummary(){
       if(isDaily){
         while(cur<=range.to){buckets.push({from:cur,to:cur,label:fmtShort(cur)});cur=addDays(cur,1);}
       } else {
-        // Bucket size per period. 30d gets 3-day buckets (~10 pts) so the
-        // trend actually reads — weekly (default) collapsed 30d to 4-5 bars
-        // and lost the daily-flow signal. 60d + 90d stay weekly (~9 / ~13
-        // pts respectively); 3-day would push 60d to 20 pts and 90d to 30,
-        // too dense for the chart's X-axis at desktop width.
-        const bucketDays = SUMMARY_PERIOD==='30d' ? 3 : 7;
+        // Bucket size per period. 30d gets daily buckets (30 pts) — with
+        // the label auto-skip logic below (Math.ceil(n/10)) that renders
+        // every 3rd label = 10 visible labels, same feel as 90d weekly.
+        // Trend reads much better than the 3-day compromise (which itself
+        // was better than the original 7-day rollup). 60d + 90d stay weekly
+        // to avoid X-axis crowding.
+        const bucketDays = SUMMARY_PERIOD==='30d' ? 1 : 7;
         while(cur<=range.to){
           const end = addDays(cur,bucketDays-1)<=range.to ? addDays(cur,bucketDays-1) : range.to;
           buckets.push({from:cur,to:end,label:fmtShort(cur)});
@@ -14539,9 +14613,17 @@ function setMonthSort(s){MONTH_SORT=s;renderMonth();}
 function downloadAnnualStatement(fyStart){
   const keys=_fyKeys(fyStart);
   const label=_getFYLabel(fyStart);
+  const fyFrom0=fyStart+'-04-06', fyTo0=(fyStart+1)+'-04-05';
+  const pnl=_buildPnLSummary(fyFrom0,fyTo0,'FY '+label);
+
+  // Rows begin with P&L summary block
+  const rows=[];
+  pnl.rows.forEach(function(r){rows.push(r);});
+  rows.push([]);
+  rows.push(['MONTHLY BREAKDOWN']);
 
   // Monthly summary section
-  const rows=[['Month','Revenue (£)','Costs (£)','Gross Profit (£)','Items Sold','Returns','Avg ROI %','Avg Margin %']];
+  rows.push(['Month','Revenue (£)','Costs (£)','Gross Profit (£)','Items Sold','Returns','Avg ROI %','Avg Margin %']);
   let totRev=0,totCost=0,totProfit=0,totSold=0,totRet=0,roiSum=0,roiCount=0,marginSum=0,marginCount=0;
   keys.forEach(function(k){
     const ms=calcMonthStatsBySale(k);
@@ -14561,7 +14643,7 @@ function downloadAnnualStatement(fyStart){
     totSold,totRet,roiCount>0?(roiSum/roiCount).toFixed(1):'',marginCount>0?(marginSum/marginCount).toFixed(1):'']);
 
   // Expenses & mileage section for the full FY
-  const fyFrom=fyStart+'-04-06', fyTo=(fyStart+1)+'-04-05';
+  const fyFrom=fyFrom0, fyTo=fyTo0;
   const inFY=function(dateStr){return dateStr&&dateStr>=fyFrom&&dateStr<=fyTo;};
   const fyTrips=(DB.trips||[]).filter(function(t){return inFY(t.date);});
   const fyExps=(DB.expenses||[]).filter(function(e){return inFY(e.date);});
@@ -14585,6 +14667,19 @@ function downloadAnnualStatement(fyStart){
     });
     rows.push([]);
     rows.push(['EXPENSE TOTAL','','','','','','',expTotal.toFixed(2)]);
+  }
+
+  // Unsold stock sourced in this FY (cash tied up in inventory)
+  if(pnl.stock.items.length){
+    rows.push([]);
+    rows.push(['UNSOLD STOCK SOURCED IN FY '+label]);
+    rows.push(['Date Sourced','Item','GID','State','Cost (£)']);
+    pnl.stock.items.forEach(function(s){
+      const i=s.item;
+      rows.push([s.dateSourced||'',(i.item||'').replace(/,/g,' '),i.gid||'',i.state||'',s.cost.toFixed(2)]);
+    });
+    rows.push([]);
+    rows.push(['STOCK COST TIED UP','','','',pnl.stock.cost.toFixed(2)]);
   }
 
   const csv=rows.map(function(r){return r.map(function(c){const s=String(c==null?'':c);return(s.includes(',')||s.includes('"'))?'"'+s.replace(/"/g,'""')+'"':s;}).join(',');}).join('\n');
@@ -14699,6 +14794,30 @@ function downloadMonthlyExcel(m){
   const events=getSaleEventsInMonth(m);
   if(!events.length){toast('No sales in '+m,'error');return;}
 
+  // Build P&L summary from calendar-month range
+  const mYear3=keyYear(m), mIdx3=MONTHS.indexOf(keyCode(m));
+  const _pad3=function(n){return(n<10?'0':'')+n;};
+  const mFrom3=mYear3+'-'+_pad3(mIdx3+1)+'-01';
+  const _last3=new Date(mYear3,mIdx3+1,0).getDate();
+  const mTo3=mYear3+'-'+_pad3(mIdx3+1)+'-'+_pad3(_last3);
+  const pnl=_buildPnLSummary(mFrom3,mTo3,keyName(m));
+
+  const summaryRows=[
+    ['P&L Summary — '+keyName(m)],[],
+    ['Metric','Value (£)'],
+    ['Revenue',pnl.revenue],
+    ['Cost of goods sold',pnl.cogs],
+    ['Gross profit',pnl.grossProfit],
+    ['Total expenses',pnl.expenses.total],
+    ['Net profit after expenses',pnl.netProfit],
+    ['Stock cost tied up (sourced in period, still unsold)',pnl.stock.cost],
+    ['Net cash position (net profit − stock tied up)',pnl.cashPosition],
+    [],
+    ['Items sold',pnl.soldCount],
+    ['Returns',pnl.returnCount],
+    ['Unsold items sourced in period',pnl.stock.count]
+  ];
+
   const salesRows=[['Date','Item','GID','Platform','Sale Price','Postage Received','Net Profit','ROI %','Margin %','Status']];
   events.forEach(function(ev){
     const i=ev.item;
@@ -14743,15 +14862,21 @@ function downloadMonthlyExcel(m){
   // Build multi-sheet workbook
   if(!window.XLSX){
     const s=document.createElement('script');s.src='./xlsx.min.js';
-    s.onload=function(){_writeMonthlyExcelBook(m,salesRows,expRows);};
+    s.onload=function(){_writeMonthlyExcelBook(m,salesRows,expRows,summaryRows,pnl);};
     s.onerror=function(){toast('Failed to load Excel library','error');};
     document.head.appendChild(s);
-  }else{_writeMonthlyExcelBook(m,salesRows,expRows);}
+  }else{_writeMonthlyExcelBook(m,salesRows,expRows,summaryRows,pnl);}
 }
-function _writeMonthlyExcelBook(m,salesRows,expRows){
+function _writeMonthlyExcelBook(m,salesRows,expRows,summaryRows,pnl){
   const today=new Date().toLocaleDateString('en-GB',{year:'numeric',month:'short',day:'numeric'});
   const wb=XLSX.utils.book_new();
   const meta=[['Monthly Statement — '+keyName(m)],['Exported '+today+' from RETRADE'],[]];
+  // Sheet 0 — P&L summary (only if we were passed one; older callers still work)
+  if(summaryRows&&summaryRows.length){
+    const ws0=XLSX.utils.aoa_to_sheet(summaryRows);
+    ws0['!cols']=[{wch:52},{wch:16}];
+    XLSX.utils.book_append_sheet(wb,ws0,'P&L Summary');
+  }
   const salesAll=meta.concat(salesRows);
   const ws1=XLSX.utils.aoa_to_sheet(salesAll);
   ws1['!cols']=salesAll[0]?salesAll[0].map(function(){return{wch:18};}):[];
@@ -14762,6 +14887,18 @@ function _writeMonthlyExcelBook(m,salesRows,expRows){
     ws2['!cols']=expAll[0]?expAll[0].map(function(){return{wch:20};}):[];
     XLSX.utils.book_append_sheet(wb,ws2,'Expenses & Mileage');
   }
+  // Unsold stock sourced in period
+  if(pnl&&pnl.stock&&pnl.stock.items&&pnl.stock.items.length){
+    const stockRows=[['Date Sourced','Item','GID','State','Cost (£)']];
+    pnl.stock.items.forEach(function(s){
+      stockRows.push([s.dateSourced||'',s.item.item||'',s.item.gid||'',s.item.state||'',s.cost]);
+    });
+    stockRows.push([]);
+    stockRows.push(['TOTAL','','','',pnl.stock.cost]);
+    const ws3=XLSX.utils.aoa_to_sheet(meta.concat(stockRows));
+    ws3['!cols']=[{wch:14},{wch:36},{wch:12},{wch:12},{wch:14}];
+    XLSX.utils.book_append_sheet(wb,ws3,'Stock Tied Up');
+  }
   const filename='RETRADE_'+m+'_Statement.xlsx';
   XLSX.writeFile(wb,filename);
   toast('Downloaded '+filename);
@@ -14770,6 +14907,25 @@ function _writeMonthlyExcelBook(m,salesRows,expRows){
 function downloadAnnualExcel(fyStart){
   const keys=_fyKeys(fyStart);
   const label=_getFYLabel(fyStart);
+  const fyFrom0=fyStart+'-04-06', fyTo0=(fyStart+1)+'-04-05';
+  const pnl=_buildPnLSummary(fyFrom0,fyTo0,'FY '+label);
+
+  const summaryRows=[
+    ['P&L Summary — FY '+label],[],
+    ['Metric','Value (£)'],
+    ['Revenue',pnl.revenue],
+    ['Cost of goods sold',pnl.cogs],
+    ['Gross profit',pnl.grossProfit],
+    ['Total expenses',pnl.expenses.total],
+    ['Net profit after expenses',pnl.netProfit],
+    ['Stock cost tied up (sourced in period, still unsold)',pnl.stock.cost],
+    ['Net cash position (net profit − stock tied up)',pnl.cashPosition],
+    [],
+    ['Items sold',pnl.soldCount],
+    ['Returns',pnl.returnCount],
+    ['Unsold items sourced in period',pnl.stock.count]
+  ];
+
   const salesRows=[['Month','Revenue (£)','Costs (£)','Gross Profit (£)','Items Sold','Returns','Avg ROI %','Avg Margin %']];
   let totRev=0,totCost=0,totProfit=0,totSold=0,totRet=0,roiSum=0,roiCount=0,marginSum=0,marginCount=0;
   keys.forEach(function(k){
@@ -14785,7 +14941,7 @@ function downloadAnnualExcel(fyStart){
   salesRows.push(['TOTAL FY '+label,totRev,totCost,totProfit,totSold,totRet,roiCount>0?Number((roiSum/roiCount).toFixed(1)):0,marginCount>0?Number((marginSum/marginCount).toFixed(1)):0]);
 
   // Expenses sheet
-  const fyFrom=fyStart+'-04-06', fyTo=(fyStart+1)+'-04-05';
+  const fyFrom=fyFrom0, fyTo=fyTo0;
   const inFY=function(dateStr){return dateStr&&dateStr>=fyFrom&&dateStr<=fyTo;};
   const fyTrips=(DB.trips||[]).filter(function(t){return inFY(t.date);});
   const fyExps=(DB.expenses||[]).filter(function(e){return inFY(e.date);});
@@ -14807,15 +14963,21 @@ function downloadAnnualExcel(fyStart){
 
   if(!window.XLSX){
     const s=document.createElement('script');s.src='./xlsx.min.js';
-    s.onload=function(){_writeAnnualExcelBook(fyStart,label,salesRows,expRows);};
+    s.onload=function(){_writeAnnualExcelBook(fyStart,label,salesRows,expRows,summaryRows,pnl);};
     s.onerror=function(){toast('Failed to load Excel library','error');};
     document.head.appendChild(s);
-  }else{_writeAnnualExcelBook(fyStart,label,salesRows,expRows);}
+  }else{_writeAnnualExcelBook(fyStart,label,salesRows,expRows,summaryRows,pnl);}
 }
-function _writeAnnualExcelBook(fyStart,label,salesRows,expRows){
+function _writeAnnualExcelBook(fyStart,label,salesRows,expRows,summaryRows,pnl){
   const today=new Date().toLocaleDateString('en-GB',{year:'numeric',month:'short',day:'numeric'});
   const wb=XLSX.utils.book_new();
   const meta=[['Annual P&L Summary — FY '+label],['Exported '+today+' from RETRADE'],[]];
+  // Sheet 0 — P&L summary (only if we were passed one; older callers still work)
+  if(summaryRows&&summaryRows.length){
+    const ws0=XLSX.utils.aoa_to_sheet(summaryRows);
+    ws0['!cols']=[{wch:52},{wch:16}];
+    XLSX.utils.book_append_sheet(wb,ws0,'P&L Summary');
+  }
   const ws1=XLSX.utils.aoa_to_sheet(meta.concat(salesRows));
   ws1['!cols']=salesRows[0]?salesRows[0].map(function(){return{wch:18};}):[];
   XLSX.utils.book_append_sheet(wb,ws1,'Annual P&L');
@@ -14823,6 +14985,18 @@ function _writeAnnualExcelBook(fyStart,label,salesRows,expRows){
     const ws2=XLSX.utils.aoa_to_sheet(meta.concat(expRows));
     ws2['!cols']=expRows[0]?expRows[0].map(function(){return{wch:20};}):[];
     XLSX.utils.book_append_sheet(wb,ws2,'Expenses & Mileage');
+  }
+  // Unsold stock sourced in FY
+  if(pnl&&pnl.stock&&pnl.stock.items&&pnl.stock.items.length){
+    const stockRows=[['Date Sourced','Item','GID','State','Cost (£)']];
+    pnl.stock.items.forEach(function(s){
+      stockRows.push([s.dateSourced||'',s.item.item||'',s.item.gid||'',s.item.state||'',s.cost]);
+    });
+    stockRows.push([]);
+    stockRows.push(['TOTAL','','','',pnl.stock.cost]);
+    const ws3=XLSX.utils.aoa_to_sheet(meta.concat(stockRows));
+    ws3['!cols']=[{wch:14},{wch:36},{wch:12},{wch:12},{wch:14}];
+    XLSX.utils.book_append_sheet(wb,ws3,'Stock Tied Up');
   }
   const filename='RETRADE_FY'+label.replace('/','-')+'_Annual.xlsx';
   XLSX.writeFile(wb,filename);
@@ -14859,8 +15033,21 @@ function downloadMonthlyStatement(m){
   const events=getSaleEventsInMonth(m);
   if(!events.length){toast('No sales in '+m,'error');return;}
 
+  // ── P&L Summary block (built from calendar-month range) ──
+  const mYear2=keyYear(m), mIdx2=MONTHS.indexOf(keyCode(m));
+  const _pad=function(n){return(n<10?'0':'')+n;};
+  const mFrom=mYear2+'-'+_pad(mIdx2+1)+'-01';
+  const _last=new Date(mYear2,mIdx2+1,0).getDate();
+  const mTo=mYear2+'-'+_pad(mIdx2+1)+'-'+_pad(_last);
+  const pnl=_buildPnLSummary(mFrom,mTo,keyName(m));
+
   // Sales section
-  const rows=[['Date','Item','GID','Platform','Sale Price','Postage Received','Net Profit','ROI %','Margin %','Status']];
+  const rows=[];
+  pnl.rows.forEach(function(r){rows.push(r);});
+  rows.push([]);
+  rows.push(['SALES']);
+  rows.push(['Date','Item','GID','Platform','Sale Price','Postage Received','Net Profit','ROI %','Margin %','Status']);
+  const _headerRowsAlreadyPushed=true;
   events.forEach(function(ev){
     const i=ev.item;
     const p=_itemPlatform(i);
@@ -14908,6 +15095,19 @@ function downloadMonthlyStatement(m){
     });
     rows.push([]);
     rows.push(['EXPENSE TOTAL','','','','','','',expTotal.toFixed(2)]);
+  }
+
+  // Unsold stock sourced in this month (money out that hasn't come back yet)
+  if(pnl.stock.items.length){
+    rows.push([]);
+    rows.push(['UNSOLD STOCK SOURCED IN PERIOD']);
+    rows.push(['Date Sourced','Item','GID','State','Cost (£)']);
+    pnl.stock.items.forEach(function(s){
+      const i=s.item;
+      rows.push([s.dateSourced||'',(i.item||'').replace(/,/g,' '),i.gid||'',i.state||'',s.cost.toFixed(2)]);
+    });
+    rows.push([]);
+    rows.push(['STOCK COST TIED UP','','','',pnl.stock.cost.toFixed(2)]);
   }
 
   const csv=rows.map(function(r){return r.map(function(c){const s=String(c==null?'':c);return(s.includes(',')||s.includes('"'))?'"'+s.replace(/"/g,'""')+'"':s;}).join(',');}).join('\n');
@@ -16984,7 +17184,7 @@ function renderData(){
         </div>
 
         <!-- Stock Snapshot -->
-        <div style="padding:16px 18px;">
+        <div style="padding:16px 18px;border-bottom:1px solid var(--border);">
           <div style="font-size:14px;font-weight:600;margin-bottom:3px;">Stock Snapshot</div>
           <div style="font-size:12px;color:var(--text-secondary);margin-bottom:12px;">All current sourced and listed items — cost, est. price, days held, run tag.</div>
           <div class="ddwrap" id="dd-dl-stock" style="position:relative;display:inline-block;">
@@ -16995,6 +17195,36 @@ function renderData(){
                     <button onclick="event.stopPropagation();toggleDD('dd-dl-stock');downloadStockSnapshot()"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> CSV</button><button onclick="event.stopPropagation();toggleDD('dd-dl-stock');downloadStockExcel()"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg> Excel</button>
                   </div>
                 </div>
+        </div>
+
+        <!-- Custom Range Statement -->
+        <div style="padding:16px 18px;">
+          <div style="font-size:14px;font-weight:600;margin-bottom:3px;">Custom Range Statement</div>
+          <div style="font-size:12px;color:var(--text-secondary);margin-bottom:12px;">Pick any date range — includes gross &amp; net profit after expenses, plus cash tied up in stock sourced during the period.</div>
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+            <label style="font-size:12px;color:var(--text-secondary);display:flex;align-items:center;gap:6px;">From
+              <input id="dl-range-from" type="date" style="font-size:13px;padding:6px 8px;border-radius:8px;border:1px solid var(--border);background:var(--surface2);color:var(--text);">
+            </label>
+            <label style="font-size:12px;color:var(--text-secondary);display:flex;align-items:center;gap:6px;">To
+              <input id="dl-range-to" type="date" style="font-size:13px;padding:6px 8px;border-radius:8px;border:1px solid var(--border);background:var(--surface2);color:var(--text);">
+            </label>
+            <div class="ddwrap" id="dd-dl-range" style="position:relative;">
+              <button class="btn btn-secondary" style="font-size:13px;display:flex;align-items:center;gap:6px;padding:8px 14px;" onclick="event.stopPropagation();toggleDD('dd-dl-range',this)">
+                Download <svg width="11" height="11" viewBox="0 0 12 12" fill="none"><path d="M2 4l4 4 4-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </button>
+              <div class="ddmenu up" style="min-width:140px;right:0;left:auto;">
+                <button onclick="event.stopPropagation();toggleDD('dd-dl-range');(function(){const f=document.getElementById('dl-range-from')?.value,t=document.getElementById('dl-range-to')?.value;downloadRangeStatement(f,t);})()"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> CSV</button><button onclick="event.stopPropagation();toggleDD('dd-dl-range');(function(){const f=document.getElementById('dl-range-from')?.value,t=document.getElementById('dl-range-to')?.value;downloadRangeExcel(f,t);})()"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg> Excel</button>
+              </div>
+            </div>
+          </div>
+          <!-- Quick presets -->
+          <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px;">
+            <button class="btn btn-secondary" style="font-size:11px;padding:4px 10px;" onclick="_setRangePreset('mtd')">This month</button>
+            <button class="btn btn-secondary" style="font-size:11px;padding:4px 10px;" onclick="_setRangePreset('lastMonth')">Last month</button>
+            <button class="btn btn-secondary" style="font-size:11px;padding:4px 10px;" onclick="_setRangePreset('last30')">Last 30 days</button>
+            <button class="btn btn-secondary" style="font-size:11px;padding:4px 10px;" onclick="_setRangePreset('last90')">Last 90 days</button>
+            <button class="btn btn-secondary" style="font-size:11px;padding:4px 10px;" onclick="_setRangePreset('ytd')">Year to date</button>
+          </div>
         </div>
 
       </div>
@@ -17141,6 +17371,39 @@ function renderData(){
     </div>
   `;
   document.getElementById('p-data').innerHTML=html;
+  // Default the custom range to month-to-date
+  try{_setRangePreset('mtd');}catch(e){}
+}
+
+// Custom Range presets — writes ISO dates into the two date inputs.
+function _setRangePreset(kind){
+  const fromEl=document.getElementById('dl-range-from');
+  const toEl=document.getElementById('dl-range-to');
+  if(!fromEl||!toEl)return;
+  const today=new Date();
+  const iso=function(d){
+    const y=d.getFullYear(), m=(d.getMonth()+1), day=d.getDate();
+    return y+'-'+(m<10?'0':'')+m+'-'+(day<10?'0':'')+day;
+  };
+  let from=null,to=iso(today);
+  if(kind==='mtd'){
+    from=iso(new Date(today.getFullYear(),today.getMonth(),1));
+  } else if(kind==='lastMonth'){
+    const first=new Date(today.getFullYear(),today.getMonth()-1,1);
+    const last=new Date(today.getFullYear(),today.getMonth(),0);
+    from=iso(first); to=iso(last);
+  } else if(kind==='last30'){
+    const d=new Date(today); d.setDate(d.getDate()-29); from=iso(d);
+  } else if(kind==='last90'){
+    const d=new Date(today); d.setDate(d.getDate()-89); from=iso(d);
+  } else if(kind==='ytd'){
+    // Use UK tax year start (6 Apr) if we're past it, else previous 6 Apr
+    const y=today.getFullYear();
+    const fyStart=(today.getMonth()>2||(today.getMonth()===3&&today.getDate()>=6))
+      ? new Date(y,3,6) : new Date(y-1,3,6);
+    from=iso(fyStart);
+  }
+  if(from){fromEl.value=from; toEl.value=to;}
 }
 
 // E4 P2 — Render the orphan audit results into the Data tab.
@@ -20011,6 +20274,297 @@ function getSaleEventsInMonth(m){
     });
   });
   return out;
+}
+
+// ─── DATE-RANGE STATEMENT HELPERS ────────────────────────────────────────
+// Sale events landing in an arbitrary [from,to] date window (inclusive).
+// Mirrors getSaleEventsInMonth's relist/return handling but filters by date.
+function getSaleEventsInRange(from,to){
+  const out=[];
+  const inR=function(d){return d && d>=from && d<=to;};
+  allDBKeys().forEach(function(k){
+    (DB[k]||[]).forEach(function(i){
+      if((i.item||'').trim().toUpperCase()==='MONTH END')return;
+      // Resolve sale 1 date (survives full-return dateSold wipe via snapshot)
+      const _sale1Date=i.dateSold||((!i.dateSold)?(function(){
+        const fe=(i.returnHistory||[]).find(r=>r.type==='full_seller'||r.type==='full_ebay');
+        return fe&&fe._dateSoldAtReturn||null;
+      })():null);
+      if(inR(_sale1Date)){
+        const fullReturn=(i.returnHistory||[]).find(function(r){return r.type==='full_seller'||r.type==='full_ebay';});
+        const isRelisted=!!fullReturn&&!!i.resaleSalePrice;
+        if(isRelisted){
+          const sale1Price=fullReturn._salePriceAtReturn||fullReturn.refundAmount||i.salePrice||0;
+          const sale1Item=Object.assign({},i,{
+            salePrice:sale1Price,dateSold:i.dateSold,
+            resaleSalePrice:null,resaleDateSold:null,resalePromoPercent:null,
+            resaleShippingCost:null,resalePackagingCost:null,
+            isReturned:true,returnHistory:[fullReturn]
+          });
+          out.push({item:i,month:k,sale:'1',saleDate:i.dateSold,salePrice:sale1Price,
+            profit:calcGrossProfit(sale1Item),roi:null,margin:null,
+            daysToSell:i.dateListed?daysBetween(i.dateListed,i.dateSold):null,isReturned:true});
+        } else if(!i.isReturned){
+          out.push({item:i,month:k,sale:'1',saleDate:i.dateSold,salePrice:i.salePrice||0,
+            profit:calcGrossProfit(i),roi:calcROI(i),margin:calcMargin(i),
+            daysToSell:calcDaysToSell(i),isReturned:false});
+        } else {
+          out.push({item:i,month:k,sale:'1',saleDate:_sale1Date,salePrice:i.salePrice||0,
+            profit:calcGrossProfit(i)||0,roi:null,margin:null,
+            daysToSell:i.dateListed?daysBetween(i.dateListed,i.dateSold):null,isReturned:true});
+        }
+      }
+      // Sale 2 — resale event
+      if(i.resaleSalePrice&&inR(i.resaleDateSold)){
+        out.push({item:i,month:k,sale:'2',saleDate:i.resaleDateSold,salePrice:i.resaleSalePrice||0,
+          profit:calcGrossProfit(i),roi:calcROI(i),margin:calcMargin(i),
+          daysToSell:calcDaysToSell(i),isReturned:false});
+      }
+    });
+  });
+  return out;
+}
+
+// Sum of mileage + business expenses in [from,to]. Returns {trips,expenses,total,rows}
+// where rows is an array of expense line rows for embedding into a statement.
+function _expensesInRange(from,to){
+  const inR=function(d){return d && d>=from && d<=to;};
+  const trips=(DB.trips||[]).filter(function(t){return inR(t.date);});
+  const exps=(DB.expenses||[]).filter(function(e){return inR(e.date);});
+  const rows=[]; let total=0;
+  trips.forEach(function(t){
+    const miles=t.mileage||0, rate=t.ratePerMile||0.45;
+    const mileageCost=+(miles*rate).toFixed(2);
+    const extraExps=(Array.isArray(t.expenses)?t.expenses:[]).reduce(function(s,e){return s+(e.amount||0);},0);
+    const rowTotal=+(mileageCost+extraExps).toFixed(2);
+    total+=rowTotal;
+    rows.push([t.date||'',(t.description||'Sourcing trip').replace(/,/g,' '),'Mileage','',miles,rate.toFixed(2),mileageCost.toFixed(2),rowTotal.toFixed(2)]);
+  });
+  exps.forEach(function(e){
+    const amt=e.amount||0; total+=amt;
+    rows.push([e.date||'',(e.description||'Expense').replace(/,/g,' '),e.category||'',amt.toFixed(2),'','','',amt.toFixed(2)]);
+  });
+  return{trips:trips,expenses:exps,total:+total.toFixed(2),rows:rows};
+}
+
+// Cost of items SOURCED within [from,to] that are still unsold (state
+// sourced/listed, no dateSold, no resaleSalePrice, not currently returned).
+// This represents cash that left the business during the period but is still
+// sitting in inventory — Oskar deducts this from Net Profit to see free cash.
+// Uses dateSourced when present, falls back to dateListed. Includes parts cost.
+function _unsoldStockCostInRange(from,to){
+  const inR=function(d){return d && d>=from && d<=to;};
+  let cost=0, count=0;
+  const items=[];
+  allDBKeys().forEach(function(k){
+    (DB[k]||[]).forEach(function(i){
+      if((i.item||'').trim().toUpperCase()==='MONTH END')return;
+      // Skip anything that's sold, resold or currently returned-and-refunded
+      if(i.dateSold||i.resaleSalePrice||i.isReturned)return;
+      // Only items still in an active pre-sale state
+      const st=i.state||'listed';
+      if(st!=='sourced'&&st!=='listed')return;
+      const dSrc=i.dateSourced||i.dateListed||null;
+      if(!inR(dSrc))return;
+      const parts=calcPartsCost(i);
+      const itemCost=(i.costPrice||0)+parts;
+      cost+=itemCost; count++;
+      items.push({item:i,month:k,dateSourced:dSrc,cost:+itemCost.toFixed(2)});
+    });
+  });
+  return{cost:+cost.toFixed(2),count:count,items:items};
+}
+
+// Builds the standard P&L summary block for any date range. Returns
+// {rows, revenue, cogs, grossProfit, expenses, netProfit, stockCost, cashPosition}
+// so callers can either splice `rows` into their output or reuse the numbers.
+function _buildPnLSummary(from,to,label){
+  const events=getSaleEventsInRange(from,to);
+  const revenue=events.filter(function(e){return!e.isReturned;}).reduce(function(s,e){return s+(e.salePrice||0);},0);
+  const grossProfit=events.reduce(function(s,e){return s+(e.profit||0);},0);
+  const cogs=revenue-grossProfit;
+  const exp=_expensesInRange(from,to);
+  const stock=_unsoldStockCostInRange(from,to);
+  const netProfit=+(grossProfit-exp.total).toFixed(2);
+  const cashPosition=+(netProfit-stock.cost).toFixed(2);
+  const soldCount=events.filter(function(e){return!e.isReturned;}).length;
+  const retCount=events.filter(function(e){return e.isReturned;}).length;
+  const rows=[
+    ['P&L SUMMARY'+(label?' — '+label:'')],
+    ['Period',from+' → '+to],
+    ['Revenue (£)',revenue.toFixed(2)],
+    ['Cost of goods sold (£)',cogs.toFixed(2)],
+    ['Gross profit (£)',grossProfit.toFixed(2)],
+    ['Total expenses (£)',exp.total.toFixed(2)],
+    ['Net profit after expenses (£)',netProfit.toFixed(2)],
+    ['Stock cost tied up — sourced in period, still unsold (£)',stock.cost.toFixed(2)],
+    ['Net cash position (net profit − stock tied up) (£)',cashPosition.toFixed(2)],
+    ['Items sold',soldCount],
+    ['Returns',retCount],
+    ['Unsold items sourced in period',stock.count]
+  ];
+  return{rows:rows,events:events,revenue:+revenue.toFixed(2),cogs:+cogs.toFixed(2),
+    grossProfit:+grossProfit.toFixed(2),expenses:exp,stock:stock,
+    netProfit:netProfit,cashPosition:cashPosition,soldCount:soldCount,returnCount:retCount};
+}
+
+// Numeric-version of P&L summary rows for Excel (keeps values as numbers so
+// cells format correctly, not as text).
+function _buildPnLSummaryNumeric(pnl){
+  return[
+    ['P&L SUMMARY'],
+    ['Period',pnl.events.length?(pnl.events[0].saleDate||''):''],
+    ['Revenue (£)',pnl.revenue],
+    ['Cost of goods sold (£)',pnl.cogs],
+    ['Gross profit (£)',pnl.grossProfit],
+    ['Total expenses (£)',pnl.expenses.total],
+    ['Net profit after expenses (£)',pnl.netProfit],
+    ['Stock cost tied up — sourced in period, still unsold (£)',pnl.stock.cost],
+    ['Net cash position (net profit − stock tied up) (£)',pnl.cashPosition],
+    ['Items sold',pnl.soldCount],
+    ['Returns',pnl.returnCount],
+    ['Unsold items sourced in period',pnl.stock.count]
+  ];
+}
+
+// ─── CUSTOM DATE RANGE STATEMENT ─────────────────────────────────────────
+function downloadRangeStatement(from,to){
+  if(!from||!to){toast('Pick a from and to date','error');return;}
+  if(from>to){toast('"From" date must be before "To" date','error');return;}
+  const pnl=_buildPnLSummary(from,to,from+' → '+to);
+  const rows=[];
+  // P&L summary block first
+  pnl.rows.forEach(function(r){rows.push(r);});
+  rows.push([]);
+  // Sales detail
+  rows.push(['SALES']);
+  rows.push(['Date','Item','GID','Platform','Sale Price','Postage Received','Net Profit','ROI %','Margin %','Status']);
+  pnl.events.forEach(function(ev){
+    const i=ev.item;
+    const p=_itemPlatform(i);
+    const pl=(PLATFORMS[p]&&PLATFORMS[p].short)||p;
+    const profit=ev.profit!=null?Number(ev.profit).toFixed(2):'';
+    const roi=ev.roi!=null?ev.roi.toFixed(1)+'%':'';
+    const margin=ev.margin!=null?ev.margin.toFixed(1)+'%':'';
+    rows.push([ev.saleDate||'',(i.item||'').replace(/,/g,' '),i.gid||'',pl,
+      (ev.salePrice||0).toFixed(2),(i.postage||0).toFixed(2),profit,roi,margin,
+      ev.isReturned?'Returned':'Sold']);
+  });
+  rows.push([]);
+  rows.push(['SALES TOTAL','','','',pnl.revenue.toFixed(2),'',pnl.grossProfit.toFixed(2),'','','']);
+  // Expenses
+  if(pnl.expenses.rows.length){
+    rows.push([]);
+    rows.push(['EXPENSES & MILEAGE']);
+    rows.push(['Date','Description','Category','Amount (£)','Miles','HMRC Rate','Mileage Cost (£)','Total (£)']);
+    pnl.expenses.rows.forEach(function(r){rows.push(r);});
+    rows.push([]);
+    rows.push(['EXPENSE TOTAL','','','','','','',pnl.expenses.total.toFixed(2)]);
+  }
+  // Unsold-stock-in-period detail
+  if(pnl.stock.items.length){
+    rows.push([]);
+    rows.push(['UNSOLD STOCK SOURCED IN PERIOD']);
+    rows.push(['Date Sourced','Item','GID','State','Cost (£)']);
+    pnl.stock.items.forEach(function(s){
+      const i=s.item;
+      rows.push([s.dateSourced||'',(i.item||'').replace(/,/g,' '),i.gid||'',i.state||'',s.cost.toFixed(2)]);
+    });
+    rows.push([]);
+    rows.push(['STOCK COST TIED UP','','','',pnl.stock.cost.toFixed(2)]);
+  }
+  const csv=rows.map(function(r){return r.map(function(c){const s=String(c==null?'':c);return(s.includes(',')||s.includes('"'))?'"'+s.replace(/"/g,'""')+'"':s;}).join(',');}).join('\n');
+  const blob=new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);
+  a.download='RETRADE_Range_'+from+'_to_'+to+'.csv';
+  document.body.appendChild(a);a.click();document.body.removeChild(a);
+  URL.revokeObjectURL(a.href);toast('Downloaded range statement');
+}
+
+function downloadRangeExcel(from,to){
+  if(!from||!to){toast('Pick a from and to date','error');return;}
+  if(from>to){toast('"From" date must be before "To" date','error');return;}
+  const pnl=_buildPnLSummary(from,to,from+' → '+to);
+  // Sheet 1: P&L Summary
+  const summaryRows=[
+    ['P&L Summary — '+from+' → '+to],[],
+    ['Metric','Value (£)'],
+    ['Revenue',pnl.revenue],
+    ['Cost of goods sold',pnl.cogs],
+    ['Gross profit',pnl.grossProfit],
+    ['Total expenses',pnl.expenses.total],
+    ['Net profit after expenses',pnl.netProfit],
+    ['Stock cost tied up (sourced in period, still unsold)',pnl.stock.cost],
+    ['Net cash position (net profit − stock tied up)',pnl.cashPosition],
+    [],
+    ['Items sold',pnl.soldCount],
+    ['Returns',pnl.returnCount],
+    ['Unsold items sourced in period',pnl.stock.count]
+  ];
+  // Sheet 2: Sales
+  const salesRows=[['Date','Item','GID','Platform','Sale Price','Postage Received','Net Profit','ROI %','Margin %','Status']];
+  pnl.events.forEach(function(ev){
+    const i=ev.item;
+    const pl=(PLATFORMS[_itemPlatform(i)]&&PLATFORMS[_itemPlatform(i)].short)||_itemPlatform(i);
+    salesRows.push([ev.saleDate||'',i.item||'',i.gid||'',pl,
+      ev.salePrice||0,i.postage||0,
+      ev.profit!=null?Number(ev.profit):0,
+      ev.roi!=null?Number(ev.roi.toFixed(1)):0,
+      ev.margin!=null?Number(ev.margin.toFixed(1)):0,
+      ev.isReturned?'Returned':'Sold']);
+  });
+  salesRows.push([]);
+  salesRows.push(['TOTALS','','','',pnl.revenue,'',pnl.grossProfit,'','','']);
+  // Sheet 3: Expenses
+  const expRows=[['Date','Description','Category','Amount (£)','Miles','HMRC Rate','Mileage Cost (£)','Total (£)']];
+  (pnl.expenses.trips||[]).forEach(function(t){
+    const miles=t.mileage||0, rate=t.ratePerMile||0.45;
+    const mileageCost=+(miles*rate).toFixed(2);
+    const extraExps=(Array.isArray(t.expenses)?t.expenses:[]).reduce(function(s,e){return s+(e.amount||0);},0);
+    const total=+(mileageCost+extraExps).toFixed(2);
+    expRows.push([t.date||'',t.description||'Sourcing trip','Mileage','',miles,rate,mileageCost,total]);
+  });
+  (pnl.expenses.expenses||[]).forEach(function(e){
+    const amt=e.amount||0;
+    expRows.push([e.date||'',e.description||'Expense',e.category||'',amt,'','','',amt]);
+  });
+  if(expRows.length>1){expRows.push([]);expRows.push(['TOTAL','','','','','','',pnl.expenses.total]);}
+  // Sheet 4: Unsold Stock (in period)
+  const stockRows=[['Date Sourced','Item','GID','State','Cost (£)']];
+  pnl.stock.items.forEach(function(s){
+    stockRows.push([s.dateSourced||'',s.item.item||'',s.item.gid||'',s.item.state||'',s.cost]);
+  });
+  if(stockRows.length>1){stockRows.push([]);stockRows.push(['TOTAL','','','',pnl.stock.cost]);}
+
+  const build=function(){
+    const today=new Date().toLocaleDateString('en-GB',{year:'numeric',month:'short',day:'numeric'});
+    const wb=XLSX.utils.book_new();
+    const meta=[['Custom Range Statement — '+from+' → '+to],['Exported '+today+' from RETRADE'],[]];
+    const ws0=XLSX.utils.aoa_to_sheet(summaryRows);
+    ws0['!cols']=[{wch:52},{wch:16}];
+    XLSX.utils.book_append_sheet(wb,ws0,'P&L Summary');
+    const ws1=XLSX.utils.aoa_to_sheet(meta.concat(salesRows));
+    ws1['!cols']=salesRows[0]?salesRows[0].map(function(){return{wch:18};}):[];
+    XLSX.utils.book_append_sheet(wb,ws1,'Sales');
+    if(expRows.length>1){
+      const ws2=XLSX.utils.aoa_to_sheet(meta.concat(expRows));
+      ws2['!cols']=expRows[0]?expRows[0].map(function(){return{wch:20};}):[];
+      XLSX.utils.book_append_sheet(wb,ws2,'Expenses & Mileage');
+    }
+    if(stockRows.length>1){
+      const ws3=XLSX.utils.aoa_to_sheet(meta.concat(stockRows));
+      ws3['!cols']=[{wch:14},{wch:36},{wch:12},{wch:12},{wch:14}];
+      XLSX.utils.book_append_sheet(wb,ws3,'Stock Tied Up');
+    }
+    const filename='RETRADE_Range_'+from+'_to_'+to+'.xlsx';
+    XLSX.writeFile(wb,filename);
+    toast('Downloaded '+filename);
+  };
+  if(!window.XLSX){
+    const s=document.createElement('script');s.src='./xlsx.min.js';
+    s.onload=build;s.onerror=function(){toast('Failed to load Excel library','error');};
+    document.head.appendChild(s);
+  }else{build();}
 }
 
 // Sale-attributed month stats — drives the new Monthly KPIs.
