@@ -2699,17 +2699,14 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
 }
 .rt .summary-hero-card #summary-chart-svg-mobile{width:100%;height:200px;display:block;}
 
-/* Mobile chart — bolder lines + polished detail (Drop 3.4 pass).
-   Following the Trading 212 / Robinhood / Coinbase mobile-chart pattern:
-   the chart is the hero, so lines get thicker for prominence on a
-   small screen. CSS overrides the stroke-width attribute at the ~0.42x
-   horizontal scale of the stretched mobile viewBox so the lines actually
-   read at phone distance. Gridlines stay faint at their attribute value
-   (0.55 opacity) — restraint keeps focus on the trend. */
-.rt #summary-chart-svg-mobile path[stroke="var(--profit)"]{stroke-width:2.6;}
-.rt #summary-chart-svg-mobile path[stroke="var(--state-listed)"]{stroke-width:2.8;}
-/* Gradient area beneath profit line — softer at edges for a cleaner mobile look */
+/* Mobile chart — gradient area softening + subtler gridlines (Drop 3.4 pass).
+   The strokes, fonts, and geometry are all set via per-platform opts in
+   renderSummaryChart; CSS handles the two purely-visual polish tweaks:
+   - Gradient fill dropped to 0.9 opacity for a softer profit area
+   - Gridlines dropped from 0.55 → 0.35 opacity so the trend line dominates
+     (Robinhood / Trading 212 pattern — chart chrome barely there) */
 .rt #summary-chart-svg-mobile path[fill^="url(#rt-profit-fill"]{opacity:0.9;}
+.rt #summary-chart-svg-mobile line[stroke="var(--border)"]{opacity:0.35;}
 
 /* ── 2-up: Active Stock + Avg Margin (mobile-only) ───────────────────── */
 .rt .summary-mobile-twoup{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;}
@@ -4663,7 +4660,6 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
       style="width:100%;padding:12px;background:var(--accent);color:#000;border:none;border-radius:8px;font-weight:700;font-size:15px;cursor:pointer;transition:background 0.15s;">
       Sign In
     </button>
-
     <button onclick="showForgotPassword()"
       style="width:100%;padding:10px;background:none;border:none;color:var(--text-secondary);font-size:13px;cursor:pointer;margin-top:8px;text-decoration:underline;text-underline-offset:3px;">
       Forgot password?
@@ -13580,273 +13576,56 @@ function closeAllCategoriesModal(){
 // listener on the <svg>. Chart.js CDN and _summaryChart global removed.
 // ============================================================================
 function renderSummaryChart(labels,revData,profitData){
-  const svg=document.getElementById('summary-chart-svg');
-  if(!svg)return;
   const handlers=window.__chartClickHandlers||[];
   const n=labels.length;
-  if(!n){svg.innerHTML='';return;}
 
-  // Layout — fixed viewBox, scales by container.
-  // Padding: bumped in Drop 3.3 (b:30→38, l:52→60) so the bigger axis text
-  // (10→13) has room. Y-label offset pushed to pad.l-12 (was -8) and
-  // X-label offset to pad.b+22 (was +18) so labels aren't kissing the
-  // plot area at the bottom-left origin corner.
-  const W=800,H=280;
-  const pad={t:14,r:14,b:38,l:60};
-  const innerW=W-pad.l-pad.r;
-  const innerH=H-pad.t-pad.b;
-
-  // Y scale — nice round max (1×/2×/5×/10× of magnitude)
-  const maxV=Math.max(0,...revData,...profitData);
-  let yMax;
-  if(maxV<=0){yMax=100;}
-  else{
-    const mag=Math.pow(10,Math.floor(Math.log10(maxV)));
-    const norm=maxV/mag;
-    if(norm<=1)yMax=1*mag;
-    else if(norm<=2)yMax=2*mag;
-    else if(norm<=5)yMax=5*mag;
-    else yMax=10*mag;
-  }
-  const xStep=n>1?innerW/(n-1):0;
-  const sx=i=>n>1?pad.l+i*xStep:pad.l+innerW/2;
-  const sy=v=>pad.t+innerH-(v/yMax)*innerH;
-
-  // Y ticks
-  const TICKS=4;
-  const tickVals=[];
-  for(let i=0;i<=TICKS;i++)tickVals.push((yMax*i)/TICKS);
-  const fmtY=v=>{
-    if(v===0)return '£0';
-    if(Math.abs(v)>=1000)return '£'+(v/1000).toFixed(v%1000===0?0:1)+'k';
-    return '£'+Math.round(v);
-  };
-
-  // Grid lines + Y labels
-  const grid=tickVals.map(v=>{
-    const y=sy(v).toFixed(1);
-    return '<line x1="'+pad.l+'" x2="'+(W-pad.r)+'" y1="'+y+'" y2="'+y+'" stroke="var(--border)" stroke-width="1" opacity="0.55"/>';
-  }).join('');
-  const yLab=tickVals.map(v=>{
-    const y=(sy(v)+3.5).toFixed(1);
-    return '<text x="'+(pad.l-12)+'" y="'+y+'" font-size="13" fill="var(--text-tertiary)" text-anchor="end" font-family="var(--font-body)" style="font-variant-numeric:tabular-nums">'+fmtY(v)+'</text>';
-  }).join('');
-
-  // X labels — auto-skip when too dense
-  const skip=Math.max(1,Math.ceil(n/10));
-  const xLab=labels.map((l,i)=>{
-    if(i%skip!==0&&i!==n-1)return '';
-    return '<text x="'+sx(i).toFixed(1)+'" y="'+(H-pad.b+22)+'" font-size="13" fill="var(--text-tertiary)" text-anchor="middle" font-family="var(--font-body)">'+esc(l)+'</text>';
-  }).join('');
-
-  // Profit area path (filled, anchored to y=0). Rendered as a soft gradient
-  // area with no stroke — the area itself communicates the profit trend
-  // and reads as a quiet supporting layer beneath the revenue line.
-  let area='M '+sx(0).toFixed(1)+' '+sy(0).toFixed(1);
-  for(let i=0;i<n;i++)area+=' L '+sx(i).toFixed(1)+' '+sy(profitData[i]||0).toFixed(1);
-  area+=' L '+sx(n-1).toFixed(1)+' '+sy(0).toFixed(1)+' Z';
-
-  // Revenue line path
-  let line='';
-  for(let i=0;i<n;i++)line+=(i===0?'M ':' L ')+sx(i).toFixed(1)+' '+sy(revData[i]||0).toFixed(1);
-
-  // Profit line path — soft green stroke. Was previously rendered as only
-  // a filled gradient area + dots, but on desktop with tall charts the
-  // gradient sits low (when profit values are small vs. revenue peaks the
-  // y-axis scales to revenue), so the profit signal vanishes and the dots
-  // look orphaned. An explicit stroke gives profit its own readable line
-  // matching the mobile mockup. Rendered above the area, below the revenue
-  // line, so revenue still reads as the primary visual.
-  let profitLine='';
-  for(let i=0;i<n;i++)profitLine+=(i===0?'M ':' L ')+sx(i).toFixed(1)+' '+sy(profitData[i]||0).toFixed(1);
-
-  // Interactive columns — full-height hit zones + revenue dot + profit dot.
-  // Both series get markers so the profit trend is visible even when the
-  // gradient area is thin (e.g. low profit values vs a high revenue peak
-  // dominating the Y-axis). Profit dot is slightly smaller so revenue
-  // stays the primary visual line. <title> provides native hover tooltip.
-  const colW=n>1?xStep:innerW;
-  const fmtMoney=v=>'£'+(v||0).toLocaleString('en-GB',{minimumFractionDigits:2,maximumFractionDigits:2});
-  const hits=labels.map((l,i)=>{
-    const cx=sx(i);
-    const r=revData[i]||0;
-    const p=profitData[i]||0;
-    const has=r>0;
-    const hasP=p>0;
-    return '<g class="rt-chart-col'+(has?' clickable':'')+'" data-idx="'+i+'">'
-      +'<rect x="'+(cx-colW/2).toFixed(1)+'" y="'+pad.t+'" width="'+colW.toFixed(1)+'" height="'+innerH+'" fill="transparent"/>'
-      +(hasP?'<circle cx="'+cx.toFixed(1)+'" cy="'+sy(p).toFixed(1)+'" r="2.5" fill="var(--profit)" stroke="var(--surface-1)" stroke-width="1.2"/>':'')
-      +(has?'<circle cx="'+cx.toFixed(1)+'" cy="'+sy(r).toFixed(1)+'" r="3" fill="var(--state-listed)" stroke="var(--surface-1)" stroke-width="1.5"/>':'')
-      +'<title>'+esc(l)+' · Rev '+fmtMoney(r)+' · Profit '+fmtMoney(p)+'</title>'
-      +'</g>';
-  }).join('');
-
-  svg.setAttribute('viewBox','0 0 '+W+' '+H);
-  svg.setAttribute('preserveAspectRatio','none');
-  svg.innerHTML=
-     '<defs>'
-    +'<linearGradient id="rt-profit-fill" x1="0" x2="0" y1="0" y2="1">'
-    +'<stop offset="0%" stop-color="var(--profit)" stop-opacity="0.5"/>'
-    +'<stop offset="100%" stop-color="var(--profit)" stop-opacity="0"/>'
-    +'</linearGradient>'
-    +'</defs>'
-    +grid+yLab+xLab
-    +'<path d="'+area+'" fill="url(#rt-profit-fill)" stroke="none"/>'
-    +'<path d="'+profitLine+'" fill="none" stroke="var(--profit)" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round" opacity="0.95"/>'
-    +'<path d="'+line+'" fill="none" stroke="var(--state-listed)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>'
-    +hits
-    // Scrub indicator: vertical dashed line + dot on each series. Hidden by
-    // default, positioned via JS during press-and-drag interaction. Drawn
-    // last so it overlays the lines.
-    +'<g class="rt-chart-scrub" style="display:none;pointer-events:none">'
-    +  '<line class="rt-scrub-line" x1="0" x2="0" y1="'+pad.t+'" y2="'+(H-pad.b)+'" stroke="var(--text-secondary)" stroke-width="1" stroke-dasharray="3 3" opacity="0.7"/>'
-    +  '<circle class="rt-scrub-rev" cx="0" cy="0" r="4.5" fill="var(--state-listed)" stroke="var(--surface-1)" stroke-width="2"/>'
-    +  '<circle class="rt-scrub-prof" cx="0" cy="0" r="4.5" fill="var(--profit)" stroke="var(--surface-1)" stroke-width="2"/>'
-    +'</g>';
-
-  // ── Press-and-hold scrubber (trading-app pattern) ─────────────────────
-  // Touch the chart → vertical indicator + tooltip appears at touch X.
-  // Drag horizontally → indicator follows, snapping to nearest data point.
-  // Release without dragging → existing drill behavior fires (showMonth/
-  // RangeSnapshot). Release after a drag → indicator hides, no drill.
-  // Vertical drag → page scrolls normally (only horizontal-dominant moves
-  // are captured). Implemented with Pointer Events for unified mouse+touch.
-  const fmtMoneyTip=v=>'£'+(v||0).toLocaleString('en-GB',{minimumFractionDigits:0,maximumFractionDigits:0});
-  function setupChartScrub(svgEl){
-    const parent=svgEl.parentElement;
-    if(!parent)return;
-    // Ensure parent can host the absolute-positioned tooltip
-    const cs=getComputedStyle(parent);
-    if(cs.position==='static')parent.style.position='relative';
-    // Reuse or create the tooltip element
-    let tip=parent.querySelector('.rt-chart-scrub-tip');
-    if(!tip){tip=document.createElement('div');tip.className='rt-chart-scrub-tip';tip.style.display='none';parent.appendChild(tip);}
-    const scrubG=svgEl.querySelector('.rt-chart-scrub');
-    if(!scrubG)return;
-    const sLine=scrubG.querySelector('.rt-scrub-line');
-    const sRev=scrubG.querySelector('.rt-scrub-rev');
-    const sProf=scrubG.querySelector('.rt-scrub-prof');
-    let startX=null,startY=null,startT=0,moved=false,scrubbing=false,wasScrub=false,scrubClearT=null;
-    const THRESH=6;       // movement threshold to mark interaction as "moved"
-    const TAP_MAX_MS=220; // a held-and-released gesture under this is a tap
-    function pointerToIdx(clientX){
-      const rect=svgEl.getBoundingClientRect();
-      const ratio=(clientX-rect.left)/Math.max(1,rect.width);
-      const vbX=ratio*W;
-      const i=Math.round(((vbX-pad.l)/Math.max(1,innerW))*(n-1));
-      return Math.max(0,Math.min(n-1,i));
+  // ─── Desktop chart ────────────────────────────────────────────────────
+  const svgD=document.getElementById('summary-chart-svg');
+  if(svgD){
+    if(!n){svgD.innerHTML='';}
+    else{
+      _renderChartInto(svgD,labels,revData,profitData,handlers,{
+        W:800,H:280,
+        pad:{t:14,r:14,b:38,l:60},
+        fontSize:13,
+        yTicks:4,
+        maxXLabels:10,
+        profitDotR:2.5,revDotR:3,
+        profitStroke:1.8,revStroke:2,scrubDotR:4.5,
+        gradientId:'rt-profit-fill'
+      });
     }
-    function showAt(idx){
-      const cx=sx(idx);
-      sLine.setAttribute('x1',cx.toFixed(1));sLine.setAttribute('x2',cx.toFixed(1));
-      const r=revData[idx]||0,p=profitData[idx]||0;
-      if(r>0){sRev.setAttribute('cx',cx.toFixed(1));sRev.setAttribute('cy',sy(r).toFixed(1));sRev.style.display='';}
-      else{sRev.style.display='none';}
-      if(p>0){sProf.setAttribute('cx',cx.toFixed(1));sProf.setAttribute('cy',sy(p).toFixed(1));sProf.style.display='';}
-      else{sProf.style.display='none';}
-      scrubG.style.display='';
-      tip.innerHTML=
-        '<div class="tip-period">'+esc(labels[idx])+'</div>'
-        +'<div class="tip-row"><span class="tip-dot" style="background:var(--state-listed)"></span>Revenue <strong>'+fmtMoneyTip(r)+'</strong></div>'
-        +'<div class="tip-row"><span class="tip-dot" style="background:var(--profit)"></span>Profit <strong>'+fmtMoneyTip(p)+'</strong></div>';
-      tip.style.display='block';
-      const rect=svgEl.getBoundingClientRect();
-      const cssX=(cx/W)*rect.width;
-      const tipW=tip.offsetWidth||140;
-      let left=cssX-tipW/2;
-      left=Math.max(6,Math.min(rect.width-tipW-6,left));
-      tip.style.left=left+'px';
-    }
-    function hideScrub(){scrubG.style.display='none';tip.style.display='none';}
-    // ── New lifecycle (Trading-212 style): scrubber shows IMMEDIATELY on
-    // pointerdown at the nearest data point. Holding still keeps it
-    // visible. Releasing quickly with no drag = tap (drill fires).
-    // Releasing after movement OR after a long press = scrub (drill
-    // suppressed via wasScrub flag).
-    //
-    // Desktop mouse exception (fixes the "chart not clickable on web" bug):
-    // setPointerCapture on pointerdown was redirecting the subsequent click
-    // event's target to the SVG root, so e.target.closest('.rt-chart-col')
-    // returned null and no drill fired. On mouse pointers we now skip the
-    // scrub engagement entirely — hover-via-onMove(buttons===0) still shows
-    // the indicator + tooltip so the UX is unchanged visually, and the
-    // native click flows straight to the column drill handler. Touch + pen
-    // pointers keep the press-and-hold scrub lifecycle.
-    function onDown(e){
-      if(e.pointerType==='mouse')return;
-      startX=e.clientX;startY=e.clientY;startT=Date.now();
-      moved=false;scrubbing=true;
-      try{svgEl.setPointerCapture(e.pointerId);}catch(_){}
-      showAt(pointerToIdx(e.clientX));
-    }
-    function onMove(e){
-      // Hover (no buttons pressed, not actively scrubbing): show indicator
-      // following the cursor. Works for mouse + pen with hover support.
-      // Doesn't set wasScrub — clicks still drill normally on release.
-      if(!scrubbing&&e.buttons===0){showAt(pointerToIdx(e.clientX));return;}
-      if(!scrubbing)return;
-      const dx=Math.abs(e.clientX-startX),dy=Math.abs(e.clientY-startY);
-      if(dx>THRESH||dy>THRESH)moved=true;
-      showAt(pointerToIdx(e.clientX));
-    }
-    function onUp(e){
-      if(!scrubbing)return;
-      const heldMs=Date.now()-startT;
-      const isTap=!moved&&heldMs<TAP_MAX_MS;
-      scrubbing=false;
-      try{svgEl.releasePointerCapture(e.pointerId);}catch(_){}
-      if(isTap){
-        // Quick tap — let the click event fire (drill behavior).
-        wasScrub=false;
-        hideScrub();
-      }else{
-        // Held or dragged — suppress the imminent click (no drill).
-        // Keep scrubber visible briefly so user sees the final value.
-        wasScrub=true;
-        setTimeout(hideScrub,250);
-        if(scrubClearT)clearTimeout(scrubClearT);
-        scrubClearT=setTimeout(function(){wasScrub=false;},300);
-      }
-    }
-    function onCancel(){hideScrub();startX=startY=null;scrubbing=false;}
-    svgEl.addEventListener('pointerdown',onDown);
-    svgEl.addEventListener('pointermove',onMove);
-    svgEl.addEventListener('pointerup',onUp);
-    svgEl.addEventListener('pointercancel',onCancel);
-    // Hover ends — hide on mouse exit. Skip if we're mid-scrub (pointer
-    // capture keeps the press alive even when finger drifts off-element).
-    svgEl.addEventListener('pointerleave',function(){if(!scrubbing)hideScrub();});
-    // Gate the click event so a drag-release doesn't accidentally drill.
-    svgEl.addEventListener('click',function(e){if(wasScrub){e.stopPropagation();e.preventDefault();}},true);
-    // Expose flag so the existing svg.onclick drill handler can check it.
-    svgEl.__wasScrub=function(){return wasScrub;};
   }
 
-  // Delegated click — preserves __chartClickHandlers contract.
-  // stopPropagation: on mobile, the hero card has its own card-level onclick
-  // ('view all realised'). Without this, a column tap would fire both the
-  // bucket snapshot AND the card click. Chart owns column taps. Also gated
-  // on the scrubber's wasScrub flag so a drag doesn't accidentally drill.
-  svg.onclick=function(e){
-    if(svg.__wasScrub&&svg.__wasScrub())return;
-    const col=e.target.closest('.rt-chart-col');
-    if(!col)return;
-    e.stopPropagation();
-    const idx=parseInt(col.getAttribute('data-idx'),10);
-    const h=handlers[idx];
-    if(!h)return;
-    try{
-      if(h.fn==='showMonthSnapshot')showMonthSnapshot.apply(null,h.args);
-      else if(h.fn==='showRangeSnapshot')showRangeSnapshot.apply(null,h.args);
-    }catch(_){}
-  };
+  // ─── Mobile chart (Drop 3.4 mobile-first pass) ────────────────────────
+  // Native mobile aspect: viewBox 400×200 matches the ~340×200 phone
+  // container closely, so preserveAspectRatio="none" causes only a mild
+  // horizontal squish (~0.85×) with NO vertical distortion. Text stays
+  // properly proportioned (no tall-thin stretch) and dots stay round.
+  // Fewer Y ticks (3 vs 4) + aggressive X-label cap (4 vs 10) + bolder
+  // strokes + bigger dots — mirrors the Trading 212 / Robinhood mobile
+  // chart pattern: chart-as-hero, minimal chrome, prominent line.
+  const svgM=document.getElementById('summary-chart-svg-mobile');
+  if(svgM){
+    if(!n){svgM.innerHTML='';}
+    else{
+      _renderChartInto(svgM,labels,revData,profitData,handlers,{
+        W:400,H:200,
+        pad:{t:14,r:14,b:32,l:50},
+        fontSize:12,
+        yTicks:2,
+        maxXLabels:4,
+        maxDotsN:15,
+        profitDotR:3,revDotR:3.5,
+        profitStroke:2.2,revStroke:2.6,scrubDotR:5,
+        gradientId:'rt-profit-fill-m'
+      });
+    }
+  }
 
-  // Activate the scrubber on the desktop SVG. Mobile SVG is activated below
-  // (after innerHTML mirror), since the handlers attach per element.
-  setupChartScrub(svg);
-
-  // Mini sparkline in the hero top-right — profit trend, no axes. Profit-green
-  // (NOT amber) to respect the single-occupancy amber rule on the hero number.
+  // ─── Mini hero-card sparkline (mobile top-right) ──────────────────────
+  // Profit trend, no axes. Profit-green (NOT amber) to respect the
+  // single-occupancy amber rule on the hero KPI number.
   const spark=document.querySelector('.summary-hero-spark');
   if(spark){
     if(n<2){spark.innerHTML='';}
@@ -13873,55 +13652,276 @@ function renderSummaryChart(labels,revData,profitData){
         +'<path d="'+sline+'" fill="none" stroke="var(--profit)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>';
     }
   }
-  // Mirror the main chart into the mobile hero's embedded SVG (same viewBox,
-  // same data — the SVG scales by container). The hero card subsumes the
-  // standalone chart card on mobile; this keeps a single source of truth in
-  // renderSummaryChart and avoids re-computing paths.
-  const svgMobile=document.getElementById('summary-chart-svg-mobile');
-  if(svgMobile){
-    // The mirror previously copied svg.innerHTML verbatim, which dropped two
-    // <linearGradient id="rt-profit-fill"> elements into the DOM with the
-    // same ID. Browsers resolve url(#id) to the FIRST match in document
-    // order — the mobile SVG (line ~12626) wins, leaving the desktop path's
-    // fill referencing a gradient in another SVG. Safari + some other
-    // browsers don't honour cross-SVG paint-server references, so the
-    // desktop area rendered transparent while mobile rendered correctly.
-    // Replacing the ID on the mobile copy gives each SVG its own gradient
-    // and resolves the bug. Pattern applied to the fill reference too via
-    // the same /g replace.
-    //
-    // Drop 3.2/3.3/3.4 — also bump text + dot sizes on the mobile mirror
-    // AND extend the viewBox to give labels breathing room. Desktop viewBox
-    // 800×280 stretched into ~340×200 phone container (via preserveAspectRatio
-    // ="none") scales SVG units by ~0.42 horizontally / ~0.71 vertically.
-    // At the bumped mobile font-size (22 units), "£500" is 54 units wide,
-    // anchored at x=48 with text-anchor="end" — the "£" character starts
-    // at x=-6, OUTSIDE the viewBox origin, and got clipped by the SVG
-    // boundary (visible as "200" / "150" in the mobile screenshots).
-    // Extending the viewBox to x=-24 gives 24 SVG units of left gutter
-    // for labels — enough for £ + 3 digits + a small margin.
-    svgMobile.setAttribute('viewBox','-24 0 824 280');
-    svgMobile.innerHTML=svg.innerHTML
-      .replace(/rt-profit-fill/g,'rt-profit-fill-m')
-      .replace(/font-size="13"/g,'font-size="22"')
-      .replace(/r="2\.5"/g,'r="4.5"')
-      .replace(/r="3"(?!\.)/g,'r="5"');
-    // Mirror the click handler logic with the same wasScrub gate
-    svgMobile.onclick=function(e){
-      if(svgMobile.__wasScrub&&svgMobile.__wasScrub())return;
-      const col=e.target.closest('.rt-chart-col');
-      if(!col)return;
-      e.stopPropagation();
-      const idx=parseInt(col.getAttribute('data-idx'),10);
-      const h=handlers[idx];
-      if(!h)return;
-      try{
-        if(h.fn==='showMonthSnapshot')showMonthSnapshot.apply(null,h.args);
-        else if(h.fn==='showRangeSnapshot')showRangeSnapshot.apply(null,h.args);
-      }catch(_){}
-    };
-    setupChartScrub(svgMobile);
+}
+
+// ─── Chart renderer — shared helper for desktop + mobile ──────────────────
+// Given an SVG element and per-platform opts, computes chart geometry,
+// generates the SVG innerHTML, wires up the scrubber, and installs the
+// column-click drill handler. Each call is self-contained with its own
+// closure over sx/sy/pad/W, its own scrubber state, its own click handler.
+//
+// Opts:
+//   W, H          — viewBox dimensions
+//   pad           — {t, r, b, l} padding for the plot area
+//   fontSize      — axis label size (SVG units)
+//   yTicks        — number of Y-tick INTERVALS (yields yTicks+1 labels)
+//   maxXLabels    — cap for the auto-skip logic (skip = ceil(n/maxXLabels))
+//   profitDotR    — persistent profit-dot radius
+//   revDotR       — persistent revenue-dot radius
+//   profitStroke  — profit line stroke width
+//   revStroke     — revenue line stroke width
+//   scrubDotR     — scrub-indicator dot radius
+//   gradientId    — unique linearGradient id (avoids cross-SVG paint-server
+//                   collisions when the same DOM has multiple chart SVGs)
+function _renderChartInto(svgEl,labels,revData,profitData,handlers,opts){
+  const n=labels.length;
+  const {W,H,pad,fontSize,yTicks,maxXLabels,profitDotR,revDotR,profitStroke,revStroke,scrubDotR,gradientId}=opts;
+  const innerW=W-pad.l-pad.r;
+  const innerH=H-pad.t-pad.b;
+
+  // Y scale — round to nice 1×/2×/5×/10× of magnitude
+  const maxV=Math.max(0,...revData,...profitData);
+  let yMax;
+  if(maxV<=0){yMax=100;}
+  else{
+    const mag=Math.pow(10,Math.floor(Math.log10(maxV)));
+    const norm=maxV/mag;
+    if(norm<=1)yMax=1*mag;
+    else if(norm<=2)yMax=2*mag;
+    else if(norm<=5)yMax=5*mag;
+    else yMax=10*mag;
   }
+  const xStep=n>1?innerW/(n-1):0;
+  const sx=i=>n>1?pad.l+i*xStep:pad.l+innerW/2;
+  const sy=v=>pad.t+innerH-(v/yMax)*innerH;
+
+  // Y tick values (yTicks intervals → yTicks+1 labels including 0 and max)
+  const tickVals=[];
+  for(let i=0;i<=yTicks;i++)tickVals.push((yMax*i)/yTicks);
+  const fmtY=v=>{
+    if(v===0)return '£0';
+    if(Math.abs(v)>=1000)return '£'+(v/1000).toFixed(v%1000===0?0:1)+'k';
+    return '£'+Math.round(v);
+  };
+
+  // Grid + Y labels — label X-offset proportional to fontSize so it scales
+  // cleanly across desktop (fontSize 13 → offset 12) and mobile (fontSize
+  // 15 → offset 14). Vertical centering offset ~0.27× fontSize.
+  const grid=tickVals.map(v=>{
+    const y=sy(v).toFixed(1);
+    return '<line x1="'+pad.l+'" x2="'+(W-pad.r)+'" y1="'+y+'" y2="'+y+'" stroke="var(--border)" stroke-width="1" opacity="0.55"/>';
+  }).join('');
+  const yLabX=pad.l-Math.round(fontSize*0.9);
+  const yLabYOffset=fontSize*0.27;
+  const yLab=tickVals.map(v=>{
+    const y=(sy(v)+yLabYOffset).toFixed(1);
+    return '<text x="'+yLabX+'" y="'+y+'" font-size="'+fontSize+'" fill="var(--text-tertiary)" text-anchor="end" font-family="var(--font-body)" style="font-variant-numeric:tabular-nums">'+fmtY(v)+'</text>';
+  }).join('');
+
+  // X labels — auto-skip capped at maxXLabels; last label always shown
+  const skip=Math.max(1,Math.ceil(n/maxXLabels));
+  const xLabY=(H-pad.b+Math.round(fontSize*1.55)).toFixed(1);
+  const xLab=labels.map((l,i)=>{
+    if(i%skip!==0&&i!==n-1)return '';
+    return '<text x="'+sx(i).toFixed(1)+'" y="'+xLabY+'" font-size="'+fontSize+'" fill="var(--text-tertiary)" text-anchor="middle" font-family="var(--font-body)">'+esc(l)+'</text>';
+  }).join('');
+
+  // Profit area path (filled, anchored to y=0)
+  let area='M '+sx(0).toFixed(1)+' '+sy(0).toFixed(1);
+  for(let i=0;i<n;i++)area+=' L '+sx(i).toFixed(1)+' '+sy(profitData[i]||0).toFixed(1);
+  area+=' L '+sx(n-1).toFixed(1)+' '+sy(0).toFixed(1)+' Z';
+
+  // Profit line (soft green stroke above the area fill, below revenue line)
+  let profitLine='';
+  for(let i=0;i<n;i++)profitLine+=(i===0?'M ':' L ')+sx(i).toFixed(1)+' '+sy(profitData[i]||0).toFixed(1);
+
+  // Revenue line (primary visual)
+  let line='';
+  for(let i=0;i<n;i++)line+=(i===0?'M ':' L ')+sx(i).toFixed(1)+' '+sy(revData[i]||0).toFixed(1);
+
+  // Interactive columns — full-height hit zones + persistent dots on both
+  // series. Profit dot slightly smaller so revenue reads as primary.
+  // <title> provides native hover tooltip.
+  //
+  // showDots gate: when n exceeds maxDotsN (mobile 30d = 30 daily points),
+  // skip persistent dots — a busy line with 30 markers reads as noise, not
+  // a trend. Line alone is the Trading 212 / Robinhood pattern; scrubbing
+  // reveals the exact value on demand. Desktop leaves maxDotsN unset →
+  // defaults to Infinity → always shows dots.
+  const maxDotsN=opts.maxDotsN!=null?opts.maxDotsN:Infinity;
+  const showDots=n<=maxDotsN;
+  const colW=n>1?xStep:innerW;
+  const fmtMoney=v=>'£'+(v||0).toLocaleString('en-GB',{minimumFractionDigits:2,maximumFractionDigits:2});
+  const hits=labels.map((l,i)=>{
+    const cx=sx(i);
+    const r=revData[i]||0;
+    const p=profitData[i]||0;
+    const has=r>0;
+    const hasP=p>0;
+    return '<g class="rt-chart-col'+(has?' clickable':'')+'" data-idx="'+i+'">'
+      +'<rect x="'+(cx-colW/2).toFixed(1)+'" y="'+pad.t+'" width="'+colW.toFixed(1)+'" height="'+innerH+'" fill="transparent"/>'
+      +(hasP&&showDots?'<circle cx="'+cx.toFixed(1)+'" cy="'+sy(p).toFixed(1)+'" r="'+profitDotR+'" fill="var(--profit)" stroke="var(--surface-1)" stroke-width="1.2"/>':'')
+      +(has&&showDots?'<circle cx="'+cx.toFixed(1)+'" cy="'+sy(r).toFixed(1)+'" r="'+revDotR+'" fill="var(--state-listed)" stroke="var(--surface-1)" stroke-width="1.5"/>':'')
+      +'<title>'+esc(l)+' · Rev '+fmtMoney(r)+' · Profit '+fmtMoney(p)+'</title>'
+      +'</g>';
+  }).join('');
+
+  svgEl.setAttribute('viewBox','0 0 '+W+' '+H);
+  svgEl.setAttribute('preserveAspectRatio','none');
+  svgEl.innerHTML=
+     '<defs>'
+    +'<linearGradient id="'+gradientId+'" x1="0" x2="0" y1="0" y2="1">'
+    +  '<stop offset="0%" stop-color="var(--profit)" stop-opacity="0.5"/>'
+    +  '<stop offset="100%" stop-color="var(--profit)" stop-opacity="0"/>'
+    +'</linearGradient>'
+    +'</defs>'
+    +grid+yLab+xLab
+    +'<path d="'+area+'" fill="url(#'+gradientId+')" stroke="none"/>'
+    +'<path d="'+profitLine+'" fill="none" stroke="var(--profit)" stroke-width="'+profitStroke+'" stroke-linejoin="round" stroke-linecap="round" opacity="0.95"/>'
+    +'<path d="'+line+'" fill="none" stroke="var(--state-listed)" stroke-width="'+revStroke+'" stroke-linejoin="round" stroke-linecap="round"/>'
+    +hits
+    // Scrub indicator — hidden by default, positioned via JS during
+    // press-and-drag interaction. Drawn last so it overlays the lines.
+    +'<g class="rt-chart-scrub" style="display:none;pointer-events:none">'
+    +  '<line class="rt-scrub-line" x1="0" x2="0" y1="'+pad.t+'" y2="'+(H-pad.b)+'" stroke="var(--text-secondary)" stroke-width="1" stroke-dasharray="3 3" opacity="0.7"/>'
+    +  '<circle class="rt-scrub-rev" cx="0" cy="0" r="'+scrubDotR+'" fill="var(--state-listed)" stroke="var(--surface-1)" stroke-width="2"/>'
+    +  '<circle class="rt-scrub-prof" cx="0" cy="0" r="'+scrubDotR+'" fill="var(--profit)" stroke="var(--surface-1)" stroke-width="2"/>'
+    +'</g>';
+
+  // Wire up scrubber (per-SVG closure over sx/sy/pad/W)
+  _setupChartScrub(svgEl,{W:W,pad:pad,innerW:innerW,n:n,sx:sx,sy:sy,revData:revData,profitData:profitData,labels:labels});
+
+  // Column-click drill — delegated. stopPropagation prevents the hero card's
+  // own onclick from firing when a column is tapped. Gated on wasScrub so a
+  // press-and-drag release doesn't accidentally drill.
+  svgEl.onclick=function(e){
+    if(svgEl.__wasScrub&&svgEl.__wasScrub())return;
+    const col=e.target.closest('.rt-chart-col');
+    if(!col)return;
+    e.stopPropagation();
+    const idx=parseInt(col.getAttribute('data-idx'),10);
+    const h=handlers[idx];
+    if(!h)return;
+    try{
+      if(h.fn==='showMonthSnapshot')showMonthSnapshot.apply(null,h.args);
+      else if(h.fn==='showRangeSnapshot')showRangeSnapshot.apply(null,h.args);
+    }catch(_){}
+  };
+}
+
+// ─── Press-and-hold scrubber (Trading-212 style) ────────────────────────
+// Extracted from renderSummaryChart so it can attach to desktop and mobile
+// SVGs independently. Each call gets its own closure over the chart's scale
+// functions. Handlers are stored on svgEl so re-renders can remove the old
+// listeners cleanly (previously each render stacked new listeners referencing
+// stale sx/sy — memory leak + stale-closure bug).
+//
+// Touch/pen: pointerdown → scrubber shows at nearest data point + tooltip.
+// Drag horizontally → follows finger, snapping to columns. Quick release
+// (<220ms, no drag) = tap → drill. Held/dragged release = scrub → no drill.
+// Mouse: skips press-and-hold (setPointerCapture was breaking desktop click
+// drill by redirecting event target). Hover via pointermove with buttons===0
+// shows the indicator + tooltip; native click flows to the column drill.
+function _setupChartScrub(svgEl,ctx){
+  const {W,pad,innerW,n,sx,sy,revData,profitData,labels}=ctx;
+  const parent=svgEl.parentElement;
+  if(!parent)return;
+  const cs=getComputedStyle(parent);
+  if(cs.position==='static')parent.style.position='relative';
+  let tip=parent.querySelector('.rt-chart-scrub-tip');
+  if(!tip){tip=document.createElement('div');tip.className='rt-chart-scrub-tip';tip.style.display='none';parent.appendChild(tip);}
+  const scrubG=svgEl.querySelector('.rt-chart-scrub');
+  if(!scrubG)return;
+  const sLine=scrubG.querySelector('.rt-scrub-line');
+  const sRev=scrubG.querySelector('.rt-scrub-rev');
+  const sProf=scrubG.querySelector('.rt-scrub-prof');
+  const fmtMoneyTip=v=>'£'+(v||0).toLocaleString('en-GB',{minimumFractionDigits:0,maximumFractionDigits:0});
+
+  // Detach old listeners from a prior render (prevents stack + stale sx/sy)
+  const old=svgEl.__scrubHandlers;
+  if(old){
+    svgEl.removeEventListener('pointerdown',old.down);
+    svgEl.removeEventListener('pointermove',old.move);
+    svgEl.removeEventListener('pointerup',old.up);
+    svgEl.removeEventListener('pointercancel',old.cancel);
+    svgEl.removeEventListener('pointerleave',old.leave);
+    svgEl.removeEventListener('click',old.click,true);
+  }
+
+  let startX=null,startY=null,startT=0,moved=false,scrubbing=false,wasScrub=false,scrubClearT=null;
+  const THRESH=6;
+  const TAP_MAX_MS=220;
+  function pointerToIdx(clientX){
+    const rect=svgEl.getBoundingClientRect();
+    const ratio=(clientX-rect.left)/Math.max(1,rect.width);
+    const vbX=ratio*W;
+    const i=Math.round(((vbX-pad.l)/Math.max(1,innerW))*(n-1));
+    return Math.max(0,Math.min(n-1,i));
+  }
+  function showAt(idx){
+    const cx=sx(idx);
+    sLine.setAttribute('x1',cx.toFixed(1));sLine.setAttribute('x2',cx.toFixed(1));
+    const r=revData[idx]||0,p=profitData[idx]||0;
+    if(r>0){sRev.setAttribute('cx',cx.toFixed(1));sRev.setAttribute('cy',sy(r).toFixed(1));sRev.style.display='';}
+    else{sRev.style.display='none';}
+    if(p>0){sProf.setAttribute('cx',cx.toFixed(1));sProf.setAttribute('cy',sy(p).toFixed(1));sProf.style.display='';}
+    else{sProf.style.display='none';}
+    scrubG.style.display='';
+    tip.innerHTML=
+      '<div class="tip-period">'+esc(labels[idx])+'</div>'
+      +'<div class="tip-row"><span class="tip-dot" style="background:var(--state-listed)"></span>Revenue <strong>'+fmtMoneyTip(r)+'</strong></div>'
+      +'<div class="tip-row"><span class="tip-dot" style="background:var(--profit)"></span>Profit <strong>'+fmtMoneyTip(p)+'</strong></div>';
+    tip.style.display='block';
+    const rect=svgEl.getBoundingClientRect();
+    const cssX=(cx/W)*rect.width;
+    const tipW=tip.offsetWidth||140;
+    let left=cssX-tipW/2;
+    left=Math.max(6,Math.min(rect.width-tipW-6,left));
+    tip.style.left=left+'px';
+  }
+  function hideScrub(){scrubG.style.display='none';tip.style.display='none';}
+  function onDown(e){
+    if(e.pointerType==='mouse')return;
+    startX=e.clientX;startY=e.clientY;startT=Date.now();
+    moved=false;scrubbing=true;
+    try{svgEl.setPointerCapture(e.pointerId);}catch(_){}
+    showAt(pointerToIdx(e.clientX));
+  }
+  function onMove(e){
+    if(!scrubbing&&e.buttons===0){showAt(pointerToIdx(e.clientX));return;}
+    if(!scrubbing)return;
+    const dx=Math.abs(e.clientX-startX),dy=Math.abs(e.clientY-startY);
+    if(dx>THRESH||dy>THRESH)moved=true;
+    showAt(pointerToIdx(e.clientX));
+  }
+  function onUp(e){
+    if(!scrubbing)return;
+    const heldMs=Date.now()-startT;
+    const isTap=!moved&&heldMs<TAP_MAX_MS;
+    scrubbing=false;
+    try{svgEl.releasePointerCapture(e.pointerId);}catch(_){}
+    if(isTap){
+      wasScrub=false;
+      hideScrub();
+    }else{
+      wasScrub=true;
+      setTimeout(hideScrub,250);
+      if(scrubClearT)clearTimeout(scrubClearT);
+      scrubClearT=setTimeout(function(){wasScrub=false;},300);
+    }
+  }
+  function onCancel(){hideScrub();startX=startY=null;scrubbing=false;}
+  function onLeave(){if(!scrubbing)hideScrub();}
+  function onClick(e){if(wasScrub){e.stopPropagation();e.preventDefault();}}
+
+  svgEl.addEventListener('pointerdown',onDown);
+  svgEl.addEventListener('pointermove',onMove);
+  svgEl.addEventListener('pointerup',onUp);
+  svgEl.addEventListener('pointercancel',onCancel);
+  svgEl.addEventListener('pointerleave',onLeave);
+  svgEl.addEventListener('click',onClick,true);
+  svgEl.__scrubHandlers={down:onDown,move:onMove,up:onUp,cancel:onCancel,leave:onLeave,click:onClick};
+  svgEl.__wasScrub=function(){return wasScrub;};
 }
 
 function renderSummary(){
