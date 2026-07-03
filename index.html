@@ -14650,23 +14650,36 @@ function downloadAnnualStatement(fyStart){
 
   if(fyTrips.length||fyExps.length){
     rows.push([]);
-    rows.push(['EXPENSES & MILEAGE — FY '+label]);
-    rows.push(['Date','Description','Category','Amount (£)','Miles','HMRC Rate','Mileage Cost (£)','Total (£)']);
-    let expTotal=0;
-    fyTrips.forEach(function(t){
-      const miles=t.mileage||0, rate=t.ratePerMile||0.45;
-      const mileageCost=+(miles*rate).toFixed(2);
-      const extraExps=(Array.isArray(t.expenses)?t.expenses:[]).reduce(function(s,e){return s+(e.amount||0);},0);
-      const total=+(mileageCost+extraExps).toFixed(2);
-      expTotal+=total;
-      rows.push([t.date||'',(t.description||'Sourcing trip').replace(/,/g,' '),'Mileage','',miles,(t.ratePerMile||0.45).toFixed(2),mileageCost.toFixed(2),total.toFixed(2)]);
-    });
-    fyExps.forEach(function(e){
-      const amt=e.amount||0; expTotal+=amt;
-      rows.push([e.date||'',(e.description||'Expense').replace(/,/g,' '),e.category||'',amt.toFixed(2),'','','',amt.toFixed(2)]);
+    rows.push(['EXPENSES & MILEAGE — FY '+label+' — DETAILED']);
+    rows.push(_EXPENSE_DETAIL_HEADERS);
+    const expBreak=_expandedExpenseRowsCSV(pnl);
+    expBreak.rows.forEach(function(r){rows.push(r);});
+    rows.push([]);
+    rows.push(['EXPENSE TOTAL','','','','','','','','',expBreak.total.toFixed(2)]);
+  }
+
+  // Full transaction detail for every sale event in the FY
+  if(pnl.events.length){
+    rows.push([]);
+    rows.push(['SALES — ALL TRANSACTIONS FY '+label]);
+    rows.push(_SALE_DETAIL_HEADERS);
+    pnl.events.forEach(function(ev){rows.push(_saleDetailRowCSV(ev));});
+    let tSale=0,tPostIn=0,tBpf=0,tPromo=0,tShip=0,tPkg=0,tCost=0,tParts=0,tListing=0,tRefund=0,tRP=0,tPartial=0,tPart=0,tTotCosts=0,tNet=0;
+    pnl.events.forEach(function(ev){
+      const b=_saleBreakdown(ev);
+      if(!ev.isReturned)tSale+=b.salePrice;
+      tPostIn+=b.postage; tBpf+=b.bpf; tPromo+=b.promoFee;
+      tShip+=b.shipping; tPkg+=b.packaging; tCost+=b.itemCost;
+      tParts+=b.parts; tListing+=b.listingFee;
+      tRefund+=b.returnRefund; tRP+=b.returnPostage; tPartial+=b.partialRefund;
+      tPart+=b.partnerSplit; tTotCosts+=b.totalCosts; tNet+=b.netProfit;
     });
     rows.push([]);
-    rows.push(['EXPENSE TOTAL','','','','','','',expTotal.toFixed(2)]);
+    rows.push(['SALES TOTAL','','','','','',
+      tSale.toFixed(2),tPostIn.toFixed(2),tBpf.toFixed(2),'',tPromo.toFixed(2),
+      tShip.toFixed(2),tPkg.toFixed(2),tCost.toFixed(2),tParts.toFixed(2),tListing.toFixed(2),
+      tRefund.toFixed(2),tRP.toFixed(2),tPartial.toFixed(2),tPart.toFixed(2),
+      tTotCosts.toFixed(2),tNet.toFixed(2),'','']);
   }
 
   // Unsold stock sourced in this FY (cash tied up in inventory)
@@ -14818,46 +14831,30 @@ function downloadMonthlyExcel(m){
     ['Unsold items sourced in period',pnl.stock.count]
   ];
 
-  const salesRows=[['Date','Item','GID','Platform','Sale Price','Postage Received','Net Profit','ROI %','Margin %','Status']];
+  // Sales — full transaction breakdown
+  const salesRows=[_SALE_DETAIL_HEADERS.slice()];
+  let tSale=0,tPostIn=0,tBpf=0,tPromo=0,tShip=0,tPkg=0,tCost=0,tParts=0,tListing=0,tRefund=0,tRP=0,tPartial=0,tPart=0,tTotCosts=0,tNet=0;
   events.forEach(function(ev){
-    const i=ev.item;
-    const pl=(PLATFORMS[_itemPlatform(i)]&&PLATFORMS[_itemPlatform(i)].short)||_itemPlatform(i);
-    salesRows.push([ev.saleDate||'',i.item||'',i.gid||'',pl,
-      ev.salePrice||0,i.postage||0,
-      ev.profit!=null?Number(ev.profit):0,
-      ev.roi!=null?Number(ev.roi.toFixed(1)):0,
-      ev.margin!=null?Number(ev.margin.toFixed(1)):0,
-      ev.isReturned?'Returned':'Sold']);
+    salesRows.push(_saleDetailRow(ev,false));
+    const b=_saleBreakdown(ev);
+    if(!ev.isReturned)tSale+=b.salePrice;
+    tPostIn+=b.postage; tBpf+=b.bpf; tPromo+=b.promoFee;
+    tShip+=b.shipping; tPkg+=b.packaging; tCost+=b.itemCost;
+    tParts+=b.parts; tListing+=b.listingFee;
+    tRefund+=b.returnRefund; tRP+=b.returnPostage; tPartial+=b.partialRefund;
+    tPart+=b.partnerSplit; tTotCosts+=b.totalCosts; tNet+=b.netProfit;
   });
-  const totProfit=events.reduce(function(s,e){return s+(e.profit||0);},0);
-  const totRev=events.filter(function(e){return!e.isReturned;}).reduce(function(s,e){return s+(e.salePrice||0);},0);
   salesRows.push([]);
-  salesRows.push(['TOTALS','','','',totRev,'',totProfit,'','','']);
+  salesRows.push(['TOTALS','','','','','',
+    +tSale.toFixed(2),+tPostIn.toFixed(2),+tBpf.toFixed(2),'',+tPromo.toFixed(2),
+    +tShip.toFixed(2),+tPkg.toFixed(2),+tCost.toFixed(2),+tParts.toFixed(2),+tListing.toFixed(2),
+    +tRefund.toFixed(2),+tRP.toFixed(2),+tPartial.toFixed(2),+tPart.toFixed(2),
+    +tTotCosts.toFixed(2),+tNet.toFixed(2),'','']);
 
-  // Expenses sheet
-  const mYear=keyYear(m), mIdx=MONTHS.indexOf(keyCode(m));
-  const inMonth=function(dateStr){
-    if(!dateStr)return false;
-    const d=new Date(dateStr);
-    return d.getFullYear()===mYear && d.getMonth()===mIdx;
-  };
-  const monthTrips=(DB.trips||[]).filter(function(t){return inMonth(t.date);});
-  const monthExps=(DB.expenses||[]).filter(function(e){return inMonth(e.date);});
-  const expRows=[['Date','Description','Category','Amount (£)','Miles','HMRC Rate','Mileage Cost (£)','Total (£)']];
-  let expTotal=0;
-  monthTrips.forEach(function(t){
-    const miles=t.mileage||0, rate=t.ratePerMile||0.45;
-    const mileageCost=+(miles*rate).toFixed(2);
-    const extraExps=(Array.isArray(t.expenses)?t.expenses:[]).reduce(function(s,e){return s+(e.amount||0);},0);
-    const total=+(mileageCost+extraExps).toFixed(2);
-    expTotal+=total;
-    expRows.push([t.date||'',t.description||'Sourcing trip','Mileage','',miles,rate,mileageCost,total]);
-  });
-  monthExps.forEach(function(e){
-    const amt=e.amount||0; expTotal+=amt;
-    expRows.push([e.date||'',e.description||'Expense',e.category||'',amt,'','','',amt]);
-  });
-  if(expRows.length>1){expRows.push([]);expRows.push(['TOTAL','','','','','','',expTotal]);}
+  // Expenses sheet — trip sub-expenses expanded, "what for" preserved
+  const expBreak=_expandedExpenseRows(pnl);
+  const expRows=[_EXPENSE_DETAIL_HEADERS.slice()].concat(expBreak.rows);
+  if(expBreak.rows.length){expRows.push([]);expRows.push(['TOTAL','','','','','','','','',+expBreak.total.toFixed(2)]);}
 
   // Build multi-sheet workbook
   if(!window.XLSX){
@@ -14940,35 +14937,42 @@ function downloadAnnualExcel(fyStart){
   salesRows.push([]);
   salesRows.push(['TOTAL FY '+label,totRev,totCost,totProfit,totSold,totRet,roiCount>0?Number((roiSum/roiCount).toFixed(1)):0,marginCount>0?Number((marginSum/marginCount).toFixed(1)):0]);
 
-  // Expenses sheet
+  // Expenses sheet — detailed, trip sub-expenses expanded
   const fyFrom=fyFrom0, fyTo=fyTo0;
-  const inFY=function(dateStr){return dateStr&&dateStr>=fyFrom&&dateStr<=fyTo;};
-  const fyTrips=(DB.trips||[]).filter(function(t){return inFY(t.date);});
-  const fyExps=(DB.expenses||[]).filter(function(e){return inFY(e.date);});
-  const expRows=[['Date','Description','Category','Amount (£)','Miles','HMRC Rate','Mileage Cost (£)','Total (£)']];
-  let expTotal=0;
-  fyTrips.forEach(function(t){
-    const miles=t.mileage||0, rate=t.ratePerMile||0.45;
-    const mileageCost=+(miles*rate).toFixed(2);
-    const extraExps=(Array.isArray(t.expenses)?t.expenses:[]).reduce(function(s,e){return s+(e.amount||0);},0);
-    const total=+(mileageCost+extraExps).toFixed(2);
-    expTotal+=total;
-    expRows.push([t.date||'',t.description||'Sourcing trip','Mileage','',miles,rate,mileageCost,total]);
+  const expBreak=_expandedExpenseRows(pnl);
+  const expRows=[_EXPENSE_DETAIL_HEADERS.slice()].concat(expBreak.rows);
+  if(expBreak.rows.length){expRows.push([]);expRows.push(['TOTAL','','','','','','','','',+expBreak.total.toFixed(2)]);}
+
+  // Sales Detail sheet — every transaction with full economic breakdown
+  const salesDetailRows=[_SALE_DETAIL_HEADERS.slice()];
+  let dtSale=0,dtPostIn=0,dtBpf=0,dtPromo=0,dtShip=0,dtPkg=0,dtCost=0,dtParts=0,dtListing=0,dtRefund=0,dtRP=0,dtPartial=0,dtPart=0,dtTotCosts=0,dtNet=0;
+  pnl.events.forEach(function(ev){
+    salesDetailRows.push(_saleDetailRow(ev,false));
+    const b=_saleBreakdown(ev);
+    if(!ev.isReturned)dtSale+=b.salePrice;
+    dtPostIn+=b.postage; dtBpf+=b.bpf; dtPromo+=b.promoFee;
+    dtShip+=b.shipping; dtPkg+=b.packaging; dtCost+=b.itemCost;
+    dtParts+=b.parts; dtListing+=b.listingFee;
+    dtRefund+=b.returnRefund; dtRP+=b.returnPostage; dtPartial+=b.partialRefund;
+    dtPart+=b.partnerSplit; dtTotCosts+=b.totalCosts; dtNet+=b.netProfit;
   });
-  fyExps.forEach(function(e){
-    const amt=e.amount||0; expTotal+=amt;
-    expRows.push([e.date||'',e.description||'Expense',e.category||'',amt,'','','',amt]);
-  });
-  if(expRows.length>1){expRows.push([]);expRows.push(['TOTAL','','','','','','',expTotal]);}
+  if(pnl.events.length){
+    salesDetailRows.push([]);
+    salesDetailRows.push(['TOTALS','','','','','',
+      +dtSale.toFixed(2),+dtPostIn.toFixed(2),+dtBpf.toFixed(2),'',+dtPromo.toFixed(2),
+      +dtShip.toFixed(2),+dtPkg.toFixed(2),+dtCost.toFixed(2),+dtParts.toFixed(2),+dtListing.toFixed(2),
+      +dtRefund.toFixed(2),+dtRP.toFixed(2),+dtPartial.toFixed(2),+dtPart.toFixed(2),
+      +dtTotCosts.toFixed(2),+dtNet.toFixed(2),'','']);
+  }
 
   if(!window.XLSX){
     const s=document.createElement('script');s.src='./xlsx.min.js';
-    s.onload=function(){_writeAnnualExcelBook(fyStart,label,salesRows,expRows,summaryRows,pnl);};
+    s.onload=function(){_writeAnnualExcelBook(fyStart,label,salesRows,expRows,summaryRows,pnl,salesDetailRows);};
     s.onerror=function(){toast('Failed to load Excel library','error');};
     document.head.appendChild(s);
-  }else{_writeAnnualExcelBook(fyStart,label,salesRows,expRows,summaryRows,pnl);}
+  }else{_writeAnnualExcelBook(fyStart,label,salesRows,expRows,summaryRows,pnl,salesDetailRows);}
 }
-function _writeAnnualExcelBook(fyStart,label,salesRows,expRows,summaryRows,pnl){
+function _writeAnnualExcelBook(fyStart,label,salesRows,expRows,summaryRows,pnl,salesDetailRows){
   const today=new Date().toLocaleDateString('en-GB',{year:'numeric',month:'short',day:'numeric'});
   const wb=XLSX.utils.book_new();
   const meta=[['Annual P&L Summary — FY '+label],['Exported '+today+' from RETRADE'],[]];
@@ -14980,7 +14984,13 @@ function _writeAnnualExcelBook(fyStart,label,salesRows,expRows,summaryRows,pnl){
   }
   const ws1=XLSX.utils.aoa_to_sheet(meta.concat(salesRows));
   ws1['!cols']=salesRows[0]?salesRows[0].map(function(){return{wch:18};}):[];
-  XLSX.utils.book_append_sheet(wb,ws1,'Annual P&L');
+  XLSX.utils.book_append_sheet(wb,ws1,'Monthly Rollup');
+  // Full transaction detail sheet
+  if(salesDetailRows&&salesDetailRows.length>1){
+    const wsD=XLSX.utils.aoa_to_sheet(meta.concat(salesDetailRows));
+    wsD['!cols']=salesDetailRows[0].map(function(){return{wch:14};});
+    XLSX.utils.book_append_sheet(wb,wsD,'Sales Detail');
+  }
   if(expRows.length>1){
     const ws2=XLSX.utils.aoa_to_sheet(meta.concat(expRows));
     ws2['!cols']=expRows[0]?expRows[0].map(function(){return{wch:20};}):[];
@@ -15041,60 +15051,40 @@ function downloadMonthlyStatement(m){
   const mTo=mYear2+'-'+_pad(mIdx2+1)+'-'+_pad(_last);
   const pnl=_buildPnLSummary(mFrom,mTo,keyName(m));
 
-  // Sales section
+  // Sales section — full transaction breakdown
   const rows=[];
   pnl.rows.forEach(function(r){rows.push(r);});
   rows.push([]);
-  rows.push(['SALES']);
-  rows.push(['Date','Item','GID','Platform','Sale Price','Postage Received','Net Profit','ROI %','Margin %','Status']);
-  const _headerRowsAlreadyPushed=true;
+  rows.push(['SALES — TRANSACTION BREAKDOWN']);
+  rows.push(_SALE_DETAIL_HEADERS);
+  events.forEach(function(ev){rows.push(_saleDetailRowCSV(ev));});
+  // Totals across every numeric column
+  let tSale=0,tPostIn=0,tBpf=0,tPromo=0,tShip=0,tPkg=0,tCost=0,tParts=0,tListing=0,tRefund=0,tRP=0,tPartial=0,tPart=0,tTotCosts=0,tNet=0;
   events.forEach(function(ev){
-    const i=ev.item;
-    const p=_itemPlatform(i);
-    const pl=(PLATFORMS[p]&&PLATFORMS[p].short)||p;
-    const profit=ev.profit!=null?Number(ev.profit).toFixed(2):'';
-    const roi=ev.roi!=null?ev.roi.toFixed(1)+'%':'';
-    const margin=ev.margin!=null?ev.margin.toFixed(1)+'%':'';
-    rows.push([ev.saleDate||'',(i.item||'').replace(/,/g,' '),i.gid||'',pl,
-      (ev.salePrice||0).toFixed(2),(i.postage||0).toFixed(2),profit,roi,margin,
-      ev.isReturned?'Returned':'Sold']);
+    const b=_saleBreakdown(ev);
+    if(!ev.isReturned)tSale+=b.salePrice;
+    tPostIn+=b.postage; tBpf+=b.bpf; tPromo+=b.promoFee;
+    tShip+=b.shipping; tPkg+=b.packaging; tCost+=b.itemCost;
+    tParts+=b.parts; tListing+=b.listingFee;
+    tRefund+=b.returnRefund; tRP+=b.returnPostage; tPartial+=b.partialRefund;
+    tPart+=b.partnerSplit; tTotCosts+=b.totalCosts; tNet+=b.netProfit;
   });
-  const totProfit=events.reduce(function(s,e){return s+(e.profit||0);},0);
-  const totRev=events.filter(function(e){return!e.isReturned;}).reduce(function(s,e){return s+(e.salePrice||0);},0);
   rows.push([]);
-  rows.push(['TOTALS','','','',totRev.toFixed(2),'',totProfit.toFixed(2),'','','']);
+  rows.push(['TOTALS','','','','','',
+    tSale.toFixed(2),tPostIn.toFixed(2),tBpf.toFixed(2),'',tPromo.toFixed(2),
+    tShip.toFixed(2),tPkg.toFixed(2),tCost.toFixed(2),tParts.toFixed(2),tListing.toFixed(2),
+    tRefund.toFixed(2),tRP.toFixed(2),tPartial.toFixed(2),tPart.toFixed(2),
+    tTotCosts.toFixed(2),tNet.toFixed(2),'','']);
 
-  // Expenses section — filtered to this calendar month by date
-  const mYear=keyYear(m), mIdx=MONTHS.indexOf(keyCode(m));
-  const inMonth=function(dateStr){
-    if(!dateStr)return false;
-    const d=new Date(dateStr);
-    return d.getFullYear()===mYear && d.getMonth()===mIdx;
-  };
-  const monthTrips=(DB.trips||[]).filter(function(t){return inMonth(t.date);});
-  const monthExps=(DB.expenses||[]).filter(function(e){return inMonth(e.date);});
-
-  if(monthTrips.length||monthExps.length){
+  // Expenses section — detailed breakdown with trip sub-expenses expanded
+  if(pnl.expenses.trips.length||pnl.expenses.expenses.length){
     rows.push([]);
-    rows.push(['EXPENSES & MILEAGE']);
-    rows.push(['Date','Description','Category','Amount (£)','Miles','HMRC Rate','Mileage Cost (£)','Total (£)']);
-    let expTotal=0;
-    monthTrips.forEach(function(t){
-      const miles=t.mileage||0;
-      const rate=t.ratePerMile||0.45;
-      const mileageCost=+(miles*rate).toFixed(2);
-      const extraExps=(Array.isArray(t.expenses)?t.expenses:[]).reduce(function(s,e){return s+(e.amount||0);},0);
-      const total=+(mileageCost+extraExps).toFixed(2);
-      expTotal+=total;
-      rows.push([t.date||'',(t.description||'Sourcing trip').replace(/,/g,' '),'Mileage','',miles,rate.toFixed(2),mileageCost.toFixed(2),total.toFixed(2)]);
-    });
-    monthExps.forEach(function(e){
-      const amt=e.amount||0;
-      expTotal+=amt;
-      rows.push([e.date||'',(e.description||'Expense').replace(/,/g,' '),e.category||'',amt.toFixed(2),'','','',amt.toFixed(2)]);
-    });
+    rows.push(['EXPENSES & MILEAGE — DETAILED']);
+    rows.push(_EXPENSE_DETAIL_HEADERS);
+    const expBreak=_expandedExpenseRowsCSV(pnl);
+    expBreak.rows.forEach(function(r){rows.push(r);});
     rows.push([]);
-    rows.push(['EXPENSE TOTAL','','','','','','',expTotal.toFixed(2)]);
+    rows.push(['EXPENSE TOTAL','','','','','','','','',expBreak.total.toFixed(2)]);
   }
 
   // Unsold stock sourced in this month (money out that hasn't come back yet)
@@ -20375,6 +20365,158 @@ function _unsoldStockCostInRange(from,to){
   return{cost:+cost.toFixed(2),count:count,items:items};
 }
 
+// Full economic breakdown for a single sale event. Splits the sale price
+// into every cost component so statements can show *why* the profit is what
+// it is (BPF, promo, shipping, packaging, item cost, parts, listing, returns,
+// partner split). Uses sale 1 / sale 2 economics depending on ev.sale.
+function _saleBreakdown(ev){
+  const i=ev.item;
+  const isSale2=(ev.sale==='2');
+  const platform=_itemPlatform(i);
+  const sellerPaysShipping=(platform!=='vinted'&&platform!=='fb');
+  let salePrice, postage, shipping, packaging, promoPct, bpf, itemCost, parts, listingFee;
+  if(isSale2){
+    // Sale 2: current values on the item hold sale-2 economics
+    salePrice=i.resaleSalePrice||0;
+    postage=(i.resalePostage!=null?i.resalePostage:(i.postage||0));
+    shipping=i.resaleShippingCost||0;
+    packaging=i.resalePackagingCost||0;
+    promoPct=i.resalePromoPercent||0;
+    bpf=calcPlatformBPF(i,salePrice,postage,i.resalePlatform);
+  } else {
+    // Sale 1: if this item was later relisted, sale-1 values live on the full-return snapshot
+    const fr=(i.returnHistory||[]).slice().reverse().find(function(r){return r.type==='full_seller'||r.type==='full_ebay';});
+    const snap=(i.resaleSalePrice&&fr)?fr:null;
+    salePrice=snap?(fr._salePriceAtRelist||fr._salePriceAtReturn||i.salePrice||0):(i.salePrice||0);
+    postage=snap&&fr._postageAtRelist!==undefined?fr._postageAtRelist:(i.postage||0);
+    shipping=snap&&fr._shippingCostAtRelist!==undefined?fr._shippingCostAtRelist:(i.shippingCost||0);
+    packaging=snap&&fr._packagingCostAtRelist!==undefined?fr._packagingCostAtRelist:(i.packagingCost||0);
+    promoPct=snap&&fr._promoPercentAtRelist!==undefined?fr._promoPercentAtRelist:(i.promoPercent||0);
+    bpf=calcPlatformBPF(i,salePrice,postage);
+  }
+  // COGS: item cost + parts. Only counted against sale 1 (parts persist on the item and are a one-time input).
+  itemCost=isSale2?0:(i.costPrice||0);
+  parts=isSale2?0:calcPartsCost(i);
+  listingFee=isSale2?0:(i.listingFee||0);
+  const promoFee=+(salePrice*promoPct*1.20).toFixed(2);
+  const shipOut=sellerPaysShipping?shipping:0;
+  const pkgOut=sellerPaysShipping?packaging:0;
+  // Return costs: refund principal + return postage (netted against sale 1 only)
+  let returnCost=0, partialRefund=0, returnPostage=0;
+  if(!isSale2){
+    (i.returnHistory||[]).forEach(function(r){
+      const isFull=(r.type==='full_seller'||r.type==='full_ebay');
+      if(isFull&&!i.resaleSalePrice){
+        const origBPF=calcPlatformBPF(i,r._salePriceAtReturn||r.refundAmount||salePrice,postage);
+        returnCost+=Math.max(0,(r.refundAmount||0)-origBPF);
+      }
+      if(r.type==='partial_ebay')partialRefund+=(r.refundAmount||0);
+      returnPostage+=(r.returnPostage||0);
+    });
+  }
+  // Partner split share attributable to this sale
+  let partnerSplit=0;
+  try{const owed=_accountItemOwed(i); if(owed){
+    // Split proportional to this sale's share of total item revenue if there are two sales; else full owed to sale 1
+    if(i.resaleSalePrice){
+      const s1=(salePrice||0), s2=(i.resaleSalePrice||0), tot=s1+s2;
+      partnerSplit=tot>0?+(owed*(isSale2?s2/tot:s1/tot)).toFixed(2):0;
+    } else if(!isSale2){ partnerSplit=owed; }
+  }}catch(e){}
+  const totalCosts=+(bpf+promoFee+shipOut+pkgOut+itemCost+parts+listingFee+returnCost+returnPostage+partialRefund+partnerSplit).toFixed(2);
+  const revenueRecognised=+(salePrice+postage).toFixed(2);
+  const netProfit=+(revenueRecognised-totalCosts).toFixed(2);
+  return{
+    saleNo:isSale2?'Resale':'Sale 1',
+    platform:(PLATFORMS[isSale2&&i.resalePlatform?i.resalePlatform:platform]&&PLATFORMS[isSale2&&i.resalePlatform?i.resalePlatform:platform].short)||platform,
+    salePrice:+salePrice.toFixed(2),
+    postage:+postage.toFixed(2),
+    bpf:+bpf.toFixed(2),
+    promoPct:+(promoPct*100).toFixed(1),
+    promoFee:promoFee,
+    shipping:+shipOut.toFixed(2),
+    packaging:+pkgOut.toFixed(2),
+    itemCost:+itemCost.toFixed(2),
+    parts:+parts.toFixed(2),
+    listingFee:+listingFee.toFixed(2),
+    returnRefund:+returnCost.toFixed(2),
+    returnPostage:+returnPostage.toFixed(2),
+    partialRefund:+partialRefund.toFixed(2),
+    partnerSplit:+partnerSplit.toFixed(2),
+    totalCosts:totalCosts,
+    netProfit:netProfit
+  };
+}
+
+// Full column set for sale detail rows. Kept here so CSV + Excel share it.
+const _SALE_DETAIL_HEADERS=[
+  'Date','Sale #','Item','GID','Platform','Status',
+  'Sale Price (£)','Postage In (£)','BPF Fee (£)','Promo %','Promo Fee (£)',
+  'Shipping Out (£)','Packaging (£)','Item Cost (£)','Parts (£)','Listing Fee (£)',
+  'Return Refund (£)','Return Postage (£)','Partial Refund (£)','Partner Split (£)',
+  'Total Costs (£)','Net Profit (£)','ROI %','Margin %'
+];
+function _saleDetailRow(ev,forCSV){
+  const i=ev.item;
+  const b=_saleBreakdown(ev);
+  const roi=ev.roi!=null?ev.roi:0;
+  const margin=ev.margin!=null?ev.margin:0;
+  const status=ev.isReturned?'Returned':(ev.sale==='2'?'Resold':'Sold');
+  const itemName=forCSV?(i.item||'').replace(/,/g,' '):(i.item||'');
+  return[
+    ev.saleDate||'',b.saleNo,itemName,i.gid||'',b.platform,status,
+    b.salePrice,b.postage,b.bpf,b.promoPct,b.promoFee,
+    b.shipping,b.packaging,b.itemCost,b.parts,b.listingFee,
+    b.returnRefund,b.returnPostage,b.partialRefund,b.partnerSplit,
+    b.totalCosts,b.netProfit,
+    forCSV?(roi.toFixed(1)+'%'):+roi.toFixed(1),
+    forCSV?(margin.toFixed(1)+'%'):+margin.toFixed(1)
+  ];
+}
+function _saleDetailRowCSV(ev){
+  return _saleDetailRow(ev,true).map(function(v){return typeof v==='number'?v.toFixed(2):v;});
+}
+
+// Column set for expense detail — trip sub-expenses broken out as separate rows.
+const _EXPENSE_DETAIL_HEADERS=[
+  'Date','Type','Description','Category','Trip / Linked','Miles','HMRC Rate (£/mi)','Mileage Cost (£)','Amount (£)','Total (£)'
+];
+function _expandedExpenseRows(pnl){
+  const rows=[];
+  let total=0;
+  (pnl.expenses.trips||[]).forEach(function(t){
+    const miles=t.mileage||0, rate=t.ratePerMile||0.45;
+    const mileageCost=+(miles*rate).toFixed(2);
+    total+=mileageCost;
+    rows.push([t.date||'','Mileage',(t.description||'Sourcing trip'),'Mileage',(t.description||''),
+      miles,+rate.toFixed(2),mileageCost,'',mileageCost]);
+    // Break out each sub-expense on this trip as its own row so "what for" is visible
+    (Array.isArray(t.expenses)?t.expenses:[]).forEach(function(e){
+      const amt=+((e.amount||0)).toFixed(2);
+      total+=amt;
+      rows.push([e.date||t.date||'','Trip expense',(e.description||'Sub-expense'),(e.category||'Trip cost'),(t.description||''),
+        '','','',amt,amt]);
+    });
+  });
+  (pnl.expenses.expenses||[]).forEach(function(e){
+    const amt=+((e.amount||0)).toFixed(2);
+    total+=amt;
+    rows.push([e.date||'','Expense',(e.description||'Expense'),(e.category||''),'',
+      '','','',amt,amt]);
+  });
+  return{rows:rows,total:+total.toFixed(2)};
+}
+function _expandedExpenseRowsCSV(pnl){
+  const r=_expandedExpenseRows(pnl);
+  const out=r.rows.map(function(row){
+    return row.map(function(v,idx){
+      if(typeof v==='number')return v.toFixed(2);
+      return String(v||'').replace(/,/g,' ');
+    });
+  });
+  return{rows:out,total:r.total};
+}
+
 // Builds the standard P&L summary block for any date range. Returns
 // {rows, revenue, cogs, grossProfit, expenses, netProfit, stockCost, cashPosition}
 // so callers can either splice `rows` into their output or reuse the numbers.
@@ -20436,30 +20578,36 @@ function downloadRangeStatement(from,to){
   // P&L summary block first
   pnl.rows.forEach(function(r){rows.push(r);});
   rows.push([]);
-  // Sales detail
-  rows.push(['SALES']);
-  rows.push(['Date','Item','GID','Platform','Sale Price','Postage Received','Net Profit','ROI %','Margin %','Status']);
-  pnl.events.forEach(function(ev){
-    const i=ev.item;
-    const p=_itemPlatform(i);
-    const pl=(PLATFORMS[p]&&PLATFORMS[p].short)||p;
-    const profit=ev.profit!=null?Number(ev.profit).toFixed(2):'';
-    const roi=ev.roi!=null?ev.roi.toFixed(1)+'%':'';
-    const margin=ev.margin!=null?ev.margin.toFixed(1)+'%':'';
-    rows.push([ev.saleDate||'',(i.item||'').replace(/,/g,' '),i.gid||'',pl,
-      (ev.salePrice||0).toFixed(2),(i.postage||0).toFixed(2),profit,roi,margin,
-      ev.isReturned?'Returned':'Sold']);
-  });
+  // Sales detail — full transaction breakdown
+  rows.push(['SALES — TRANSACTION BREAKDOWN']);
+  rows.push(_SALE_DETAIL_HEADERS);
+  pnl.events.forEach(function(ev){rows.push(_saleDetailRowCSV(ev));});
   rows.push([]);
-  rows.push(['SALES TOTAL','','','',pnl.revenue.toFixed(2),'',pnl.grossProfit.toFixed(2),'','','']);
-  // Expenses
+  // Sales totals row (aligned to numeric columns of the detail headers)
+  let tSale=0,tPostIn=0,tBpf=0,tPromo=0,tShip=0,tPkg=0,tCost=0,tParts=0,tListing=0,tRefund=0,tRP=0,tPartial=0,tPart=0,tTotCosts=0,tNet=0;
+  pnl.events.forEach(function(ev){
+    const b=_saleBreakdown(ev);
+    if(!ev.isReturned)tSale+=b.salePrice;
+    tPostIn+=b.postage; tBpf+=b.bpf; tPromo+=b.promoFee;
+    tShip+=b.shipping; tPkg+=b.packaging; tCost+=b.itemCost;
+    tParts+=b.parts; tListing+=b.listingFee;
+    tRefund+=b.returnRefund; tRP+=b.returnPostage; tPartial+=b.partialRefund;
+    tPart+=b.partnerSplit; tTotCosts+=b.totalCosts; tNet+=b.netProfit;
+  });
+  rows.push(['SALES TOTAL','','','','','',
+    tSale.toFixed(2),tPostIn.toFixed(2),tBpf.toFixed(2),'',tPromo.toFixed(2),
+    tShip.toFixed(2),tPkg.toFixed(2),tCost.toFixed(2),tParts.toFixed(2),tListing.toFixed(2),
+    tRefund.toFixed(2),tRP.toFixed(2),tPartial.toFixed(2),tPart.toFixed(2),
+    tTotCosts.toFixed(2),tNet.toFixed(2),'','']);
+  // Expenses detail — trip sub-expenses broken out with "what for"
   if(pnl.expenses.rows.length){
     rows.push([]);
-    rows.push(['EXPENSES & MILEAGE']);
-    rows.push(['Date','Description','Category','Amount (£)','Miles','HMRC Rate','Mileage Cost (£)','Total (£)']);
-    pnl.expenses.rows.forEach(function(r){rows.push(r);});
+    rows.push(['EXPENSES & MILEAGE — DETAILED']);
+    rows.push(_EXPENSE_DETAIL_HEADERS);
+    const expBreak=_expandedExpenseRowsCSV(pnl);
+    expBreak.rows.forEach(function(r){rows.push(r);});
     rows.push([]);
-    rows.push(['EXPENSE TOTAL','','','','','','',pnl.expenses.total.toFixed(2)]);
+    rows.push(['EXPENSE TOTAL','','','','','','','','',expBreak.total.toFixed(2)]);
   }
   // Unsold-stock-in-period detail
   if(pnl.stock.items.length){
@@ -20501,34 +20649,29 @@ function downloadRangeExcel(from,to){
     ['Returns',pnl.returnCount],
     ['Unsold items sourced in period',pnl.stock.count]
   ];
-  // Sheet 2: Sales
-  const salesRows=[['Date','Item','GID','Platform','Sale Price','Postage Received','Net Profit','ROI %','Margin %','Status']];
+  // Sheet 2: Sales — full transaction breakdown
+  const salesRows=[_SALE_DETAIL_HEADERS.slice()];
+  let tSale=0,tPostIn=0,tBpf=0,tPromo=0,tShip=0,tPkg=0,tCost=0,tParts=0,tListing=0,tRefund=0,tRP=0,tPartial=0,tPart=0,tTotCosts=0,tNet=0;
   pnl.events.forEach(function(ev){
-    const i=ev.item;
-    const pl=(PLATFORMS[_itemPlatform(i)]&&PLATFORMS[_itemPlatform(i)].short)||_itemPlatform(i);
-    salesRows.push([ev.saleDate||'',i.item||'',i.gid||'',pl,
-      ev.salePrice||0,i.postage||0,
-      ev.profit!=null?Number(ev.profit):0,
-      ev.roi!=null?Number(ev.roi.toFixed(1)):0,
-      ev.margin!=null?Number(ev.margin.toFixed(1)):0,
-      ev.isReturned?'Returned':'Sold']);
+    salesRows.push(_saleDetailRow(ev,false));
+    const b=_saleBreakdown(ev);
+    if(!ev.isReturned)tSale+=b.salePrice;
+    tPostIn+=b.postage; tBpf+=b.bpf; tPromo+=b.promoFee;
+    tShip+=b.shipping; tPkg+=b.packaging; tCost+=b.itemCost;
+    tParts+=b.parts; tListing+=b.listingFee;
+    tRefund+=b.returnRefund; tRP+=b.returnPostage; tPartial+=b.partialRefund;
+    tPart+=b.partnerSplit; tTotCosts+=b.totalCosts; tNet+=b.netProfit;
   });
   salesRows.push([]);
-  salesRows.push(['TOTALS','','','',pnl.revenue,'',pnl.grossProfit,'','','']);
-  // Sheet 3: Expenses
-  const expRows=[['Date','Description','Category','Amount (£)','Miles','HMRC Rate','Mileage Cost (£)','Total (£)']];
-  (pnl.expenses.trips||[]).forEach(function(t){
-    const miles=t.mileage||0, rate=t.ratePerMile||0.45;
-    const mileageCost=+(miles*rate).toFixed(2);
-    const extraExps=(Array.isArray(t.expenses)?t.expenses:[]).reduce(function(s,e){return s+(e.amount||0);},0);
-    const total=+(mileageCost+extraExps).toFixed(2);
-    expRows.push([t.date||'',t.description||'Sourcing trip','Mileage','',miles,rate,mileageCost,total]);
-  });
-  (pnl.expenses.expenses||[]).forEach(function(e){
-    const amt=e.amount||0;
-    expRows.push([e.date||'',e.description||'Expense',e.category||'',amt,'','','',amt]);
-  });
-  if(expRows.length>1){expRows.push([]);expRows.push(['TOTAL','','','','','','',pnl.expenses.total]);}
+  salesRows.push(['TOTALS','','','','','',
+    +tSale.toFixed(2),+tPostIn.toFixed(2),+tBpf.toFixed(2),'',+tPromo.toFixed(2),
+    +tShip.toFixed(2),+tPkg.toFixed(2),+tCost.toFixed(2),+tParts.toFixed(2),+tListing.toFixed(2),
+    +tRefund.toFixed(2),+tRP.toFixed(2),+tPartial.toFixed(2),+tPart.toFixed(2),
+    +tTotCosts.toFixed(2),+tNet.toFixed(2),'','']);
+  // Sheet 3: Expenses — trip sub-expenses expanded
+  const expBreak=_expandedExpenseRows(pnl);
+  const expRows=[_EXPENSE_DETAIL_HEADERS.slice()].concat(expBreak.rows);
+  if(expBreak.rows.length){expRows.push([]);expRows.push(['TOTAL','','','','','','','','',+expBreak.total.toFixed(2)]);}
   // Sheet 4: Unsold Stock (in period)
   const stockRows=[['Date Sourced','Item','GID','State','Cost (£)']];
   pnl.stock.items.forEach(function(s){
