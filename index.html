@@ -2867,9 +2867,9 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
    the name instead of being flung to the card's far edge (kills dead space). */
 .rt .cat-donut-svg{display:block;width:clamp(124px,42%,170px);height:auto;aspect-ratio:1;}
 .rt .cat-donut-legend{flex:0 1 280px;min-width:0;display:flex;flex-direction:column;gap:11px;}
-.rt .cat-legend-row{display:flex;align-items:center;gap:10px;font-size:13px;white-space:nowrap;}
+.rt .cat-legend-row{display:flex;align-items:center;gap:10px;font-size:13px;}
 .rt .cat-legend-dot{width:10px;height:10px;border-radius:3px;flex:0 0 auto;}
-.rt .cat-legend-name{flex:1;min-width:0;color:var(--text-secondary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.rt .cat-legend-name{flex:1;min-width:0;color:var(--text-secondary);white-space:normal;line-height:1.25;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;word-break:break-word;}
 .rt .cat-legend-pct{color:var(--text-primary);font-weight:700;letter-spacing:-0.01em;flex:0 0 auto;}
 @media(max-width:560px){
   .rt .summary-categories .cat-donut-wrap{gap:16px;}
@@ -13589,7 +13589,7 @@ function buildCategoryDonut(byCat){
     const pct=Math.round((s.val/total)*100);
     return '<div class="cat-legend-row">'
       +'<span class="cat-legend-dot" style="background:'+_DONUT_COLORS[i%_DONUT_COLORS.length]+'"></span>'
-      +'<span class="cat-legend-name">'+esc(s.cat)+'</span>'
+      +'<span class="cat-legend-name" title="'+esc(s.cat)+'">'+esc(s.cat)+'</span>'
       +'<span class="cat-legend-pct num">'+pct+'%</span></div>';
   }).join('');
   return { svg:svg, legend:legend, count:weighted.length };
@@ -13730,7 +13730,7 @@ function renderSummaryChart(labels,revData,profitData){
         fontSize:12,
         yTicks:2,
         maxXLabels:4,
-        maxDotsN:15,
+        maxDotsN:12,
         profitDotR:3,revDotR:3.5,
         profitStroke:2.2,revStroke:2.6,scrubDotR:5,
         gradientId:'rt-profit-fill-m'
@@ -16750,7 +16750,7 @@ function renderExpenses(){
     const ddId='dd-exp-'+idx;
     return `<div class="expense-item">
       <div class="exp-dot expense"></div>
-      <div class="expense-main"><div class="expense-label">${esc(e.description||'Expense')}</div><div class="expense-meta">${[e.date,e.category?esc(e.category):''].filter(Boolean).join('<span style="color:var(--border2)">&nbsp;·&nbsp;</span>')}</div></div>
+      <div class="expense-main"><div class="expense-label">${esc(e.description||'Expense')}</div><div class="expense-meta">${[e.date,e.category?esc(_expenseCanonLabel(e.category)):''].filter(Boolean).join('<span style="color:var(--border2)">&nbsp;·&nbsp;</span>')}</div></div>
       <div class="expense-right"><div class="expense-amount">${(e.amount||0)>0?fmt(e.amount):'<span style="color:var(--muted)">—</span>'}</div></div>
       <div class="expense-actions" onclick="event.stopPropagation()">
         <div class="ddwrap" id="${ddId}" style="position:relative">
@@ -19546,10 +19546,16 @@ function renderTax(){
     if((i.item||'').trim().toUpperCase()==='MONTH END')return;
     if((i.dateSold||i.resaleSalePrice)&&!i.isReturned&&inTaxYear(i.dateSold||i.resaleDateSold))soldItems.push(i);
   });});
-  const totalIncome=soldItems.reduce(function(s,i){return s+(i.salePrice||0)+(i.resaleSalePrice||0);},0);
+  // ── Single source of truth: the shared reporting engine over the tax year ──
+  // Every headline figure (turnover, expenses, taxable profit, SA103 boxes) is
+  // derived from _buildPnLSummary so the Tax page reconciles to the exports to
+  // the penny. Turnover = gross receipts incl. postage recharged to buyers.
+  const fyFrom=selectedYear+'-04-06', fyTo=(selectedYear+1)+'-04-05';
+  const _fyLabel=selectedYear+'/'+String(selectedYear+1).slice(2);
+  const pnl=_buildPnLSummary(fyFrom,fyTo,'FY '+_fyLabel);
+  const totalIncome=pnl.revenue;
   const saleCount=soldItems.length;
   // Dynamic income label: list the unique platforms actually used this tax year
-  // Group ebay_biz under ebay for tax display purposes (same HMRC treatment)
   const _usedPlatKeys=[...new Set(soldItems.map(function(i){
     const p=_itemPlatform(i);
     return p==='ebay_biz'?'ebay':p;
@@ -19557,43 +19563,22 @@ function renderTax(){
   const _incomeLabel=_usedPlatKeys.length===0?'Gross receipts'
     :_usedPlatKeys.length<=3?'Gross receipts ('+_usedPlatKeys.map(function(k){return PLATFORMS[k]?PLATFORMS[k].short:k;}).join(', ')+')'
     :'Gross receipts (multiple platforms)';
-  const totalBPF=soldItems.reduce(function(s,i){return s+calcPlatformBPF(i,i.salePrice||0,i.postage||0)+(i.resaleSalePrice?calcPlatformBPF(i,i.resaleSalePrice,i.resalePostage!=null?i.resalePostage:(i.postage||0),i.resalePlatform):0);},0);
-  const totalPromo=soldItems.reduce(function(s,i){return s+(i.salePrice||0)*(i.promoPercent||0)*1.20+(i.resaleSalePrice||0)*(i.promoPercent||0)*1.20;},0);
-  const totalPostage=soldItems.reduce(function(s,i){return s+(i.shippingCost||0)+(i.resaleShippingCost||0);},0);
-  const totalPackaging=soldItems.reduce(function(s,i){return s+(i.packagingCost||0);},0);
-  const totalStockCost=soldItems.reduce(function(s,i){return s+(i.costPrice||0);},0);
-  const totalParts=soldItems.reduce(function(s,i){return s+calcPartsCost(i);},0);
   const tripsInYear=(DB.trips||[]).filter(function(t){return inTaxYear(t.date);});
   const totalMiles=tripsInYear.reduce(function(s,t){return s+(t.mileage||0);},0);
-  // BUG-07: Run the same per-trip tiering walk used on the Expenses page so
-  // SA103 reconciles to the trip card. calcTieredTrips groups by tax year
-  // and respects each trip's stored ratePerMile for tier 1; tier 2 is fixed
-  // at HMRC's 0.25. Within a single tax year the per-trip walk produces the
-  // same totalMileage as the legacy year-aggregate formula when all trips
-  // share ratePerMile=0.45 (because Σ tier1Cost+tier2Cost across trips ==
-  // (min(totalMiles,10k)*0.45 + max(0,totalMiles-10k)*0.25)).
+  // Tiered mileage split — kept for the display label; cost itself comes from pnl.
   const _tieredYr=calcTieredTrips(tripsInYear);
   const tier1Miles=_tieredYr.reduce(function(s,r){return s+r.tier1Miles;},0);
   const tier2Miles=_tieredYr.reduce(function(s,r){return s+r.tier2Miles;},0);
-  const totalMileage=+_tieredYr.reduce(function(s,r){return s+r.mileageCost;},0).toFixed(2);
-  // BUG-07: trip-attached extras (parking, entry fees, etc.) — claimable as
-  // business expenses alongside the mileage allowance. Inherit the trip's
-  // tax-year scope (already filtered above).
-  const totalTripExtras=+_tieredYr.reduce(function(s,r){return s+r.expensesCost;},0).toFixed(2);
+  const totalMileage=pnl.mileage.cost;
   const expensesInYear=(DB.expenses||[]).filter(function(e){return inTaxYear(e.date);});
-  // Split expenses into named categories so they surface as distinct lines on SA103.
-  // 'Packaging Materials' and 'Shipping Supplies' are claimable packing/dispatch costs.
-  const totalPackagingExpenses=expensesInYear.filter(function(e){return e.category==='Packaging Materials'||e.category==='Shipping Supplies';}).reduce(function(s,e){return s+(e.amount||0);},0);
-  const totalOtherExpenses=expensesInYear.filter(function(e){return e.category!=='Packaging Materials'&&e.category!=='Shipping Supplies';}).reduce(function(s,e){return s+(e.amount||0);},0);
-  const totalActualExpenses=+(totalBPF+totalPromo+totalPostage+totalPackaging+totalPackagingExpenses+totalStockCost+totalMileage+totalTripExtras+totalOtherExpenses+totalParts).toFixed(2);
+  // Total allowable expenses = turnover − net profit before tax (guaranteed to
+  // reconcile; includes COGS, fees, postage, packaging, returns, partner splits,
+  // mileage and all logged overheads).
+  const totalActualExpenses=+(pnl.revenue-pnl.netProfit).toFixed(2);
   const TRADING_ALLOWANCE=1000;
-  // Trading allowance path — can never produce a loss (allowance is capped at income).
   const taxableTA=Math.max(0,+(totalIncome-TRADING_ALLOWANCE).toFixed(2));
-  // Actual expenses path — allow negative values so real trading losses surface.
-  // HMRC allows loss carry-forward / offset against other income, so the user
-  // needs to see the loss rather than a misleading £0.
-  const taxableActual=+(totalIncome-totalActualExpenses).toFixed(2); // may be negative
-  // Method auto-pick: whichever produces the lower taxable figure (incl. losses).
+  // Actual-expenses taxable profit IS the engine's net profit before tax.
+  const taxableActual=+pnl.netProfit.toFixed(2); // may be negative (real loss)
   const taWins=taxableTA<=taxableActual;
   const belowThreshold=totalIncome<TRADING_ALLOWANCE;
 
@@ -19632,16 +19617,21 @@ function renderTax(){
   const box16=usingTA?+Math.min(TRADING_ALLOWANCE,totalIncome).toFixed(2):totalActualExpenses;
   const box23=usingTA?taxableTA:taxableActual;
 
-  var expRows=[
-    ['eBay fees (BPF)',totalBPF],
-    ['Promo fees (inc. VAT)',totalPromo],
-    ['Postage paid',totalPostage],
-    ['Packaging costs (per item)',totalPackaging],
-    ['Packing & shipping supplies',totalPackagingExpenses],
-    ['Stock cost (sold items)',totalStockCost],
-    ['Parts & item expenses',totalParts]
-  ].map(function(row){
-    var label=row[0],val=row[1];
+  // Expense breakdown, box-level, straight from the engine. Every line maps to
+  // an HMRC SA103F box and the set sums to totalActualExpenses.
+  const _taxExpLines=[
+    [17,'Cost of goods sold (Box 17)',(pnl.box17!=null?pnl.box17:pnl.cogs)],
+    [20,'Motor, van & travel (Box 20)',pnl.byBox[20]||0],
+    [21,'Rent, rates, power & insurance (Box 21)',pnl.byBox[21]||0],
+    [22,'Repairs & equipment (Box 22)',pnl.byBox[22]||0],
+    [23,'Postage, packaging & office (Box 23)',pnl.byBox[23]||0],
+    [24,'Advertising & marketing (Box 24)',pnl.byBox[24]||0],
+    [26,'Platform & payment fees (Box 26)',pnl.byBox[26]||0],
+    [28,'Accountancy, legal & professional (Box 28)',pnl.byBox[28]||0],
+    [30,'Other business expenses (Box 30)',pnl.byBox[30]||0]
+  ].filter(function(r){return r[0]===17||r[2]>0;});
+  var expRows=_taxExpLines.map(function(row){
+    var label=row[1],val=row[2];
     return '<div class="tax-exp-row" style="display:flex;justify-content:space-between;align-items:center;padding:10px 16px;border-bottom:1px solid var(--border);font-size:14px">'
       +'<span style="color:var(--text-secondary)">'+label+'</span>'
       +'<span style="font-family:var(--font-mono);font-weight:600;color:'+(val>0?'var(--red)':'var(--muted)')+'">'+( val>0?'\u2212'+fmt(val):'--')+'</span>'
@@ -19709,15 +19699,15 @@ function renderTax(){
     +(usingTA
       // Trading allowance — single flat deduction row
       ?'<div class="tax-exp-row" style="display:flex;justify-content:space-between;align-items:center;padding:10px 16px;border-bottom:1px solid var(--border);font-size:13px"><span style="color:var(--text-secondary)">Trading allowance (flat deduction)</span><span style="font-family:var(--font-mono);font-weight:600;color:var(--red)">\u2212'+fmt(Math.min(TRADING_ALLOWANCE,totalIncome))+'</span></div>'
-      // Actual — full breakdown
+      // Actual — box-level breakdown (mileage sits inside Box 20, other logged
+      // expenses inside their boxes; the set already reconciles to the total)
       :expRows
-        +'<div class="tax-exp-row" style="display:flex;justify-content:space-between;align-items:center;padding:10px 16px;border-bottom:1px solid var(--border);font-size:13px"><span style="color:var(--text-secondary)">Mileage ('+(tier2Miles>0?tier1Miles.toFixed(1)+' mi @ 45p + '+tier2Miles.toFixed(1)+' mi @ 25p':totalMiles.toFixed(1)+' mi @ 45p')+')</span><span style="font-family:var(--font-mono);font-weight:600;color:'+(totalMileage>0?'var(--red)':'var(--muted)')+'">'+( totalMileage>0?'\u2212'+fmt(totalMileage):'--')+'</span></div>'
-        +'<div class="tax-exp-row" style="display:flex;justify-content:space-between;align-items:center;padding:10px 16px;border-bottom:1px solid var(--border);font-size:13px"><span style="color:var(--text-secondary)">Trip extras (parking, entry fees, etc.)</span><span style="font-family:var(--font-mono);font-weight:600;color:'+(totalTripExtras>0?'var(--red)':'var(--muted)')+'">'+( totalTripExtras>0?'\u2212'+fmt(totalTripExtras):'--')+'</span></div>'
-        +'<div class="tax-exp-row" style="display:flex;justify-content:space-between;align-items:center;padding:10px 16px;border-bottom:1px solid var(--border);font-size:13px"><span style="color:var(--text-secondary)">Other business expenses</span><span style="font-family:var(--font-mono);font-weight:600;color:'+(totalOtherExpenses>0?'var(--red)':'var(--muted)')+'">'+( totalOtherExpenses>0?'\u2212'+fmt(totalOtherExpenses):'--')+'</span></div>'
+        +(totalMileage>0?'<div class="tax-exp-row" style="display:flex;justify-content:space-between;align-items:center;padding:8px 16px;border-bottom:1px solid var(--border);font-size:11px;color:var(--muted)"><span>↳ incl. mileage: '+(tier2Miles>0?tier1Miles.toFixed(1)+' mi @ 45p + '+tier2Miles.toFixed(1)+' mi @ 25p':totalMiles.toFixed(1)+' mi @ 45p')+'</span><span style="font-family:var(--font-mono)">\u2212'+fmt(totalMileage)+'</span></div>':'')
     )
     +'<div style="display:flex;justify-content:space-between;align-items:center;padding:12px 16px;font-size:14px;font-weight:700;background:var(--surface2)">'
     +'<span>Total deduction</span><span style="color:var(--red)">\u2212'+fmt(box16)+'</span>'
     +'</div></div>'
+    +(!usingTA&&pnl.motorDoubleClaim?'<div style="background:var(--red-dim);border:1px solid rgba(192,57,43,0.3);border-radius:10px;padding:12px 14px;margin:-8px 0 20px;font-size:12px;color:var(--text-secondary);line-height:1.5;display:flex;gap:10px;align-items:flex-start"><span style="flex-shrink:0">\u26a0\ufe0f</span><span><strong style="color:var(--text)">Check motor costs.</strong> This year has both mileage and actual vehicle costs. HMRC simplified mileage already covers fuel, insurance, servicing &amp; repairs \u2014 claim one method per vehicle, not both.</span></div>':'')
 
     // SA103 boxes — values driven by chosen method
     +'<div class="sl">SA103 Box References</div>'
@@ -19751,48 +19741,20 @@ function renderTax(){
   }
   const MONTH_NAMES=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
-  // Pre-compute tiered trip costs once for the whole tax year, then split by month
-  const _tieredForMonth=calcTieredTrips(tripsInYear);
+  // Per-calendar-month P&L via the shared engine, clamped to the tax-year
+  // boundary (Apr starts 6th, Mar ends 5th). Because net profit is additive
+  // over non-overlapping date ranges, Σ monthly profit == annual Box 23.
+  const _isoD=function(d){const y=d.getFullYear(),m=d.getMonth()+1,dd=d.getDate();return y+'-'+(m<10?'0':'')+m+'-'+(dd<10?'0':'')+dd;};
   const monthlyRows=_taxMonths.map(function(tm){
-    // Sales items in this calendar month
-    const items=soldItems.filter(function(i){
-      const ds=i.dateSold||i.resaleDateSold;
-      if(!ds)return false;
-      const d=new Date(ds);
-      return d.getMonth()===tm.month&&d.getFullYear()===tm.year;
-    });
-    // Trips in this calendar month (mileage + trip extras)
-    const monthTrips=tripsInYear.filter(function(t,ti){
-      if(!t.date)return false;
-      const d=new Date(t.date+'T00:00:00');
-      return d.getMonth()===tm.month&&d.getFullYear()===tm.year;
-    });
-    const monthTripCosts=monthTrips.reduce(function(s,t,ti){
-      const tIdx=tripsInYear.indexOf(t);
-      const tc=_tieredForMonth[tIdx];
-      return s+(tc?(tc.mileageCost+tc.expensesCost):0);
-    },0);
-    // Standalone expenses in this calendar month
-    const monthExps=expensesInYear.filter(function(e){
-      if(!e.date)return false;
-      const d=new Date(e.date+'T00:00:00');
-      return d.getMonth()===tm.month&&d.getFullYear()===tm.year;
-    });
-    const monthExpsCost=monthExps.reduce(function(s,e){return s+(e.amount||0);},0);
-    if(!items.length&&!monthTrips.length&&!monthExps.length)return null;
-    const rev=items.reduce(function(s,i){return s+(i.salePrice||0)+(i.resaleSalePrice||0);},0);
-    const fees=items.reduce(function(s,i){return s+calcPlatformBPF(i,i.salePrice||0,i.postage||0)+(i.resaleSalePrice?calcPlatformBPF(i,i.resaleSalePrice,i.resalePostage!=null?i.resalePostage:(i.postage||0),i.resalePlatform):0);},0);
-    const postage=items.reduce(function(s,i){return s+(i.shippingCost||0)+(i.resaleShippingCost||0);},0);
-    const packaging=items.reduce(function(s,i){return s+(i.packagingCost||0);},0);
-    const stock=items.reduce(function(s,i){return s+(i.costPrice||0);},0);
-    const parts=items.reduce(function(s,i){return s+calcPartsCost(i);},0);
-    const promo=items.reduce(function(s,i){return s+(i.salePrice||0)*(i.promoPercent||0)*1.20+(i.resaleSalePrice||0)*(i.promoPercent||0)*1.20;},0);
-    // Partner split payments are a direct cost of sale — deducted here so
-    // SA103 Box 16 / profit reflects what you actually keep after settling.
-    const partnerPayments=items.reduce(function(s,i){return s+(_accountItemOwed(i)||0);},0);
-    const costs=+(fees+postage+packaging+stock+parts+promo+monthTripCosts+monthExpsCost+partnerPayments).toFixed(2);
-    const profit=+(rev-costs).toFixed(2);
-    return{label:MONTH_NAMES[tm.month]+' '+(tm.year).toString().slice(2),rev:+rev.toFixed(2),costs:costs,profit:profit,count:items.length};
+    const mStart=new Date(tm.year,tm.month,1);
+    const mEnd=new Date(tm.year,tm.month+1,0);
+    const from=(mStart<taxYearStart?taxYearStart:mStart);
+    const to=(mEnd>taxYearEnd?taxYearEnd:mEnd);
+    const mp=_buildPnLSummary(_isoD(from),_isoD(to),'');
+    const hasExp=(mp.revenue-mp.netProfit)!==0;
+    if(!mp.soldCount&&!mp.returnCount&&!hasExp)return null;
+    return{label:MONTH_NAMES[tm.month]+' '+(tm.year).toString().slice(2),
+      rev:mp.revenue,costs:+(mp.revenue-mp.netProfit).toFixed(2),profit:mp.netProfit,count:mp.soldCount};
   }).filter(Boolean);
 
   if(monthlyRows.length){
@@ -19935,14 +19897,11 @@ function renderTax(){
     year:selectedYear+'/'+(selectedYear+1).toString().slice(2),
     method:usingTA?'Trading allowance (£1,000)':'Actual expenses',
     income:box15, saleCount,
-    expenseLines:expRows&&[
-      ['eBay fees (BPF)',totalBPF],['Promo fees (inc VAT)',totalPromo],['Postage paid',totalPostage],
-      ['Packaging (per item)',totalPackaging],['Packing & shipping supplies',totalPackagingExpenses],
-      ['Stock cost (sold items)',totalStockCost],['Parts & item expenses',totalParts],
-      ['Mileage allowance',totalMileage],['Trip extras',totalTripExtras],['Other expenses',totalOtherExpenses]
-    ],
+    expenseLines:_taxExpLines.map(function(r){return[r[1],r[2]];}),
+    sa103Rows:_buildSA103Rows(pnl),
     totalExpenses:totalActualExpenses, tradingAllowanceUsed:Math.min(TRADING_ALLOWANCE,totalIncome),
     box15, box16, box23,
+    mileageMiles:pnl.mileage.miles, motorDoubleClaim:pnl.motorDoubleClaim,
     incomeTax:incomeTax, class2:class2, class4:class4, totalTax:totalTax,
     otherIncome:(DB._taxOtherIncome||0)
   };
@@ -20811,6 +20770,12 @@ function _buildPnLSummary(from,to,label){
   // so the SA103 summary reconciles to real filings (fees→26, post/pkg→23).
   if(feesSell>0)byBox[26]=+(((byBox[26]||0)+feesSell)).toFixed(2);
   if(postPkgSell>0)byBox[23]=+(((byBox[23]||0)+postPkgSell)).toFixed(2);
+  // Returns/refunds → Box 30 (other allowable). Partner/consignment splits are a
+  // direct cost of the goods sold → fold into Box 17. This makes the SA103 box
+  // total reconcile exactly to (turnover − net profit) — without it, returns and
+  // partner splits reduce net profit but appear in no box.
+  if(returnsSell>0)byBox[30]=+(((byBox[30]||0)+returnsSell)).toFixed(2);
+  const box17=+(cogs+partnerSell).toFixed(2);
 
   // ── Tiers ──
   const grossProfit=+(revenue-cogs).toFixed(2);
@@ -20892,7 +20857,7 @@ function _buildPnLSummary(from,to,label){
     operatingProfit:operatingProfit,
     grossMargin:gm, operatingMargin:om, netMargin:nm,
     mileage:{cost:+mileageCost.toFixed(2),miles:totalMiles},
-    byBox:byBox, byCategory:byCategory,
+    byBox:byBox, byCategory:byCategory, box17:box17,
     motorDoubleClaim:motorDoubleClaim,
     from:from, to:to, label:label
   };
@@ -20916,7 +20881,7 @@ function _buildSA103Rows(pnl){
   boxes.forEach(function(bx){
     // Box 17 = COGS (always show, it's core to a reseller); others only if non-zero
     let amt=0;
-    if(bx===17){amt=pnl.cogs;}
+    if(bx===17){amt=(pnl.box17!=null?pnl.box17:pnl.cogs);}
     else{amt=pnl.byBox[bx]||0;}
     if(bx===17||amt>0){
       rows.push([String(bx),SA103_BOX_LABELS[bx]||('Box '+bx),amt.toFixed(2)]);
