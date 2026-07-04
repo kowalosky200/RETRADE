@@ -638,6 +638,11 @@ select.bulk-ctrl{padding-right:26px;-webkit-appearance:none;appearance:none;back
 .exp-month-group.collapsed .exp-month-toggle{transform:rotate(-90deg);}
 .exp-month-body{padding:0 6px 6px;}
 .exp-month-group.collapsed .exp-month-body{display:none;}
+/* Flat ledger (Costs & Trips V2) — always-visible month dividers, no collapse */
+.ledger-month{margin-bottom:14px;}
+.ledger-month-label{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 4px 8px;margin-bottom:2px;border-bottom:1px solid var(--border);font-size:13px;font-weight:700;color:var(--text);}
+.ledger-month-label .lm-count{font-size:11px;font-weight:500;color:var(--muted);margin-left:6px;}
+.ledger-month-label .lm-total{font-family:var(--font-body);font-size:13px;font-weight:700;color:var(--red);font-variant-numeric:tabular-nums;}
 /* F7 — collapsible stock groups */
 .stock-group-header:hover{background:color-mix(in srgb,var(--border) 30%,var(--surface2) 70%);}
 .stock-group.collapsed .stock-group-body{display:none!important;}
@@ -836,6 +841,35 @@ select[id^="edit-shipping-policy"]{text-align:center;text-align-last:center;}
 [data-theme="light"] .chip.active{background:#fdf9f3;}
 .chip .chip-count{font-size:10px;color:var(--muted);font-weight:600;}
 .chip.active .chip-count{color:var(--text-secondary);}
+
+/* ── COSTS & TRIPS V2 — period scope + category filter cards ── */
+.cost-period-row{display:flex;gap:6px;overflow-x:auto;-webkit-overflow-scrolling:touch;padding:2px 0 6px;margin-bottom:10px;scrollbar-width:none;}
+.cost-period-row::-webkit-scrollbar{display:none;}
+.cost-period-pill{flex:0 0 auto;padding:7px 13px;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--text-secondary);font-family:var(--font-body);font-size:12.5px;font-weight:600;white-space:nowrap;cursor:pointer;transition:all 0.15s;-webkit-tap-highlight-color:transparent;}
+.cost-period-pill:hover{color:var(--text);border-color:var(--border2);}
+.cost-period-pill.active{background:var(--accent-dim);color:var(--accent);border-color:rgba(212,136,10,0.4);}
+[data-theme="light"] .cost-period-pill.active{background:var(--accent-dim);}
+
+.cost-total-banner{display:flex;align-items:center;justify-content:space-between;gap:12px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;margin-bottom:12px;box-shadow:0 1px 2px var(--shadow);}
+.cost-total-left{min-width:0;}
+.cost-total-label{font-family:var(--font-display);font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;font-weight:600;}
+.cost-total-val{font-family:var(--font-body);font-size:clamp(22px,6vw,30px);font-weight:800;line-height:1.05;letter-spacing:-0.03em;color:var(--red);margin-top:3px;font-variant-numeric:tabular-nums;}
+.cost-total-sub{font-size:11px;color:var(--muted);margin-top:4px;}
+.cost-taxlink{flex:0 0 auto;display:flex;align-items:center;gap:5px;padding:9px 13px;border-radius:9px;border:1px solid rgba(212,136,10,0.4);background:var(--accent-dim);color:var(--accent);font-family:var(--font-body);font-size:12.5px;font-weight:700;cursor:pointer;transition:all 0.15s;white-space:nowrap;-webkit-tap-highlight-color:transparent;}
+.cost-taxlink:hover{background:var(--accent);color:#fff;}
+[data-theme="dark"] .cost-taxlink:hover{color:#1a1408;}
+
+.cost-cat-row{display:flex;gap:8px;overflow-x:auto;-webkit-overflow-scrolling:touch;padding:2px 0 10px;margin-bottom:6px;scrollbar-width:none;scroll-snap-type:x proximity;}
+.cost-cat-row::-webkit-scrollbar{display:none;}
+.cost-cat-card{flex:0 0 auto;scroll-snap-align:start;min-width:118px;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:11px 13px 12px;cursor:pointer;transition:border-color 0.15s,box-shadow 0.15s,transform 0.15s;box-shadow:0 1px 2px var(--shadow);-webkit-tap-highlight-color:transparent;position:relative;}
+.cost-cat-card:hover{border-color:var(--border2);transform:translateY(-1px);}
+.cost-cat-card.active{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent),0 2px 8px var(--shadow-md);}
+.cost-cat-card .ccc-dot{width:8px;height:8px;border-radius:50%;margin-bottom:8px;}
+.cost-cat-card .ccc-label{font-size:12px;font-weight:600;color:var(--text-secondary);line-height:1.2;margin-bottom:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:130px;}
+.cost-cat-card.active .ccc-label{color:var(--text);}
+.cost-cat-card .ccc-amt{font-family:var(--font-body);font-size:16px;font-weight:800;letter-spacing:-0.02em;color:var(--text);font-variant-numeric:tabular-nums;}
+.cost-cat-card .ccc-count{font-size:10.5px;color:var(--muted);font-weight:600;margin-top:2px;}
+.cost-cat-card .ccc-box{position:absolute;top:9px;right:10px;font-size:9px;font-weight:700;color:var(--muted);opacity:0.7;letter-spacing:0.02em;}
 
 /* PERIOD PILLS — summary page */
 /* PERIOD SELECT INLINE — sits in the sl row, ghost style */
@@ -5056,16 +5090,16 @@ function catIcon(category,size){return icon(_CAT_ICON[category]||'cat_other',siz
 // practice even for SA103S (short-form) filers and is how MTD software groups
 // data going forward.
 const EXPENSE_CATEGORY_DEFS=[
-  {label:'Postage & packaging',              box:23, bucket:'selling',  group:'Selling costs'},
-  {label:'Advertising & marketing',          box:24, bucket:'selling',  group:'Selling costs'},
-  {label:'Platform & payment fees',          box:26, bucket:'selling',  group:'Selling costs'},
-  {label:'Motor, van & travel',              box:20, bucket:'overhead', group:'Overheads'},
-  {label:'Rent, rates, power & insurance',   box:21, bucket:'overhead', group:'Overheads'},
-  {label:'Repairs & equipment',              box:22, bucket:'overhead', group:'Overheads'},
-  {label:'Phone, office & stationery',       box:23, bucket:'overhead', group:'Overheads'},
-  {label:'Software & subscriptions',         box:30, bucket:'overhead', group:'Overheads'},
-  {label:'Accountancy, legal & professional',box:28, bucket:'overhead', group:'Overheads'},
-  {label:'Other business expenses',          box:30, bucket:'overhead', group:'Overheads'}
+  {label:'Postage & packaging',              box:23, bucket:'selling',  group:'Selling costs', short:'Postage & pkg'},
+  {label:'Advertising & marketing',          box:24, bucket:'selling',  group:'Selling costs', short:'Advertising'},
+  {label:'Platform & payment fees',          box:26, bucket:'selling',  group:'Selling costs', short:'Platform fees'},
+  {label:'Motor, van & travel',              box:20, bucket:'overhead', group:'Overheads',      short:'Motor & travel'},
+  {label:'Rent, rates, power & insurance',   box:21, bucket:'overhead', group:'Overheads',      short:'Rent & bills'},
+  {label:'Repairs & equipment',              box:22, bucket:'overhead', group:'Overheads',      short:'Repairs & kit'},
+  {label:'Phone, office & stationery',       box:23, bucket:'overhead', group:'Overheads',      short:'Office'},
+  {label:'Software & subscriptions',         box:30, bucket:'overhead', group:'Overheads',      short:'Software'},
+  {label:'Accountancy, legal & professional',box:28, bucket:'overhead', group:'Overheads',      short:'Professional'},
+  {label:'Other business expenses',          box:30, bucket:'overhead', group:'Overheads',      short:'Other'}
 ];
 const EXPENSE_CATEGORIES=EXPENSE_CATEGORY_DEFS.map(function(d){return d.label;});
 
@@ -5112,6 +5146,7 @@ function _resolveExpenseCat(cat){
 function _expenseBox(cat){return _resolveExpenseCat(cat).box;}
 function _expenseBucket(cat){return _resolveExpenseCat(cat).bucket;}
 function _expenseCanonLabel(cat){return _resolveExpenseCat(cat).label;}
+function _expenseShort(cat){const d=_resolveExpenseCat(cat);return d.short||d.label;}
 
 // Grouped <optgroup> option markup for expense-category <select>s. `selected`
 // may be a legacy alias — it's resolved to the canonical label for matching.
@@ -5536,6 +5571,9 @@ let SELECTED_ITEMS=new Set();
 let MODAL_CALLBACK=null;
 let MONTH_FILTER='all';
 let MONTH_SORT='date-sold';
+// Costs & Trips page: period scope + active category filter (V2 redesign)
+let COST_PERIOD='taxyear';   // taxyear|mtd|lastMonth|last30|last90|all
+let COST_CAT_FILTER='all';   // 'all' or a canonical EXPENSE_CATEGORY_DEFS label
 let SELECTION_MODE=false;
 let STOCK_SORT='days-asc';          // stock sort: profit | roi | price | days-desc | days-asc | cost-desc
 let STOCK_FILTER='all';           // listed-age filter: all | fresh | maturing | slow | stale
@@ -16586,27 +16624,101 @@ function calcTieredTrips(trips){
   return out;
 }
 
+// Resolve the Costs & Trips period scope to an ISO [from,to] range + labels.
+function _costPeriodRange(kind){
+  const today=new Date();
+  const iso=function(d){const y=d.getFullYear(),m=d.getMonth()+1,dd=d.getDate();return y+'-'+(m<10?'0':'')+m+'-'+(dd<10?'0':'')+dd;};
+  const toIso=iso(today);
+  let from,to=toIso,label,short;
+  if(kind==='mtd'){
+    from=iso(new Date(today.getFullYear(),today.getMonth(),1));
+    label='This month'; short='this month';
+  } else if(kind==='lastMonth'){
+    from=iso(new Date(today.getFullYear(),today.getMonth()-1,1));
+    to=iso(new Date(today.getFullYear(),today.getMonth(),0));
+    label='Last month'; short='last month';
+  } else if(kind==='last30'){
+    const d=new Date(today); d.setDate(d.getDate()-29); from=iso(d);
+    label='Last 30 days'; short='last 30 days';
+  } else if(kind==='last90'){
+    const d=new Date(today); d.setDate(d.getDate()-89); from=iso(d);
+    label='Last 90 days'; short='last 90 days';
+  } else if(kind==='all'){
+    from='1970-01-01'; label='All time'; short='all time';
+  } else { // taxyear (default)
+    const y=today.getFullYear();
+    const past6Apr=(today.getMonth()>2||(today.getMonth()===3&&today.getDate()>=6));
+    const s=past6Apr?new Date(y,3,6):new Date(y-1,3,6);
+    from=iso(s);
+    const fyLabel=(s.getFullYear())+'/'+String(s.getFullYear()+1).slice(2);
+    label='Tax year '+fyLabel; short='tax year '+fyLabel;
+  }
+  return{from:from,to:to,label:label,short:short};
+}
+
+// Dot colour by P&L bucket — respects amber single-occupancy (amber reserved
+// for active-state rings only). Selling costs blue, overheads purple.
+function _costCatDot(bucket){return bucket==='selling'?'var(--blue)':'var(--purple)';}
+
+// Aggregate trips + expenses within a date range into SA103 categories.
+// Mileage → 'Motor, van & travel'; trip sub-expenses and standalone expenses
+// → their resolved category. Returns {cats:[{label,box,bucket,amount,count}],
+// total, count} ordered selling-then-overhead, by box.
+function _costCategoryBreakdown(trips,expenses,tieredById,from,to){
+  const inR=function(d){return d&&d>=from&&d<=to;};
+  const acc={};
+  const add=function(label,box,bucket,amt){
+    if(!acc[label])acc[label]={label:label,box:box,bucket:bucket,amount:0,count:0};
+    acc[label].amount+=amt; acc[label].count++;
+  };
+  (trips||[]).forEach(function(t){
+    if(!inR(t.date))return;
+    const r=tieredById[t.id]||{mileageCost:(t.mileage||0)*(t.ratePerMile||0.45)};
+    if((r.mileageCost||0)>0)add('Motor, van & travel',20,'overhead',r.mileageCost);
+    (Array.isArray(t.expenses)?t.expenses:[]).forEach(function(e){
+      const d=_resolveExpenseCat(e.category); add(d.label,d.box,d.bucket,e.amount||0);
+    });
+  });
+  (expenses||[]).forEach(function(e){
+    if(!inR(e.date))return;
+    const d=_resolveExpenseCat(e.category); add(d.label,d.box,d.bucket,e.amount||0);
+  });
+  const cats=Object.keys(acc).map(function(k){const c=acc[k];c.amount=+c.amount.toFixed(2);return c;});
+  cats.sort(function(a,b){if(a.bucket!==b.bucket)return a.bucket==='selling'?-1:1;return a.box-b.box;});
+  const total=+cats.reduce(function(s,c){return s+c.amount;},0).toFixed(2);
+  const count=cats.reduce(function(s,c){return s+c.count;},0);
+  return{cats:cats,total:total,count:count};
+}
+
+// Set period scope / category filter and re-render (Costs & Trips page).
+function setCostPeriod(kind){COST_PERIOD=kind;COST_CAT_FILTER='all';renderExpenses();}
+function setCostCatFilter(label){COST_CAT_FILTER=(COST_CAT_FILTER===label?'all':label);renderExpenses();}
+
 function renderExpenses(){
   const trips=DB.trips||[];
   const expenses=DB.expenses||[];
   const tiered=calcTieredTrips(trips);
   const _tieredById={};
   trips.forEach(function(t,idx){ if(t&&t.id) _tieredById[t.id]=tiered[idx]; });
-  const totalTripMileage=tiered.reduce(function(s,r){return s+r.mileageCost;},0);
-  const totalTripExpenses=tiered.reduce(function(s,r){return s+r.expensesCost;},0);
-  const totalTrips=+(totalTripMileage+totalTripExpenses).toFixed(2);
-  const _totalMilesAll=trips.reduce((s,t)=>s+(t.mileage||0),0);
-  const _anyTier2=tiered.some(function(r){return r.tier2Miles>0;});
-  const _anyExtras=totalTripExpenses>0;
-  const totalExp=expenses.reduce((s,e)=>s+(e.amount||0),0);
+
+  // Period scope + category filter (V2)
+  const _per=_costPeriodRange(COST_PERIOD);
+  const _inR=function(d){return d&&d>=_per.from&&d<=_per.to;};
+  const _brk=_costCategoryBreakdown(trips,expenses,_tieredById,_per.from,_per.to);
+  // Category filter matchers. Trips carry their headline mileage under Motor,
+  // so a trip shows under 'all' or the Motor filter; standalone expenses match
+  // their own resolved category.
+  const _catAll=(COST_CAT_FILTER==='all');
+  const _tripMatch=function(t){return _inR(t.date)&&(_catAll||COST_CAT_FILTER==='Motor, van & travel');};
+  const _expMatch=function(e){return _inR(e.date)&&(_catAll||_resolveExpenseCat(e.category).label===COST_CAT_FILTER);};
 
   // Month grouping
   const _mKey=function(d){return d?(d.slice(0,7)):'0000-00';}
   const _ML={'01':'Jan','02':'Feb','03':'Mar','04':'Apr','05':'May','06':'Jun','07':'Jul','08':'Aug','09':'Sep','10':'Oct','11':'Nov','12':'Dec'};
   const _fmtMK=function(k){if(!k||k==='0000-00')return 'Undated';const[y,m]=k.split('-');return(_ML[m]||m)+' '+y;}
   const mMap={};
-  trips.forEach(function(t,origIdx){const k=_mKey(t.date);if(!mMap[k])mMap[k]={trips:[],expenses:[]};mMap[k].trips.push({t,origIdx});});
-  expenses.forEach(function(e,idx){const k=_mKey(e.date);if(!mMap[k])mMap[k]={trips:[],expenses:[]};mMap[k].expenses.push({e,idx});});
+  trips.forEach(function(t,origIdx){if(!_tripMatch(t))return;const k=_mKey(t.date);if(!mMap[k])mMap[k]={trips:[],expenses:[]};mMap[k].trips.push({t,origIdx});});
+  expenses.forEach(function(e,idx){if(!_expMatch(e))return;const k=_mKey(e.date);if(!mMap[k])mMap[k]={trips:[],expenses:[]};mMap[k].expenses.push({e,idx});});
   const sortedMonths=Object.keys(mMap).sort((a,b)=>b.localeCompare(a));
   const _tripRow=function({t,origIdx}){
     const r=_tieredById[t.id]||{totalCost:0,mileageCost:0,expensesCost:0,isSplit:false,tier2Miles:0,ratePerMile:t.ratePerMile||0.45};
@@ -16651,29 +16763,49 @@ function renderExpenses(){
         </div>
       </div></div>`;
   }
-  const _curMonthKey=new Date().toISOString().slice(0,7);
   const monthSections=sortedMonths.map(mk=>{
     const{trips:mT,expenses:mE}=mMap[mk];
     const mTC=mT.reduce((s,{t})=>{const r=_tieredById[t.id]||{totalCost:0};return s+r.totalCost;},0);
     const mEC=mE.reduce((s,{e})=>s+(e.amount||0),0);
     const mTot=+(mTC+mEC).toFixed(2);
     const rc=mT.length+mE.length;
-    return `<div class="exp-month-group${mk!==_curMonthKey?' collapsed':''}">
-      <div class="exp-month-header" onclick="this.closest('.exp-month-group').classList.toggle('collapsed')">
-        <div style="display:flex;align-items:center;gap:8px">
-          <span class="exp-month-toggle">▾</span>
-          <span style="font-weight:700;font-size:14px">${_fmtMK(mk)}</span>
-          <span style="font-size:12px;color:var(--muted)">${rc} item${rc!==1?'s':''}</span>
-        </div>
-        <span style="font-family:var(--font-mono);font-weight:600;font-size:13px;color:var(--red)">${mTot>0?'−'+fmt(mTot):'—'}</span>
+    // Interleave trips + expenses by date (newest first) into one ledger stream
+    const items=mT.map(x=>({date:x.t.date||'',kind:'trip',x}))
+      .concat(mE.map(x=>({date:x.e.date||'',kind:'exp',x})))
+      .sort((a,b)=>b.date.localeCompare(a.date));
+    const rows=items.map(it=>it.kind==='trip'?_tripRow(it.x):_expRow(it.x)).join('');
+    return `<div class="ledger-month">
+      <div class="ledger-month-label">
+        <span>${_fmtMK(mk)} <span class="lm-count">${rc} item${rc!==1?'s':''}</span></span>
+        <span class="lm-total">${mTot>0?'−'+fmt(mTot):'—'}</span>
       </div>
-      <div class="exp-month-body">
-        ${mT.length>0?'<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.6px;color:var(--muted);padding:8px 4px 4px">Trips</div>'+mT.sort((a,b)=>(b.t.date||'').localeCompare(a.t.date||'')).map(_tripRow).join(''):''}
-        ${mE.length>0?'<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.6px;color:var(--muted);padding:8px 4px 4px">Expenses</div>'+mE.map(_expRow).join(''):''}
-      </div>
+      ${rows}
     </div>`;
   }).join('');
 
+  const _periods=[['taxyear','Tax year'],['mtd','This month'],['lastMonth','Last month'],['last30','30 days'],['last90','90 days'],['all','All time']];
+  const periodRow=_periods.map(function(p){
+    return '<button class="cost-period-pill'+(COST_PERIOD===p[0]?' active':'')+'" onclick="setCostPeriod(\''+p[0]+'\')">'+p[1]+'</button>';
+  }).join('');
+
+  // Category filter cards (tap to filter, tap active to clear). Leading "All".
+  const allActive=(COST_CAT_FILTER==='all')?' active':'';
+  const allCard='<div class="cost-cat-card'+allActive+'" onclick="setCostCatFilter(\'all\')">'
+    +'<div class="ccc-dot" style="background:var(--muted)"></div>'
+    +'<div class="ccc-label">All categories</div>'
+    +'<div class="ccc-amt">'+fmt(_brk.total)+'</div>'
+    +'<div class="ccc-count">'+_brk.count+' item'+(_brk.count!==1?'s':'')+'</div></div>';
+  const catCards=_brk.cats.map(function(c){
+    const act=(COST_CAT_FILTER===c.label)?' active':'';
+    return '<div class="cost-cat-card'+act+'" onclick="setCostCatFilter(\''+c.label.replace(/'/g,"\\'")+'\')">'
+      +'<div class="ccc-box">Box '+c.box+'</div>'
+      +'<div class="ccc-dot" style="background:'+_costCatDot(c.bucket)+'"></div>'
+      +'<div class="ccc-label" title="'+esc(c.label)+'">'+esc(_expenseShort(c.label))+'</div>'
+      +'<div class="ccc-amt">'+fmt(c.amount)+'</div>'
+      +'<div class="ccc-count">'+c.count+' item'+(c.count!==1?'s':'')+'</div></div>';
+  }).join('');
+
+  const filterNote=_catAll?'':' · '+esc(COST_CAT_FILTER);
   const html=`
     <div class="page-header">
       <div>
@@ -16689,25 +16821,20 @@ function renderExpenses(){
       </div>
     </div>
 
-    <div class="kgrid kgrid-3 kgrid-1col">
-      <div class="kcard">
-        <div class="klabel">Trip Expenses</div>
-        <div class="kval">${fmtK(totalTrips)}</div>
-        <div class="ksub">${trips.length} trips &middot; ${_totalMilesAll.toFixed(1)} miles${_anyTier2?' &middot; HMRC-tiered':''}${_anyExtras?' &middot; +extras':''}</div>
+    <div class="cost-period-row">${periodRow}</div>
+
+    <div class="cost-total-banner">
+      <div class="cost-total-left">
+        <div class="cost-total-label">Deductions${filterNote}</div>
+        <div class="cost-total-val">${_brk.total>0?'−'+fmt(_brk.total):fmt(0)}</div>
+        <div class="cost-total-sub">${_per.label} · ${_brk.count} item${_brk.count!==1?'s':''}</div>
       </div>
-      <div class="kcard">
-        <div class="klabel">Other Expenses</div>
-        <div class="kval">${fmtK(totalExp)}</div>
-        <div class="ksub">${expenses.length} items</div>
-      </div>
-      <div class="kcard r">
-        <div class="klabel">Total Deductions</div>
-        <div class="kval">${fmtK(totalTrips+totalExp)}</div>
-        <div class="ksub">For tax year</div>
-      </div>
+      <button class="cost-taxlink" onclick="goToTab('tax')">Tax return ready <span style="font-size:15px;line-height:1">&rarr;</span></button>
     </div>
 
-    ${sortedMonths.length===0?`<div class="empty-state"><div class="empty-state-text">No expenses yet</div><div class="empty-state-sub">Tap + to log a sourcing trip or business expense</div></div>`:monthSections}
+    ${_brk.cats.length>0?`<div class="cost-cat-row">${allCard}${catCards}</div>`:''}
+
+    ${sortedMonths.length===0?`<div class="empty-state"><div class="empty-state-text">${_catAll&&COST_PERIOD==='all'?'No expenses yet':'Nothing in this view'}</div><div class="empty-state-sub">${_catAll&&COST_PERIOD==='all'?'Tap + to log a sourcing trip or business expense':'Try a wider period or clear the category filter'}</div></div>`:monthSections}
   `;
   document.getElementById('p-expenses').innerHTML=html;
 }
