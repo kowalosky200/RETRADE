@@ -5047,11 +5047,88 @@ function catIcon(category,size){return icon(_CAT_ICON[category]||'cat_other',siz
 
 
 
-const EXPENSE_CATEGORIES=[
-  'Packaging Materials','Shipping Supplies','Fuel/Mileage','Storage/Rent','Equipment/Tools',
-  'Software/Subscriptions','Marketing/Ads','Professional Fees','Office Supplies',
-  'Vehicle Maintenance','Insurance','Bank/Payment Fees','Other'
+// ─── SA103-ALIGNED EXPENSE TAXONOMY ──────────────────────────────────────────
+// Each expense category maps to (a) an HMRC SA103F expense box and (b) a P&L
+// bucket — 'selling' (variable cost of making sales, sits below gross profit)
+// or 'overhead' (fixed running cost of the business). Box headings verified
+// against HMRC's published SA103F 2025/26 form (last updated 6 Apr 2026).
+// Organising records under the SA103F box structure is HMRC's recommended
+// practice even for SA103S (short-form) filers and is how MTD software groups
+// data going forward.
+const EXPENSE_CATEGORY_DEFS=[
+  {label:'Postage & packaging',              box:23, bucket:'selling',  group:'Selling costs'},
+  {label:'Advertising & marketing',          box:24, bucket:'selling',  group:'Selling costs'},
+  {label:'Platform & payment fees',          box:26, bucket:'selling',  group:'Selling costs'},
+  {label:'Motor, van & travel',              box:20, bucket:'overhead', group:'Overheads'},
+  {label:'Rent, rates, power & insurance',   box:21, bucket:'overhead', group:'Overheads'},
+  {label:'Repairs & equipment',              box:22, bucket:'overhead', group:'Overheads'},
+  {label:'Phone, office & stationery',       box:23, bucket:'overhead', group:'Overheads'},
+  {label:'Software & subscriptions',         box:30, bucket:'overhead', group:'Overheads'},
+  {label:'Accountancy, legal & professional',box:28, bucket:'overhead', group:'Overheads'},
+  {label:'Other business expenses',          box:30, bucket:'overhead', group:'Overheads'}
 ];
+const EXPENSE_CATEGORIES=EXPENSE_CATEGORY_DEFS.map(function(d){return d.label;});
+
+// Back-compat: legacy category names → new canonical labels. Existing expense
+// records keep mapping to the correct box with zero data migration. Never
+// remove entries here — historical rows depend on them.
+const EXPENSE_CATEGORY_ALIASES={
+  'Packaging Materials':'Postage & packaging',
+  'Shipping Supplies':'Postage & packaging',
+  'Marketing/Ads':'Advertising & marketing',
+  'Bank/Payment Fees':'Platform & payment fees',
+  'Fuel/Mileage':'Motor, van & travel',
+  'Vehicle Maintenance':'Motor, van & travel',
+  'Storage/Rent':'Rent, rates, power & insurance',
+  'Insurance':'Rent, rates, power & insurance',
+  'Equipment/Tools':'Repairs & equipment',
+  'Office Supplies':'Phone, office & stationery',
+  'Software/Subscriptions':'Software & subscriptions',
+  'Professional Fees':'Accountancy, legal & professional',
+  'Other':'Other business expenses'
+};
+
+// HMRC SA103F box headings (boxes 17–30, expenses section). Verified 2025/26.
+const SA103_BOX_LABELS={
+  17:'Cost of goods bought for resale',
+  20:'Car, van and travel expenses',
+  21:'Rent, rates, power and insurance',
+  22:'Repairs and renewals of equipment',
+  23:'Phone, stationery, postage & packaging',
+  24:'Advertising and marketing',
+  25:'Interest on bank and other loans',
+  26:'Bank, credit card and other financial charges',
+  28:'Accountancy, legal and professional fees',
+  30:'Other business expenses'
+};
+
+// Resolve any stored category string (legacy alias or current label) to its
+// canonical taxonomy def. Unknown/blank → 'Other business expenses'.
+function _resolveExpenseCat(cat){
+  const canonical=(cat&&EXPENSE_CATEGORY_ALIASES[cat])||cat;
+  return EXPENSE_CATEGORY_DEFS.find(function(d){return d.label===canonical;})
+    ||EXPENSE_CATEGORY_DEFS.find(function(d){return d.label==='Other business expenses';});
+}
+function _expenseBox(cat){return _resolveExpenseCat(cat).box;}
+function _expenseBucket(cat){return _resolveExpenseCat(cat).bucket;}
+function _expenseCanonLabel(cat){return _resolveExpenseCat(cat).label;}
+
+// Grouped <optgroup> option markup for expense-category <select>s. `selected`
+// may be a legacy alias — it's resolved to the canonical label for matching.
+function _expenseCatOptionsHTML(selected){
+  const canon=selected?_expenseCanonLabel(selected):'';
+  const groups={};
+  EXPENSE_CATEGORY_DEFS.forEach(function(d){(groups[d.group]=groups[d.group]||[]).push(d);});
+  let html='<option value="">Select category…</option>';
+  Object.keys(groups).forEach(function(g){
+    html+='<optgroup label="'+g+'">';
+    groups[g].forEach(function(d){
+      html+='<option value="'+d.label+'"'+(d.label===canon?' selected':'')+'>'+d.label+' (Box '+d.box+')</option>';
+    });
+    html+='</optgroup>';
+  });
+  return html;
+}
 
 // SESSION D1 — Multi-platform support (Option B: default at create, actual at Mark Sold)
 // Architecture: items carry two optional fields:
@@ -14620,6 +14697,15 @@ function downloadAnnualStatement(fyStart){
   const rows=[];
   pnl.rows.forEach(function(r){rows.push(r);});
   rows.push([]);
+  // SA103 tax-return summary + expenses by category
+  _buildSA103Rows(pnl).forEach(function(r){rows.push(r);});
+  rows.push([]);
+  const _byCatA=_expensesByCategoryRows(pnl);
+  if(_byCatA.rows.length>2){
+    rows.push(['EXPENSES BY CATEGORY']);
+    _byCatA.rows.forEach(function(r){rows.push(r);});
+    rows.push([]);
+  }
   rows.push(['MONTHLY BREAKDOWN']);
 
   // Monthly summary section
@@ -14815,21 +14901,7 @@ function downloadMonthlyExcel(m){
   const mTo3=mYear3+'-'+_pad3(mIdx3+1)+'-'+_pad3(_last3);
   const pnl=_buildPnLSummary(mFrom3,mTo3,keyName(m));
 
-  const summaryRows=[
-    ['P&L Summary — '+keyName(m)],[],
-    ['Metric','Value (£)'],
-    ['Revenue',pnl.revenue],
-    ['Cost of goods sold',pnl.cogs],
-    ['Gross profit',pnl.grossProfit],
-    ['Total expenses',pnl.expenses.total],
-    ['Net profit after expenses',pnl.netProfit],
-    ['Stock cost tied up (sourced in period, still unsold)',pnl.stock.cost],
-    ['Net cash position (net profit − stock tied up)',pnl.cashPosition],
-    [],
-    ['Items sold',pnl.soldCount],
-    ['Returns',pnl.returnCount],
-    ['Unsold items sourced in period',pnl.stock.count]
-  ];
+  const summaryRows=_pnlSummarySheetRows(pnl,'Profit & Loss — '+keyName(m));
 
   // Sales — full transaction breakdown
   const salesRows=[_SALE_DETAIL_HEADERS.slice()];
@@ -14874,6 +14946,17 @@ function _writeMonthlyExcelBook(m,salesRows,expRows,summaryRows,pnl){
     ws0['!cols']=[{wch:52},{wch:16}];
     XLSX.utils.book_append_sheet(wb,ws0,'P&L Summary');
   }
+  if(pnl){
+    const wsSA=XLSX.utils.aoa_to_sheet(_buildSA103Rows(pnl));
+    wsSA['!cols']=[{wch:12},{wch:52},{wch:16}];
+    XLSX.utils.book_append_sheet(wb,wsSA,'SA103 Tax Summary');
+    const bc=_expensesByCategoryRows(pnl).rows;
+    if(bc.length>2){
+      const wsBC=XLSX.utils.aoa_to_sheet(bc);
+      wsBC['!cols']=[{wch:34},{wch:12},{wch:14},{wch:14}];
+      XLSX.utils.book_append_sheet(wb,wsBC,'Expenses by Category');
+    }
+  }
   const salesAll=meta.concat(salesRows);
   const ws1=XLSX.utils.aoa_to_sheet(salesAll);
   ws1['!cols']=salesAll[0]?salesAll[0].map(function(){return{wch:18};}):[];
@@ -14907,21 +14990,7 @@ function downloadAnnualExcel(fyStart){
   const fyFrom0=fyStart+'-04-06', fyTo0=(fyStart+1)+'-04-05';
   const pnl=_buildPnLSummary(fyFrom0,fyTo0,'FY '+label);
 
-  const summaryRows=[
-    ['P&L Summary — FY '+label],[],
-    ['Metric','Value (£)'],
-    ['Revenue',pnl.revenue],
-    ['Cost of goods sold',pnl.cogs],
-    ['Gross profit',pnl.grossProfit],
-    ['Total expenses',pnl.expenses.total],
-    ['Net profit after expenses',pnl.netProfit],
-    ['Stock cost tied up (sourced in period, still unsold)',pnl.stock.cost],
-    ['Net cash position (net profit − stock tied up)',pnl.cashPosition],
-    [],
-    ['Items sold',pnl.soldCount],
-    ['Returns',pnl.returnCount],
-    ['Unsold items sourced in period',pnl.stock.count]
-  ];
+  const summaryRows=_pnlSummarySheetRows(pnl,'Annual Profit & Loss — FY '+label);
 
   const salesRows=[['Month','Revenue (£)','Costs (£)','Gross Profit (£)','Items Sold','Returns','Avg ROI %','Avg Margin %']];
   let totRev=0,totCost=0,totProfit=0,totSold=0,totRet=0,roiSum=0,roiCount=0,marginSum=0,marginCount=0;
@@ -14981,6 +15050,17 @@ function _writeAnnualExcelBook(fyStart,label,salesRows,expRows,summaryRows,pnl,s
     const ws0=XLSX.utils.aoa_to_sheet(summaryRows);
     ws0['!cols']=[{wch:52},{wch:16}];
     XLSX.utils.book_append_sheet(wb,ws0,'P&L Summary');
+  }
+  if(pnl){
+    const wsSA=XLSX.utils.aoa_to_sheet(_buildSA103Rows(pnl));
+    wsSA['!cols']=[{wch:12},{wch:52},{wch:16}];
+    XLSX.utils.book_append_sheet(wb,wsSA,'SA103 Tax Summary');
+    const bc=_expensesByCategoryRows(pnl).rows;
+    if(bc.length>2){
+      const wsBC=XLSX.utils.aoa_to_sheet(bc);
+      wsBC['!cols']=[{wch:34},{wch:12},{wch:14},{wch:14}];
+      XLSX.utils.book_append_sheet(wb,wsBC,'Expenses by Category');
+    }
   }
   const ws1=XLSX.utils.aoa_to_sheet(meta.concat(salesRows));
   ws1['!cols']=salesRows[0]?salesRows[0].map(function(){return{wch:18};}):[];
@@ -15055,6 +15135,15 @@ function downloadMonthlyStatement(m){
   const rows=[];
   pnl.rows.forEach(function(r){rows.push(r);});
   rows.push([]);
+  // SA103 tax-return summary + expenses by category
+  _buildSA103Rows(pnl).forEach(function(r){rows.push(r);});
+  rows.push([]);
+  const _byCatM=_expensesByCategoryRows(pnl);
+  if(_byCatM.rows.length>2){
+    rows.push(['EXPENSES BY CATEGORY']);
+    _byCatM.rows.forEach(function(r){rows.push(r);});
+    rows.push([]);
+  }
   rows.push(['SALES — TRANSACTION BREAKDOWN']);
   rows.push(_SALE_DETAIL_HEADERS);
   events.forEach(function(ev){rows.push(_saleDetailRowCSV(ev));});
@@ -16703,7 +16792,7 @@ function addRunExpense(runId){
   const html=`
     <div class="fg"><label>Date</label><input type="date" id="exp-date" value="${today}"></div>
     <div class="fg"><label>Description</label><input type="text" id="exp-desc" placeholder="e.g. Packaging, entry fee"></div>
-    <div class="fg"><label>Category</label><select id="exp-cat"><option value="">Select…</option>${EXPENSE_CATEGORIES.map(c=>`<option value="${c}">${c}</option>`).join('')}</select></div>
+    <div class="fg"><label>Category</label><select id="exp-cat">${_expenseCatOptionsHTML('')}</select></div>
     <div class="fg"><label>Amount (£)</label><input type="number" id="exp-amt" step="0.01" min="0" placeholder="0.00" inputmode="decimal"></div>
     <div class="fg" style="background:var(--surface2);border-radius:8px;padding:8px 12px;font-size:12px;color:var(--text-secondary);">Tagged to run: <strong style="color:var(--text)">${esc(run?run.name:'Unknown')}</strong></div>
     <button class="btn btn-primary" style="width:100%;margin-top:16px" onclick="saveRunExpenseInline('${runId}')">Save Expense</button>
@@ -16873,8 +16962,7 @@ function addExpense(){
     <div class="fg">
       <label>Category</label>
       <select id="exp-cat">
-        <option value="">Select category...</option>
-        ${EXPENSE_CATEGORIES.map(c=>`<option value="${c}">${c}</option>`).join('')}
+        ${_expenseCatOptionsHTML('')}
       </select>
     </div>
     <div class="fg">
@@ -17054,7 +17142,7 @@ function editExpense(idx){
   openPanel('Edit Expense',`
     <div class="fg"><label>Date</label><input type="date" id="exp-date" value="${e.date||''}"></div>
     <div class="fg"><label>Description</label><input type="text" id="exp-desc" value="${esc(e.description||'')}"></div>
-    <div class="fg"><label>Category</label><select id="exp-cat"><option value="">Select category...</option>${EXPENSE_CATEGORIES.map(c=>`<option value="${c}" ${e.category===c?'selected':''}>${c}</option>`).join('')}</select></div>
+    <div class="fg"><label>Category</label><select id="exp-cat">${_expenseCatOptionsHTML(e.category||'')}</select></div>
     <div class="fg"><label>Amount (£)</label><input type="number" id="exp-amt" step="0.01" min="0" value="${e.amount||''}"></div>
     ${_runDropdownHTML('exp-run-id',e.sourcingRunId||null)}
     <button class="btn btn-primary" style="width:100%;margin-top:16px" onclick="saveExpenseEdit(${idx})">Update Expense</button>
@@ -20520,53 +20608,283 @@ function _expandedExpenseRowsCSV(pnl){
 // Builds the standard P&L summary block for any date range. Returns
 // {rows, revenue, cogs, grossProfit, expenses, netProfit, stockCost, cashPosition}
 // so callers can either splice `rows` into their output or reuse the numbers.
+// Multi-tier P&L for any date range, built the way an accountant would lay out
+// a sole-trader profit & loss account:
+//
+//   Turnover (net of returns)
+//     − Cost of goods sold  (Box 17: item cost + parts only)      ← calcCOGSOnly basis
+//   = GROSS PROFIT
+//     − Selling costs       (platform fees, promo, postage,
+//                            packaging, advertising, returns,
+//                            partner splits)
+//   = OPERATING PROFIT (contribution)
+//     − Overheads           (motor/mileage, rent, repairs, phone,
+//                            software, professional fees, other)
+//   = NET PROFIT BEFORE TAX
+//
+// Fees/postage/packaging are treated as SELLING COSTS below gross profit
+// (Option B), which is the standard accounting shape. calcGrossProfit is
+// unchanged — this view aggregates the per-sale component breakdown instead.
+//
+// Returns a rich object: legacy keys (rows/revenue/cogs/grossProfit/expenses/
+// stock/netProfit/cashPosition/soldCount/returnCount/events) are all preserved
+// so existing callers keep working; new keys (selling/overheads/operatingProfit/
+// margins/sa103/byCategory/mileage/motorDoubleClaim) drive the new reporting.
 function _buildPnLSummary(from,to,label){
   const events=getSaleEventsInRange(from,to);
-  const revenue=events.filter(function(e){return!e.isReturned;}).reduce(function(s,e){return s+(e.salePrice||0);},0);
-  const grossProfit=events.reduce(function(s,e){return s+(e.profit||0);},0);
-  const cogs=revenue-grossProfit;
-  const exp=_expensesInRange(from,to);
-  const stock=_unsoldStockCostInRange(from,to);
-  const netProfit=+(grossProfit-exp.total).toFixed(2);
-  const cashPosition=+(netProfit-stock.cost).toFixed(2);
   const soldCount=events.filter(function(e){return!e.isReturned;}).length;
   const retCount=events.filter(function(e){return e.isReturned;}).length;
+
+  // ── Aggregate the per-sale component breakdown ──
+  // Turnover = gross receipts = goods sold + postage recharged to buyers (the
+  // full amount the buyer paid). Shipping paid out to couriers is then a
+  // deductible selling cost. This is the correct HMRC "turnover" figure and
+  // makes net profit reconcile exactly to the sum of per-sale net profits.
+  let goodsRev=0, postageIn=0, cogs=0, feesSell=0, postPkgSell=0, returnsSell=0, partnerSell=0;
+  events.forEach(function(ev){
+    const b=_saleBreakdown(ev);
+    if(!ev.isReturned){goodsRev+=b.salePrice; postageIn+=b.postage;}
+    cogs+=b.itemCost+b.parts;                       // Box 17
+    feesSell+=b.bpf+b.promoFee+b.listingFee;         // Box 26 (platform/payment)
+    postPkgSell+=b.shipping+b.packaging;             // Box 23 (postage/packaging on sale)
+    returnsSell+=b.returnRefund+b.returnPostage+b.partialRefund;
+    partnerSell+=b.partnerSplit;
+  });
+  const revenue=+(goodsRev+postageIn).toFixed(2);   // turnover (gross receipts)
+  postageIn=+postageIn.toFixed(2); goodsRev=+goodsRev.toFixed(2); cogs=+cogs.toFixed(2);
+
+  // ── Manual expenses + mileage, categorised by SA103 box and P&L bucket ──
+  const exp=_expensesInRange(from,to);
+  // Mileage (trips) is always Box 20 / overhead. Sum the tiered mileage cost.
+  const mileageCost=(exp.trips||[]).reduce(function(s,t){return s+(+(((t.mileage||0)*(t.ratePerMile||0.45))).toFixed(2));},0);
+  const totalMiles=(exp.trips||[]).reduce(function(s,t){return s+(t.mileage||0);},0);
+  // Trip-attached sub-expenses (parking, entry fees…) → their own category, default 'Other'.
+  const byBox={};       // box → £ total (manual expenses + mileage only, not sale-level)
+  const byCategory={};  // canonical label → {label,box,bucket,amount}
+  let manualSelling=0, manualOverhead=0;
+  const _addCat=function(cat,amt){
+    const d=_resolveExpenseCat(cat);
+    byBox[d.box]=+(((byBox[d.box]||0)+amt)).toFixed(2);
+    if(!byCategory[d.label])byCategory[d.label]={label:d.label,box:d.box,bucket:d.bucket,amount:0};
+    byCategory[d.label].amount=+((byCategory[d.label].amount+amt)).toFixed(2);
+    if(d.bucket==='selling')manualSelling+=amt; else manualOverhead+=amt;
+  };
+  // Mileage → Box 20 (its own pseudo-category so it shows as a distinct line)
+  if(mileageCost>0){
+    byBox[20]=+(((byBox[20]||0)+mileageCost)).toFixed(2);
+    byCategory['Mileage allowance']={label:'Mileage allowance',box:20,bucket:'overhead',amount:+mileageCost.toFixed(2),isMileage:true,miles:totalMiles};
+    manualOverhead+=mileageCost;
+  }
+  (exp.trips||[]).forEach(function(t){
+    (Array.isArray(t.expenses)?t.expenses:[]).forEach(function(e){_addCat(e.category,e.amount||0);});
+  });
+  (exp.expenses||[]).forEach(function(e){_addCat(e.category,e.amount||0);});
+
+  // Sale-level selling costs also belong to SA103 boxes — fold them into byBox
+  // so the SA103 summary reconciles to real filings (fees→26, post/pkg→23).
+  if(feesSell>0)byBox[26]=+(((byBox[26]||0)+feesSell)).toFixed(2);
+  if(postPkgSell>0)byBox[23]=+(((byBox[23]||0)+postPkgSell)).toFixed(2);
+
+  // ── Tiers ──
+  const grossProfit=+(revenue-cogs).toFixed(2);
+  const sellingCosts=+(feesSell+postPkgSell+returnsSell+partnerSell+manualSelling).toFixed(2);
+  const operatingProfit=+(grossProfit-sellingCosts).toFixed(2);
+  const overheads=+(manualOverhead).toFixed(2);
+  const netProfit=+(operatingProfit-overheads).toFixed(2);
+  const stock=_unsoldStockCostInRange(from,to);
+  const cashPosition=+(netProfit-stock.cost).toFixed(2);
+
+  const gm=revenue>0?+((grossProfit/revenue)*100).toFixed(1):0;
+  const om=revenue>0?+((operatingProfit/revenue)*100).toFixed(1):0;
+  const nm=revenue>0?+((netProfit/revenue)*100).toFixed(1):0;
+
+  // Compliance flag: mileage claimed AND actual motor costs in the same period.
+  // HMRC simplified mileage (45p/25p) already covers fuel, insurance, MOT,
+  // servicing, repairs & depreciation — you can't also claim actual motor
+  // costs for the same vehicle. Actual motor = manual Box-20 expenses.
+  const actualMotor=+(((byCategory['Motor, van & travel']||{}).amount)||0).toFixed(2);
+  const motorDoubleClaim=(mileageCost>0&&actualMotor>0);
+
+  const money=function(n){return (+n).toFixed(2);};
   const rows=[
-    ['P&L SUMMARY'+(label?' — '+label:'')],
+    ['PROFIT & LOSS'+(label?' — '+label:'')],
     ['Period',from+' → '+to],
-    ['Revenue (£)',revenue.toFixed(2)],
-    ['Cost of goods sold (£)',cogs.toFixed(2)],
-    ['Gross profit (£)',grossProfit.toFixed(2)],
-    ['Total expenses (£)',exp.total.toFixed(2)],
-    ['Net profit after expenses (£)',netProfit.toFixed(2)],
-    ['Stock cost tied up — sourced in period, still unsold (£)',stock.cost.toFixed(2)],
-    ['Net cash position (net profit − stock tied up) (£)',cashPosition.toFixed(2)],
+    ['Basis','Cash basis'],
+    [],
+    ['Turnover — gross receipts, net of returns (£)',money(revenue)],
+    ['  of which: goods (£)',money(goodsRev)],
+    ['  of which: postage recharged to buyers (£)',money(postageIn)],
+    ['Less: Cost of goods sold — Box 17 (£)',money(cogs)],
+    ['GROSS PROFIT (£)',money(grossProfit)],
+    ['Gross margin %',gm.toFixed(1)+'%'],
+    [],
+    ['Selling costs',''],
+    ['  Platform & payment fees — Box 26 (£)',money(feesSell)],
+    ['  Postage & packaging on sales — Box 23 (£)',money(postPkgSell)],
+    ['  Advertising & marketing — Box 24 (£)',money((byCategory['Advertising & marketing']||{}).amount||0)],
+    ['  Returns & refunds (£)',money(returnsSell)],
+    ['  Partner / consignment splits (£)',money(partnerSell)],
+    ['  Other selling costs (£)',money(Math.max(0,manualSelling-(((byCategory['Advertising & marketing']||{}).amount)||0)))],
+    ['  Total selling costs (£)',money(sellingCosts)],
+    ['OPERATING PROFIT (£)',money(operatingProfit)],
+    ['Operating margin %',om.toFixed(1)+'%'],
+    [],
+    ['Overheads',''],
+    ['  Motor, van & travel — Box 20 (£)',money((byBox[20]||0))],
+    ['  Rent, rates, power & insurance — Box 21 (£)',money((byBox[21]||0))],
+    ['  Repairs & equipment — Box 22 (£)',money((byBox[22]||0))],
+    ['  Phone, office & stationery — Box 23 (£)',money(((byCategory['Phone, office & stationery']||{}).amount)||0)],
+    ['  Accountancy, legal & professional — Box 28 (£)',money((byBox[28]||0))],
+    ['  Software, subscriptions & other — Box 30 (£)',money((byBox[30]||0))],
+    ['  Total overheads (£)',money(overheads)],
+    ['NET PROFIT BEFORE TAX (£)',money(netProfit)],
+    ['Net margin %',nm.toFixed(1)+'%'],
+    [],
+    ['Memo — cash & stock',''],
+    ['  Stock cost tied up (sourced in period, still unsold) (£)',money(stock.cost)],
+    ['  Net cash position (net profit − stock tied up) (£)',money(cashPosition)],
+    [],
     ['Items sold',soldCount],
     ['Returns',retCount],
     ['Unsold items sourced in period',stock.count]
   ];
-  return{rows:rows,events:events,revenue:+revenue.toFixed(2),cogs:+cogs.toFixed(2),
-    grossProfit:+grossProfit.toFixed(2),expenses:exp,stock:stock,
-    netProfit:netProfit,cashPosition:cashPosition,soldCount:soldCount,returnCount:retCount};
+  if(motorDoubleClaim){
+    rows.push([]);
+    rows.push(['⚠ CHECK','Both mileage ('+money(mileageCost)+') and actual motor costs ('+money(actualMotor)+') claimed. HMRC simplified mileage already covers fuel, insurance, servicing & repairs — claim one method per vehicle, not both.']);
+  }
+
+  return{
+    rows:rows, events:events,
+    // legacy keys (unchanged contract)
+    revenue:revenue, cogs:cogs, grossProfit:grossProfit, expenses:exp, stock:stock,
+    netProfit:netProfit, cashPosition:cashPosition, soldCount:soldCount, returnCount:retCount,
+    // new: tiers, margins, categorisation, compliance
+    postageIn:postageIn, goodsRev:goodsRev,
+    selling:{fees:+feesSell.toFixed(2),postPkg:+postPkgSell.toFixed(2),returns:+returnsSell.toFixed(2),partner:+partnerSell.toFixed(2),manual:+manualSelling.toFixed(2),total:sellingCosts},
+    overheads:{total:overheads},
+    operatingProfit:operatingProfit,
+    grossMargin:gm, operatingMargin:om, netMargin:nm,
+    mileage:{cost:+mileageCost.toFixed(2),miles:totalMiles},
+    byBox:byBox, byCategory:byCategory,
+    motorDoubleClaim:motorDoubleClaim,
+    from:from, to:to, label:label
+  };
 }
 
-// Numeric-version of P&L summary rows for Excel (keeps values as numbers so
-// cells format correctly, not as text).
-function _buildPnLSummaryNumeric(pnl){
-  return[
-    ['P&L SUMMARY'],
-    ['Period',pnl.events.length?(pnl.events[0].saleDate||''):''],
-    ['Revenue (£)',pnl.revenue],
-    ['Cost of goods sold (£)',pnl.cogs],
-    ['Gross profit (£)',pnl.grossProfit],
-    ['Total expenses (£)',pnl.expenses.total],
-    ['Net profit after expenses (£)',pnl.netProfit],
-    ['Stock cost tied up — sourced in period, still unsold (£)',pnl.stock.cost],
-    ['Net cash position (net profit − stock tied up) (£)',pnl.cashPosition],
+// Builds the SA103 tax-return summary block for an export: one row per HMRC
+// expense box that actually has a value, plus turnover, total allowable
+// expenses, and net profit — ready to type straight onto SA103F, or summed
+// into the single SA103S box-20 figure. Returns an array of CSV/Excel rows.
+function _buildSA103Rows(pnl){
+  const boxes=[17,20,21,22,23,24,25,26,28,30];
+  const rows=[];
+  rows.push(['SA103 TAX RETURN SUMMARY (cash basis)']);
+  rows.push(['This maps your figures to HMRC Self-employment (SA103F) boxes.']);
+  rows.push(['Turnover under £90k? File SA103S and enter the single total-expenses figure in box 20.']);
+  rows.push([]);
+  rows.push(['SA103F Box','Heading','Amount (£)']);
+  rows.push(['15','Turnover / business income',pnl.revenue.toFixed(2)]);
+  rows.push([]);
+  let totalExp=0;
+  boxes.forEach(function(bx){
+    // Box 17 = COGS (always show, it's core to a reseller); others only if non-zero
+    let amt=0;
+    if(bx===17){amt=pnl.cogs;}
+    else{amt=pnl.byBox[bx]||0;}
+    if(bx===17||amt>0){
+      rows.push([String(bx),SA103_BOX_LABELS[bx]||('Box '+bx),amt.toFixed(2)]);
+      totalExp+=amt;
+    }
+  });
+  rows.push([]);
+  rows.push(['','TOTAL ALLOWABLE EXPENSES',totalExp.toFixed(2)]);
+  rows.push(['','  → SA103S (short form) box 20 single figure',totalExp.toFixed(2)]);
+  rows.push([]);
+  rows.push(['31 / 47','Net profit before tax',pnl.netProfit.toFixed(2)]);
+  if(pnl.mileage.miles>0){
+    rows.push([]);
+    rows.push(['Mileage note',pnl.mileage.miles+' business miles claimed at HMRC simplified rates','']);
+  }
+  if(pnl.motorDoubleClaim){
+    rows.push([]);
+    rows.push(['⚠ CHECK','Mileage AND actual motor costs both present — claim one method per vehicle, not both (HMRC simplified expenses).','']);
+  }
+  rows.push([]);
+  rows.push(['Disclaimer','Prepared on a cash basis as a record-keeping aid. Figures should be reviewed before filing. This is not tax advice.','']);
+  return rows;
+}
+
+// Manual + mileage expenses grouped by category with subtotals, for the
+// "expenses broken out" block in statements. Returns {rows,total}.
+function _expensesByCategoryRows(pnl){
+  const rows=[];
+  const cats=Object.keys(pnl.byCategory).map(function(k){return pnl.byCategory[k];});
+  // Order: selling first then overhead, then by box within bucket
+  cats.sort(function(a,b){
+    if(a.bucket!==b.bucket)return a.bucket==='selling'?-1:1;
+    return a.box-b.box;
+  });
+  rows.push(['Logged expenses & mileage by category']);
+  rows.push(['(Per-sale platform fees & postage are shown in the sales breakdown, not here)']);
+  rows.push(['Category','SA103 Box','Bucket','Amount (£)']);
+  let total=0;
+  cats.forEach(function(c){
+    const label=c.isMileage?(c.label+' ('+c.miles+' mi)'):c.label;
+    rows.push([label,'Box '+c.box,c.bucket==='selling'?'Selling cost':'Overhead',c.amount.toFixed(2)]);
+    total+=c.amount;
+  });
+  rows.push(['TOTAL','','',total.toFixed(2)]);
+  return{rows:rows,total:+total.toFixed(2)};
+}
+
+// Shared multi-tier P&L summary rows for Excel export (numeric values so cells
+// format as numbers). Used by range, monthly and annual Excel generators.
+function _pnlSummarySheetRows(pnl,title){
+  const rows=[
+    [title],
+    ['Basis: cash basis'],[],
+    ['Line','Value (£)'],
+    ['Turnover — gross receipts, net of returns',pnl.revenue],
+    ['  of which: goods',pnl.goodsRev],
+    ['  of which: postage recharged to buyers',pnl.postageIn],
+    ['Less: Cost of goods sold (Box 17)',pnl.cogs],
+    ['GROSS PROFIT',pnl.grossProfit],
+    ['Gross margin %',pnl.grossMargin],
+    [],
+    ['Selling costs',''],
+    ['  Platform & payment fees (Box 26)',pnl.selling.fees],
+    ['  Postage & packaging on sales (Box 23)',pnl.selling.postPkg],
+    ['  Advertising & marketing (Box 24)',(pnl.byCategory['Advertising & marketing']||{}).amount||0],
+    ['  Returns & refunds',pnl.selling.returns],
+    ['  Partner / consignment splits',pnl.selling.partner],
+    ['  Total selling costs',pnl.selling.total],
+    ['OPERATING PROFIT',pnl.operatingProfit],
+    ['Operating margin %',pnl.operatingMargin],
+    [],
+    ['Overheads',''],
+    ['  Motor, van & travel (Box 20)',pnl.byBox[20]||0],
+    ['  Rent, rates, power & insurance (Box 21)',pnl.byBox[21]||0],
+    ['  Repairs & equipment (Box 22)',pnl.byBox[22]||0],
+    ['  Phone, office & stationery (Box 23)',(pnl.byCategory['Phone, office & stationery']||{}).amount||0],
+    ['  Accountancy, legal & professional (Box 28)',pnl.byBox[28]||0],
+    ['  Software, subscriptions & other (Box 30)',pnl.byBox[30]||0],
+    ['  Total overheads',pnl.overheads.total],
+    ['NET PROFIT BEFORE TAX',pnl.netProfit],
+    ['Net margin %',pnl.netMargin],
+    [],
+    ['Memo — cash & stock',''],
+    ['  Stock cost tied up (sourced in period, unsold)',pnl.stock.cost],
+    ['  Net cash position (net profit − stock tied up)',pnl.cashPosition],
+    [],
     ['Items sold',pnl.soldCount],
     ['Returns',pnl.returnCount],
     ['Unsold items sourced in period',pnl.stock.count]
   ];
+  if(pnl.motorDoubleClaim){
+    rows.push([]);
+    rows.push(['⚠ CHECK: mileage AND actual motor costs both claimed — pick one method per vehicle (HMRC simplified expenses).','']);
+  }
+  return rows;
 }
 
 // ─── CUSTOM DATE RANGE STATEMENT ─────────────────────────────────────────
@@ -20578,6 +20896,16 @@ function downloadRangeStatement(from,to){
   // P&L summary block first
   pnl.rows.forEach(function(r){rows.push(r);});
   rows.push([]);
+  // SA103 tax-return summary — maps figures straight to HMRC boxes
+  _buildSA103Rows(pnl).forEach(function(r){rows.push(r);});
+  rows.push([]);
+  // Expenses grouped by category with subtotals (SA103 box + bucket)
+  const _byCat=_expensesByCategoryRows(pnl);
+  if(_byCat.rows.length>2){
+    rows.push(['EXPENSES BY CATEGORY']);
+    _byCat.rows.forEach(function(r){rows.push(r);});
+    rows.push([]);
+  }
   // Sales detail — full transaction breakdown
   rows.push(['SALES — TRANSACTION BREAKDOWN']);
   rows.push(_SALE_DETAIL_HEADERS);
@@ -20633,22 +20961,11 @@ function downloadRangeExcel(from,to){
   if(!from||!to){toast('Pick a from and to date','error');return;}
   if(from>to){toast('"From" date must be before "To" date','error');return;}
   const pnl=_buildPnLSummary(from,to,from+' → '+to);
-  // Sheet 1: P&L Summary
-  const summaryRows=[
-    ['P&L Summary — '+from+' → '+to],[],
-    ['Metric','Value (£)'],
-    ['Revenue',pnl.revenue],
-    ['Cost of goods sold',pnl.cogs],
-    ['Gross profit',pnl.grossProfit],
-    ['Total expenses',pnl.expenses.total],
-    ['Net profit after expenses',pnl.netProfit],
-    ['Stock cost tied up (sourced in period, still unsold)',pnl.stock.cost],
-    ['Net cash position (net profit − stock tied up)',pnl.cashPosition],
-    [],
-    ['Items sold',pnl.soldCount],
-    ['Returns',pnl.returnCount],
-    ['Unsold items sourced in period',pnl.stock.count]
-  ];
+  // Sheet 1: P&L Summary (multi-tier, numeric so Excel formats correctly)
+  const summaryRows=_pnlSummarySheetRows(pnl,'Profit & Loss — '+from+' → '+to);
+  // Sheet: SA103 tax summary + expenses by category
+  const sa103Rows=_buildSA103Rows(pnl);
+  const byCatRows=_expensesByCategoryRows(pnl).rows;
   // Sheet 2: Sales — full transaction breakdown
   const salesRows=[_SALE_DETAIL_HEADERS.slice()];
   let tSale=0,tPostIn=0,tBpf=0,tPromo=0,tShip=0,tPkg=0,tCost=0,tParts=0,tListing=0,tRefund=0,tRP=0,tPartial=0,tPart=0,tTotCosts=0,tNet=0;
@@ -20686,6 +21003,14 @@ function downloadRangeExcel(from,to){
     const ws0=XLSX.utils.aoa_to_sheet(summaryRows);
     ws0['!cols']=[{wch:52},{wch:16}];
     XLSX.utils.book_append_sheet(wb,ws0,'P&L Summary');
+    const wsSA=XLSX.utils.aoa_to_sheet(sa103Rows);
+    wsSA['!cols']=[{wch:12},{wch:52},{wch:16}];
+    XLSX.utils.book_append_sheet(wb,wsSA,'SA103 Tax Summary');
+    if(byCatRows.length>2){
+      const wsBC=XLSX.utils.aoa_to_sheet(byCatRows);
+      wsBC['!cols']=[{wch:34},{wch:12},{wch:14},{wch:14}];
+      XLSX.utils.book_append_sheet(wb,wsBC,'Expenses by Category');
+    }
     const ws1=XLSX.utils.aoa_to_sheet(meta.concat(salesRows));
     ws1['!cols']=salesRows[0]?salesRows[0].map(function(){return{wch:18};}):[];
     XLSX.utils.book_append_sheet(wb,ws1,'Sales');
@@ -21154,6 +21479,17 @@ function calcNetProfit(i){
   const owed=_accountItemOwed(i); // null if no split set, or item unsold
   if(owed===null)return gross;
   return+(gross-owed).toFixed(2);
+}
+
+// calcCOGSOnly: the pure accounting "cost of goods sold" for an item — what the
+// stock actually cost to acquire and make saleable (item cost + parts). This is
+// deliberately NARROWER than calcGrossProfit's internal cost: it EXCLUDES
+// platform fees, promoted-listing fees, postage, packaging and listing fees,
+// because in a proper P&L those are SELLING COSTS that sit below gross profit,
+// not cost of sales. Feeds the multi-tier P&L and SA103 Box 17.
+// calcGrossProfit is untouched and remains the source of truth everywhere else.
+function calcCOGSOnly(i){
+  return +((i.costPrice||0)+calcPartsCost(i)).toFixed(2);
 }
 
 // Session E2 — Stock-list "estimated profit" semantics.
