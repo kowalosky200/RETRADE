@@ -10069,16 +10069,17 @@ function renderActiveRunPage(){
     const _ep=i.estSalePrice!=null?(i.estSalePrice-(i.costPrice||0)-calcPartsCost(i)):null;
     const _estStr=i.estSalePrice!=null?' \u00b7 est '+fmt(i.estSalePrice):'';
     const _profStr=_ep!=null?' \u00b7 <span style="color:'+(_ep>=0?'var(--green)':'var(--red)')+';">'+(_ep>=0?'+':'')+fmt(_ep)+'</span>':'';
-    // Inline "+ Add est" chip when estSalePrice is null. Tap → the chip
-    // swaps into a small numeric input in place (see _arSetEstimate below).
-    // Suppressed in selection mode so the row's checkbox owns the tap.
-    const _qmEsc=i._month.replace(/'/g,"\\'"), _qidEsc=i.id.replace(/'/g,"\\'");
-    const _addEstChip=(i.estSalePrice==null&&!RUN_SELECTION_MODE)
-      ?' <span id="ar-est-chip-'+i.id+'" onclick="event.stopPropagation();_arSetEstimate(\''+_qmEsc+'\',\''+_qidEsc+'\')" style="display:inline-flex;align-items:center;color:var(--accent);cursor:pointer;font-size:11px;font-weight:600;background:var(--accent-dim);padding:2px 8px;border-radius:5px;margin-left:6px;-webkit-tap-highlight-color:transparent;line-height:1.4;vertical-align:1px;">+ Add est</span>'
-      :'';
     const bdr=runItems.indexOf(i)>0?'border-top:1px solid var(--border)':'';
     const qm=i._month.replace(/'/g,"\\'"), qid=i.id.replace(/'/g,"\\'");
     const _isSel=RUN_SELECTED.has(i.id);
+    // Always-visible inline estimate input when estSalePrice is null and not
+    // in selection mode. Direct tap → keyboard opens → type → Enter/blur
+    // commits. First-class treatment because estimating IS the run's primary
+    // insight — no chip-to-input dance. onclick stopPropagation stops the
+    // row-open handler from firing when the input is tapped.
+    const _estInput=(i.estSalePrice==null&&!RUN_SELECTION_MODE)
+      ?' <input type="number" step="0.01" min="0" inputmode="decimal" placeholder="add est \u00a3" onclick="event.stopPropagation()" onblur="_arCommitEst(this,\''+qm+'\',\''+qid+'\')" onkeydown="if(event.key===\'Enter\'){event.preventDefault();this.blur();}else if(event.key===\'Escape\'){this.value=\'\';this.blur();}" style="border:1px solid rgba(212,136,10,0.28);background:var(--accent-dim);color:var(--accent);font-size:11px;font-weight:600;padding:3px 8px;border-radius:5px;outline:none;-webkit-appearance:none;width:84px;margin-left:6px;line-height:1.3;vertical-align:1px;">'
+      :'';
     // In selection mode the whole row toggles the checkbox; in normal mode
     // the body opens the item page. The per-row \u22EE dropdown is kept in
     // both modes (single-item actions still work) — event.stopPropagation
@@ -10097,10 +10098,10 @@ function renderActiveRunPage(){
       +leftSlot
       +'<div style="flex:1;min-width:0;'+bodyClick+'">'
         +'<div style="font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(i.item||'Untitled')+'</div>'
-        +'<div style="font-size:12px;color:var(--text-secondary);">'+fmt(i.costPrice||0)+'<span style="color:var(--muted)"> cost</span>'+_estStr+_profStr+_addEstChip+'</div>'
+        +'<div style="font-size:12px;color:var(--text-secondary);">'+fmt(i.costPrice||0)+'<span style="color:var(--muted)"> cost</span>'+_estStr+_profStr+_estInput+'</div>'
       +'</div>'
       +'<div class="ddwrap" id="ardd-'+i.id+'">'
-        +'<button class="ddbtn" onclick="event.stopPropagation();toggleDD(\'ardd-'+qid+'\')" title="Actions">\u22EE</button>'
+        +'<button class="ddbtn" onclick="event.stopPropagation();toggleDD(\'ardd-'+qid+'\')" title="Actions" style="width:32px;height:32px;display:inline-flex;align-items:center;justify-content:center;background:transparent;border:1px solid var(--border);border-radius:6px;color:var(--text-secondary);font-size:16px;cursor:pointer;transition:background var(--dur-fast,150ms) var(--ease-out,ease-out),border-color var(--dur-fast,150ms) var(--ease-out,ease-out);-webkit-tap-highlight-color:transparent;">\u22EE</button>'
         +'<div class="ddmenu">'
           +'<button onclick="openItemPage(\''+qm+'\',\''+qid+'\',\'p-active-run\')">Open</button>'
           +'<button onclick="editItem(\''+qm+'\',\''+qid+'\')">Edit</button>'
@@ -10116,42 +10117,35 @@ function renderActiveRunPage(){
     +'The clock\u2019s ticking \u2014 happy hunting.</div>'
     +'</div>';
   // Bulk-select toolbar above the list. Mirrors the Monthly + Stock pattern:
-  //   - "Select" button (idle) flips into selection mode
-  //   - Selection mode shows a select-all check, count, bulk actions, and Done
+  //   - Idle: the "Edit" button lives inline with the section header (see the
+  //     header render below — this branch returns '' so no toolbar row shows)
+  //   - Selection mode: shows a select-all check, count, bulk actions, Done
   //   - Bulk actions: Remove from run (untag, items stay in stock) and Delete
-  const _runToolbar=runItems.length===0?'':(
+  const _runToolbar=runItems.length===0?'':(!RUN_SELECTION_MODE?'':(
     '<div class="list-toolbar" style="display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap;">'
-    +(RUN_SELECTION_MODE
+    +'<button class="sel-check" onclick="selectAllRunItems()" style="display:flex;align-items:center;gap:8px;background:none;border:none;cursor:pointer;padding:6px 8px;color:var(--text);">'
+      +'<span class="sel-check-box '+(RUN_SELECTED.size===runItems.length?'all':RUN_SELECTED.size>0?'some':'')+'" style="width:18px;height:18px;border:1.5px solid var(--border-strong);border-radius:4px;display:inline-flex;align-items:center;justify-content:center;background:'+(RUN_SELECTED.size===runItems.length?'var(--brand)':'transparent')+';color:'+(RUN_SELECTED.size===runItems.length?'#1a1205':'transparent')+';font-size:12px;font-weight:700;">'
+        +(RUN_SELECTED.size===runItems.length?'\u2713':RUN_SELECTED.size>0?'\u2212':'')
+      +'</span>'
+      +'<span style="color:'+(RUN_SELECTED.size>0?'var(--text)':'var(--text-secondary)')+';font-weight:600;font-size:13px;">'
+        +(RUN_SELECTED.size>0?RUN_SELECTED.size+' selected':'Select all')
+      +'</span>'
+    +'</button>'
+    +(RUN_SELECTED.size>0
       ?(
-        '<button class="sel-check" onclick="selectAllRunItems()" style="display:flex;align-items:center;gap:8px;background:none;border:none;cursor:pointer;padding:6px 8px;color:var(--text);">'
-          +'<span class="sel-check-box '+(RUN_SELECTED.size===runItems.length?'all':RUN_SELECTED.size>0?'some':'')+'" style="width:18px;height:18px;border:1.5px solid var(--border-strong);border-radius:4px;display:inline-flex;align-items:center;justify-content:center;background:'+(RUN_SELECTED.size===runItems.length?'var(--brand)':'transparent')+';color:'+(RUN_SELECTED.size===runItems.length?'#1a1205':'transparent')+';font-size:12px;font-weight:700;">'
-            +(RUN_SELECTED.size===runItems.length?'\u2713':RUN_SELECTED.size>0?'\u2212':'')
-          +'</span>'
-          +'<span style="color:'+(RUN_SELECTED.size>0?'var(--text)':'var(--text-secondary)')+';font-weight:600;font-size:13px;">'
-            +(RUN_SELECTED.size>0?RUN_SELECTED.size+' selected':'Select all')
-          +'</span>'
+        '<button class="bulk-ctrl" onclick="runBulkAction(\'remove\')" style="margin-left:auto;font-size:13px;padding:7px 12px;border:1px solid var(--border);background:var(--surface2);border-radius:8px;color:var(--text);cursor:pointer;font-weight:600;">'
+          +'Remove from run'
         +'</button>'
-        +(RUN_SELECTED.size>0
-          ?(
-            '<button class="bulk-ctrl" onclick="runBulkAction(\'remove\')" style="margin-left:auto;font-size:13px;padding:7px 12px;border:1px solid var(--border);background:var(--surface2);border-radius:8px;color:var(--text);cursor:pointer;font-weight:600;">'
-              +'Remove from run'
-            +'</button>'
-            +'<button class="bulk-ctrl is-danger" onclick="runBulkAction(\'delete\')" style="font-size:13px;padding:7px 12px;border:1px solid rgba(220,55,55,0.4);background:rgba(220,55,55,0.08);border-radius:8px;color:var(--red);cursor:pointer;font-weight:600;display:flex;align-items:center;gap:5px;">'
-              +icon('trash',13)+'Delete'
-            +'</button>'
-          )
-          :'')
-        +'<button class="sel-exit" onclick="toggleRunSelection()" style="'+(RUN_SELECTED.size===0?'margin-left:auto;':'')+'background:none;border:none;color:var(--text-secondary);font-size:13px;cursor:pointer;padding:7px 10px;font-weight:500;">'
-          +'\u2715 Done'
+        +'<button class="bulk-ctrl is-danger" onclick="runBulkAction(\'delete\')" style="font-size:13px;padding:7px 12px;border:1px solid rgba(220,55,55,0.4);background:rgba(220,55,55,0.08);border-radius:8px;color:var(--red);cursor:pointer;font-weight:600;display:flex;align-items:center;gap:5px;">'
+          +icon('trash',13)+'Delete'
         +'</button>'
       )
-      :(
-        '<button class="select-toggle" onclick="toggleRunSelection()" style="margin-left:auto;font-size:13px;padding:7px 14px;border:1px solid var(--border);background:var(--surface2);border-radius:8px;color:var(--text);cursor:pointer;font-weight:600;">'
-          +'Select'
-        +'</button>'
-      ))
+      :'')
+    +'<button class="sel-exit" onclick="toggleRunSelection()" style="'+(RUN_SELECTED.size===0?'margin-left:auto;':'')+'background:none;border:none;color:var(--text-secondary);font-size:13px;cursor:pointer;padding:7px 10px;font-weight:500;">'
+      +'\u2715 Done'
+    +'</button>'
     +'</div>'
-  );
+  ));
   const listHTML=runItems.length
     ?_runToolbar+'<div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;">'+runItems.map(_arRow).join('')+'</div>'
     :emptyState;
@@ -10173,7 +10167,15 @@ function renderActiveRunPage(){
         +'</button>'
       +'</div>'
       +kpiHTML
-      +'<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-secondary);margin-bottom:10px;">Items sourced this run</div>'
+      +'<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px;">'
+        +'<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-secondary);">Items sourced this run</div>'
+        +(runItems.length>0&&!RUN_SELECTION_MODE
+          ?'<button onclick="toggleRunSelection()" style="display:inline-flex;align-items:center;gap:5px;font-size:12px;padding:6px 11px;border:1px solid var(--border);background:var(--surface-2);border-radius:6px;color:var(--text-secondary);cursor:pointer;font-weight:600;-webkit-tap-highlight-color:transparent;transition:color var(--dur-fast,150ms) var(--ease-out,ease-out),border-color var(--dur-fast,150ms) var(--ease-out,ease-out);" onmouseover="this.style.color=\'var(--text)\';this.style.borderColor=\'var(--border-strong)\';" onmouseout="this.style.color=\'var(--text-secondary)\';this.style.borderColor=\'var(--border)\';" title="Select items to remove or delete">'
+            +'<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>'
+            +'Edit'
+          +'</button>'
+          :'')
+      +'</div>'
       +listHTML
     +'</div>';
   // Live tick — updates elapsed every second while run is active
@@ -10185,43 +10187,24 @@ function renderActiveRunPage(){
   },1000);
 }
 
-// Inline estimate editor triggered by the "+ Add est" chip on run-item rows.
-// Swaps the chip for a small numeric input in place; Enter/blur commits,
-// Escape cancels. Mobile-friendly (inputmode=decimal), no full-form edit
-// required — the SQA form marks est-sale as optional so users skip it during
-// fast sourcing; this lets them backfill estimates without leaving the run.
-function _arSetEstimate(m,id){
-  const chip=document.getElementById('ar-est-chip-'+id);
-  if(!chip||chip.classList.contains('editing'))return;
+// Direct-input estimate commit for run rows. The input is always visible in
+// the row when estSalePrice is null — this handler runs on Enter/blur, parses
+// the value, saves if valid, silently no-ops on empty (user tabbed away), and
+// clears the field on invalid input so the placeholder returns. A re-render
+// after save flips the row back to read-only text mode with est/profit.
+function _arCommitEst(inp,m,id){
   const item=(DB[m]||[]).find(function(x){return x.id===id;});
   if(!item)return;
-  chip.classList.add('editing');
-  chip.style.padding='2px 6px';
-  chip.innerHTML='<input type="number" step="0.01" min="0" inputmode="decimal" placeholder="est £" style="width:70px;background:transparent;border:none;color:var(--accent);font-size:11px;font-weight:600;padding:0;outline:none;-webkit-appearance:none;" autocomplete="off">';
-  const inp=chip.querySelector('input');
-  let committed=false;
-  const commit=function(save){
-    if(committed)return;
-    committed=true;
-    if(save){
-      const v=parseFloat(inp.value);
-      if(isFinite(v)&&v>0){
-        item.estSalePrice=+v.toFixed(2);
-        saveDB();
-      }
-    }
+  const raw=(inp.value||'').trim();
+  if(raw==='')return;
+  const v=parseFloat(raw);
+  if(isFinite(v)&&v>0){
+    item.estSalePrice=+v.toFixed(2);
+    saveDB();
     renderActiveRunPage();
-  };
-  inp.addEventListener('keydown',function(e){
-    if(e.key==='Enter'){e.preventDefault();commit(true);}
-    else if(e.key==='Escape'){commit(false);}
-  });
-  inp.addEventListener('blur',function(){commit(true);});
-  const _focus=function(){
-    try{inp.focus();inp.select();}catch(e){}
-  };
-  _focus();
-  setTimeout(_focus,40);
+  }else{
+    inp.value='';
+  }
 }
 
 function _removeFromActiveRun(m,id){
