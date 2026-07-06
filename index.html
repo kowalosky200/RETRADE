@@ -2706,6 +2706,28 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
 .rt .summary-sourcing-cta .cta-sub{font-size:12px;color:var(--text-secondary);}
 .rt .summary-sourcing-cta .cta-chev{font-size:22px;color:var(--text-tertiary);flex:0 0 auto;line-height:1;margin-top:-2px;}
 
+/* Active-run variant — same shell, green pulse dot instead of amber lightning.
+   Green accent because a run is IN PROGRESS (positive/live state), whereas
+   the idle CTA uses brand-amber to invite a start. */
+.rt .summary-active-run-cta{
+  background:color-mix(in srgb,var(--green,#22c55e) 6%,var(--surface-1));
+  border-color:color-mix(in srgb,var(--green,#22c55e) 28%,var(--border));
+}
+.rt .summary-active-run-cta:active{
+  background:color-mix(in srgb,var(--green,#22c55e) 10%,var(--surface-2));
+}
+.rt .summary-active-run-cta .cta-icon-run{
+  background:color-mix(in srgb,var(--green,#22c55e) 14%,transparent);
+  position:relative;
+}
+.rt .summary-active-run-cta .active-run-pulse{
+  width:10px;height:10px;border-radius:50%;background:var(--green,#22c55e);
+  animation:run-pulse 2s ease-in-out infinite;
+  box-shadow:0 0 0 0 color-mix(in srgb,var(--green,#22c55e) 60%,transparent);
+}
+.rt .summary-active-run-cta .cta-title{color:var(--text-primary);}
+.rt .summary-active-run-cta .cta-chev{color:var(--green,#22c55e);}
+
 /* ── Hero card (mobile-only) ─ piggybacks on the existing summary-hero-*
    element styles. The card is its own container; .summary-hero-top is the
    header row (label + value + delta on the left, sparkline on the right),
@@ -3250,15 +3272,15 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
     display:flex;flex-direction:column;justify-content:flex-end;align-items:center;
     padding-bottom:12px;
   }
+  /* Label hidden — the FAB button is the visual anchor for this slot. When the
+     label swapped to "ADD TO RUN" during an active run, the wider text bled
+     beyond the 60px FAB circle on both sides, making it look like broken
+     chrome. Run state is already communicated by (a) the Runs tab dot,
+     (b) the dashboard active-run banner. Keep the .fab-slot-label spans in
+     markup for accessibility but visually suppress them. */
   .bnt-fab-slot .fab-slot-label{
-    font-size:10.5px;font-weight:600;line-height:1;letter-spacing:0.02em;
-    color:var(--text-tertiary);
-    text-align:center;
-    transition:color var(--dur-fast,150ms) var(--ease-out,ease-out);
+    display:none;
   }
-  .bnt-fab-slot .label-active{display:none;}
-  .rt-run-active .bnt-fab-slot .label-idle{display:none;}
-  .rt-run-active .bnt-fab-slot .label-active{display:inline;color:var(--brand);}
 
   /* ── Horizontal speed-dial: FAB nested in the bar; tapping it reveals a row
      of labelled option buttons in the band directly above the nav. No CSS trig
@@ -10041,12 +10063,19 @@ function renderActiveRunPage(){
   const kpiHTML='<div class="kgrid kgrid-3" style="margin-bottom:20px;">'
     +kc('ITEMS',String(itemCount),itemCount===1?'1 item sourced':itemCount+' items sourced','')
     +kc('SPENT',fmt(spent),'Cost + parts','b')
-    +kc('EST. PROFIT',estItems.length?fmt(estProfit):'\u2014',estItems.length?estItems.length+' with estimate':'No estimates yet',estItems.length&&estProfit>=0?'g':estItems.length?'r':'')
+    +kc('EST. PROFIT',estItems.length?fmt(estProfit):'\u2014',estItems.length?estItems.length+' with estimate':(itemCount>0?'Tap items to add estimates':'No estimates yet'),estItems.length&&estProfit>=0?'g':estItems.length?'r':'')
     +'</div>';
   const _arRow=function(i){
     const _ep=i.estSalePrice!=null?(i.estSalePrice-(i.costPrice||0)-calcPartsCost(i)):null;
     const _estStr=i.estSalePrice!=null?' \u00b7 est '+fmt(i.estSalePrice):'';
     const _profStr=_ep!=null?' \u00b7 <span style="color:'+(_ep>=0?'var(--green)':'var(--red)')+';">'+(_ep>=0?'+':'')+fmt(_ep)+'</span>':'';
+    // Inline "+ Add est" chip when estSalePrice is null. Tap → the chip
+    // swaps into a small numeric input in place (see _arSetEstimate below).
+    // Suppressed in selection mode so the row's checkbox owns the tap.
+    const _qmEsc=i._month.replace(/'/g,"\\'"), _qidEsc=i.id.replace(/'/g,"\\'");
+    const _addEstChip=(i.estSalePrice==null&&!RUN_SELECTION_MODE)
+      ?' <span id="ar-est-chip-'+i.id+'" onclick="event.stopPropagation();_arSetEstimate(\''+_qmEsc+'\',\''+_qidEsc+'\')" style="display:inline-flex;align-items:center;color:var(--accent);cursor:pointer;font-size:11px;font-weight:600;background:var(--accent-dim);padding:2px 8px;border-radius:5px;margin-left:6px;-webkit-tap-highlight-color:transparent;line-height:1.4;vertical-align:1px;">+ Add est</span>'
+      :'';
     const bdr=runItems.indexOf(i)>0?'border-top:1px solid var(--border)':'';
     const qm=i._month.replace(/'/g,"\\'"), qid=i.id.replace(/'/g,"\\'");
     const _isSel=RUN_SELECTED.has(i.id);
@@ -10068,7 +10097,7 @@ function renderActiveRunPage(){
       +leftSlot
       +'<div style="flex:1;min-width:0;'+bodyClick+'">'
         +'<div style="font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(i.item||'Untitled')+'</div>'
-        +'<div style="font-size:12px;color:var(--text-secondary);">'+fmt(i.costPrice||0)+'<span style="color:var(--muted)"> cost</span>'+_estStr+_profStr+'</div>'
+        +'<div style="font-size:12px;color:var(--text-secondary);">'+fmt(i.costPrice||0)+'<span style="color:var(--muted)"> cost</span>'+_estStr+_profStr+_addEstChip+'</div>'
       +'</div>'
       +'<div class="ddwrap" id="ardd-'+i.id+'">'
         +'<button class="ddbtn" onclick="event.stopPropagation();toggleDD(\'ardd-'+qid+'\')" title="Actions">\u22EE</button>'
@@ -10083,7 +10112,7 @@ function renderActiveRunPage(){
   }
   const emptyState='<div style="padding:36px 24px;text-align:center;color:var(--text-secondary);">'
     +'<div style="font-size:16px;font-weight:600;color:var(--text);margin-bottom:8px;">Nothing sourced yet</div>'
-    +'<div style="font-size:13px;line-height:1.5;">Tap \u201cAdd Item\u201d below to log your first find.<br>'
+    +'<div style="font-size:13px;line-height:1.5;">Tap the <strong style="color:var(--accent);">+</strong> button to log your first find.<br>'
     +'The clock\u2019s ticking \u2014 happy hunting.</div>'
     +'</div>';
   // Bulk-select toolbar above the list. Mirrors the Monthly + Stock pattern:
@@ -10128,22 +10157,24 @@ function renderActiveRunPage(){
     :emptyState;
   page.innerHTML=''
     +'<div style="max-width:560px;margin:0 auto;padding:18px 16px 100px;">'
-      +'<div style="display:flex;align-items:center;gap:10px;margin-bottom:4px;">'
-        +'<span style="width:10px;height:10px;border-radius:50%;background:var(--accent);display:inline-block;flex-shrink:0;animation:_arPulse 1.4s ease-in-out infinite;"></span>'
-        +'<span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:var(--accent);">Sourcing</span>'
+      +'<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:20px;">'
+        +'<div style="flex:1;min-width:0;">'
+          +'<div style="display:flex;align-items:center;gap:10px;margin-bottom:4px;">'
+            +'<span style="width:10px;height:10px;border-radius:50%;background:var(--accent);display:inline-block;flex-shrink:0;animation:_arPulse 1.4s ease-in-out infinite;"></span>'
+            +'<span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:var(--accent);">Sourcing</span>'
+          +'</div>'
+          +'<h1 style="font-family:var(--font-display);font-size:24px;font-weight:800;letter-spacing:-0.02em;margin:4px 0 2px;">'+esc(run.name)+'</h1>'
+          +(run.location?'<div style="font-size:13px;color:var(--text-secondary);margin-bottom:2px;">'+esc(run.location)+'</div>':'')
+          +'<div style="font-size:12px;color:var(--muted);"><span id="run-elapsed-live">'+_elapsed()+'</span></div>'
+        +'</div>'
+        +'<button onclick="endSourcingRun()" style="flex-shrink:0;background:rgba(220,55,55,0.08);color:var(--red);border:1px solid rgba(220,55,55,0.3);border-radius:8px;padding:8px 12px;font-size:12px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:5px;-webkit-tap-highlight-color:transparent;transition:background var(--dur-fast,150ms) var(--ease-out,ease-out);white-space:nowrap;" onmouseover="this.style.background=\'rgba(220,55,55,0.14)\'" onmouseout="this.style.background=\'rgba(220,55,55,0.08)\'" title="End this run">'
+          +'<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="6" width="12" height="12" rx="1.5"/></svg>'
+          +'End Run'
+        +'</button>'
       +'</div>'
-      +'<h1 style="font-family:var(--font-display);font-size:24px;font-weight:800;letter-spacing:-0.02em;margin:4px 0 2px;">'+esc(run.name)+'</h1>'
-      +(run.location?'<div style="font-size:13px;color:var(--text-secondary);margin-bottom:2px;">'+esc(run.location)+'</div>':'')
-      +'<div style="font-size:12px;color:var(--muted);margin-bottom:20px;"><span id="run-elapsed-live">'+_elapsed()+'</span></div>'
       +kpiHTML
       +'<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-secondary);margin-bottom:10px;">Items sourced this run</div>'
       +listHTML
-      +'<button class="btn btn-primary" style="width:100%;justify-content:center;margin-top:16px;padding:14px;font-size:15px;" onclick="openStockQuickAdd()">'
-        +'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:6px"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>'
-        +(itemCount===0?'Add Item':'Add another item')+'</button>'
-      +'<div style="display:flex;gap:8px;margin-top:12px;padding-top:16px;border-top:1px solid var(--border);">'
-        +'<button class="btn btn-secondary" style="width:100%;justify-content:center;color:var(--red);border-color:rgba(220,55,55,0.3);" onclick="endSourcingRun()">End Run</button>'
-      +'</div>'
     +'</div>';
   // Live tick — updates elapsed every second while run is active
   if(_runTimerInterval) clearInterval(_runTimerInterval);
@@ -10152,6 +10183,45 @@ function renderActiveRunPage(){
     if(el&&_activeSourcingRun) el.textContent=_elapsed();
     else{ clearInterval(_runTimerInterval); _runTimerInterval=null; }
   },1000);
+}
+
+// Inline estimate editor triggered by the "+ Add est" chip on run-item rows.
+// Swaps the chip for a small numeric input in place; Enter/blur commits,
+// Escape cancels. Mobile-friendly (inputmode=decimal), no full-form edit
+// required — the SQA form marks est-sale as optional so users skip it during
+// fast sourcing; this lets them backfill estimates without leaving the run.
+function _arSetEstimate(m,id){
+  const chip=document.getElementById('ar-est-chip-'+id);
+  if(!chip||chip.classList.contains('editing'))return;
+  const item=(DB[m]||[]).find(function(x){return x.id===id;});
+  if(!item)return;
+  chip.classList.add('editing');
+  chip.style.padding='2px 6px';
+  chip.innerHTML='<input type="number" step="0.01" min="0" inputmode="decimal" placeholder="est £" style="width:70px;background:transparent;border:none;color:var(--accent);font-size:11px;font-weight:600;padding:0;outline:none;-webkit-appearance:none;" autocomplete="off">';
+  const inp=chip.querySelector('input');
+  let committed=false;
+  const commit=function(save){
+    if(committed)return;
+    committed=true;
+    if(save){
+      const v=parseFloat(inp.value);
+      if(isFinite(v)&&v>0){
+        item.estSalePrice=+v.toFixed(2);
+        saveDB();
+      }
+    }
+    renderActiveRunPage();
+  };
+  inp.addEventListener('keydown',function(e){
+    if(e.key==='Enter'){e.preventDefault();commit(true);}
+    else if(e.key==='Escape'){commit(false);}
+  });
+  inp.addEventListener('blur',function(){commit(true);});
+  const _focus=function(){
+    try{inp.focus();inp.select();}catch(e){}
+  };
+  _focus();
+  setTimeout(_focus,40);
 }
 
 function _removeFromActiveRun(m,id){
@@ -14458,18 +14528,37 @@ function renderSummary(){
       <div class="summary-grid-v3">
         <!-- ─ Mobile-only blocks. Hidden on desktop via .summary-mobile-only.
              Rendered first in the DOM, then ordered into position via the
-             ≤600px breakpoint. CTA is conditional on no active run. ─────── -->
-        ${!_activeSourcingRun?`<button class="card summary-sourcing-cta summary-mobile-only" onclick="goToTab('runs',document.querySelector('[data-tab=\\'runs\\']'))">
+             ≤600px breakpoint. Renders one of two variants:
+             • Active-run banner (when a run is live) — pulse dot + name +
+               live spend/items → tap opens the run workspace.
+             • Start-run CTA (idle) — lightning icon + prompt → tap goes to
+               Runs tab to start one.
+             Same slot, same styling family, so the dashboard's mobile
+             ordering (CTA above hero card) stays consistent. ─────── -->
+        ${_activeSourcingRun?(()=>{
+          const _run=_activeSourcingRun;
+          const _items=(typeof _runItems==='function')?_runItems(_run.id):[];
+          const _spent=_items.reduce(function(s,i){return s+(i.costPrice||0)+((typeof calcPartsCost==='function')?calcPartsCost(i):0);},0);
+          const _estPot=_items.reduce(function(s,i){return s+(i.estSalePrice!=null?i.estSalePrice:0);},0);
+          const _loc=_run.location?(' · '+esc(_run.location)):'';
+          const _subBits=[_items.length+' item'+(_items.length!==1?'s':''),fmt(_spent)+' spent'];
+          if(_estPot>0)_subBits.push('est '+fmt(_estPot));
+          return `<button class="card summary-sourcing-cta summary-mobile-only summary-active-run-cta" onclick="openActiveRunPage()">
+          <span class="cta-icon cta-icon-run"><span class="active-run-pulse"></span></span>
+          <span class="cta-text"><span class="cta-title">${esc(_run.name)}${_loc}</span><span class="cta-sub">${_subBits.join(' · ')}</span></span>
+          <span class="cta-chev">›</span>
+        </button>`;
+        })():`<button class="card summary-sourcing-cta summary-mobile-only" onclick="goToTab('runs',document.querySelector('[data-tab=\\'runs\\']'))">
           <span class="cta-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></span>
           <span class="cta-text"><span class="cta-title">Start a sourcing run</span><span class="cta-sub">Tag items to a trip as you find them</span></span>
           <span class="cta-chev">›</span>
-        </button>`:''}
-        <div class="card summary-hero-card summary-mobile-only" onclick="showFilteredItems('realised')">
+        </button>`}
+        <div class="card summary-hero-card summary-mobile-only" onclick="showFilteredItems('revenue')">
           <div class="summary-hero-top">
             <div class="summary-hero-head">
-              <div class="kpi-label">Net profit · ${(periods.find(p=>p.key===SUMMARY_PERIOD)||{}).label||''}</div>
-              <div class="summary-hero-value num">${fmt(stats.netProfit||0)}</div>
-              <div class="kpi-foot">${deltaChip(deltas&&deltas.netProfit)||(fmtK(stats.grossProfit||0)+' gross')}</div>
+              <div class="kpi-label">Revenue · ${(periods.find(p=>p.key===SUMMARY_PERIOD)||{}).label||''}</div>
+              <div class="summary-hero-value num">${fmt(stats.totalRev||0)}</div>
+              <div class="kpi-foot">${deltaChip(deltas&&deltas.totalRev)||((stats.soldCount||0)+' sold')}</div>
             </div>
             <svg class="summary-hero-spark" viewBox="0 0 120 44" preserveAspectRatio="none" aria-hidden="true"></svg>
           </div>
@@ -14479,10 +14568,10 @@ function renderSummary(){
           </div>
         </div>
         <div class="summary-mobile-twoup summary-mobile-only">
-          <div class="card kpi clickable" onclick="showFilteredItems('revenue')">
-            <div class="kpi-label">Revenue</div>
-            <div class="kpi-value num">${fmtK(stats.totalRev||0)}</div>
-            <div class="kpi-foot">${deltaChip(deltas&&deltas.totalRev)||((stats.soldCount||0)+' sold')}</div>
+          <div class="card kpi clickable" onclick="showFilteredItems('realised')">
+            <div class="kpi-label">Net profit</div>
+            <div class="kpi-value num">${fmtK(stats.netProfit||0)}</div>
+            <div class="kpi-foot">${deltaChip(deltas&&deltas.netProfit)||(fmtK(stats.grossProfit||0)+' gross')}</div>
           </div>
           <div class="card kpi clickable" onclick="showMarginItems()">
             <div class="kpi-label">Avg margin</div>
