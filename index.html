@@ -5229,20 +5229,23 @@ const ITEM_SOURCES=[
 ];
 
 const ITEM_CATEGORIES=[
-  // 9.9% — media & general electronics (banded sub-cats listed separately below)
+  // 9.9% — media & general accessories (banded sub-cats listed separately below)
   'Books, Comics & Magazines',
   'Films & TV',
   'Music (CDs & Vinyl)',
-  'Cameras & Photography',
-  'Computers & Tablets',
-  'Mobile Phones & Accessories',
-  'Sound & Vision',
-  'Video Games',
-  // 9.9%→ banded electronics sub-categories (the expensive stuff)
+  // Renamed for clarity — these are ACCESSORIES/general parent categories.
+  // The high-value banded siblings sit further down and are what most resellers
+  // actually list (laptops, phones, TVs, cameras, consoles).
+  'Camera Accessories',                    // was 'Cameras & Photography' — tripods, bags, SD cards, film gear
+  'Computer Accessories & Parts',          // was 'Computers & Tablets' — mice, keyboards, GPUs, cables
+  'Phone Accessories',                     // was 'Mobile Phones & Accessories' — cases, chargers, cables
+  'Audio & Video Accessories',             // was 'Sound & Vision' — radios, walkmans, karaoke, small speakers
+  'Video Games',                           // game software (consoles banded below)
+  // 6.9%→3% banded electronics (the actual devices — most resellers live here)
   'Laptops, Desktops & Tablets',
   'TVs, Headphones & HiFi',
   'Digital Cameras & Lenses',
-  'Mobile & Smart Phones',
+  'Mobile Phones (Handsets)',              // was 'Mobile & Smart Phones' — the actual handset
   'Video Game Consoles',
   // 10.9%
   'Antiques',
@@ -5259,13 +5262,14 @@ const ITEM_CATEGORIES=[
   'Sports Memorabilia',
   'Stamps',
   'Toys & Games',
+  'Trading Cards',                         // NEW — Pokemon, sports cards, MTG, Panini, TCG; auth-checked ≥£150
   // 11.9% — fashion
   'Clothes, Shoes & Accessories',
   'Trainers',
   "Women's Bags & Handbags",
   'Home, Furniture & DIY',
   // banded / high value
-  'Jewellery & Watches',
+  'Jewellery',                             // was 'Jewellery & Watches' — split from Watches (different rate)
   'Watches',
   'Vehicle Parts & Accessories',
   // 12.5% / 12.9%
@@ -5343,14 +5347,14 @@ const _CAT_ICON={
   'Films & TV':              'cat_books',
   'Music (CDs & Vinyl)':     'cat_audio',
   'Video Games':             'cat_toys',
-  // Electronics (general + banded)
-  'Cameras & Photography':   'cat_camera',
+  // Electronics (general accessories + banded devices)
+  'Camera Accessories':      'cat_camera',
   'Digital Cameras & Lenses':'cat_camera',
-  'Computers & Tablets':     'cat_tech',
+  'Computer Accessories & Parts':'cat_tech',
   'Laptops, Desktops & Tablets':'cat_tech',
-  'Mobile Phones & Accessories':'cat_tech',
-  'Mobile & Smart Phones':   'cat_tech',
-  'Sound & Vision':          'cat_audio',
+  'Phone Accessories':       'cat_tech',
+  'Mobile Phones (Handsets)':'cat_tech',
+  'Audio & Video Accessories':'cat_audio',
   'TVs, Headphones & HiFi':  'cat_audio',
   'Video Game Consoles':     'cat_toys',
   'Business, Office & Industrial':'cat_tech',
@@ -5369,13 +5373,14 @@ const _CAT_ICON={
   'Sports Memorabilia':      'cat_vintage',
   'Stamps':                  'cat_vintage',
   'Toys & Games':            'cat_toys',
+  'Trading Cards':           'cat_vintage',
   // Fashion
   'Clothes, Shoes & Accessories':'cat_fashion',
   'Trainers':                'cat_fashion',
   "Women's Bags & Handbags": 'cat_fashion',
   // Home / high value
   'Home, Furniture & DIY':   'cat_home',
-  'Jewellery & Watches':     'cat_vintage',
+  'Jewellery':               'cat_vintage',
   'Watches':                 'cat_vintage',
   'Vehicle Parts & Accessories':'cat_tech',
   // 12.9%
@@ -5385,6 +5390,13 @@ const _CAT_ICON={
   'Wholesale & Job Lots':    'cat_other',
   'Memorials & Funerals':    'cat_other',
   'Other':                   'cat_other',
+  // Backward-compat: items saved under legacy category names still get an icon
+  'Cameras & Photography':      'cat_camera',
+  'Computers & Tablets':        'cat_tech',
+  'Mobile Phones & Accessories':'cat_tech',
+  'Mobile & Smart Phones':      'cat_tech',
+  'Sound & Vision':             'cat_audio',
+  'Jewellery & Watches':        'cat_vintage',
   // Backward-compat for items stored under older category names
   'Electronics & Tech':      'cat_tech',
   'Electronics (banded)':    'cat_tech',
@@ -13536,22 +13548,24 @@ function autoCategory(name){
   const n=name.toLowerCase();
   // ORDER MATTERS. More specific / higher-value banded subcategories are checked
   // FIRST so they win over their general parent (e.g. a laptop must resolve to the
-  // 6.9% banded 'Laptops, Desktops & Tablets', not general 9.9% 'Computers & Tablets').
+  // 6.9% banded 'Laptops, Desktops & Tablets', not the 9.9% 'Computer Accessories & Parts').
   const rules=[
-    // ── Banded electronics subcategories (check before general electronics) ──
+    // ── Banded electronics (banded 6.9%→3% — check before general accessories) ──
     ['Laptops, Desktops & Tablets',['laptop','macbook','notebook','netbook','chromebook','desktop pc','desktop computer','all-in-one','imac','mac mini','mac pro','tower pc','gaming pc','tablet','ipad','galaxy tab','surface pro','surface go','kindle','ebook reader','e-reader','printer','scanner','server','nas ','hard drive','ssd','external drive']],
     ['TVs, Headphones & HiFi',['television',' tv ','smart tv','oled','qled','4k tv','led tv','plasma tv','soundbar','headphones','earphones','earbuds','airpods','sony wh','sony xm','wh-1','xm3','xm4','xm5','bose','beats','hifi','hi-fi','home cinema','amplifier','av receiver','dvd player','blu-ray player','bluray player','home audio','speaker','subwoofer','turntable']],
     ['Digital Cameras & Lenses',['dslr','mirrorless','digital camera','camcorder','camera lens','camera body','lens','55-200','18-55','50mm','telephoto','prime lens','zoom lens','gopro','canon eos','nikon d','sony alpha','fujifilm x','olympus om','lumix','550d','600d','700d','1300d','5d mark','60d','70d','80d','90d']],
-    ['Mobile & Smart Phones',['iphone','smartphone','smart phone','galaxy s','galaxy note','galaxy a','pixel phone','google pixel','oneplus','huawei p','xiaomi','redmi','sony xperia','mobile phone','android phone','nokia phone']],
+    ['Mobile Phones (Handsets)',['iphone','smartphone','smart phone','galaxy s','galaxy note','galaxy a','pixel phone','google pixel','oneplus','huawei p','xiaomi','redmi','sony xperia','mobile phone','android phone','nokia phone']],
     // Video game SOFTWARE before consoles: a title with "game"/franchise name is
     // software (9.9%); bare hardware terms fall through to consoles (6.9% banded).
     ['Video Games',['ps4 game','ps5 game','xbox game','nintendo game','switch game','wii game','video game','pc game','game disc','steam key','fifa','call of duty','grand theft auto','gta ','mario kart','zelda','pokemon game','gran turismo','grand turismo']],
     ['Video Game Consoles',['ps1','ps2','ps3','ps4 console','ps5 console','playstation 1','playstation 2','playstation 3','playstation 4','playstation 5','playstation console','xbox 360','xbox one','xbox series','xbox console','nintendo switch','switch console','wii console','wii u','gamecube','game boy','gameboy','nintendo ds','nintendo 3ds','3ds console','sega megadrive','mega drive','dreamcast','games console','gaming console','console bundle','console disc','console digital']],
-    // ── General electronics & media (9.9% parents) ──
-    ['Cameras & Photography',['camera','tripod','flash unit','dashcam','memory card','sd card','camera bag','film camera','instax','polaroid','film photography']],
-    ['Computers & Tablets',['computer','monitor','gaming keyboard','mechanical keyboard','wireless keyboard','usb keyboard','mouse','gpu','graphics card','processor','cpu','ram ','motherboard','router','netgear','webcam','usb hub','docking station','raspberry pi','arduino','geforce','radeon','gtx','rtx','nvidia','corsair','logitech','razer']],
-    ['Mobile Phones & Accessories',['phone case','phone charger','phone cover','screen protector','power bank','phone holder','sim ','phone cable']],
-    ['Sound & Vision',['walkman','stereo','radio','dab radio','microphone','karaoke','singing machine','mp3 player','ipod']],
+    // ── Trading Cards (before Sports Memorabilia — Panini could hit either) ──
+    ['Trading Cards',['pokemon card','pokémon card','pokemon booster','pokemon pack','pokemon tin','mtg ','magic the gathering','yugioh','yu-gi-oh','trading card','tcg ','panini','football sticker','match attax','psa graded','pokemon slab','one piece card','digimon card','lorcana','topps ','football card','baseball card','basketball card','nba card','nfl card','wwe trading','sticker album']],
+    // ── General 9.9% accessories/media (parent categories — banded siblings won above) ──
+    ['Camera Accessories',['tripod','flash unit','dashcam','memory card','sd card','camera bag','film camera','instax','polaroid','film photography','camera strap','camera case','light meter']],
+    ['Computer Accessories & Parts',['monitor','gaming keyboard','mechanical keyboard','wireless keyboard','usb keyboard','mouse','gpu','graphics card','processor','cpu','ram ','motherboard','router','netgear','webcam','usb hub','docking station','raspberry pi','arduino','geforce','radeon','gtx','rtx','nvidia','corsair','logitech','razer']],
+    ['Phone Accessories',['phone case','phone charger','phone cover','screen protector','power bank','phone holder','sim ','phone cable']],
+    ['Audio & Video Accessories',['walkman','stereo','radio','dab radio','microphone','karaoke','singing machine','mp3 player','ipod']],
     ['Music (CDs & Vinyl)',['vinyl','vinyl record','lp record','cd album','music cd','cassette tape','box set cd']],
     ['Films & TV',['dvd','blu-ray','blu ray','vhs','box set','complete series','season 1','season 2','complete collection','tv series','boxset']],
     ['Books, Comics & Magazines',['novel','paperback','hardback','hardcover','comic','manga','graphic novel','magazine','annual','textbook','encyclopedia','dictionary','biography','cookbook','audiobook','book set','childrens book','story book','book bundle','book collection']],
@@ -13559,9 +13573,9 @@ function autoCategory(name){
     ['Trainers',['trainers','sneakers','running shoes','nike air','jordan','yeezy','air max','air force','adidas ultra','new balance','dunk low','dunk high']],
     ["Women's Bags & Handbags",['handbag','shoulder bag','tote bag','clutch bag','designer bag','michael kors bag','coach bag','radley','ladies bag','ladies handbag']],
     ['Clothes, Shoes & Accessories',['shirt','t-shirt','jumper','hoodie','jacket','coat','trousers','jeans','dress','skirt','suit','tie','scarf','gloves','hat','cap','boots','shoes','sandals','heels','belt','socks','underwear','swimwear','sportswear','activewear','wallet','purse','backpack','rucksack']],
-    // ── Jewellery & Watches (Watches before general Jewellery) ──
+    // ── Watches (before Jewellery — a "gold watch" should be Watches not Jewellery) ──
     ['Watches',['wristwatch','wrist watch','rolex','omega watch','seiko watch','citizen watch','tissot','casio watch','g-shock','smartwatch','apple watch','garmin watch','fitbit','watch strap']],
-    ['Jewellery & Watches',['ring','necklace','bracelet','earring','pendant','brooch','jewellery','jewelry','gold chain','silver chain','diamond','gemstone','sapphire','cufflink']],
+    ['Jewellery',['ring','necklace','bracelet','earring','pendant','brooch','jewellery','jewelry','gold chain','silver chain','diamond','gemstone','sapphire','cufflink']],
     // ── Vehicle parts ──
     ['Vehicle Parts & Accessories',['car part','alloy wheel','tyre','car battery','brake pad','wing mirror','headlight','car stereo','dash cam','sat nav','tow bar','roof rack','number plate','bumper','exhaust','spark plug']],
     // ── 10.9% categories ──
@@ -13577,7 +13591,7 @@ function autoCategory(name){
     ['Coins',['coin','coin collection','sovereign','krugerrand','bullion','commemorative coin','old coins','rare coin']],
     ['Antiques',['antique','victorian','edwardian','georgian','antique furniture']],
     ['Art',['painting','original art','art print','canvas art','watercolour','oil painting','sculpture','signed print']],
-    ['Sports Memorabilia',['signed shirt','match worn','football programme','sports memorabilia','autographed','signed photo','trading card','panini']],
+    ['Sports Memorabilia',['signed shirt','match worn','football programme','sports memorabilia','autographed','signed photo']],
     ['Collectables',['collectible','collectable','vintage','retro','rare','limited edition','memorabilia','badge','medal','trophy','ornament','postcard','model kit','die cast','diecast','figurine','commemorative']],
     // ── Home (after garden/pottery so those win) ──
     ['Home, Furniture & DIY',['sofa','armchair','chair','table','desk','shelving','shelf','bookcase','wardrobe','chest of drawers','cabinet','mirror','lamp','light fitting','curtain','blind','rug','carpet','cushion','duvet','bedding','towel','cookware','frying pan','saucepan','kettle','toaster','microwave','blender','mixer','juicer','coffee machine','cutlery','crockery','dinner plates','storage box','drill','saw','hammer','screwdriver','toolbox','ladder','paint','tile','shower','tap','toilet','sink','radiator','heater','fan ','vacuum','dyson','hoover','mop','iron ','sewing machine','power tool','workshop','appliance']],
@@ -21913,11 +21927,11 @@ const EBAY_BIZ_FVF={
   'Books, Comics & Magazines': 0.099, // #267
   'Films & TV':                0.099, // #11232
   'Music (CDs & Vinyl)':       0.099, // #11233
-  'Cameras & Photography':     0.099, // #625 general (lenses/digital cameras banded below)
-  'Computers & Tablets':       0.099, // #58058 general (laptops/desktops/tablets banded below)
-  'Mobile Phones & Accessories':0.099,// #15032 general (handsets banded below)
-  'Sound & Vision':            0.099, // #293 general (TVs/headphones/hifi banded below)
-  'Video Games':               0.099, // #1249 general — game SOFTWARE (consoles banded below)
+  'Camera Accessories':        0.099, // #625 general — tripods/bags/SD cards (Digital Cameras banded)
+  'Computer Accessories & Parts':0.099,// #58058 general — mice/GPU/keyboards (Laptops banded)
+  'Phone Accessories':         0.099, // #15032 general — cases/chargers (Handsets banded)
+  'Audio & Video Accessories': 0.099, // #293 general — walkmans/radios (TVs banded)
+  'Video Games':               0.099, // #1249 game SOFTWARE (consoles banded)
 
   // ── 10.9% flat ──────────────────────────────────────────────────────────────
   'Antiques':                  0.109, // #20081
@@ -21926,13 +21940,14 @@ const EBAY_BIZ_FVF={
   'Collectables':              0.109, // #1
   'Dolls & Bears':             0.109, // #237
   'Garden & Patio':            0.109, // #159912
-  'Health & Beauty':           0.109, // #26395 general (wigs/vaping banded below)
+  'Health & Beauty':           0.109, // #26395 general
   'Musical Instruments':       0.109, // #619
   'Pottery, Ceramics & Glass': 0.109, // #870
   'Sporting Goods':            0.109, // #888
   'Sports Memorabilia':        0.109, // #64482
   'Stamps':                    0.109, // #260
-  'Toys & Games':              0.109, // #220 general (tents banded below)
+  'Toys & Games':              0.109, // #220 general
+  'Trading Cards':             0.109, // #212 Sports Trading Cards / Non-Sport TCG — authenticity-checked ≥£150
 
   // ── 11.9% flat ────────────────────────────────────────────────────────────
   'Clothes, Shoes & Accessories':0.119,// #11450 general (bags/trainers handled separately)
@@ -21955,21 +21970,21 @@ const EBAY_BIZ_FVF={
   'TVs, Headphones & HiFi':    {rate:0.069, threshold:1000, above:0.03},
   // Cameras banded: Camcorders, Digital Cameras, Film Photography, Lenses & Filters — 6.9%→3% @£1,000
   'Digital Cameras & Lenses':  {rate:0.069, threshold:1000, above:0.03},
-  // Mobile & Smart Phones (handsets) — 6.9%→3% @£1,000
-  'Mobile & Smart Phones':     {rate:0.069, threshold:1000, above:0.03},
+  // Mobile Phones (handsets) — 6.9%→3% @£1,000
+  'Mobile Phones (Handsets)':  {rate:0.069, threshold:1000, above:0.03},
   // Video Game Consoles hardware — 6.9%→2% @£400
   'Video Game Consoles':       {rate:0.069, threshold:400, above:0.02},
   // Home, Furniture & DIY general — 11.9%→7.9% @£500
   'Home, Furniture & DIY':     {rate:0.119, threshold:500, above:0.079},
-  // Jewellery & Watches general — 14.9%→4% @£1,000
-  'Jewellery & Watches':       {rate:0.149, threshold:1000, above:0.04},
-  // Watches, Parts & Accessories — 12.9%→3% @£750
+  // Jewellery (rings/necklaces etc — NOT watches) — 14.9%→4% @£1,000 (2024 raise)
+  'Jewellery':                 {rate:0.149, threshold:1000, above:0.04},
+  // Watches, Parts & Accessories — 12.9%→3% @£750 (excluded from the 2024 Jewellery raise)
   'Watches':                   {rate:0.129, threshold:750, above:0.03},
   // Women's Bags & Handbags — 12.9%→7% @£800
   "Women's Bags & Handbags":   {rate:0.129, threshold:800, above:0.07},
   // Coins — 10.9%→3% @£450
   'Coins':                     {rate:0.109, threshold:450, above:0.03},
-  // Vehicle Parts & Accessories general — 9.5%→3% @£750
+  // Vehicle Parts & Accessories general — 9.5%→3% @£750 (Feb 2026 threshold raise)
   'Vehicle Parts & Accessories':{rate:0.095, threshold:750, above:0.03},
 
   // ── Trainers: 11.9% general, flips to flat 7% when item price ≥ £100.
@@ -21990,11 +22005,10 @@ function calcEbayBizBPF(salePrice, category, itemPriceOnly){
   // still calculate correctly without requiring a data migration. Maps old
   // RETRADE category names → current eBay-aligned keys.
   const _legacyMap={
-    // Pre-Feb-2026 names
+    // Pre-Feb-2026 names (renamed once already)
     'Electronics & Tech':       'Laptops, Desktops & Tablets',
     'Electronics (banded)':     'Laptops, Desktops & Tablets',
-    'Cameras & Photography':    'Cameras & Photography', // unchanged
-    'Audio & Music':            'Sound & Vision',
+    'Audio & Music':            'Audio & Video Accessories',
     'Books & Media':            'Books, Comics & Magazines',
     'Video Games & Consoles':   'Video Games',
     'Clothing & Fashion':       'Clothes, Shoes & Accessories',
@@ -22002,6 +22016,13 @@ function calcEbayBizBPF(salePrice, category, itemPriceOnly){
     'Home & Garden':            'Home, Furniture & DIY',
     'Collectibles & Vintage':   'Collectables',
     'Business & Industrial':    'Business, Office & Industrial',
+    // v2.09.3 renames — general-vs-banded name-clash cleanup
+    'Cameras & Photography':    'Camera Accessories',
+    'Computers & Tablets':      'Computer Accessories & Parts',
+    'Mobile Phones & Accessories':'Phone Accessories',
+    'Sound & Vision':           'Audio & Video Accessories',
+    'Mobile & Smart Phones':    'Mobile Phones (Handsets)',
+    'Jewellery & Watches':      'Jewellery',
   };
   const _cat=_legacyMap[category]||category;
   let spec=EBAY_BIZ_FVF[_cat];
@@ -22048,7 +22069,7 @@ function _ebayBizRateLabel(category, salePrice, itemPriceOnly){
   const _legacyMap={
     'Electronics & Tech':'Laptops, Desktops & Tablets',
     'Electronics (banded)':'Laptops, Desktops & Tablets',
-    'Audio & Music':'Sound & Vision',
+    'Audio & Music':'Audio & Video Accessories',
     'Books & Media':'Books, Comics & Magazines',
     'Video Games & Consoles':'Video Games',
     'Clothing & Fashion':'Clothes, Shoes & Accessories',
@@ -22056,6 +22077,13 @@ function _ebayBizRateLabel(category, salePrice, itemPriceOnly){
     'Home & Garden':'Home, Furniture & DIY',
     'Collectibles & Vintage':'Collectables',
     'Business & Industrial':'Business, Office & Industrial',
+    // v2.09.3 renames
+    'Cameras & Photography':'Camera Accessories',
+    'Computers & Tablets':'Computer Accessories & Parts',
+    'Mobile Phones & Accessories':'Phone Accessories',
+    'Sound & Vision':'Audio & Video Accessories',
+    'Mobile & Smart Phones':'Mobile Phones (Handsets)',
+    'Jewellery & Watches':'Jewellery',
   };
   const _cat=_legacyMap[category]||category;
   let spec=EBAY_BIZ_FVF[_cat];
