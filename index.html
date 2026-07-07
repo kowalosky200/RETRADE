@@ -5156,7 +5156,7 @@ function _ensureDBShape(){
 // otherwise have to skip un-sourced items entirely.
 function _migrateItemStates(){
   const _VALID_STATES=['sourced','listed','sold','returned'];
-  let touchedState=0, touchedSourced=0;
+  let touchedState=0, touchedSourced=0, reconciled=0;
   allDBKeys().forEach(function(k){
     (DB[k]||[]).forEach(function(i){
       // E7: remap legacy 'stock' → 'sourced'. Items saved before E6 renamed the
@@ -5175,12 +5175,33 @@ function _migrateItemStates(){
         else { i.state='listed'; }
         touchedState++;
       }
+      // v2.09.4 — Reconcile ghost states left by pre-v2.09.2 duplicates. An item
+      // with state='sold' but no dateSold AND no resaleSalePrice AND not
+      // returned isn't actually sold — the source item was, the duplicate
+      // inherited the state but had its sale fields cleared. Stock Room shows
+      // these correctly as listed (its filter ignores state), but the account
+      // page and other state-driven UIs read the wrong badge. Correct here.
+      // Same pattern for state='returned' without an isReturned/return record.
+      if(i.state==='sold' && !i.dateSold && !i.resaleSalePrice && !i.isReturned){
+        i.state='listed';
+        reconciled++;
+      } else if(i.state==='returned' && !i.isReturned){
+        const _hadFullReturn=(i.returnHistory||[]).some(function(r){return r.type==='full_seller'||r.type==='full_ebay';});
+        if(!_hadFullReturn){
+          // No supporting evidence — treat as active. If dateSold survived,
+          // it was truly sold before the return got cleared; otherwise listed.
+          i.state=(i.dateSold||i.resaleSalePrice)?'sold':'listed';
+          reconciled++;
+        }
+      }
       if(!i.dateSourced){
         i.dateSourced = i.dateListed || i.dateSold || null;
         if(i.dateSourced) touchedSourced++;
       }
     });
   });
+  if(reconciled>0)console.info('[RETRADE] v2.09.4 state reconcile: fixed '+reconciled+' ghost-sold/returned item'+(reconciled!==1?'s':''));
+  return reconciled;
 }
 
 // On load: migrate bare keys ('APR') → year-suffixed ('APR-26') using dateListed/dateSold
@@ -7734,15 +7755,31 @@ async function initDB(){
     ]);
     // Migrate any legacy bare keys ('APR') → year-suffixed ('APR-26')
     _migrateBareDBKeys();
-    // Patch A — Stamp canonical state field on every item (one-time)
-    _migrateItemStates();
+    // v2.09.4 — Snapshot the pre-migration state so if _migrateItemStates
+    // reconciles any ghost-sold items, the diff engine sees the change and
+    // pushes it to Supabase on the next natural saveDB. Without this the fix
+    // only lives in memory each session and Supabase never gets corrected.
+    const _preMigrationSnapshot = _dbFingerprint();
+    // Patch A — Stamp canonical state field on every item (one-time) +
+    // v2.09.4 reconcile pass for ghost-sold state (returns count for logging).
+    const _reconciled = _migrateItemStates();
     // v2.09 — Pre-existing supplier items with cost + no explicit settled flag
     // default to settled (historical purchases were paid on the spot). Idempotent.
     try{if(typeof _migrateSupplierSettledOnce==='function')_migrateSupplierSettledOnce();}catch(e){console.warn('supplier settle migration failed',e);}
-    // Snapshot MUST be set immediately after load — before any renderX call
-    // triggers saveDB(). Without this the diff engine thinks everything is new
-    // and re-upserts the entire DB on every page load.
-    _dbSnapshot = _dbFingerprint();
+    // If the reconcile fixed anything, snapshot the OLD state so the next
+    // saveDB pushes the corrections. Otherwise snapshot the current (unchanged)
+    // state so we don't re-upload untouched rows.
+    if(_reconciled>0){
+      _dbSnapshot = _preMigrationSnapshot;
+      // Schedule an async persist without blocking init — the corrections will
+      // reach Supabase within seconds of the app becoming interactive.
+      setTimeout(function(){ try{ saveDB(); }catch(e){ console.warn('[RETRADE] Post-migration save failed',e); } }, 500);
+    } else {
+      // Snapshot MUST be set immediately after load — before any renderX call
+      // triggers saveDB(). Without this the diff engine thinks everything is new
+      // and re-upserts the entire DB on every page load.
+      _dbSnapshot = _dbFingerprint();
+    }
     _loadUIState();
     hideLoadingScreen();
     // On a fresh session, always start on Summary (the natural home), ignoring
