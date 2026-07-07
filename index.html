@@ -5013,6 +5013,7 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
       style="width:100%;padding:12px;background:var(--accent);color:#000;border:none;border-radius:8px;font-weight:700;font-size:15px;cursor:pointer;transition:background 0.15s;">
       Sign In
     </button>
+
     <button onclick="showForgotPassword()"
       style="width:100%;padding:10px;background:none;border:none;color:var(--text-secondary);font-size:13px;cursor:pointer;margin-top:8px;text-decoration:underline;text-underline-offset:3px;">
       Forgot password?
@@ -6772,6 +6773,7 @@ function enablePreviewMode(){
   DB = _buildPreviewDB();
   // Patch A — Stamp canonical state field on preview-mode items too
   try{ _migrateItemStates(); }catch(e){ console.warn('state migrate (preview):',e); }
+  try{ if(typeof _migrateSupplierSettledOnce==='function')_migrateSupplierSettledOnce(); }catch(e){ console.warn('supplier settle migrate (preview):',e); }
   _dbSnapshot = _dbFingerprint();
 }
 
@@ -11193,7 +11195,6 @@ function _accountItemOwed(i){
   if(profit===null)return null;
   return+(profit*(i.accountSplitPercent/100)).toFixed(2);
 }
-
 // Total unpaid partner DEBT for settlement tracking on the account page.
 // Includes supplier cost (which is what you owe for the stock) and returns
 // non-null even on unsold supplier items — you owe a supplier at purchase, not
@@ -11221,8 +11222,8 @@ function _accountStats(accountId){
   const active=items.filter(function(i){return i.state!=='sold'&&!i.resaleSalePrice&&!i.isReturned;});
   const grossProfit=sold.reduce(function(s,i){return s+(calcGrossProfit(i)||0);},0);
   let totalOwed=0,unsettledOwed=0,settledOwed=0,splitItemCount=0,partnerProfitCut=0;
-  // Iterate ALL items — supplier owed is per-purchase (returns non-null even when
-  // unsold), consignment/hybrid owed is per-sale (returns null when unsold).
+  // Iterate ALL items — supplier debt is per-purchase (returns non-null even when
+  // unsold), consignment/hybrid debt is per-sale (returns null when unsold).
   items.forEach(function(i){
     const owed=_accountItemDebt(i);
     if(owed===null)return;
@@ -11303,7 +11304,7 @@ function _acctBulkSettle(){
   _acctSelected.forEach(function(id){
     allDBKeys().forEach(function(k){
       const item=(DB[k]||[]).find(function(i){return i.id===id;});
-      if(item&&_accountItemDebt(item)!==null&&!item.accountSettled){item.accountSettled=true;n++;}
+      if(item&&_accountItemOwed(item)!==null&&!item.accountSettled){item.accountSettled=true;n++;}
     });
   });
   saveDB();
@@ -11363,24 +11364,6 @@ function _acctBulkSplitConfirm(){
 }
 
 // ── v2.09 · Supplier-aware account ops ────────────────────────────────────────
-// Per-item settle toggle — the button next to the owed badge on each row.
-// Persists via saveDB() → Supabase sync.
-function toggleItemSettled(itemId,ev){
-  if(ev){ev.stopPropagation();ev.preventDefault();}
-  let target=null;
-  allDBKeys().forEach(function(k){
-    const item=(DB[k]||[]).find(function(i){return i.id===itemId;});
-    if(item)target=item;
-  });
-  if(!target){toast('Item not found','error');return;}
-  if(_accountItemDebt(target)===null){toast('No owed amount to settle','error');return;}
-  target.accountSettled=!target.accountSettled;
-  saveDB();
-  toast(target.accountSettled?'Marked settled':'Marked unsettled');
-  const acct=_acctCurrentAcct();
-  if(acct)_renderAccountPage(acct);
-}
-
 // Bulk mark selected as UNSETTLED — the reverse of _acctBulkSettle. Useful when
 // a supplier hasn't been paid for a batch and needs to be flipped back.
 function _acctBulkUnsettle(){
@@ -11522,6 +11505,33 @@ function _renderAccountPage(acct){
   const isSupplierAcct=(acct.accountType==='supplier');
 
   // ── Row helper builders ────────────────────────────────────────────────────
+  // Compute the "You vs Partner" money split for the right-hand column. Handles
+  // supplier (you keep all profit, partner got cost), consignment %, hybrid, and
+  // Option-B fixed amount. Returns amounts + optional bracketed label ('50%',
+  // 'cost', 'fixed', etc.).
+  const _computeSplit=function(i,gross){
+    const effType=_itemAccountType(i);
+    const debt=_accountItemDebt(i);
+    if(effType==='supplier'){
+      return {you:(gross!==null?gross:null), partner:debt, youLabel:'', partnerLabel:'cost'};
+    }
+    // Consignment / hybrid
+    if(gross===null){
+      return {you:null, partner:null, youLabel:'', partnerLabel:''};
+    }
+    if(i.accountPaidAmount!=null){
+      const you=+(gross-debt).toFixed(2);
+      const yPct=gross>0?Math.round((you/gross)*100):0;
+      return {you, partner:debt, youLabel:yPct+'%', partnerLabel:'fixed'};
+    }
+    if(i.accountSplitPercent!=null){
+      const pPct=i.accountSplitPercent;
+      const yPct=100-pPct;
+      return {you:+(gross-debt).toFixed(2), partner:debt, youLabel:yPct+'%', partnerLabel:pPct+'%'};
+    }
+    return {you:gross, partner:null, youLabel:'', partnerLabel:''};
+  };
+
   // Owed pill + tappable settle/unsettle button. Rendered anywhere owed !== null.
   const _settleControl=function(i,owed){
     if(owed===null)return '';
@@ -11530,7 +11540,7 @@ function _renderAccountPage(acct){
     const bg=paid?'rgba(34,197,94,0.14)':'rgba(212,136,10,0.14)';
     const col=paid?'var(--green)':'var(--accent)';
     const border=paid?'rgba(34,197,94,0.35)':'rgba(212,136,10,0.35)';
-    return '<button type="button" onclick="toggleItemSettled(\''+i.id+'\',event)" '
+    return '<button type="button" onclick="toggleItemSettled(\''+i._month+'\',\''+i.id+'\',event)" '
       +'style="font-size:10px;font-weight:700;padding:3px 9px;border-radius:20px;'
       +'background:'+bg+';color:'+col+';border:1px solid '+border+';cursor:pointer;line-height:1.2;">'
       +label+'</button>';
@@ -11561,10 +11571,27 @@ function _renderAccountPage(acct){
       +(isSel?'<svg width="12" height="12" viewBox="0 0 12 12"><path d="M2 6l3 3 5-5" stroke="#000" stroke-width="1.8" stroke-linecap="round" fill="none"/></svg>':'')
       +'</div>';
   };
+  // Right-column money block — You (bold, green) + Partner (secondary) + settle btn
+  const _moneyBlock=function(i,gross,owed){
+    const sp=_computeSplit(i,gross);
+    const youAmt=sp.you!==null?fmt(sp.you):'\u2014';
+    const youColor=sp.you!==null?(sp.you>=0?'var(--green)':'var(--red)'):'var(--text-secondary)';
+    const youLbl=sp.youLabel?' <span style="opacity:0.6;font-weight:500;font-size:10.5px;">('+sp.youLabel+')</span>':'';
+    const partLine=(sp.partner!==null)
+      ? '<div style="font-size:12px;color:var(--text-secondary);margin-top:1px;white-space:nowrap;">Partner '+fmt(sp.partner)+(sp.partnerLabel?' <span style="opacity:0.7;">('+sp.partnerLabel+')</span>':'')+'</div>'
+      : '';
+    const settle=(owed!==null)?'<div style="margin-top:4px;">'+_settleControl(i,owed)+'</div>':'';
+    return '<div style="text-align:right;flex-shrink:0;min-width:105px;">'
+      +'<div style="font-size:14px;font-weight:700;color:'+youColor+';white-space:nowrap;">You '+youAmt+youLbl+'</div>'
+      +partLine
+      +settle
+      +'</div>';
+  };
 
   const soldRows=sold.length?sold.map(function(i){
     const owed=_accountItemDebt(i);
     const profit=calcGrossProfit(i);
+    const salePriceStr=fmt(i.salePrice||0);
     const dateStr=(i.resaleSalePrice?i.resaleDateSold:i.dateSold)||'';
     const isSel=_acctSelected.has(i.id);
     if(_acctSelectMode){
@@ -11572,7 +11599,7 @@ function _renderAccountPage(acct){
         +_selCheckbox(isSel)
         +'<div style="min-width:0;flex:1;">'
           +'<div style="font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(i.item||'Untitled')+'</div>'
-          +'<div style="font-size:11px;color:var(--text-secondary);margin-top:1px;">'+dateStr+' \u00b7 '+_splitLine(i)+'</div>'
+          +'<div style="font-size:11px;color:var(--text-secondary);margin-top:1px;">Sold '+dateStr+' \u00b7 '+salePriceStr+'</div>'
         +'</div>'
         +'<div style="text-align:right;flex-shrink:0;margin-left:8px;">'
           +'<div style="font-size:14px;font-weight:700;color:'+(profit>=0?'var(--green)':'var(--red)')+';">'+(profit!==null?fmt(profit):'\u2014')+'</div>'
@@ -11582,42 +11609,44 @@ function _renderAccountPage(acct){
     return '<div class="metric-inline" style="align-items:flex-start;">'
       +'<div style="min-width:0;flex:1;">'
         +'<div class="metric-k clickable" data-itemid="'+i.id+'" data-month="'+i._month+'" onclick="openItemDetail(this.dataset.month,this.dataset.itemid)" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(i.item||'Untitled')+'</div>'
-        +'<div style="font-size:11px;color:var(--text-secondary);margin-top:2px;">'+dateStr+' \u00b7 '+_splitLine(i)+'</div>'
+        +'<div style="font-size:11px;color:var(--text-secondary);margin-top:2px;">Sold '+dateStr+' \u00b7 for '+salePriceStr+'</div>'
         +_editSplitBtn(i)
       +'</div>'
-      +'<div style="text-align:right;flex-shrink:0;">'
-        +'<div class="metric-v" style="font-size:15px;color:'+(profit>=0?'var(--green)':'var(--red)')+';">'+(profit!==null?fmt(profit):'\u2014')+'</div>'
-        +(owed!==null?'<div style="margin-top:3px;display:flex;align-items:center;gap:6px;justify-content:flex-end;flex-wrap:wrap;"><span style="font-size:11px;color:var(--text-secondary);">owed '+fmt(owed)+'</span>'+_settleControl(i,owed)+'</div>':'')
-      +'</div></div>';
+      +_moneyBlock(i,profit,owed)
+    +'</div>';
   }).join('') : '<div style="padding:20px;text-align:center;color:var(--muted);font-size:13px;">No sales yet from this account</div>';
 
   const activeRows=active.length?active.map(function(i){
     const owed=_accountItemDebt(i); // non-null for supplier items with cost
     const isSel=_acctSelected.has(i.id);
+    const askingStr=fmt(i.salePrice||0);
     if(_acctSelectMode){
       return '<div class="metric-inline" style="align-items:center;cursor:pointer;" onclick="_acctToggleSelect(\''+i.id+'\')">'
         +_selCheckbox(isSel)
         +'<div style="min-width:0;flex:1;"><div style="font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(i.item||'Untitled')+'</div>'
         +'<div style="font-size:11px;color:var(--text-secondary);"><span class="item-badge '+i.state+'" style="font-size:10px;padding:2px 6px;">'+i.state+'</span> \u00b7 '+_splitLine(i)+'</div></div>'
         +'<div style="text-align:right;flex-shrink:0;margin-left:8px;">'
-          +'<div style="font-size:14px;font-weight:700;">'+fmt(i.salePrice||0)+'</div>'
+          +'<div style="font-size:14px;font-weight:700;">'+askingStr+'</div>'
           +(owed!==null?'<div style="font-size:11px;color:var(--text-secondary);">owed '+fmt(owed)+'</div>':'')
         +'</div></div>';
     }
+    // Active row right column — asking price + owed/settle for suppliers only
+    const activeRight='<div style="text-align:right;flex-shrink:0;min-width:105px;">'
+      +'<div style="font-size:13px;font-weight:700;color:var(--text-secondary);white-space:nowrap;">Asking '+askingStr+'</div>'
+      +(owed!==null?'<div style="font-size:12px;color:var(--text-secondary);margin-top:1px;">Owed '+fmt(owed)+' <span style="opacity:0.7;">(cost)</span></div>'+'<div style="margin-top:4px;">'+_settleControl(i,owed)+'</div>':'')
+    +'</div>';
     return '<div class="metric-inline" style="align-items:flex-start;">'
       +'<div style="min-width:0;flex:1;">'
         +'<div class="metric-k clickable" data-itemid="'+i.id+'" data-month="'+i._month+'" onclick="openItemDetail(this.dataset.month,this.dataset.itemid)" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(i.item||'Untitled')+'</div>'
         +'<div style="font-size:11px;color:var(--text-secondary);margin-top:2px;"><span class="item-badge '+i.state+'" style="font-size:10px;padding:2px 6px;">'+i.state+'</span> \u00b7 '+_splitLine(i)+'</div>'
         +_editSplitBtn(i)
       +'</div>'
-      +'<div style="text-align:right;flex-shrink:0;">'
-        +'<div class="metric-v" style="font-size:14px;">'+fmt(i.salePrice||0)+'</div>'
-        +(owed!==null?'<div style="margin-top:3px;display:flex;align-items:center;gap:6px;justify-content:flex-end;flex-wrap:wrap;"><span style="font-size:11px;color:var(--text-secondary);">owed '+fmt(owed)+'</span>'+_settleControl(i,owed)+'</div>':'')
-      +'</div></div>';
+      +activeRight
+    +'</div>';
   }).join('') : '<div style="padding:20px;text-align:center;color:var(--muted);font-size:13px;">No active stock from this account</div>';
 
   // "Mark all N unsettled as paid" — supplier accounts include unsold items in
-  // the count (owed is per-purchase, not per-sale). Consignment/hybrid still
+  // the count (debt is per-purchase, not per-sale). Consignment/hybrid still
   // restrict to sold.
   const unsettledCount=(isSupplierAcct?items:sold)
     .filter(function(i){return _accountItemDebt(i)!==null&&!i.accountSettled;}).length;
@@ -11636,13 +11665,23 @@ function _renderAccountPage(acct){
         +(acct.accountType==='consignment'?' \u00b7 costPrice auto-set to \u00a30 on assign':'')+'.</div>'
       : '<div style="font-size:12px;color:var(--text-secondary);margin-bottom:12px;">No default split set. Tap <strong style="color:var(--text);">Edit</strong> to set the arrangement.</div>';
 
-  // Type-aware bulk bar — supplier gets Set-cost, consignment/hybrid gets Set-split.
-  // Both get mark-settled, mark-unsettled, remove-from-account.
+  // Select bar — always shown when in select mode. When 0 items selected we
+  // show a slim "select all / cancel" bar so the user doesn't have to hunt for
+  // Select all after tapping into select mode; once one item is picked the full
+  // action bar unlocks. Fixes the "no option to select all" report.
   const primaryBulkBtn=isSupplierAcct
     ? '<button class="btn btn-secondary" style="font-size:12px;" onclick="_acctBulkSetCost()">Set cost</button>'
     : '<button class="btn btn-secondary" style="font-size:12px;" onclick="_acctBulkSetSplit()">Set split</button>';
-  const selBar=_acctSelectMode&&_acctSelected.size>0
-    ? '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:10px 14px;background:var(--surface2);border:1px solid var(--accent);border-radius:10px;margin-bottom:12px;">'
+  let selBar='';
+  if(_acctSelectMode){
+    if(_acctSelected.size===0){
+      selBar='<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:10px 14px;background:var(--surface2);border:1px dashed var(--accent);border-radius:10px;margin-bottom:12px;">'
+        +'<span style="font-size:12px;color:var(--text-secondary);flex:1;">Tap items to select \u2014 or:</span>'
+        +'<button class="btn btn-secondary" style="font-size:12px;color:var(--accent);border-color:var(--accent);" onclick="_acctSelectAll()">Select all ('+items.length+')</button>'
+        +'<button class="btn btn-secondary" style="font-size:12px;color:var(--text-secondary);" onclick="_acctToggleSelectMode()">Cancel</button>'
+      +'</div>';
+    } else {
+      selBar='<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:10px 14px;background:var(--surface2);border:1px solid var(--accent);border-radius:10px;margin-bottom:12px;">'
         +'<span style="font-size:13px;font-weight:700;color:var(--accent);flex:1 1 100%;">'+_acctSelected.size+' selected</span>'
         +'<button class="btn btn-secondary" style="font-size:12px;" onclick="_acctBulkSettle()">Mark settled</button>'
         +'<button class="btn btn-secondary" style="font-size:12px;" onclick="_acctBulkUnsettle()">Mark unsettled</button>'
@@ -11650,8 +11689,9 @@ function _renderAccountPage(acct){
         +'<button class="btn btn-secondary" style="font-size:12px;color:var(--red);border-color:rgba(239,68,68,0.35);" onclick="_acctBulkRemoveFromAccount()">Remove</button>'
         +'<button class="btn btn-secondary" style="font-size:12px;" onclick="_acctSelectAll()">All</button>'
         +'<button class="btn btn-secondary" style="font-size:12px;color:var(--text-secondary);" onclick="_acctClearSelect()">Clear</button>'
-      +'</div>'
-    : '';
+      +'</div>';
+    }
+  }
 
   const html='<div style="padding:16px 0 40px;">'
     +'<button class="btn btn-secondary" onclick="backToAccountsList()" style="margin-bottom:14px;">\u2190 Accounts</button>'
@@ -11677,9 +11717,9 @@ function _renderAccountPage(acct){
 }
 
 function settleAllForAccount(accountId){
-  // Iterates all items — _accountItemDebt already returns non-null for sold
-  // consignment/hybrid items AND for supplier items with cost (regardless of
-  // sale state), so this handles all types correctly.
+  // Uses _accountItemDebt so it covers unsold supplier items too — supplier
+  // debt is per-purchase, not per-sale. Consignment/hybrid unsold items return
+  // null and are ignored naturally.
   let n=0;
   allDBKeys().forEach(function(k){
     (DB[k]||[]).forEach(function(i){
@@ -11853,11 +11893,14 @@ function applyDefaultSplitToAll(accountId){
   });
 }
 
-function toggleItemSettled(month,itemId){
+function toggleItemSettled(month,itemId,ev){
+  if(ev){ev.stopPropagation();ev.preventDefault();}
   const item=(DB[month]||[]).find(function(i){return i.id===itemId;});
-  if(!item)return;
+  if(!item){toast('Item not found','error');return;}
+  if(_accountItemDebt(item)===null){toast('No owed amount to settle','error');return;}
   item.accountSettled=!item.accountSettled;
   saveDB();
+  toast(item.accountSettled?'Marked settled':'Marked unsettled');
   const acct=_accounts.find(function(a){return a.id===item.accountId;});
   if(acct&&document.getElementById('p-item')&&document.getElementById('p-item').classList.contains('on')){
     _renderAccountPage(acct);
@@ -19514,7 +19557,15 @@ function duplicateItem(m,id,context){
   copy.id='dup_'+Date.now();
   copy.gid='R-'+String(getNextGID()).padStart(4,'0');
   copy.dateListed=new Date().toISOString().split('T')[0];
+  // v2.09.2 — Force a clean "active listing" state. Previously only dateSold /
+  // grossProfit / isReturned were cleared, so duplicating a sold-then-relisted
+  // item left resaleSalePrice / resaleDateSold intact — the Account page's
+  // sold-filter (i.state==='sold' || !!i.resaleSalePrice) then treated the copy
+  // as a sale even though the Stock Room showed it correctly as listed.
+  copy.state='listed';
   copy.dateSold=null;copy.grossProfit=null;copy.isReturned=false;
+  copy.resaleSalePrice=null;copy.resaleDateSold=null;copy.resaleGrossProfit=null;
+  copy.accountSettled=false; // new item = new debt to the partner
   copy.returnHistory=[];delete copy.returnData;
   const stripSuffix=function(name){
     const m2=(name||'').match(/^(.+?) - (\d+)$/);
