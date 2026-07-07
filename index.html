@@ -7863,7 +7863,17 @@ function refreshActivePage(){
   else if(id==='p-tax'&&typeof renderTax==='function')renderTax();
   else if(id==='p-active-run'&&typeof renderActiveRunPage==='function')renderActiveRunPage();
   else if(id==='p-runs'&&typeof renderRunsPage==='function')renderRunsPage();
-  // p-item and p-search intentionally skipped
+  // p-item is intentionally skipped for the item detail view (would flicker
+  // mid-edit) — but account detail ALSO renders into p-item, so mutations from
+  // elsewhere (marking sold, returning, relisting, etc.) never reached it.
+  // v2.09.6: if p-item is currently showing an account, refresh just that.
+  else if(id==='p-item'){
+    try{
+      const _acct=(typeof _acctCurrentAcct==='function')?_acctCurrentAcct():null;
+      if(_acct && typeof _renderAccountPage==='function')_renderAccountPage(_acct);
+    }catch(e){/* stay silent — item detail still safely skipped */}
+  }
+  // p-search intentionally skipped
 }
 
 // BUYER PROTECTION FEE (Tiered eBay UK formula)
