@@ -12167,9 +12167,32 @@ function openBulkAssignAccountModal(accountId){
     if(wrap){
       const listEl=wrap.querySelector('[data-ba-acct-list]');
       const prevScroll=listEl?listEl.scrollTop:0;
+      // v2.09.5 — Preserve search input focus + caret across re-renders.
+      // Every keystroke calls _baAcctRender which does wrap.innerHTML=html —
+      // that destroys the search <input> element and the browser can't keep
+      // focus on a node that no longer exists, so the user had to click back
+      // into the box after each letter. Capture focus/caret before the swap,
+      // restore after.
+      const _searchEl=document.getElementById('ba-acct-search');
+      const _hadSearchFocus=(_searchEl&&document.activeElement===_searchEl);
+      const _selStart=_hadSearchFocus?_searchEl.selectionStart:null;
+      const _selEnd=_hadSearchFocus?_searchEl.selectionEnd:null;
       wrap.innerHTML=html;
       const newList=wrap.querySelector('[data-ba-acct-list]');
       if(newList&&prevScroll)newList.scrollTop=prevScroll;
+      if(_hadSearchFocus){
+        const _newSearch=document.getElementById('ba-acct-search');
+        if(_newSearch){
+          _newSearch.focus();
+          // Restore caret only if the value hasn't shortened underneath us —
+          // browser will clamp anyway but skip when out-of-range to be safe.
+          try{
+            if(_selStart!=null&&_selStart<=_newSearch.value.length){
+              _newSearch.setSelectionRange(_selStart,_selEnd);
+            }
+          }catch(e){/* selection API not available on this input type — ignore */}
+        }
+      }
     }
   };
 
