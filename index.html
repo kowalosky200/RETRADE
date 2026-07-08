@@ -2562,6 +2562,20 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
 .rt .summary-chart-card .legend-item{display:inline-flex;align-items:center;gap:5px;}
 .rt .summary-chart-card .legend-dot{width:8px;height:8px;border-radius:2px;display:inline-block;}
 .rt .summary-chart-card #summary-chart-svg{width:100%;flex:1;min-height:220px;max-height:320px;display:block;}
+/* Sales History profitability chart — intentionally mirrors the dashboard
+   chart card exactly: same card padding, heading, legend, type and spacing. */
+.rt #p-monthly .monthly-profitability-card{display:flex;flex-direction:column;padding:22px;margin-bottom:18px;}
+.rt #p-monthly .monthly-profitability-card .summary-chart-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;gap:12px;flex-wrap:wrap;}
+.rt #p-monthly .monthly-profitability-card .sl{margin:0;}
+.rt #p-monthly .monthly-profitability-card .summary-chart-legend{display:flex;gap:14px;font-size:11px;color:var(--text-tertiary);}
+.rt #p-monthly .monthly-profitability-card .legend-item{display:inline-flex;align-items:center;gap:5px;}
+.rt #p-monthly .monthly-profitability-card .legend-dot{width:8px;height:8px;border-radius:2px;display:inline-block;}
+.rt #p-monthly .monthly-profitability-svg{width:100%;min-height:220px;max-height:320px;display:block;}
+@media(max-width:600px){
+  .rt #p-monthly .monthly-profitability-card{padding:16px;border-radius:18px;}
+  .rt #p-monthly .monthly-profitability-svg{min-height:200px;max-height:260px;}
+}
+
 .rt .summary-categories-empty{display:none;}
 .rt .summary-cat-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;gap:8px;}
 .rt .summary-cat-count{font-size:10px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.06em;}
@@ -14201,7 +14215,7 @@ function showFilteredItems(filter){
   // Sort
   if(filter==='revenue'||filter==='realised')items.sort((a,b)=>(b._displayDate||'').localeCompare(a._displayDate||''));
   if(filter==='realised')items.sort((a,b)=>(b._entryProfit||0)-(a._entryProfit||0));
-  const titles={revenue:'Total Revenue',realised:'Net Profit',unrealised:'Unrealised Profit',stock:'Stock Value'};
+  const titles={revenue:'Total Revenue',realised:'Gross Profit',unrealised:'Unrealised Profit',stock:'Stock Value'};
   let summaryVal='',summaryLabel='',summaryColor='var(--accent)';
   const uniqueItemCount=new Set(items.map(i=>i.id)).size;
   const returnEntryCount=items.filter(i=>i._entryType==='sale1').length;
@@ -14216,11 +14230,11 @@ function showFilteredItems(filter){
     // are only the sold-item component, so use the canonical stats total here and
     // render a reconciliation card below instead of mislabelling their subtotal.
     const stats=calcYearlyStats(SUMMARY_PERIOD);
-    summaryVal=fmt(stats.netProfit);
+    summaryVal=fmt(stats.grossProfit);
     const extras=[];
     if(resoldEntryCount>0)extras.push(`${resoldEntryCount} resold`);
-    summaryLabel=`${items.length} sold items · after returns & overheads`;
-    summaryColor=stats.netProfit>=0?'var(--green)':'var(--red)';
+    summaryLabel=`${items.length} sold items · after returns · before overheads`;
+    summaryColor=stats.grossProfit>=0?'var(--green)':'var(--red)';
   } else if(filter==='unrealised'){
     summaryVal=fmt(items.reduce((s,i)=>s+(calcGrossProfit(i)||0),0));
     summaryLabel=`${items.length} active listings`;
@@ -14287,10 +14301,8 @@ function showFilteredItems(filter){
       <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.1em;margin-bottom:4px">Reconciliation</div>
       ${line('Sold-item profit',soldItemSubtotal,true)}
       ${Math.abs(returnAndTimingAdj)>0.004?line('Dated return adjustments',returnAndTimingAdj,true):''}
-      ${line('Item profit after returns',stats.grossProfit,true)}
-      ${stats.tripsCostInPeriod?line('Less: trips',-stats.tripsCostInPeriod,true):''}
-      ${stats.expensesCostInPeriod?line('Less: expenses',-stats.expensesCostInPeriod,true):''}
-      <div style="display:flex;justify-content:space-between;gap:12px;padding-top:9px;font-size:13px;font-weight:700"><span>Net Profit</span><strong style="color:${stats.netProfit>=0?'var(--green)':'var(--red)'}">${fmt(stats.netProfit)}</strong></div>
+      <div style="display:flex;justify-content:space-between;gap:12px;padding-top:9px;font-size:13px;font-weight:700"><span>Gross Profit</span><strong style="color:${stats.grossProfit>=0?'var(--green)':'var(--red)'}">${fmt(stats.grossProfit)}</strong></div>
+      <div style="font-size:11px;color:var(--muted);margin-top:8px">Includes returns and partner splits. Trips and general expenses are shown in Monthly Net Profit.</div>
     </div>`;
   }
   const html=`
@@ -14654,28 +14666,34 @@ function renderSummaryChart(labels,revData,profitData){
 function _renderChartInto(svgEl,labels,revData,profitData,handlers,opts){
   const n=labels.length;
   const {W,H,pad,fontSize,yTicks,maxXLabels,profitDotR,revDotR,profitStroke,revStroke,scrubDotR,gradientId}=opts;
+  const primaryColor=opts.primaryColor||'var(--state-listed)';
+  const secondaryColor=opts.secondaryColor||'var(--profit)';
+  const primaryLabel=opts.primaryLabel||'Revenue';
+  const secondaryLabel=opts.secondaryLabel||'Gross Profit';
   const innerW=W-pad.l-pad.r;
   const innerH=H-pad.t-pad.b;
 
-  // Y scale — round to nice 1×/2×/5×/10× of magnitude
-  const maxV=Math.max(0,...revData,...profitData);
-  let yMax;
-  if(maxV<=0){yMax=100;}
-  else{
-    const mag=Math.pow(10,Math.floor(Math.log10(maxV)));
-    const norm=maxV/mag;
-    if(norm<=1)yMax=1*mag;
-    else if(norm<=2)yMax=2*mag;
-    else if(norm<=5)yMax=5*mag;
-    else yMax=10*mag;
-  }
+  // Y scale supports negative return adjustments. Both series share one
+  // scale so the chart can visibly cross £0 and still reconcile to the KPI.
+  const rawMax=Math.max(0,...revData,...profitData);
+  const rawMin=Math.min(0,...revData,...profitData);
+  const niceBound=function(v){
+    v=Math.abs(v); if(v<=0)return 0;
+    const mag=Math.pow(10,Math.floor(Math.log10(v)));
+    const norm=v/mag;
+    return (norm<=1?1:norm<=2?2:norm<=5?5:10)*mag;
+  };
+  let yMax=niceBound(rawMax)||100;
+  let yMin=rawMin<0?-niceBound(rawMin):0;
+  if(yMin===yMax){yMin=0;yMax=100;}
+  const yRange=(yMax-yMin)||1;
   const xStep=n>1?innerW/(n-1):0;
   const sx=i=>n>1?pad.l+i*xStep:pad.l+innerW/2;
-  const sy=v=>pad.t+innerH-(v/yMax)*innerH;
+  const sy=v=>pad.t+innerH-((v-yMin)/yRange)*innerH;
 
-  // Y tick values (yTicks intervals → yTicks+1 labels including 0 and max)
+  // Y tick values span the complete negative-to-positive range.
   const tickVals=[];
-  for(let i=0;i<=yTicks;i++)tickVals.push((yMax*i)/yTicks);
+  for(let i=0;i<=yTicks;i++)tickVals.push(yMin+((yMax-yMin)*i/yTicks));
   const fmtY=v=>{
     if(v===0)return '£0';
     if(Math.abs(v)>=1000)return '£'+(v/1000).toFixed(v%1000===0?0:1)+'k';
@@ -14735,12 +14753,12 @@ function _renderChartInto(svgEl,labels,revData,profitData,handlers,opts){
     const r=revData[i]||0;
     const p=profitData[i]||0;
     const has=r>0;
-    const hasP=p>0;
+    const hasP=p!==0;
     return '<g class="rt-chart-col'+(has?' clickable':'')+'" data-idx="'+i+'">'
       +'<rect x="'+(cx-colW/2).toFixed(1)+'" y="'+pad.t+'" width="'+colW.toFixed(1)+'" height="'+innerH+'" fill="transparent"/>'
-      +(hasP&&showDots?'<circle cx="'+cx.toFixed(1)+'" cy="'+sy(p).toFixed(1)+'" r="'+profitDotR+'" fill="var(--profit)" stroke="var(--surface-1)" stroke-width="1.2"/>':'')
-      +(has&&showDots?'<circle cx="'+cx.toFixed(1)+'" cy="'+sy(r).toFixed(1)+'" r="'+revDotR+'" fill="var(--state-listed)" stroke="var(--surface-1)" stroke-width="1.5"/>':'')
-      +'<title>'+esc(l)+' · Rev '+fmtMoney(r)+' · Profit '+fmtMoney(p)+'</title>'
+      +(hasP&&showDots?'<circle cx="'+cx.toFixed(1)+'" cy="'+sy(p).toFixed(1)+'" r="'+profitDotR+'" fill="'+secondaryColor+'" stroke="var(--surface-1)" stroke-width="1.2"/>':'')
+      +(has&&showDots?'<circle cx="'+cx.toFixed(1)+'" cy="'+sy(r).toFixed(1)+'" r="'+revDotR+'" fill="'+primaryColor+'" stroke="var(--surface-1)" stroke-width="1.5"/>':'')
+      +'<title>'+esc(l)+' · '+primaryLabel+' '+fmtMoney(r)+' · '+secondaryLabel+' '+fmtMoney(p)+'</title>'
       +'</g>';
   }).join('');
 
@@ -14749,21 +14767,21 @@ function _renderChartInto(svgEl,labels,revData,profitData,handlers,opts){
   svgEl.innerHTML=
      '<defs>'
     +'<linearGradient id="'+gradientId+'" x1="0" x2="0" y1="0" y2="1">'
-    +  '<stop offset="0%" stop-color="var(--profit)" stop-opacity="0.5"/>'
-    +  '<stop offset="100%" stop-color="var(--profit)" stop-opacity="0"/>'
+    +  '<stop offset="0%" stop-color="'+secondaryColor+'" stop-opacity="0.5"/>'
+    +  '<stop offset="100%" stop-color="'+secondaryColor+'" stop-opacity="0"/>'
     +'</linearGradient>'
     +'</defs>'
     +grid+yLab+xLab
     +'<path d="'+area+'" fill="url(#'+gradientId+')" stroke="none"/>'
-    +'<path d="'+profitLine+'" fill="none" stroke="var(--profit)" stroke-width="'+profitStroke+'" stroke-linejoin="round" stroke-linecap="round" opacity="0.95"/>'
-    +'<path d="'+line+'" fill="none" stroke="var(--state-listed)" stroke-width="'+revStroke+'" stroke-linejoin="round" stroke-linecap="round"/>'
+    +'<path d="'+profitLine+'" fill="none" stroke="'+secondaryColor+'" stroke-width="'+profitStroke+'" stroke-linejoin="round" stroke-linecap="round" opacity="0.95"/>'
+    +'<path d="'+line+'" fill="none" stroke="'+primaryColor+'" stroke-width="'+revStroke+'" stroke-linejoin="round" stroke-linecap="round"/>'
     +hits
     // Scrub indicator — hidden by default, positioned via JS during
     // press-and-drag interaction. Drawn last so it overlays the lines.
     +'<g class="rt-chart-scrub" style="display:none;pointer-events:none">'
     +  '<line class="rt-scrub-line" x1="0" x2="0" y1="'+pad.t+'" y2="'+(H-pad.b)+'" stroke="var(--text-secondary)" stroke-width="1" stroke-dasharray="3 3" opacity="0.7"/>'
-    +  '<circle class="rt-scrub-rev" cx="0" cy="0" r="'+scrubDotR+'" fill="var(--state-listed)" stroke="var(--surface-1)" stroke-width="2"/>'
-    +  '<circle class="rt-scrub-prof" cx="0" cy="0" r="'+scrubDotR+'" fill="var(--profit)" stroke="var(--surface-1)" stroke-width="2"/>'
+    +  '<circle class="rt-scrub-rev" cx="0" cy="0" r="'+scrubDotR+'" fill="'+primaryColor+'" stroke="var(--surface-1)" stroke-width="2"/>'
+    +  '<circle class="rt-scrub-prof" cx="0" cy="0" r="'+scrubDotR+'" fill="'+secondaryColor+'" stroke="var(--surface-1)" stroke-width="2"/>'
     +'</g>';
 
   // Wire up scrubber (per-SVG closure over sx/sy/pad/W)
@@ -14847,8 +14865,8 @@ function _setupChartScrub(svgEl,ctx){
     scrubG.style.display='';
     tip.innerHTML=
       '<div class="tip-period">'+esc(labels[idx])+'</div>'
-      +'<div class="tip-row"><span class="tip-dot" style="background:var(--state-listed)"></span>Revenue <strong>'+fmtMoneyTip(r)+'</strong></div>'
-      +'<div class="tip-row"><span class="tip-dot" style="background:var(--profit)"></span>Profit <strong>'+fmtMoneyTip(p)+'</strong></div>';
+      +'<div class="tip-row"><span class="tip-dot" style="background:'+primaryColor+'"></span>'+primaryLabel+' <strong>'+fmtMoneyTip(r)+'</strong></div>'
+      +'<div class="tip-row"><span class="tip-dot" style="background:'+secondaryColor+'"></span>'+secondaryLabel+' <strong>'+fmtMoneyTip(p)+'</strong></div>';
     tip.style.display='block';
     const rect=svgEl.getBoundingClientRect();
     const cssX=(cx/W)*rect.width;
@@ -14972,7 +14990,7 @@ function renderSummary(){
         const ms=calcMonthStatsBySale(k);
         chartLabels.push(MONTH_NAMES[keyCode(k)].slice(0,3));
         chartRev.push(ms.totalRev);
-        chartProfit.push(Math.max(0,ms.realisedProfit));
+        chartProfit.push(ms.grossProfit);
         chartClickHandlers.push(ms.totalRev===0?null:{fn:'showMonthSnapshot',args:[k]});
       });
     } else {
@@ -14993,17 +15011,22 @@ function renderSummary(){
           cur=addDays(cur,bucketDays);
         }
       }
-      const allSold=[];
-      // NEW7: include returned items with a dateSold — gross revenue counts the sale;
-      // calcGrossProfit absorbs the refund cost. Items with no dateSold (pure returns
-      // pre-sale, or relisted-awaiting-sale) still excluded via the dateSold guard.
-      allDBKeys().forEach(k=>(DB[k]||[]).forEach(i=>{if(i.dateSold||i.resaleSalePrice){const sd=i.resaleSalePrice?i.resaleDateSold:i.dateSold;if(sd&&sd>=range.from&&sd<=range.to)allSold.push({rev:calcItemRevenue(i),profit:calcGrossProfit(i)||0,date:sd});}}));
-      const bData=buckets.map(b=>{const inB=allSold.filter(x=>x.date>=b.from&&x.date<=b.to);return{...b,rev:inB.reduce((s,x)=>s+x.rev,0),profit:inB.reduce((s,x)=>s+x.profit,0)};});
+      // Canonical dated accounting events: sales land on their sale date and
+      // returns/refunds land on their logged date. This makes every chart bucket
+      // reconcile exactly with the dashboard Gross Profit KPI.
+      const chartEvents=getSaleEventsInRange(range.from,range.to);
+      const bData=buckets.map(function(b){
+        const inB=chartEvents.filter(function(x){return x.saleDate>=b.from&&x.saleDate<=b.to;});
+        return {...b,
+          rev:inB.reduce(function(sum,x){return sum+(Number(x.salePrice)||0);},0),
+          profit:inB.reduce(function(sum,x){return sum+(Number(x.profit)||0);},0),
+          eventCount:inB.length};
+      });
       bData.forEach(b=>{
         chartLabels.push(b.label);
         chartRev.push(b.rev);
-        chartProfit.push(Math.max(0,b.profit));
-        chartClickHandlers.push(b.rev===0?null:{fn:'showRangeSnapshot',args:[b.label,b.from,b.to]});
+        chartProfit.push(b.profit);
+        chartClickHandlers.push(b.eventCount===0?null:{fn:'showRangeSnapshot',args:[b.label,b.from,b.to]});
       });
     }
     window.__chartClickHandlers=chartClickHandlers;
@@ -15059,27 +15082,27 @@ function renderSummary(){
             <svg class="summary-hero-spark" viewBox="0 0 120 44" preserveAspectRatio="none" aria-hidden="true"></svg>
           </div>
           <div class="summary-hero-chart">
-            <div class="summary-chart-legend"><span class="legend-item"><span class="legend-dot" style="background:var(--state-listed)"></span>Revenue</span><span class="legend-item"><span class="legend-dot" style="background:var(--profit)"></span>Profit</span></div>
-            <svg id="summary-chart-svg-mobile" viewBox="0 0 800 280" preserveAspectRatio="none" role="img" aria-label="Revenue over time"></svg>
+            <div class="summary-chart-legend"><span class="legend-item"><span class="legend-dot" style="background:var(--state-listed)"></span>Revenue</span><span class="legend-item"><span class="legend-dot" style="background:var(--profit)"></span>Gross Profit</span></div>
+            <svg id="summary-chart-svg-mobile" viewBox="0 0 800 280" preserveAspectRatio="none" role="img" aria-label="Revenue and gross profit over time"></svg>
           </div>
         </div>
         <div class="summary-mobile-twoup summary-mobile-only">
           <div class="card kpi clickable" onclick="showFilteredItems('realised')">
-            <div class="kpi-label">Net profit</div>
-            <div class="kpi-value num">${fmtK(stats.netProfit||0)}</div>
-            <div class="kpi-foot">${deltaChip(deltas&&deltas.netProfit)||(fmtK(stats.grossProfit||0)+' gross')}</div>
+            <div class="kpi-label">Gross profit</div>
+            <div class="kpi-value num">${fmtK(stats.grossProfit||0)}</div>
+            <div class="kpi-foot">${deltaChip(deltas&&deltas.grossProfit)||'After returns · before overheads'}</div>
           </div>
           <div class="card kpi clickable" onclick="showMarginItems()">
             <div class="kpi-label">Avg margin</div>
-            <div class="kpi-value num">${Math.round(stats.netMargin||0)}%</div>
-            <div class="kpi-foot">${deltaChip(deltas&&deltas.netMargin,{pp:true})||(Math.round(stats.grossMargin||0)+'% gross')}</div>
+            <div class="kpi-value num">${Math.round(stats.grossMargin||0)}%</div>
+            <div class="kpi-foot">${deltaChip(deltas&&deltas.grossMargin,{pp:true})||'Item-level margin'}</div>
           </div>
         </div>
         <!-- Tier 1: 4-KPI grid -->
         <div class="summary-kpis-v3">
           <div class="card kpi clickable" onclick="showFilteredItems('revenue')"><div class="kpi-label">Total revenue</div><div class="kpi-value num">${fmtK(stats.totalRev||0)}</div><div class="kpi-foot">${deltaChip(deltas&&deltas.totalRev)||((stats.soldCount||0)+' sold in view')}</div></div>
-          <div class="card kpi clickable kpi-netprofit" onclick="showFilteredItems('realised')"><div class="kpi-label">Net profit</div><div class="kpi-value num">${fmtK(stats.netProfit||0)}</div><div class="kpi-foot">${deltaChip(deltas&&deltas.netProfit)||(fmtK(stats.grossProfit||0)+' gross')}</div></div>
-          <div class="card kpi clickable" onclick="showMarginItems()"><div class="kpi-label">Avg margin</div><div class="kpi-value num">${Math.round(stats.netMargin||0)}%</div><div class="kpi-foot">${deltaChip(deltas&&deltas.netMargin,{pp:true})||(Math.round(stats.grossMargin||0)+'% gross')}</div></div>
+          <div class="card kpi clickable kpi-netprofit" onclick="showFilteredItems('realised')"><div class="kpi-label">Gross profit</div><div class="kpi-value num">${fmtK(stats.grossProfit||0)}</div><div class="kpi-foot">${deltaChip(deltas&&deltas.grossProfit)||'After returns · before overheads'}</div></div>
+          <div class="card kpi clickable" onclick="showMarginItems()"><div class="kpi-label">Avg margin</div><div class="kpi-value num">${Math.round(stats.grossMargin||0)}%</div><div class="kpi-foot">${deltaChip(deltas&&deltas.grossMargin,{pp:true})||'Item-level margin'}</div></div>
           <div class="card kpi clickable" onclick="showReturnedItems()"><div class="kpi-label">Refund rate</div><div class="kpi-value num">${Number(stats.refundItemRate||0).toFixed(1)}%</div><div class="kpi-foot">${deltaChip(deltas&&deltas.refundItemRate,{pp:true,invert:true})||((stats.fullRefundCount||0)+' full · '+(stats.partialOnlyCount||0)+' partial')}</div></div>
         </div>
 
@@ -15089,10 +15112,10 @@ function renderSummary(){
             <div class="sl">Revenue over time</div>
             <div class="summary-chart-legend">
               <span class="legend-item"><span class="legend-dot" style="background:var(--state-listed)"></span>Revenue</span>
-              <span class="legend-item"><span class="legend-dot" style="background:var(--profit)"></span>Profit</span>
+              <span class="legend-item"><span class="legend-dot" style="background:var(--profit)"></span>Gross Profit</span>
             </div>
           </div>
-          <svg id="summary-chart-svg" viewBox="0 0 800 280" preserveAspectRatio="none" role="img" aria-label="Revenue over time"></svg>
+          <svg id="summary-chart-svg" viewBox="0 0 800 280" preserveAspectRatio="none" role="img" aria-label="Revenue and gross profit over time"></svg>
         </div>
         ${(()=>{
           const donut=buildCategoryDonut(stats.byCat);
@@ -15408,6 +15431,42 @@ function toggleFYSection(fyStart){
   renderMonthlyGrid();
 }
 
+
+function _monthlyNetProfitChartHTML(){
+  return '<div class="card summary-panel summary-chart-card monthly-profitability-card">'
+    +'<div class="summary-chart-head"><div class="sl">Monthly profitability</div><div class="summary-chart-legend">'
+    +'<span class="legend-item"><span class="legend-dot" style="background:var(--profit)"></span>Gross Profit</span>'
+    +'<span class="legend-item"><span class="legend-dot" style="background:var(--accent)"></span>Net Profit</span></div></div>'
+    +'<svg id="monthly-profitability-svg" viewBox="0 0 800 280" preserveAspectRatio="none" role="img" aria-label="Monthly gross profit and net profit over time"></svg></div>';
+}
+
+function renderMonthlyProfitabilityChart(){
+  const svg=document.getElementById('monthly-profitability-svg');
+  if(!svg)return;
+  const fy=_currentFYStart(),keys=_fyKeys(fy);
+  const labels=[],gross=[],net=[];
+  keys.forEach(function(k){
+    const ms=calcMonthStatsBySale(k);
+    labels.push(MONTH_NAMES[keyCode(k)].slice(0,3));
+    gross.push(Number(ms.grossProfit)||0);
+    net.push(Number(ms.netProfit)||0);
+  });
+  _renderChartInto(svg,labels,gross,net,[],{
+    W:800,H:280,
+    pad:{t:14,r:14,b:38,l:60},
+    fontSize:13,
+    yTicks:4,
+    maxXLabels:12,
+    profitDotR:2.5,revDotR:3,
+    profitStroke:1.8,revStroke:2,scrubDotR:4.5,
+    gradientId:'rt-monthly-net-fill',
+    primaryColor:'var(--profit)',
+    secondaryColor:'var(--accent)',
+    primaryLabel:'Gross Profit',
+    secondaryLabel:'Net Profit'
+  });
+}
+
 function renderMonthlyGrid(){
   const now=new Date();
   const curMonthKey=currentMonthKey(); // e.g. 'APR-26'
@@ -15426,6 +15485,7 @@ function renderMonthlyGrid(){
 
   let html='<div style="padding-bottom:80px;">';
   html+='<div class="page-header"><div><div class="page-title">Sales History</div><div class="page-subtitle">Sales performance, month by month.</div></div></div>';
+  html+=_monthlyNetProfitChartHTML();
 
   fyYears.forEach(function(fy){
     const months=_fyKeys(fy); // full Apr-Mar ordered list of 'MMM-YY' keys
@@ -15528,6 +15588,9 @@ function renderMonthlyGrid(){
 
   html+='</div>';
   document.getElementById('p-monthly').innerHTML=html;
+  // Render with the exact same SVG engine, axes, grid, spacing, typography,
+  // scrub tooltip and responsive geometry as the dashboard chart.
+  renderMonthlyProfitabilityChart();
   // Scroll current month card into view so it's immediately visible
   requestAnimationFrame(function(){
     const cur=document.querySelector('#p-monthly .mcard[onclick*="\''+currentMonthKey()+'\'"]');
@@ -16229,8 +16292,8 @@ function renderMonth(){
       </div>
       <div class="card kpi kpi-realised">
         <div class="kpi-label">Net Profit</div>
-        <div class="kpi-value num">${fmtK(stats.realisedProfit)}</div>
-        <div class="kpi-foot">${stats.totalRev>0?(stats.realisedProfit/stats.totalRev*100).toFixed(0)+'% margin':'—'}</div>
+        <div class="kpi-value num">${fmtK(stats.netProfit)}</div>
+        <div class="kpi-foot">${fmtK(stats.grossProfit)} gross · ${fmtK(stats.overheads)} overheads</div>
       </div>
       <div class="card kpi">
         <div class="kpi-label">Avg Margin</div>
@@ -21199,7 +21262,7 @@ function _statsForRange(range){
   const refundItemRate=refundDenom>0?((fullRef+partialOnly)/refundDenom*100):0;
   const netMargin=totalRev>0?(realised/totalRev*100):0;
   const avgProfit=soldCount?realised/soldCount:0;
-  return { totalRev, netProfit:realised, netMargin, soldCount, refundItemRate, avgProfit };
+  return { totalRev, grossProfit:realised, grossMargin:netMargin, netProfit:realised, netMargin, soldCount, refundItemRate, avgProfit };
 }
 function calcSummaryDeltas(){
   const prevKey=_prevPeriodKey(SUMMARY_PERIOD);
@@ -21217,6 +21280,8 @@ function calcSummaryDeltas(){
   return {
     label: periodLabel,
     totalRev:    pct(cur.totalRev,    prev.totalRev),
+    grossProfit: pct(cur.grossProfit, prev.grossProfit),
+    grossMargin: (prev.grossMargin!==undefined? (cur.grossMargin-prev.grossMargin):null), // pp change
     netProfit:   pct(cur.netProfit,   prev.netProfit),
     netMargin:   (prev.netMargin!==undefined? (cur.netMargin-prev.netMargin):null), // pp change
     soldCount:   pct(cur.soldCount,   prev.soldCount),
@@ -22069,7 +22134,21 @@ function calcMonthStatsBySale(m){
   const avgROI=roiCount>0?(roiSum/roiCount):null;
   const avgMargin=marginCount>0?(marginSum/marginCount):null;
   const avgDays=daysCount>0?Math.round(daysSum/daysCount):null;
-  return {totalRev:+totalRev.toFixed(2),realisedProfit:+realisedProfit.toFixed(2),
+  // Monthly Net Profit = item-level gross profit (including dated returns and
+  // partner splits) minus trips and standalone expenses dated in this month.
+  const _monthCode=keyCode(m), _monthYear=keyYear(m), _monthIndex=MONTHS.indexOf(_monthCode);
+  const _monthStart=String(_monthYear)+'-'+String(_monthIndex+1).padStart(2,'0')+'-01';
+  const _monthEnd=new Date(_monthYear,_monthIndex+1,0).toISOString().split('T')[0];
+  const _inMonth=function(ds){return !!ds&&ds>=_monthStart&&ds<=_monthEnd;};
+  const _allTrips=DB.trips||[], _tieredTrips=calcTieredTrips(_allTrips);
+  let tripsCost=0, expensesCost=0;
+  _allTrips.forEach(function(t,idx){if(_inMonth(t.date))tripsCost+=(_tieredTrips[idx]?_tieredTrips[idx].totalCost:0);});
+  (DB.expenses||[]).forEach(function(e){if(_inMonth(e.date))expensesCost+=(Number(e.amount)||0);});
+  const grossProfit=+realisedProfit.toFixed(2);
+  const overheads=+(tripsCost+expensesCost).toFixed(2);
+  const netProfit=+(grossProfit-overheads).toFixed(2);
+  return {totalRev:+totalRev.toFixed(2),realisedProfit:grossProfit,grossProfit,netProfit,
+          tripsCost:+tripsCost.toFixed(2),expensesCost:+expensesCost.toFixed(2),overheads,
           soldCount,eventCount,returnedCount,avgROI,avgMargin,avgDays,
           fullRefundCount,partialOnlyCount,refundedItemCount,refundDenom,refundItemRate,
           refundCount,partialCount,  // legacy aliases
