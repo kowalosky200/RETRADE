@@ -7424,6 +7424,8 @@ async function loadFromSupabase(){
   // wiped — so without backfill, they leak out of period buckets entirely.
   // Idempotent: only writes when at least one entry was missing the field.
   await _backfillDateSoldAtReturn();
+  // One-time-on-load repair for legacy linked records. Idempotent.
+  _repairRunLinkedDates(true);
 }
 
 // Fills the snapshot on legacy return entries created before the column existed.
@@ -7664,22 +7666,45 @@ async function deleteRunFromSupabase(id){
 }
 
 // E33/E36 — Accounts (partners/vendors)
+// Settlement history is persisted inside the existing accounts.notes column so
+// this feature works without a Supabase schema migration. The marker is hidden
+// from the user-facing notes field and round-trips independently.
+const _ACCOUNT_META_MARKER='\n[[RETRADE_ACCOUNT_META_V1:';
+function _decodeAccountNotes(raw){
+  raw=raw||'';
+  const idx=raw.lastIndexOf(_ACCOUNT_META_MARKER);
+  if(idx<0)return {notes:raw||null,settlements:[]};
+  const end=raw.indexOf(']]',idx);
+  if(end<0)return {notes:raw||null,settlements:[]};
+  let meta={};
+  try{meta=JSON.parse(decodeURIComponent(escape(atob(raw.slice(idx+_ACCOUNT_META_MARKER.length,end)))));}catch(e){meta={};}
+  return {notes:(raw.slice(0,idx)||'').trim()||null,settlements:Array.isArray(meta.settlements)?meta.settlements:[]};
+}
+function _encodeAccountNotes(a){
+  const visible=(a.notes||'').trim();
+  const settlements=Array.isArray(a.settlements)?a.settlements:[];
+  if(!settlements.length)return visible||null;
+  const payload=btoa(unescape(encodeURIComponent(JSON.stringify({settlements:settlements}))));
+  return (visible?visible:'')+_ACCOUNT_META_MARKER+payload+']]';
+}
 function _accountToRow(a){
   return {
     id:      a.id,
     user_id: _currentUserId||null,
     name:    a.name,
-    notes:   a.notes||null,
+    notes:   _encodeAccountNotes(a),
     account_type:           a.accountType||'supplier',
     default_split_percent:  a.defaultSplitPercent!=null ? a.defaultSplitPercent : null,
     default_cost_contribution: a.defaultCostContribution!=null ? a.defaultCostContribution : null,
   };
 }
 function _rowToAccount(row){
+  const decoded=_decodeAccountNotes(row.notes||'');
   return {
     id:    row.id,
     name:  row.name,
-    notes: row.notes||null,
+    notes: decoded.notes,
+    settlements: decoded.settlements,
     accountType:             row.account_type||'supplier',
     defaultSplitPercent:     row.default_split_percent!=null ? Number(row.default_split_percent) : null,
     defaultCostContribution: row.default_cost_contribution!=null ? Number(row.default_cost_contribution) : null,
@@ -10567,6 +10592,9 @@ function submitEditRun(runId){
   run.location=(document.getElementById('er-location').value||'').trim()||null;
   const newDate=document.getElementById('er-date').value||run.dateStarted;
   run.dateStarted=newDate;
+  // Linked trips and expenses must always follow the run date.
+  (DB.trips||[]).forEach(function(t){if(t.sourcingRunId===runId){t.date=newDate;(t.expenses||[]).forEach(function(x){if(x.date!==undefined)x.date=newDate;});}});
+  (DB.expenses||[]).forEach(function(e){if(e.sourcingRunId===runId)e.date=newDate;});
   // E32 fix — hours field now accepts decimals (e.g. "0.1" = 6 minutes) and
   // is parsed with parseFloat, not parseInt. parseInt("0.1",10) silently
   // truncates to 0 — a user-typed fractional hour was being read as "no
@@ -11461,9 +11489,16 @@ function _accountStats(accountId){
     if(_itemAccountType(i)!=='supplier')partnerProfitCut+=owed;
   });
   const yourShare=grossProfit-partnerProfitCut;
+  const activePotential=active.reduce(function(s,i){
+    const est=calcEstProfit(i);
+    if(est==null)return s;
+    const pct=i.accountSplitPercent!=null?i.accountSplitPercent:((_accounts.find(function(a){return a.id===accountId;})||{}).defaultSplitPercent||0);
+    return s+(est-(Math.max(0,est)*pct/100));
+  },0);
   return{
     itemCount:items.length, soldCount:sold.length, activeCount:active.length,
     activeStockValue:active.reduce(function(s,i){return s+(i.salePrice||0);},0),
+    activePotential:+activePotential.toFixed(2),
     grossProfit:+grossProfit.toFixed(2), yourShare:+yourShare.toFixed(2),
     totalOwed:+totalOwed.toFixed(2), settledOwed:+settledOwed.toFixed(2),
     unsettledOwed:+unsettledOwed.toFixed(2), splitItemCount
@@ -11524,20 +11559,131 @@ function _acctClearSelect(){
 }
 function _acctBulkSettle(){
   if(!_acctSelected.size)return;
+  const acct=_acctCurrentAcct();
+  if(!acct)return;
+  if((acct.accountType||'supplier')!=='supplier'){
+    _openConsignmentSettlementBuilder(acct.id,Array.from(_acctSelected));
+    return;
+  }
   let n=0;
   _acctSelected.forEach(function(id){
     allDBKeys().forEach(function(k){
       const item=(DB[k]||[]).find(function(i){return i.id===id;});
-      if(item&&_accountItemOwed(item)!==null&&!item.accountSettled){item.accountSettled=true;n++;}
+      if(item&&_accountItemDebt(item)!==null&&!item.accountSettled){item.accountSettled=true;n++;}
     });
   });
   saveDB();
   toast('Settled '+n+' item'+(n!==1?'s':''));
   _acctSelected.clear();
   _acctSelectMode=false;
-  const acct=_acctCurrentAcct();
   if(acct)_renderAccountPage(acct);
 }
+
+let _consignmentSettlementDraft=null;
+function _selectedAccountItems(ids,accountId){
+  const set=new Set(ids||[]),out=[];
+  allDBKeys().forEach(function(k){
+    (DB[k]||[]).forEach(function(i){
+      if(set.has(i.id)&&i.accountId===accountId)out.push(Object.assign(i,{_month:k}));
+    });
+  });
+  return out;
+}
+function _roundMoney(v){return Math.round((Number(v)||0)*100)/100;}
+function _allocatePartnerTotal(items,total){
+  const weights=items.map(function(i){return Math.max(0,calcGrossProfit(i)||0);});
+  const sum=weights.reduce(function(a,b){return a+b;},0);
+  let remaining=_roundMoney(total);
+  return items.map(function(i,idx){
+    let amount;
+    if(idx===items.length-1) amount=remaining;
+    else {
+      amount=sum>0?_roundMoney(total*(weights[idx]/sum)):_roundMoney(total/items.length);
+      remaining=_roundMoney(remaining-amount);
+    }
+    return {id:i.id,month:i._month,amount:Math.max(0,amount)};
+  });
+}
+function _openConsignmentSettlementBuilder(accountId,ids){
+  const acct=_accounts.find(function(a){return a.id===accountId;});
+  if(!acct)return;
+  const items=_selectedAccountItems(ids,accountId).filter(_accountItemIsSold);
+  if(!items.length){toast('Select at least one sold item','error');return;}
+  const gross=_roundMoney(items.reduce(function(s,i){return s+(calcGrossProfit(i)||0);},0));
+  const pct=acct.defaultSplitPercent!=null?acct.defaultSplitPercent:50;
+  const suggested=_roundMoney(Math.max(0,gross)*pct/100);
+  _consignmentSettlementDraft={accountId:accountId,itemIds:items.map(function(i){return i.id;}),gross:gross,suggested:suggested};
+  const rows=items.map(function(i){
+    const gp=calcGrossProfit(i)||0;
+    return '<div class="metric-inline"><div style="min-width:0;flex:1;"><div class="metric-k" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(i.item||'Untitled')+'</div><div style="font-size:11px;color:var(--text-secondary);">Gross profit '+fmt(gp)+'</div></div><div style="font-size:12px;color:var(--text-secondary);">Suggested '+fmt(Math.max(0,gp)*pct/100)+'</div></div>';
+  }).join('');
+  const html=`
+    <div style="font-size:12px;color:var(--text-secondary);margin-bottom:12px;">${items.length} sold item${items.length!==1?'s':''} · default ${pct}% split</div>
+    <div class="panel-card" style="margin-bottom:12px;">${rows}</div>
+    <div class="panel-card" style="margin-bottom:12px;">
+      <div class="pnl-row"><span>Distributable gross profit</span><strong>${fmt(gross)}</strong></div>
+      <div class="pnl-row"><span>Suggested partner share</span><strong>${fmt(suggested)}</strong></div>
+      <div class="pnl-row"><span>Suggested your share</span><strong>${fmt(gross-suggested)}</strong></div>
+    </div>
+    <div class="fg"><label>Partner's final share (£)</label>
+      <input type="number" id="settle-partner-total" min="0" step="0.01" value="${suggested.toFixed(2)}" oninput="_updateSettlementPreview()" inputmode="decimal">
+      <div style="display:flex;gap:8px;margin-top:8px;">
+        <button class="btn btn-secondary" type="button" style="font-size:11px;" onclick="_setSettlementAmount(${suggested.toFixed(2)})">Exact ${pct}/${100-pct}</button>
+        <button class="btn btn-secondary" type="button" style="font-size:11px;" onclick="_setSettlementAmount(${(Math.round(suggested/10)*10).toFixed(2)})">Nearest £10</button>
+      </div>
+    </div>
+    <div id="settle-live-preview" style="padding:12px;background:var(--surface2);border-radius:10px;margin:12px 0;"></div>
+    <div class="fg"><label>Payment date</label><input type="date" id="settle-date" value="${todayISO()}"></div>
+    <div class="fg"><label>Reference / note (optional)</label><input type="text" id="settle-note" placeholder="e.g. bank transfer"></div>
+    <label style="display:flex;align-items:center;gap:9px;font-size:13px;margin:10px 0 14px;"><input type="checkbox" id="settle-mark-paid" checked> Mark this allocation as paid now</label>
+    <button class="btn btn-primary" style="width:100%;" onclick="_confirmConsignmentSettlement()">Save allocation</button>`;
+  openPanel('Allocate consignment split',html);
+  setTimeout(_updateSettlementPreview,30);
+}
+function _setSettlementAmount(v){const el=document.getElementById('settle-partner-total');if(el){el.value=Number(v).toFixed(2);_updateSettlementPreview();}}
+function _updateSettlementPreview(){
+  const d=_consignmentSettlementDraft,el=document.getElementById('settle-live-preview');if(!d||!el)return;
+  const partner=Math.max(0,parseFloat((document.getElementById('settle-partner-total')||{}).value)||0);
+  const yours=_roundMoney(d.gross-partner),rounding=_roundMoney(partner-d.suggested);
+  el.innerHTML='<div class="pnl-row"><span>Partner receives</span><strong style="color:var(--accent)">'+fmt(partner)+'</strong></div>'+
+    '<div class="pnl-row"><span>You retain</span><strong style="color:'+(yours>=0?'var(--green)':'var(--red)')+'">'+fmt(yours)+'</strong></div>'+
+    '<div class="pnl-row"><span>Rounding adjustment</span><strong>'+((rounding>=0?'+':'')+fmt(rounding))+'</strong></div>';
+}
+function _confirmConsignmentSettlement(){
+  const d=_consignmentSettlementDraft;if(!d)return;
+  const acct=_accounts.find(function(a){return a.id===d.accountId;});if(!acct)return;
+  const partner=Math.max(0,_roundMoney(parseFloat((document.getElementById('settle-partner-total')||{}).value)||0));
+  if(partner>d.gross&&d.gross>=0&&!confirm('Partner share is higher than the distributable profit. Continue?'))return;
+  const date=(document.getElementById('settle-date')||{}).value||todayISO();
+  const note=((document.getElementById('settle-note')||{}).value||'').trim();
+  const paid=!!(document.getElementById('settle-mark-paid')||{}).checked;
+  const items=_selectedAccountItems(d.itemIds,d.accountId).filter(_accountItemIsSold);
+  const allocations=_allocatePartnerTotal(items,partner);
+  allocations.forEach(function(a){
+    const item=(DB[a.month]||[]).find(function(i){return i.id===a.id;});if(!item)return;
+    item.accountPaidAmount=a.amount;
+    item.accountSplitPercent=null;
+    item.accountSettled=paid;
+  });
+  if(!Array.isArray(acct.settlements))acct.settlements=[];
+  const tx={id:'stl_'+Date.now()+'_'+Math.random().toString(36).slice(2,8),date:date,createdAt:new Date().toISOString(),paid:paid,partnerAmount:partner,yourAmount:_roundMoney(d.gross-partner),grossProfit:d.gross,suggestedPartner:d.suggested,note:note||null,items:allocations};
+  acct.settlements.unshift(tx);
+  saveDB();
+  closePanel();
+  _acctSelected.clear();_acctSelectMode=false;_consignmentSettlementDraft=null;
+  toast(paid?'Allocation saved and marked paid':'Allocation saved as unpaid');
+  _renderAccountPage(acct);
+}
+function _openSettlementDetail(accountId,settlementId){
+  const acct=_accounts.find(function(a){return a.id===accountId;});if(!acct)return;
+  const tx=(acct.settlements||[]).find(function(t){return t.id===settlementId;});if(!tx)return;
+  const rows=(tx.items||[]).map(function(a){
+    let found=null;allDBKeys().some(function(k){found=(DB[k]||[]).find(function(i){return i.id===a.id;});return !!found;});
+    return '<div class="metric-inline"><div class="metric-k">'+esc(found?found.item:'Item no longer found')+'</div><strong>'+fmt(a.amount||0)+'</strong></div>';
+  }).join('');
+  openPanel('Settlement · '+tx.date,'<div class="panel-card">'+rows+'</div><div class="pnl-row total"><span>Partner paid</span><strong>'+fmt(tx.partnerAmount||0)+'</strong></div><div class="pnl-row"><span>Your share</span><strong>'+fmt(tx.yourAmount||0)+'</strong></div>'+(tx.note?'<div style="margin-top:12px;font-size:12px;color:var(--text-secondary);">'+esc(tx.note)+'</div>':''));
+}
+
 function _acctBulkSetSplit(){
   if(!_acctSelected.size)return;
   const acct=_acctCurrentAcct();
@@ -11722,10 +11868,10 @@ function _renderAccountPage(acct){
       +(sub?'<div class="kpi-foot">'+sub+'</div>':'')+'</div>';
   };
   const heroHTML='<div class="accounts-kpis-v2" style="margin-bottom:18px;">'
-    +mc('Your share','\u00a3'+stats.yourShare.toFixed(0),stats.soldCount+' sold',stats.yourShare>=0?'var(--green)':'var(--red)')
-    +mc('Owed to partner','\u00a3'+stats.totalOwed.toFixed(0),stats.splitItemCount+' split item'+(stats.splitItemCount!==1?'s':''))
-    +mc('Unsettled','\u00a3'+stats.unsettledOwed.toFixed(0),stats.unsettledOwed>0?'Tap items to settle':'All settled \u2713',stats.unsettledOwed>0?'var(--warn)':'var(--green)')
-    +mc('Active stock',stats.activeCount,'\u00a3'+stats.activeStockValue.toFixed(0)+' at ask')
+    +mc('Your realised profit','\u00a3'+stats.yourShare.toFixed(0),stats.soldCount+' sold',stats.yourShare>=0?'var(--green)':'var(--red)')
+    +mc('Outstanding to partner','\u00a3'+stats.unsettledOwed.toFixed(0),stats.unsettledOwed>0?'Still to pay':'All paid \u2713',stats.unsettledOwed>0?'var(--warn)':'var(--green)')
+    +mc('Paid to partner','\u00a3'+stats.settledOwed.toFixed(0),(acct.settlements||[]).length+' settlement'+((acct.settlements||[]).length!==1?'s':''))
+    +mc('Active stock potential','\u00a3'+stats.activePotential.toFixed(0),stats.activeCount+' unsold',stats.activePotential>=0?'var(--green)':'var(--red)')
   +'</div>';
 
   const isSupplierAcct=(acct.accountType==='supplier');
@@ -11829,7 +11975,7 @@ function _renderAccountPage(acct){
         +'</div>'
         +'<div style="text-align:right;flex-shrink:0;margin-left:8px;">'
           +'<div style="font-size:14px;font-weight:700;color:'+(profit>=0?'var(--green)':'var(--red)')+';">'+(profit!==null?fmt(profit):'\u2014')+'</div>'
-          +(owed!==null?'<div style="font-size:11px;color:var(--text-secondary);">owed '+fmt(owed)+'</div>':'')
+          +(owed!==null?'<div style="font-size:11px;color:'+(i.accountSettled?'var(--green)':'var(--text-secondary)')+';">'+(i.accountSettled?'Settled \u2713':'owed '+fmt(owed))+'</div>':'')
         +'</div></div>';
     }
     return '<div class="metric-inline" style="align-items:flex-start;">'
@@ -11909,7 +12055,7 @@ function _renderAccountPage(acct){
     } else {
       selBar='<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:10px 14px;background:var(--surface2);border:1px solid var(--accent);border-radius:10px;margin-bottom:12px;">'
         +'<span style="font-size:13px;font-weight:700;color:var(--accent);flex:1 1 100%;">'+_acctSelected.size+' selected</span>'
-        +'<button class="btn btn-secondary" style="font-size:12px;" onclick="_acctBulkSettle()">Mark settled</button>'
+        +'<button class="btn btn-secondary" style="font-size:12px;" onclick="_acctBulkSettle()">'+(isSupplierAcct?'Mark settled':'Allocate & settle')+'</button>'
         +'<button class="btn btn-secondary" style="font-size:12px;" onclick="_acctBulkUnsettle()">Mark unsettled</button>'
         +primaryBulkBtn
         +'<button class="btn btn-secondary" style="font-size:12px;color:var(--red);border-color:rgba(239,68,68,0.35);" onclick="_acctBulkRemoveFromAccount()">Remove</button>'
@@ -11935,8 +12081,9 @@ function _renderAccountPage(acct){
     +heroHTML
     +selBar
     +((!isSupplierAcct&&hasDefault&&noSplitCount>0&&!_acctSelectMode)?'<button class="btn btn-secondary" style="width:100%;margin-bottom:10px;" onclick="applyDefaultSplitToAll(\''+acct.id+'\')">Apply '+acct.defaultSplitPercent+'% to '+noSplitCount+' item'+(noSplitCount!==1?'s':'')+' with no split</button>':'')
-    +(unsettledCount>0&&!_acctSelectMode?'<button class="btn btn-primary" style="width:100%;margin-bottom:14px;" onclick="settleAllForAccount(\''+acct.id+'\')">Mark all '+unsettledCount+' unsettled as paid</button>':'')
+    +(unsettledCount>0&&!_acctSelectMode?'<button class="btn btn-primary" style="width:100%;margin-bottom:14px;" onclick="'+(isSupplierAcct?'settleAllForAccount(\''+acct.id+'\')':'_openConsignmentSettlementBuilder(\''+acct.id+'\','+JSON.stringify(sold.filter(function(i){return !i.accountSettled;}).map(function(i){return i.id;}))+')')+'">'+(isSupplierAcct?'Mark all '+unsettledCount+' unsettled as paid':'Allocate & settle '+unsettledCount+' item'+(unsettledCount!==1?'s':''))+'</button>':'')
     +'<div class="panel-card" style="margin-bottom:14px;"><div class="sl">Sold items</div>'+soldRows+'</div>'
+    +((acct.settlements||[]).length?'<div class="panel-card" style="margin-bottom:14px;"><div class="sl">Settlement history</div>'+(acct.settlements||[]).map(function(tx){return '<button type="button" class="metric-inline" style="width:100%;border:0;background:transparent;text-align:left;cursor:pointer;" onclick="_openSettlementDetail(\''+acct.id+'\',\''+tx.id+'\')"><div style="min-width:0;flex:1;"><div class="metric-k">'+(tx.paid?'Paid ':'Allocated ')+fmt(tx.partnerAmount||0)+'</div><div style="font-size:11px;color:var(--text-secondary);">'+esc(tx.date||'')+' · '+((tx.items||[]).length)+' item'+((tx.items||[]).length!==1?'s':'')+(tx.note?' · '+esc(tx.note):'')+'</div></div><span style="font-size:11px;color:'+(tx.paid?'var(--green)':'var(--warn)')+';">'+(tx.paid?'Paid ✓':'Unpaid')+'</span></button>';}).join('')+'</div>':'')
     +'<div class="panel-card"><div class="sl">Active stock</div>'+activeRows+'</div>'
   +'</div>';
   page.innerHTML=html;
@@ -12205,7 +12352,8 @@ function submitAddAccount(){
     accountType:type,
     defaultSplitPercent:splitNum,
     defaultCostContribution:costNum,
-    notes:(document.getElementById('acc-notes').value||'').trim()||null
+    notes:(document.getElementById('acc-notes').value||'').trim()||null,
+    settlements:[]
   };
   _accounts.push(acct);
   saveDB();
@@ -17846,6 +17994,51 @@ function _readTripExtras(){
   return out;
 }
 
+// Run-linked bookkeeping rule: the run date is the single source of truth.
+function _getRunDate(runId){
+  if(!runId)return '';
+  const run=_sourcingRuns.find(function(r){return r.id===runId;});
+  return run&&run.dateStarted?String(run.dateStarted).slice(0,10):'';
+}
+function _canonicalLinkedDate(runId, fallback){
+  return _getRunDate(runId)||fallback||new Date().toISOString().slice(0,10);
+}
+function _syncLinkedDateField(selectEl,dateFieldId){
+  const input=document.getElementById(dateFieldId);
+  if(!input)return;
+  const runId=selectEl&&selectEl.value||'';
+  const runDate=_getRunDate(runId);
+  if(runDate){ input.value=runDate; input.readOnly=true; input.setAttribute('aria-readonly','true'); }
+  else { input.readOnly=false; input.removeAttribute('aria-readonly'); }
+}
+function _repairRunLinkedDates(persist){
+  let tripsFixed=0,expensesFixed=0,extrasFixed=0,orphans=0;
+  (DB.trips||[]).forEach(function(t){
+    if(!t.sourcingRunId)return;
+    const d=_getRunDate(t.sourcingRunId);
+    if(!d){orphans++;return;}
+    if(t.date!==d){t.date=d;tripsFixed++;}
+    (Array.isArray(t.expenses)?t.expenses:[]).forEach(function(x){
+      if(x.date!==undefined&&x.date!==d){x.date=d;extrasFixed++;}
+    });
+  });
+  (DB.expenses||[]).forEach(function(e){
+    if(!e.sourcingRunId)return;
+    const d=_getRunDate(e.sourcingRunId);
+    if(!d){orphans++;return;}
+    if(e.date!==d){e.date=d;expensesFixed++;}
+  });
+  const fixed=tripsFixed+expensesFixed+extrasFixed;
+  if(persist&&fixed)saveDB();
+  return {fixed:fixed,tripsFixed:tripsFixed,expensesFixed:expensesFixed,extrasFixed:extrasFixed,orphans:orphans};
+}
+function repairRunLinkedDates(){
+  const r=_repairRunLinkedDates(true);
+  toast(r.fixed?('Repaired '+r.fixed+' run-linked date'+(r.fixed===1?'':'s')):'All linked dates already match');
+  runIntegrityCheck();
+  if(document.getElementById('p-expenses')&&document.getElementById('p-expenses').classList.contains('on'))renderExpenses();
+}
+
 // Patch C-2: sourcing run dropdown for trip/expense add/edit forms
 function _runDropdownHTML(fieldId, currentRunId){
   const runs=[..._sourcingRuns].sort(function(a,b){
@@ -17858,9 +18051,10 @@ function _runDropdownHTML(fieldId, currentRunId){
     const label=r.status==='active'?'\u25cf '+r.name+' (active)':r.name+' ('+r.dateStarted+')';
     opts+='<option value="'+r.id+'"'+(defVal===r.id?' selected':'')+'>'+esc(label)+'</option>';
   });
+  const dateFieldId=fieldId.indexOf('trip')===0?'trip-date':'exp-date';
   return '<div class="fg" style="margin-top:4px;">'
     +'<label style="font-size:12px;color:var(--text-secondary);">Sourcing Run <span style="font-weight:400;color:var(--muted);">(optional)</span></label>'
-    +'<select id="'+fieldId+'" style="width:100%;">'+opts+'</select>'
+    +'<select id="'+fieldId+'" style="width:100%;" onchange="_syncLinkedDateField(this,\''+dateFieldId+'\')">'+opts+'</select>'
     +'</div>';
 }
 
@@ -17869,7 +18063,7 @@ function addRunExpense(runId){
   const run=_sourcingRuns.find(r=>r.id===runId);
   const defaultDate=(run&&run.dateStarted?String(run.dateStarted).slice(0,10):new Date().toISOString().split('T')[0]);
   const html=`
-    <div class="fg"><label>Date</label><input type="date" id="exp-date" value="${defaultDate}"></div>
+    <div class="fg"><label>Date</label><input type="date" id="exp-date" value="${defaultDate}" readonly aria-readonly="true"></div>
     <div class="fg"><label>Description</label><input type="text" id="exp-desc" placeholder="e.g. Packaging, entry fee"></div>
     <div class="fg"><label>Category</label><select id="exp-cat">${_expenseCatOptionsHTML('')}</select></div>
     <div class="fg"><label>Amount (£)</label><input type="number" id="exp-amt" step="0.01" min="0" placeholder="0.00" inputmode="decimal"></div>
@@ -17885,7 +18079,7 @@ function saveRunExpenseInline(runId){
   const amt=parseFloat(document.getElementById('exp-amt').value);
   if(!desc){toast('Description required','error');document.getElementById('exp-desc').focus();return;}
   if(!isFinite(amt)||amt<=0){toast('Amount must be positive','error');document.getElementById('exp-amt').focus();return;}
-  const exp={id:'exp_'+Date.now(),date:document.getElementById('exp-date').value,
+  const exp={id:'exp_'+Date.now(),date:_canonicalLinkedDate(runId,document.getElementById('exp-date').value),
     description:desc,category:document.getElementById('exp-cat').value,amount:amt,sourcingRunId:runId};
   if(!DB.expenses)DB.expenses=[];
   DB.expenses.push(exp);
@@ -17898,7 +18092,7 @@ function addRunTrip(runId){
   const run=_sourcingRuns.find(r=>r.id===runId);
   const defaultDate=(run&&run.dateStarted?String(run.dateStarted).slice(0,10):new Date().toISOString().split('T')[0]);
   const html=`
-    <div class="fg"><label>Date</label><input type="date" id="trip-date" value="${defaultDate}"></div>
+    <div class="fg"><label>Date</label><input type="date" id="trip-date" value="${defaultDate}" readonly aria-readonly="true"></div>
     <div class="fg"><label>Description</label><input type="text" id="trip-desc" placeholder="e.g. Car boot sale drive"></div>
     <div class="fg"><label>Mileage (round trip)</label><input type="number" id="trip-miles" step="0.1" min="0" placeholder="0" inputmode="decimal"></div>
     <div class="fg" style="background:var(--surface2);border-radius:8px;padding:8px 12px;font-size:12px;color:var(--text-secondary);">Tagged to run: <strong style="color:var(--text)">${esc(run?run.name:'Unknown')}</strong></div>
@@ -17911,7 +18105,7 @@ function saveRunTripInline(runId){
   const desc=(document.getElementById('trip-desc').value||'').trim();
   const miles=parseFloat(document.getElementById('trip-miles').value)||0;
   if(!desc){toast('Description required','error');document.getElementById('trip-desc').focus();return;}
-  const trip={id:'trip_'+Date.now(),date:document.getElementById('trip-date').value,
+  const trip={id:'trip_'+Date.now(),date:_canonicalLinkedDate(runId,document.getElementById('trip-date').value),
     description:desc,mileage:miles,ratePerMile:0.45,expenses:[],sourcingRunId:runId};
   if(!DB.trips)DB.trips=[];
   DB.trips.push(trip);
@@ -17940,7 +18134,7 @@ function duplicateTrip(idx){
   const copy=Object.assign({},t,{
     id:'trip_'+Date.now(),
     description:newName,
-    date:new Date().toISOString().split('T')[0],
+    date:_canonicalLinkedDate(t.sourcingRunId,new Date().toISOString().split('T')[0]),
     expenses:Array.isArray(t.expenses)?t.expenses.map(function(e){return Object.assign({},e);}):[]
   });
   trips.splice(idx+1,0,copy);
@@ -17956,7 +18150,7 @@ function duplicateExpense(idx){
   if(!e)return;
   const allNames=expenses.map(function(x){return x.description||'';});
   const newName=_nextDupeName(allNames,e.description||'Expense');
-  const copy=Object.assign({},e,{id:'exp_'+Date.now(),description:newName});
+  const copy=Object.assign({},e,{id:'exp_'+Date.now(),description:newName,date:_canonicalLinkedDate(e.sourcingRunId,e.date)});
   expenses.splice(idx+1,0,copy);
   DB.expenses=expenses;
   saveDB();
@@ -18011,14 +18205,15 @@ function saveTrip(){
     try{document.getElementById('trip-rate').focus();}catch(e){}
     return;
   }
+  const runId=(document.getElementById('trip-run-id')?.value)||(_activeSourcingRun?_activeSourcingRun.id:null)||null;
   const trip={
     id:'trip_'+Date.now(),
-    date:document.getElementById('trip-date').value,
+    date:_canonicalLinkedDate(runId,document.getElementById('trip-date').value),
     description:document.getElementById('trip-desc').value,
     mileage:isFinite(miles)&&miles>0?miles:0,
     ratePerMile:rate,
-    expenses:_extras,
-    sourcingRunId:(document.getElementById('trip-run-id')?.value)||(_activeSourcingRun?_activeSourcingRun.id:null)||null
+    expenses:_extras.map(function(x){return Object.assign({},x,runId?{date:_canonicalLinkedDate(runId)}:{});}),
+    sourcingRunId:runId
   };
   if(!DB.trips)DB.trips=[];
   DB.trips.push(trip);
@@ -18069,13 +18264,14 @@ function saveExpense(){
     try{document.getElementById('exp-amt').focus();}catch(e){}
     return;
   }
+  const runId=(document.getElementById('exp-run-id')?.value)||(_activeSourcingRun?_activeSourcingRun.id:null)||null;
   const exp={
     id:'exp_'+Date.now(),
-    date:document.getElementById('exp-date').value,
+    date:_canonicalLinkedDate(runId,document.getElementById('exp-date').value),
     description:desc,
     category:document.getElementById('exp-cat').value,
     amount:amt,
-    sourcingRunId:(document.getElementById('exp-run-id')?.value)||(_activeSourcingRun?_activeSourcingRun.id:null)||null
+    sourcingRunId:runId
   };
   if(!DB.expenses)DB.expenses=[];
   DB.expenses.push(exp);
@@ -18088,7 +18284,7 @@ function saveExpense(){
 function editTrip(idx){
   const t=(DB.trips||[])[idx];if(!t)return;
   openPanel('Edit Trip',`
-    <div class="fg"><label>Date</label><input type="date" id="trip-date" value="${t.date||''}"></div>
+    <div class="fg"><label>Date</label><input type="date" id="trip-date" value="${_canonicalLinkedDate(t.sourcingRunId,t.date)}" ${t.sourcingRunId?'readonly aria-readonly="true"':''}></div>
     <div class="fg"><label>Description</label><input type="text" id="trip-desc" value="${esc(t.description||'')}"></div>
     <div class="fg"><label>Mileage</label><input type="number" id="trip-miles" step="0.1" min="0" value="${t.mileage||''}"></div>
     <div class="fg"><label>Rate per mile (£)</label><input type="number" id="trip-rate" step="0.01" min="0" value="${t.ratePerMile||0.45}"></div>
@@ -18113,14 +18309,15 @@ function saveTripEdit(idx){
     return;
   }
   const existingId = trips[idx].id || ('trip_'+Date.now());
+  const runId=(document.getElementById('trip-run-id')?.value)||null;
   trips[idx]={
     id:existingId,
-    date:document.getElementById('trip-date').value,
+    date:_canonicalLinkedDate(runId,document.getElementById('trip-date').value),
     description:document.getElementById('trip-desc').value,
     mileage:miles,
     ratePerMile:rate,
-    expenses:_readTripExtras(),
-    sourcingRunId:(document.getElementById('trip-run-id')?.value)||trips[idx].sourcingRunId||null
+    expenses:_readTripExtras().map(function(x){return Object.assign({},x,runId?{date:_canonicalLinkedDate(runId)}:{});}),
+    sourcingRunId:runId
   };
   // E34 — capture BEFORE closePanel(), which resets this as a safety net for
   // the cancel-without-saving case. Reading it after closePanel() would
@@ -18220,7 +18417,7 @@ function showTripBreakdown(idx){
 function editExpense(idx){
   const e=(DB.expenses||[])[idx];if(!e)return;
   openPanel('Edit Expense',`
-    <div class="fg"><label>Date</label><input type="date" id="exp-date" value="${e.date||''}"></div>
+    <div class="fg"><label>Date</label><input type="date" id="exp-date" value="${_canonicalLinkedDate(e.sourcingRunId,e.date)}" ${e.sourcingRunId?'readonly aria-readonly="true"':''}></div>
     <div class="fg"><label>Description</label><input type="text" id="exp-desc" value="${esc(e.description||'')}"></div>
     <div class="fg"><label>Category</label><select id="exp-cat">${_expenseCatOptionsHTML(e.category||'')}</select></div>
     <div class="fg"><label>Amount (£)</label><input type="number" id="exp-amt" step="0.01" min="0" value="${e.amount||''}"></div>
@@ -18244,7 +18441,8 @@ function saveExpenseEdit(idx){
     return;
   }
   const existingId = expenses[idx].id || ('exp_'+Date.now());
-  expenses[idx]={id:existingId,date:document.getElementById('exp-date').value,description:desc,category:document.getElementById('exp-cat').value,amount:amt,sourcingRunId:(document.getElementById('exp-run-id')?.value)||expenses[idx].sourcingRunId||null};
+  const runId=(document.getElementById('exp-run-id')?.value)||null;
+  expenses[idx]={id:existingId,date:_canonicalLinkedDate(runId,document.getElementById('exp-date').value),description:desc,category:document.getElementById('exp-cat').value,amount:amt,sourcingRunId:runId};
   const _overheadReturnId=_runOverheadReturnId; // capture before closePanel resets it
   DB.expenses=expenses;saveDB();closePanel();toast('Expense updated');
   if(_overheadReturnId){
@@ -18466,7 +18664,7 @@ function renderData(){
         <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:4px;">
           <div style="flex:1;min-width:0;">
             <div style="font-size:14px;font-weight:600;margin-bottom:4px;">Data Integrity Check</div>
-            <div style="font-size:12px;color:var(--text-secondary);margin-bottom:6px;">Scans every item in your database for common problems — missing data, suspicious values, and state inconsistencies that could affect your P&L or exports.</div>
+            <div style="font-size:12px;color:var(--text-secondary);margin-bottom:6px;">Scans items, trips and expenses for missing data, suspicious values, state inconsistencies and run-date mismatches that could affect your P&L or exports.</div>
             <details style="margin-bottom:12px;">
               <summary style="font-size:12px;color:var(--accent);cursor:pointer;user-select:none;list-style:none;display:flex;align-items:center;gap:4px;">
                 <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style="transition:transform 0.2s" class="ic-chev"><path d="M2 4l4 4 4-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -18480,6 +18678,8 @@ function renderData(){
                 <div>• <strong>Negative cost price</strong> — cost recorded as a negative number (probably a typo)</div>
                 <div>• <strong>Listed without a list date</strong> — age calculations and aging bar will be wrong</div>
                 <div>• <strong>Sourced without a source date</strong> — days-in-stock counter can't work</div>
+                <div>• <strong>Run-linked date mismatch</strong> — linked trips and expenses must use the sourcing run date</div>
+                <div>• <strong>Missing linked run</strong> — trip or expense points to a run that no longer exists</div>
                 <div style="margin-top:8px;margin-bottom:6px;"><strong style="color:var(--accent)">WARNINGS</strong> — unusual values that may be intentional but are worth reviewing:</div>
                 <div>• <strong>Promo % looks like a whole number</strong> — e.g. 5 instead of 0.05 (stored as decimal); can massively inflate fee calculations</div>
                 <div>• <strong>Very high sale price</strong> — over £500; just a sanity flag, not necessarily wrong</div>
@@ -18706,6 +18906,18 @@ function _runIntegrityScanner(){
       }
     });
   });
+  (DB.trips||[]).forEach(function(t){
+    if(!t.sourcingRunId)return;
+    const d=_getRunDate(t.sourcingRunId);
+    if(!d) findings.push({severity:'error',code:'trip-orphan-run',label:'Trip linked to missing run',desc:'This trip references a sourcing run that no longer exists.',m:'__run__',id:t.id,name:t.description||'Trip',kind:'trip'});
+    else if(t.date!==d) findings.push({severity:'error',code:'trip-run-date',label:'Trip date does not match run',desc:'Trip date '+(t.date||'missing')+' must match its run date '+d+'.',m:'__run__',id:t.id,name:t.description||'Trip',kind:'trip'});
+  });
+  (DB.expenses||[]).forEach(function(e){
+    if(!e.sourcingRunId)return;
+    const d=_getRunDate(e.sourcingRunId);
+    if(!d) findings.push({severity:'error',code:'expense-orphan-run',label:'Expense linked to missing run',desc:'This expense references a sourcing run that no longer exists.',m:'__run__',id:e.id,name:e.description||'Expense',kind:'expense'});
+    else if(e.date!==d) findings.push({severity:'error',code:'expense-run-date',label:'Expense date does not match run',desc:'Expense date '+(e.date||'missing')+' must match its run date '+d+'.',m:'__run__',id:e.id,name:e.description||'Expense',kind:'expense'});
+  });
   return {findings:findings,clean:clean};
 }
 
@@ -18751,7 +18963,7 @@ function runIntegrityCheck(){
       s+='<div style="background:var(--surface2);border:1px solid '+(severity==='error'?'rgba(192,57,43,0.25)':'rgba(212,136,10,0.25)')+';border-radius:10px;padding:12px 14px;margin-bottom:8px;">';
       s+='<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px;flex-wrap:wrap;">';
       s+='<div style="font-weight:600;font-size:13px;color:var(--text);">'+esc(item.name)+'</div>';
-      s+='<button class="btn btn-secondary" style="padding:3px 10px;font-size:11px;flex-shrink:0;" onclick="openItemPage(\''+item.m+'\',\''+item.id+'\',\'p-data\')">View item →</button>';
+      if(item.m!=='__run__')s+='<button class="btn btn-secondary" style="padding:3px 10px;font-size:11px;flex-shrink:0;" onclick="openItemPage(\''+item.m+'\',\''+item.id+'\',\'p-data\')">View item →</button>';
       s+='</div>';
       item.issues.forEach(function(f){
         s+='<div style="display:flex;gap:8px;align-items:flex-start;margin-bottom:6px;padding:8px 10px;background:var(--surface);border-radius:7px;border:1px solid var(--border);">';
@@ -18768,7 +18980,8 @@ function runIntegrityCheck(){
   html+=renderGroup(errors,'error');
   if(errors.length&&warnings.length) html+='<div style="margin:12px 0"></div>';
   html+=renderGroup(warnings,'warning');
-  html+='<div style="margin-top:12px;display:flex;gap:8px;"><button class="btn btn-secondary" style="font-size:12px;" onclick="runIntegrityCheck()">↻ Re-run</button></div>';
+  const hasRunDateIssues=findings.some(function(f){return f.code==='trip-run-date'||f.code==='expense-run-date';});
+  html+='<div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;"><button class="btn btn-secondary" style="font-size:12px;" onclick="runIntegrityCheck()">↻ Re-run</button>'+(hasRunDateIssues?'<button class="btn btn-primary" style="font-size:12px;" onclick="repairRunLinkedDates()">Repair run-linked dates</button>':'')+'</div>';
   out.innerHTML=html;
 }
 
