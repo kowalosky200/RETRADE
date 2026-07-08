@@ -14180,7 +14180,7 @@ function showFilteredItems(filter){
           items.push({...i,month:k,_entryType:'sale2',_displayPrice:i.resaleSalePrice,_displayDate:i.resaleDateSold||'',_entryProfit:sale2Profit});
         }else{
           // Realised P&L: one lifetime entry — the full story
-          const lifetimeProfit=calcGrossProfit(i);
+          const lifetimeProfit=calcNetProfit(i);
           const saleDate=i.resaleDateSold||(i.returnHistory&&i.returnHistory[0]?i.returnHistory[0].loggedAt:'')||'';
           items.push({...i,month:k,_entryType:'resold',_displayPrice:i.resaleSalePrice,_displayDate:saleDate,_entryProfit:lifetimeProfit});
         }
@@ -14190,7 +14190,7 @@ function showFilteredItems(filter){
           .filter(r=>r.type==='partial_seller'||r.type==='partial_ebay')
           .reduce((s,r)=>s+(r.refundAmount||0),0);
         const nDisplayPrice=filter==='revenue'?Math.max(0,(i.salePrice||0)-nPartialRefunds):i.salePrice;
-        items.push({...i,month:k,_entryType:'normal',_displayPrice:nDisplayPrice,_displayDate:i.dateSold||'',_entryProfit:calcGrossProfit(i)});
+        items.push({...i,month:k,_entryType:'normal',_displayPrice:nDisplayPrice,_displayDate:i.dateSold||'',_entryProfit:calcNetProfit(i)});
       }
     } else if(filter==='unrealised'&&!sold&&!i.isReturned){
       items.push({...i,month:k});
@@ -14211,12 +14211,16 @@ function showFilteredItems(filter){
     summaryLabel=`${items.length} transactions · ${uniqueItemCount} items`;
     summaryColor='var(--accent)';
   } else if(filter==='realised'){
-    const t=items.reduce((s,i)=>s+(i._entryProfit||0),0);
-    summaryVal=fmt(t);
+    // The dashboard headline is TRUE net profit: item profit after partner splits,
+    // dated return adjustments, then period trips + expenses. The item rows below
+    // are only the sold-item component, so use the canonical stats total here and
+    // render a reconciliation card below instead of mislabelling their subtotal.
+    const stats=calcYearlyStats(SUMMARY_PERIOD);
+    summaryVal=fmt(stats.netProfit);
     const extras=[];
     if(resoldEntryCount>0)extras.push(`${resoldEntryCount} resold`);
-    summaryLabel=`${items.length} items${extras.length?' · '+extras.join(' · '):''}`;
-    summaryColor='var(--green)';
+    summaryLabel=`${items.length} sold items · after returns & overheads`;
+    summaryColor=stats.netProfit>=0?'var(--green)':'var(--red)';
   } else if(filter==='unrealised'){
     summaryVal=fmt(items.reduce((s,i)=>s+(calcGrossProfit(i)||0),0));
     summaryLabel=`${items.length} active listings`;
@@ -14273,11 +14277,29 @@ function showFilteredItems(filter){
       <div style="font-size:12px;margin-top:4px;color:var(--muted)">Listed: ${fmt(i.salePrice)} · Cost: ${fmt(i.costPrice)}</div>
     </div>`;
   }
+  let reconciliation='';
+  if(filter==='realised'){
+    const stats=calcYearlyStats(SUMMARY_PERIOD);
+    const soldItemSubtotal=items.reduce((s,i)=>s+(i._entryProfit||0),0);
+    const returnAndTimingAdj=+(stats.grossProfit-soldItemSubtotal).toFixed(2);
+    const line=(label,val,muted)=>`<div style="display:flex;justify-content:space-between;gap:12px;padding:7px 0;border-bottom:1px solid var(--border);font-size:12px;color:${muted?'var(--text-secondary)':'var(--text)'}"><span>${label}</span><strong style="color:${val<0?'var(--red)':'var(--text)'}">${fmt(val)}</strong></div>`;
+    reconciliation=`<div style="margin:0 0 16px;background:var(--surface2);border-radius:10px;padding:12px 14px">
+      <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.1em;margin-bottom:4px">Reconciliation</div>
+      ${line('Sold-item profit',soldItemSubtotal,true)}
+      ${Math.abs(returnAndTimingAdj)>0.004?line('Dated return adjustments',returnAndTimingAdj,true):''}
+      ${line('Item profit after returns',stats.grossProfit,true)}
+      ${stats.tripsCostInPeriod?line('Less: trips',-stats.tripsCostInPeriod,true):''}
+      ${stats.expensesCostInPeriod?line('Less: expenses',-stats.expensesCostInPeriod,true):''}
+      <div style="display:flex;justify-content:space-between;gap:12px;padding-top:9px;font-size:13px;font-weight:700"><span>Net Profit</span><strong style="color:${stats.netProfit>=0?'var(--green)':'var(--red)'}">${fmt(stats.netProfit)}</strong></div>
+    </div>`;
+  }
   const html=`
     <div style="margin-bottom:16px;display:flex;align-items:center;gap:12px;background:var(--surface2);border-radius:10px;padding:14px">
       <div class="stat-num" style="color:${summaryColor}">${summaryVal}</div>
       <div><div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px">${titles[filter]}</div><div style="font-size:13px;color:var(--text-secondary)">${summaryLabel}</div></div>
     </div>
+    ${reconciliation}
+    ${filter==='realised'?'<div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.1em;margin:2px 0 8px">Sold-item breakdown</div>':''}
     ${items.map(i=>(filter==='revenue'||filter==='realised')?renderEntryRow(i):renderStockRow(i)).join('')}`;
   openPanel(titles[filter]||'Items',html);
 }
@@ -16206,7 +16228,7 @@ function renderMonth(){
         <div class="kpi-foot">${stats.soldCount} sale${stats.soldCount!==1?'s':''}${stats.returnedCount>0?' · '+stats.returnedCount+' returned':''}</div>
       </div>
       <div class="card kpi kpi-realised">
-        <div class="kpi-label">Realised P&amp;L</div>
+        <div class="kpi-label">Net Profit</div>
         <div class="kpi-value num">${fmtK(stats.realisedProfit)}</div>
         <div class="kpi-foot">${stats.totalRev>0?(stats.realisedProfit/stats.totalRev*100).toFixed(0)+'% margin':'—'}</div>
       </div>
@@ -16297,19 +16319,24 @@ function renderMonth(){
 // Render a single sale-event row for the Monthly sale-history list.
 // Visually consistent with renderItemRow but tells a sale-lineage story:
 //   - Sale 1 (standard):  "Listed {dateListed} · Sold {dateSold} · {Nd} to sell"
-//   - Sale 1 (returned):  "Listed {dateListed} · Sold {dateSold} · returned"
+//   - Return adjustment: "Full return {logged date}" (separate from original sale)
 //   - Sale 2 (resale):    "Relisted {_relistedAt} · Resold {resaleDateSold} · {Nd}"
 function renderSaleEventRow(ev){
   const i=ev.item;
   const m=ev.month;
   const selected=SELECTED_ITEMS.has(i.id);
-  const status=ev.isReturned?'returned':ev.sale==='2'?'resold':'sold';
+  const status=ev.isReturnAdjustment?'returned':ev.sale==='2'?'resold':'sold';
   const profit=ev.profit;
   const margin=ev.margin;
 
   // Build meta lineage
   const metaParts=[];
-  if(ev.sale==='1'){
+  if(ev.isReturnAdjustment){
+    const r=ev.returnEntry||{};
+    const isFull=r.type==='full_seller'||r.type==='full_ebay';
+    metaParts.push((isFull?'Full return':'Partial refund')+(ev.saleDate?' '+ev.saleDate:''));
+    if(r.returnPostage)metaParts.push('return postage '+fmt(r.returnPostage));
+  } else if(ev.sale==='1'){
     if(i.dateListed)metaParts.push('Listed '+i.dateListed);
     if(ev.saleDate)metaParts.push('Sold '+ev.saleDate);
     if(ev.isReturned)metaParts.push('returned');
@@ -16328,7 +16355,9 @@ function renderSaleEventRow(ev){
   // Right column — price + profit/ROI
   let profitEl='';
   const cls=(profit||0)>=0?'pos':'neg';
-  if(ev.isReturned){
+  if(ev.isReturnAdjustment){
+    profitEl='<div class="item-row-profit '+cls+'">adjustment '+fmt(profit||0)+'</div>';
+  } else if(ev.isReturned){
     profitEl='<div class="item-row-profit '+cls+'">net '+fmt(profit||0)+'</div>';
   } else {
     profitEl='<div class="item-row-profit '+cls+'">'+fmt(profit||0)+'</div>';
@@ -16345,7 +16374,7 @@ function renderSaleEventRow(ev){
     :'onclick="openItemPage(\''+m+'\',\''+i.id+'\',document.querySelector(\'.page.on\').id)"';
 
   // Sale-event badge — prefix with sale number for clarity when item appears twice
-  const badgeText=ev.sale==='2'?'resold':status;
+  const badgeText=ev.isReturnAdjustment?'return':ev.sale==='2'?'resold':status;
 
   // Display price = the sale event's price (sale1 price for sale1, resale for sale2)
   const displayPrice=ev.salePrice||0;
@@ -16355,7 +16384,7 @@ function renderSaleEventRow(ev){
     '<div class="ddmenu">'+
       '<button onclick="event.stopPropagation();openItemPage(\''+m+'\',\''+i.id+'\',document.querySelector(\'.page.on\').id)">'+icon('fullpage',14)+' Full page</button>'+
       '<button onclick="event.stopPropagation();editItem(\''+m+'\',\''+i.id+'\')">'+icon('edit',14)+' Edit</button>'+
-      (!ev.isReturned?'<button onclick="event.stopPropagation();openReturn(\''+m+'\',\''+i.id+'\')">'+icon('return',14)+' Log Return</button>':'')+
+      (!ev.isReturned&&!ev.isReturnAdjustment?'<button onclick="event.stopPropagation();openReturn(\''+m+'\',\''+i.id+'\')">'+icon('return',14)+' Log Return</button>':'')+
       '<button onclick="event.stopPropagation();confirmDupeItem(\''+m+'\',\''+i.id+'\')">'+icon('dupe',14)+' Duplicate</button>'+
       '<button class="danger" onclick="event.stopPropagation();deleteItem(\''+m+'\',\''+i.id+'\')">'+icon('trash',14)+' Delete</button>'+
     '</div></div>';
@@ -20283,46 +20312,47 @@ function undoRelist(m,id,rtnIdx){
 
 // ── Returned items panel (opened from KPI card) ────────────────────────────
 function showReturnedItems(){
+  // IMPORTANT: this panel must use the exact same attribution rule as the
+  // dashboard KPI — a refund belongs to the period in which it was LOGGED.
+  // Build one row per item, but only from return entries inside the selected
+  // period. Older/later returns on the same item must not leak into totals.
   const items=[];
   allDBKeys().forEach(function(k){
     (DB[k]||[]).forEach(function(i){
-      const rh=i.returnHistory||[];
-      if(rh.length===0)return;
-      // Period filter: use the ORIGINAL SALE DATE (with snapshot fallback for
-      // full returns that wiped i.dateSold). Matches the headline KPI.
-      const fullEntry=rh.find(r=>r.type==='full_seller'||r.type==='full_ebay');
-      const partialEntry=rh.find(r=>r.type==='partial_seller'||r.type==='partial_ebay');
-      const refundSaleDate=(fullEntry&&fullEntry._dateSoldAtReturn)
-                         ||(partialEntry&&partialEntry._dateSoldAtReturn)
-                         ||i.dateSold||null;
-      if(!_inSummaryPeriod(refundSaleDate||''))return;
-      items.push(Object.assign({},i,{month:k,_refundSaleDate:refundSaleDate}));
+      if((i.item||'').trim().toUpperCase()==='MONTH END')return;
+      const periodReturns=(i.returnHistory||[]).map(function(r,idx){
+        return {entry:r,index:idx,date:_returnEventDate(r)};
+      }).filter(function(x){return x.date&&_inSummaryPeriod(x.date);});
+      if(!periodReturns.length)return;
+      items.push(Object.assign({},i,{month:k,_periodReturns:periodReturns}));
     });
   });
 
-  // Sort newest sale-date first
   items.sort(function(a,b){
-    return (b._refundSaleDate||'').localeCompare(a._refundSaleDate||'');
+    const ad=a._periodReturns[a._periodReturns.length-1].date||'';
+    const bd=b._periodReturns[b._periodReturns.length-1].date||'';
+    return bd.localeCompare(ad);
   });
 
   const fullyReturned=items.filter(function(i){
-    return (i.returnHistory||[]).some(r=>r.type==='full_seller'||r.type==='full_ebay');
+    return i._periodReturns.some(function(x){const r=x.entry;return r.type==='full_seller'||r.type==='full_ebay';});
   });
   const partialOnly=items.filter(function(i){
-    const hasFull=(i.returnHistory||[]).some(r=>r.type==='full_seller'||r.type==='full_ebay');
-    return !hasFull&&(i.returnHistory||[]).some(r=>r.type==='partial_seller'||r.type==='partial_ebay');
+    const hasFull=i._periodReturns.some(function(x){const r=x.entry;return r.type==='full_seller'||r.type==='full_ebay';});
+    return !hasFull&&i._periodReturns.some(function(x){const r=x.entry;return r.type==='partial_seller'||r.type==='partial_ebay';});
   });
   const totalRefundedAll=items.reduce(function(s,i){
-    return s+(i.returnHistory||[]).reduce(function(s2,r){return s2+(r.refundAmount||0);},0);
+    return s+i._periodReturns.reduce(function(s2,x){return s2+(Number(x.entry.refundAmount)||0);},0);
   },0);
 
   const buildRow=function(i){
-    const hasFull=(i.returnHistory||[]).some(r=>r.type==='full_seller'||r.type==='full_ebay');
+    const periodEntries=i._periodReturns.map(function(x){return x.entry;});
+    const hasFull=periodEntries.some(function(r){return r.type==='full_seller'||r.type==='full_ebay';});
     const isResold=!!i.resaleSalePrice;
-    const isRelisted=!i.isReturned&&!i.dateSold&&!i.resaleSalePrice&&hasFull;
-    const lastRet=i.returnHistory[i.returnHistory.length-1];
-    const refundTotal=(i.returnHistory||[]).reduce(function(s,r){return s+(r.refundAmount||0);},0);
-    const profit=calcGrossProfit(i);
+    const isRelisted=!i.isReturned&&!i.dateSold&&!i.resaleSalePrice&&(i.returnHistory||[]).some(function(r){return r.type==='full_seller'||r.type==='full_ebay';});
+    const lastPeriod=i._periodReturns[i._periodReturns.length-1];
+    const refundTotal=periodEntries.reduce(function(s,r){return s+(Number(r.refundAmount)||0);},0);
+    const impactTotal=periodEntries.reduce(function(s,r){return s+_returnEventImpact(i,r).profit;},0);
     const borderCol=hasFull?'var(--red)':'var(--warn)';
     const refundCol=hasFull?'var(--red)':'var(--warn)';
     const typeBadge=hasFull
@@ -20339,15 +20369,13 @@ function showReturnedItems(){
       +'<div style="font-size:15px;font-weight:700;color:'+refundCol+'">'+fmt(refundTotal)+'</div>'
       +'</div>'
       +'<div style="display:flex;gap:16px;flex-wrap:wrap;font-size:12px;color:var(--text-secondary)">'
-      +'<span>Sale: <strong>'+fmt(i.salePrice)+'</strong></span>'
-      +(profit!==null?'<span>Net P&L: <strong style="color:'+(profit>=0?'var(--green)':'var(--red)')+'">'+fmt(profit)+'</strong></span>':'')
+      +'<span>Return impact: <strong style="color:'+(impactTotal>=0?'var(--green)':'var(--red)')+'">'+fmt(impactTotal)+'</strong></span>'
       +(i.gid?'<span style="color:var(--muted);font-family:monospace">'+esc(i.gid)+'</span>':'')
-      +'<span style="color:var(--muted)">Sold '+(i._refundSaleDate||'—')+' · returned '+(lastRet.loggedAt||'—')+'</span>'
+      +'<span style="color:var(--muted)">Returned '+(lastPeriod.date||'—')+'</span>'
       +'</div>'
       +'</div>';
-  }
+  };
 
-  // Two sections: full returns, then partials
   let rows='';
   if(fullyReturned.length>0){
     rows+='<div style="font-size:11px;font-weight:700;color:var(--red);text-transform:uppercase;letter-spacing:.08em;margin:0 0 8px">Full returns — affect refund rate</div>';
@@ -20358,25 +20386,21 @@ function showReturnedItems(){
     rows+=partialOnly.map(buildRow).join('');
   }
 
-  // Period stats — pull from the same engine the headline KPI uses so the
-  // numbers reconcile. soldCount + fullRefundCount = the items-rate denom.
   const _stats=calcSummaryStats();
   const itemsRate=_stats.refundItemRate||0;
   const refundedItemCount=_stats.refundedItemCount||0;
   const refundDenom=_stats.refundDenom||0;
-  // Period revenue denominator for the £/% line (gross sale revenue in period).
   let _periodRevenue=0;
   allDBKeys().forEach(function(k){
     (DB[k]||[]).forEach(function(i){
       if((i.item||'').trim().toUpperCase()==='MONTH END')return;
-      const sd=i.resaleSalePrice?i.resaleDateSold:i.dateSold;
-      if(!sd||!_inSummaryPeriod(sd))return;
-      _periodRevenue+=calcItemRevenue(i);
+      const s1=_sale1EventSnapshot(i);
+      if(s1.date&&_inSummaryPeriod(s1.date))_periodRevenue+=Number(s1.price)||0;
+      if(i.resaleSalePrice&&i.resaleDateSold&&_inSummaryPeriod(i.resaleDateSold))_periodRevenue+=Number(i.resaleSalePrice)||0;
     });
   });
   const _refundPctRev=_periodRevenue>0?(totalRefundedAll/_periodRevenue*100):0;
 
-  // Summary block: items rate is the HEADLINE; £ paid out + % of revenue is secondary.
   const summary='<div style="margin-bottom:16px;background:var(--surface2);border-radius:10px;padding:14px">'
     +'<div style="display:flex;align-items:baseline;gap:10px;margin-bottom:4px">'
     +'<div class="stat-num" style="color:var(--red)">'+itemsRate.toFixed(1)+'%</div>'
@@ -20384,14 +20408,14 @@ function showReturnedItems(){
     +'</div>'
     +'<div style="font-size:13px;color:var(--text-secondary);margin-bottom:12px">'
       +'<strong style="color:var(--text);font-weight:600">'+refundedItemCount+' of '+refundDenom+'</strong> sold '
-      +'\u00b7 '+fullyReturned.length+' full \u00b7 '+partialOnly.length+' partial'
+      +'· '+fullyReturned.length+' full · '+partialOnly.length+' partial'
     +'</div>'
     +'<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-top:1px solid var(--border);font-size:12px;color:var(--muted)">'
-      +'<span>Total paid out</span>'
+      +'<span>Total paid out in period</span>'
       +'<span style="color:var(--red);font-weight:600">'+fmt(totalRefundedAll)+'</span>'
     +'</div>'
     +'<div style="display:flex;align-items:center;justify-content:space-between;font-size:12px;color:var(--muted)">'
-      +'<span>% of period revenue</span>'
+      +'<span>% of period sales revenue</span>'
       +'<span style="color:var(--text);font-weight:600">'+_refundPctRev.toFixed(1)+'% <span style="color:var(--muted);font-weight:400">of '+fmt(_periodRevenue)+'</span></span>'
     +'</div>'
     +'</div>';
@@ -20829,10 +20853,10 @@ function _periodDateRange(period){
   const today=new Date();
   const todayStr=today.toISOString().split('T')[0];
   const daysAgo=function(n){const d=new Date(today);d.setDate(d.getDate()-n);return d.toISOString().split('T')[0];}
-  if(period==='7d')  return{from:daysAgo(7),  to:todayStr};
-  if(period==='30d') return{from:daysAgo(30), to:todayStr};
-  if(period==='60d') return{from:daysAgo(60), to:todayStr};
-  if(period==='90d') return{from:daysAgo(90), to:todayStr};
+  if(period==='7d')  return{from:daysAgo(6),  to:todayStr};
+  if(period==='30d') return{from:daysAgo(29), to:todayStr};
+  if(period==='60d') return{from:daysAgo(59), to:todayStr};
+  if(period==='90d') return{from:daysAgo(89), to:todayStr};
   if(period==='current_fy'||!period){
     const fy=_currentFYStart();
     return{from:fy+'-04-01',to:(fy+1)+'-03-31'};
@@ -21260,90 +21284,53 @@ function _returnEventsForItem(i,k,predicate){
   return out;
 }
 
+function _sale1EventSnapshot(i){
+  const fullReturn=(i.returnHistory||[]).find(function(r){return r.type==='full_seller'||r.type==='full_ebay';});
+  const saleDate=i.dateSold||(fullReturn&&fullReturn._dateSoldAtReturn)||null;
+  const salePrice=Number((fullReturn&&(fullReturn._salePriceAtReturn||fullReturn._salePriceAtRelist))||i.salePrice||0);
+  // Monthly sale history must show the economics as they stood on the sale date.
+  // Return/refund cash movements are separate dated events and must not rewrite
+  // the original month's sale status or profit.
+  const snap=Object.assign({},i,{
+    salePrice:salePrice,
+    dateSold:saleDate,
+    isReturned:false,
+    state:'sold',
+    returnHistory:[],
+    resaleSalePrice:null,
+    resaleDateSold:null,
+    resalePromoPercent:null,
+    resaleShippingCost:null,
+    resalePackagingCost:null
+  });
+  return {item:snap,date:saleDate,price:salePrice};
+}
+
 function getSaleEventsInMonth(m){
   const out=[];
   allDBKeys().forEach(function(k){
     (DB[k]||[]).forEach(function(i){
       if((i.item||'').trim().toUpperCase()==='MONTH END')return;
-      // Sale 1 — original sale
-      // Full returns wipe i.dateSold — use _dateSoldAtReturn snapshot to keep the
-      // sale attributed to the correct month for revenue and refund-rate purposes.
-      // _sale1Date: use _dateSoldAtReturn for any item whose dateSold was wiped
-      // (covers both currently-returned items AND returned+resold items).
-      const _sale1Date=i.dateSold||((!i.dateSold)?(function(){
-        const fe=(i.returnHistory||[]).find(r=>r.type==='full_seller'||r.type==='full_ebay');
-        return fe&&fe._dateSoldAtReturn||null;
-      })():null);
-      if(_sale1Date&&_monthKeyFromDate(_sale1Date)===m){
-        // If this item was relisted, sale1 needs the original-sale snapshot.
-        const fullReturn=(i.returnHistory||[]).find(function(r){return r.type==='full_seller'||r.type==='full_ebay';});
-        const isRelisted=!!fullReturn&&!!i.resaleSalePrice;
-        if(isRelisted){
-          // Reconstruct sale1 as a standalone item using the snapshot.
-          const sale1Price=fullReturn._salePriceAtReturn||fullReturn.refundAmount||i.salePrice||0;
-          const sale1Item=Object.assign({},i,{
-            salePrice:sale1Price,
-            dateSold:i.dateSold,
-            resaleSalePrice:null,
-            resaleDateSold:null,
-            resalePromoPercent:null,
-            resaleShippingCost:null,
-            resalePackagingCost:null,
-            isReturned:true,            // it was returned (then relisted)
-            returnHistory:[fullReturn]  // the full-return entry only
-          });
-          out.push({
-            item:i, month:k, sale:'1',
-            saleDate:i.dateSold,
-            salePrice:sale1Price,
-            profit:calcGrossProfit(sale1Item),
-            roi:null,                   // ROI semantically belongs to the resale outcome
-            margin:null,                // margin likewise attributed to the resale event
-            daysToSell:i.dateListed?daysBetween(i.dateListed,i.dateSold):null,
-            isReturned:true             // show as returned in the month it was returned/relisted
-          });
-        } else if(!i.isReturned){
-          // Standard single sale (not relisted, not currently returned)
-          out.push({
-            item:i, month:k, sale:'1',
-            saleDate:i.dateSold,
-            salePrice:i.salePrice||0,
-            profit:calcGrossProfit(i),
-            roi:calcROI(i),
-            margin:calcMargin(i),
-            daysToSell:calcDaysToSell(i),
-            isReturned:false
-          });
-        } else {
-          // Currently flagged as returned (not yet relisted) — sale1 happened, was reversed.
-          out.push({
-            item:i, month:k, sale:'1',
-            saleDate:_sale1Date,
-            salePrice:i.salePrice||0,
-            profit:calcGrossProfit(i)||0,
-            roi:null,
-            margin:null,
-            daysToSell:i.dateListed?daysBetween(i.dateListed,i.dateSold):null,
-            isReturned:true
-          });
-        }
+      const s1=_sale1EventSnapshot(i);
+      if(s1.date&&_monthKeyFromDate(s1.date)===m){
+        out.push({
+          item:i,month:k,sale:'1',saleDate:s1.date,salePrice:s1.price,
+          profit:calcGrossProfit(s1.item),roi:calcROI(s1.item),margin:calcMargin(s1.item),
+          daysToSell:i.dateListed?daysBetween(i.dateListed,s1.date):null,
+          isReturned:false,isReturnAdjustment:false
+        });
       }
-      // Sale 2 — resale event
       if(i.resaleSalePrice&&i.resaleDateSold&&_monthKeyFromDate(i.resaleDateSold)===m){
         out.push({
-          item:i, month:k, sale:'2',
-          saleDate:i.resaleDateSold,
-          salePrice:i.resaleSalePrice||0,
-          profit:calcGrossProfit(i),         // full-lifecycle profit attributed to the resale event
-          roi:calcROI(i),
-          margin:calcMargin(i),
-          daysToSell:calcDaysToSell(i),
-          isReturned:false                   // resale events are net-positive sales
+          item:i,month:k,sale:'2',saleDate:i.resaleDateSold,salePrice:i.resaleSalePrice||0,
+          profit:calcGrossProfit(i),roi:calcROI(i),margin:calcMargin(i),
+          daysToSell:calcDaysToSell(i),isReturned:false,isReturnAdjustment:false
         });
       }
     });
   });
-  // Return/refund adjustments belong to the month they were logged.
+  // A return is its own dated accounting event. It appears only in the month
+  // logged, while the original sale remains an ordinary sold row in its month.
   allDBKeys().forEach(function(k){
     (DB[k]||[]).forEach(function(i){
       if((i.item||'').trim().toUpperCase()==='MONTH END')return;
@@ -21362,44 +21349,20 @@ function getSaleEventsInRange(from,to){
   allDBKeys().forEach(function(k){
     (DB[k]||[]).forEach(function(i){
       if((i.item||'').trim().toUpperCase()==='MONTH END')return;
-      // Resolve sale 1 date (survives full-return dateSold wipe via snapshot)
-      const _sale1Date=i.dateSold||((!i.dateSold)?(function(){
-        const fe=(i.returnHistory||[]).find(r=>r.type==='full_seller'||r.type==='full_ebay');
-        return fe&&fe._dateSoldAtReturn||null;
-      })():null);
-      if(inR(_sale1Date)){
-        const fullReturn=(i.returnHistory||[]).find(function(r){return r.type==='full_seller'||r.type==='full_ebay';});
-        const isRelisted=!!fullReturn&&!!i.resaleSalePrice;
-        if(isRelisted){
-          const sale1Price=fullReturn._salePriceAtReturn||fullReturn.refundAmount||i.salePrice||0;
-          const sale1Item=Object.assign({},i,{
-            salePrice:sale1Price,dateSold:i.dateSold,
-            resaleSalePrice:null,resaleDateSold:null,resalePromoPercent:null,
-            resaleShippingCost:null,resalePackagingCost:null,
-            isReturned:true,returnHistory:[fullReturn]
-          });
-          out.push({item:i,month:k,sale:'1',saleDate:i.dateSold,salePrice:sale1Price,
-            profit:calcGrossProfit(sale1Item),roi:null,margin:null,
-            daysToSell:i.dateListed?daysBetween(i.dateListed,i.dateSold):null,isReturned:true});
-        } else if(!i.isReturned){
-          out.push({item:i,month:k,sale:'1',saleDate:i.dateSold,salePrice:i.salePrice||0,
-            profit:calcGrossProfit(i),roi:calcROI(i),margin:calcMargin(i),
-            daysToSell:calcDaysToSell(i),isReturned:false});
-        } else {
-          out.push({item:i,month:k,sale:'1',saleDate:_sale1Date,salePrice:i.salePrice||0,
-            profit:calcGrossProfit(i)||0,roi:null,margin:null,
-            daysToSell:i.dateListed?daysBetween(i.dateListed,i.dateSold):null,isReturned:true});
-        }
+      const s1=_sale1EventSnapshot(i);
+      if(inR(s1.date)){
+        out.push({item:i,month:k,sale:'1',saleDate:s1.date,salePrice:s1.price,
+          profit:calcGrossProfit(s1.item),roi:calcROI(s1.item),margin:calcMargin(s1.item),
+          daysToSell:i.dateListed?daysBetween(i.dateListed,s1.date):null,
+          isReturned:false,isReturnAdjustment:false});
       }
-      // Sale 2 — resale event
       if(i.resaleSalePrice&&inR(i.resaleDateSold)){
         out.push({item:i,month:k,sale:'2',saleDate:i.resaleDateSold,salePrice:i.resaleSalePrice||0,
           profit:calcGrossProfit(i),roi:calcROI(i),margin:calcMargin(i),
-          daysToSell:calcDaysToSell(i),isReturned:false});
+          daysToSell:calcDaysToSell(i),isReturned:false,isReturnAdjustment:false});
       }
     });
   });
-  // Return/refund adjustments belong to the date they were logged.
   allDBKeys().forEach(function(k){
     (DB[k]||[]).forEach(function(i){
       if((i.item||'').trim().toUpperCase()==='MONTH END')return;
@@ -22054,9 +22017,9 @@ function downloadRangeExcel(from,to){
 // Sale-attributed month stats — drives the new Monthly KPIs.
 //   totalRev          Sum of sale-event revenue (sale1 prices + sale2 prices) landing in m
 //   realisedProfit    Sum of sale-event profits (sale1 sentinel-priced via snapshot; sale2 full lifecycle)
-//   soldCount         Count of NET sale events in m (excludes sale1 events that ended in return)
-//   eventCount        Count of ALL sale events in m (includes returned sale1's)
-//   returnedCount     Count of sale events in m that ended in a return
+//   soldCount         Count of sale events in m; later returns do not rewrite the sale month
+//   eventCount        Count of all sale and dated return-adjustment events in m
+//   returnedCount     Count of return adjustments logged in m
 //   avgROI            Average ROI across non-returned sale events
 //   avgDays           Average days-to-sell across non-returned sale events
 //   refundCount       Count of return events whose original sale (dateSoldAtReturn fallback) was in m
