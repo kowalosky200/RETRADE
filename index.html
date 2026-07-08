@@ -1529,8 +1529,8 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
 #p-summary .insights{display:grid!important}
 #p-summary .chart-wrap{display:block!important}
 #p-summary .item-table{display:block!important}
-#p-stock .item-table{display:block!important;width:100%;}
-#p-stock .item-table .item-row{display:grid!important;grid-template-columns:1fr auto!important;align-items:center!important;gap:6px!important;width:100%;box-sizing:border-box;}
+#p-stock .item-table,#p-monthly .item-table{display:block!important;width:100%;}
+#p-stock .item-table .item-row,#p-monthly .item-table .item-row{display:grid!important;grid-template-columns:1fr auto!important;align-items:center!important;gap:6px!important;width:100%;box-sizing:border-box;}
 #p-summary .section-card{display:block!important}
 #p-summary .kcard,
 #p-summary .insight-card,
@@ -3100,21 +3100,25 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
 }
 
 /* Empty state — surface card treatment (matches other V2 pages) */
-.rt #p-stock .empty-state{
+.rt #p-stock .empty-state,
+.rt #p-monthly .empty-state{
   background:var(--surface);border:1px solid var(--border);
   border-radius:var(--r-m);padding:36px 22px;text-align:center;
   box-shadow:0 1px 2px var(--shadow);margin-top:4px;
 }
-.rt #p-stock .empty-state-text{
+.rt #p-stock .empty-state-text,
+.rt #p-monthly .empty-state-text{
   font-family:var(--font-display);font-size:15px;font-weight:700;
   color:var(--text-primary);margin-bottom:6px;letter-spacing:-0.01em;
 }
-.rt #p-stock .empty-state-sub{font-size:13px;color:var(--muted);line-height:1.4;}
+.rt #p-stock .empty-state-sub,
+.rt #p-monthly .empty-state-sub{font-size:13px;color:var(--muted);line-height:1.4;}
 
 /* Mobile filter dropdown ("All (10)" pill) — match V2 picker family visual.
    Custom button so it doesn't inherit .sort-select styling; we apply the same
    surface-2 navy fill, border-strong hover, and amber focus ring here. */
-.rt #p-stock .filter-pill-dd-btn{
+.rt #p-stock .filter-pill-dd-btn,
+.rt #p-monthly .filter-pill-dd-btn{
   height:34px;padding:0 12px;border-radius:var(--r-s);
   font-size:12.5px;font-weight:600;
   background:var(--surface-2);color:var(--text-primary);
@@ -3122,31 +3126,36 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
   transition:border-color var(--dur-fast) var(--ease-out),
              box-shadow var(--dur-fast) var(--ease-out);
 }
-.rt #p-stock .filter-pill-dd-btn:hover{border-color:var(--border-strong);}
-.rt #p-stock .filter-pill-dd.open .filter-pill-dd-btn{
+.rt #p-stock .filter-pill-dd-btn:hover,
+.rt #p-monthly .filter-pill-dd-btn:hover{border-color:var(--border-strong);}
+.rt #p-stock .filter-pill-dd.open .filter-pill-dd-btn,
+.rt #p-monthly .filter-pill-dd.open .filter-pill-dd-btn{
   border-color:var(--accent);
   box-shadow:0 0 0 2px rgba(242,179,61,0.22);
 }
-.rt #p-stock .filter-pill-dd-btn .fpdd-chev{color:var(--text-tertiary);}
-.rt #p-stock .filter-pill-dd-menu{
+.rt #p-stock .filter-pill-dd-btn .fpdd-chev,
+.rt #p-monthly .filter-pill-dd-btn .fpdd-chev{color:var(--text-tertiary);}
+.rt #p-stock .filter-pill-dd-menu,
+.rt #p-monthly .filter-pill-dd-menu{
   background:var(--surface-1);border:1px solid var(--border);
   border-radius:var(--r-s);
 }
 
-/* ─────────  COMPACT LIST TREATMENT (stock-scoped)  ──────────────────────────
+/* ─────────  COMPACT LIST TREATMENT (list-scoped)  ───────────────────────────
    Legacy CSS at ~line 1325 turns every .item-row into a floating gradient card
    with 18px radius, 10px margin-bottom, and 0 10px 24px shadow. That + bumped
    15/17/13px typography = ~100px per row, only 6 items visible on desktop.
 
-   Reseller workflow wants density — this block converts Stock rows into a
+   Reseller workflow wants density — this block converts list rows into a
    proper compact list inside a shared .item-table container. Target ~60px
    per row → ~13 items visible on desktop full-screen (2× the density).
 
-   Scoped strictly to #p-stock so Sales History / Calendar keep their current
-   treatment until we reskin those pages. */
+   v2.10.0: extended from #p-stock to also cover #p-monthly (Sales History).
+   Stale/stock-group selectors remain stock-only (not present in monthly). */
 
 /* Container: reinstate .item-table as a proper joined-rows card frame */
-.rt #p-stock .item-table{
+.rt #p-stock .item-table,
+.rt #p-monthly .item-table{
   background:var(--surface-1)!important;
   border:1px solid var(--border)!important;
   border-radius:var(--r-m)!important;
@@ -3156,7 +3165,8 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
 }
 
 /* Rows: strip the floating-card treatment, use joined-row surface */
-.rt #p-stock .item-row{
+.rt #p-stock .item-row,
+.rt #p-monthly .item-row{
   background:transparent!important;
   border:none;
   border-bottom:1px solid var(--border);
@@ -3166,18 +3176,22 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
   margin:0!important;
   transition:background var(--dur-fast) var(--ease-out);
 }
-.rt #p-stock .item-row:last-child{border-bottom:none!important;}
-.rt #p-stock .item-row:hover{
+.rt #p-stock .item-row:last-child,
+.rt #p-monthly .item-row:last-child{border-bottom:none!important;}
+.rt #p-stock .item-row:hover,
+.rt #p-monthly .item-row:hover{
   background:var(--surface-2)!important;
   transform:none!important;
 }
-.rt #p-stock .item-row:active{
+.rt #p-stock .item-row:active,
+.rt #p-monthly .item-row:active{
   background:var(--surface-3)!important;
   transform:none!important;
 }
 
 /* Selected: kill legacy huge shadow, use clean amber strip */
-.rt #p-stock .item-row.selected{
+.rt #p-stock .item-row.selected,
+.rt #p-monthly .item-row.selected{
   background:var(--accent-dim)!important;
   border-left:3px solid var(--accent)!important;
   padding-left:13px!important;
@@ -3193,24 +3207,148 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
 }
 
 /* Typography: reset to compact base sizes (undo legacy 15/17/13 bumps) */
-.rt #p-stock .item-row .item-row-name{
+.rt #p-stock .item-row .item-row-name,
+.rt #p-monthly .item-row .item-row-name{
   font-size:14px;font-weight:600;line-height:1.3;
 }
-.rt #p-stock .item-row .item-row-meta{
+.rt #p-stock .item-row .item-row-meta,
+.rt #p-monthly .item-row .item-row-meta{
   font-size:11.5px;margin-top:2px;line-height:1.35;
 }
-.rt #p-stock .item-row .item-row-price{
+.rt #p-stock .item-row .item-row-price,
+.rt #p-monthly .item-row .item-row-price{
   font-size:14px;font-weight:700;
 }
-.rt #p-stock .item-row .item-row-profit{
+.rt #p-stock .item-row .item-row-profit,
+.rt #p-monthly .item-row .item-row-profit{
   font-size:12px;font-weight:600;
 }
-.rt #p-stock .item-row .item-row-roi{
+.rt #p-stock .item-row .item-row-roi,
+.rt #p-monthly .item-row .item-row-roi{
   font-size:10.5px;color:var(--text-tertiary);
 }
 
 /* Right column: tighter stack */
-.rt #p-stock .item-row .item-row-right{gap:1px;}
+.rt #p-stock .item-row .item-row-right,
+.rt #p-monthly .item-row .item-row-right{gap:1px;}
+
+/* ── Sales History KPI cards — V2 flat treatment (v2.10.1) ───────────────────
+   Replaces legacy .kcard b/g/r colour-accent cards (off-brand rainbow top
+   borders) with the same flat .card kpi structure the dashboard uses. Single-
+   occupancy amber: only the Realised P&L value carries the brand tint. Grid is
+   4-across on desktop (reclaims vertical space vs the old 2x2), collapsing to
+   2x2 on tablet/mobile. */
+.rt #p-monthly .sales-kpis-v2{
+  display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px;margin-bottom:18px;
+}
+.rt #p-monthly .sales-kpis-v2 .kpi{min-height:0;padding:16px 18px;gap:4px;}
+.rt #p-monthly .sales-kpis-v2 .kpi-label{
+  font-size:11px;line-height:14px;letter-spacing:0.03em;font-weight:500;
+  color:var(--text-secondary);text-transform:uppercase;
+}
+.rt #p-monthly .sales-kpis-v2 .kpi-value{
+  font-size:30px;line-height:34px;font-weight:700;letter-spacing:-0.025em;
+  color:var(--text-primary);margin-top:3px;
+  font-variant-numeric:tabular-nums lining-nums;
+}
+.rt #p-monthly .sales-kpis-v2 .kpi-realised .kpi-value{color:var(--brand);}
+.rt #p-monthly .sales-kpis-v2 .kpi-foot{font-size:12px;color:var(--text-tertiary);margin-top:6px;}
+@media(max-width:980px){
+  .rt #p-monthly .sales-kpis-v2{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;}
+  .rt #p-monthly .sales-kpis-v2 .kpi-value{font-size:26px;line-height:30px;}
+}
+@media(max-width:520px){
+  .rt #p-monthly .sales-kpis-v2{gap:10px;}
+  .rt #p-monthly .sales-kpis-v2 .kpi{padding:14px 14px;}
+  .rt #p-monthly .sales-kpis-v2 .kpi-value{font-size:22px;line-height:26px;}
+}
+/* Ultra-wide: cap Sales History content so list rows keep a readable line
+   length instead of stretching to the global 1600px page width. */
+@media(min-width:1400px){
+  .rt #p-monthly.page{max-width:1400px;}
+}
+
+/* ── Runs KPI cards — V2 flat treatment (v2.11.0) ───────────────────────────
+   Active Run + Runs list KPI cards move off legacy .kcard (b/g/r decorative
+   top-border accents) onto the flat .card kpi surface. Semantic green/red is
+   kept but carried on the VALUE (P&L signal), not a coloured border. Amber
+   stays brand-only (the "View run" affordance). Responsive mirrors the old
+   grids: 3-up desktop; <=600px 2-up active (last odd spans) / 1-up list. */
+.rt #p-runs .runs-kpis-v2{
+  display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;margin-bottom:18px;
+}
+.rt #p-runs .runs-kpis-v2 .kpi{min-height:0;padding:16px 18px;gap:4px;}
+.rt #p-runs .runs-kpis-v2 .kpi.clickable{
+  cursor:pointer;
+  transition:border-color var(--dur-fast) var(--ease-out),transform var(--dur-fast) var(--ease-out);
+  -webkit-tap-highlight-color:transparent;
+}
+@media(hover:hover){.rt #p-runs .runs-kpis-v2 .kpi.clickable:hover{border-color:var(--border-strong);transform:translateY(-1px);}}
+.rt #p-runs .runs-kpis-v2 .kpi.clickable:active{transform:scale(0.99);}
+.rt #p-runs .runs-kpis-v2 .kpi-label{
+  font-size:11px;line-height:14px;letter-spacing:0.03em;font-weight:500;
+  color:var(--text-secondary);text-transform:uppercase;
+}
+.rt #p-runs .runs-kpis-v2 .kpi-value{
+  font-size:28px;line-height:32px;font-weight:700;letter-spacing:-0.025em;
+  color:var(--text-primary);margin-top:3px;
+  font-variant-numeric:tabular-nums lining-nums;
+}
+.rt #p-runs .runs-kpis-v2 .kpi-foot{font-size:12px;color:var(--text-tertiary);margin-top:6px;}
+.rt #p-runs .runs-kpis-v2 .kpi-viewlink{font-size:11px;font-weight:600;color:var(--brand);white-space:nowrap;}
+@media(max-width:600px){
+  .rt #p-runs .runs-kpis-v2{grid-template-columns:1fr 1fr;gap:12px;}
+  .rt #p-runs .runs-kpis-v2>.kpi:last-child:nth-child(odd){grid-column:span 2;}
+  .rt #p-runs .runs-kpis-v2 .kpi-value{font-size:24px;line-height:28px;}
+  .rt #p-runs .runs-kpis-v2.runs-kpis-stack{grid-template-columns:1fr;}
+  .rt #p-runs .runs-kpis-v2.runs-kpis-stack>.kpi:last-child:nth-child(odd){grid-column:auto;}
+}
+
+/* ── Runs page rows — V2 finish (v2.11.1) ───────────────────────────────────
+   Run-list rows + active-run item rows were ALREADY flat/joined (not floating
+   cards), so this is a polish pass — V2 tokens + Stock-matched hover/selected,
+   NOT a layout rebuild. The active-run row keeps its inline estimate-entry
+   input. Month-group container overrides are scoped to #p-runs so Costs & Trips
+   (which shares .exp-month-group) is left untouched. Amber strip uses inset
+   box-shadow (not border-left) to avoid a layout shift on these flex rows. */
+.rt #p-runs .exp-month-group{background:var(--surface-1);border-color:var(--border);border-radius:var(--r-m);}
+.rt #p-runs .exp-month-header{background:var(--surface-2);}
+.rt #p-runs .exp-month-header:hover{background:color-mix(in srgb,var(--border) 40%,var(--surface-2) 60%);}
+.rt #p-runs .run-history-row{border-top-color:var(--border);}
+@media(hover:hover){.rt #p-runs .run-history-row:hover{background:var(--surface-2);}}
+.rt #p-runs .run-history-row:active{background:var(--surface-3);}
+.rt #p-runs .ar-item-row{transition:background var(--dur-fast) var(--ease-out);}
+@media(hover:hover){.rt #p-runs .ar-item-row:hover{background:var(--surface-2);}}
+.rt #p-runs .ar-item-row.selected{background:var(--accent-dim)!important;box-shadow:inset 3px 0 0 var(--accent);}
+
+/* ── Accounts detail hero — V2 flat KPI cards (v2.11.2) ──────────────────────
+   Last legacy .kcard block in the app. Flat .card kpi surface; semantic value
+   colours kept (green/red on Your share, --warn on Unsettled) per the same
+   principle used on Runs — flatten the card, keep the value signal. 4-up
+   desktop → 2-up tablet/mobile. */
+.rt .accounts-kpis-v2{
+  display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px;margin-bottom:18px;
+}
+.rt .accounts-kpis-v2 .kpi{min-height:0;padding:16px 18px;gap:4px;}
+.rt .accounts-kpis-v2 .kpi-label{
+  font-size:11px;line-height:14px;letter-spacing:0.03em;font-weight:500;
+  color:var(--text-secondary);text-transform:uppercase;
+}
+.rt .accounts-kpis-v2 .kpi-value{
+  font-size:26px;line-height:30px;font-weight:700;letter-spacing:-0.025em;
+  color:var(--text-primary);margin-top:3px;
+  font-variant-numeric:tabular-nums lining-nums;
+}
+.rt .accounts-kpis-v2 .kpi-foot{font-size:12px;color:var(--text-tertiary);margin-top:6px;}
+@media(max-width:980px){
+  .rt .accounts-kpis-v2{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;}
+  .rt .accounts-kpis-v2 .kpi-value{font-size:24px;line-height:28px;}
+}
+@media(max-width:520px){
+  .rt .accounts-kpis-v2{gap:10px;}
+  .rt .accounts-kpis-v2 .kpi{padding:14px;}
+  .rt .accounts-kpis-v2 .kpi-value{font-size:22px;line-height:26px;}
+}
 
 /* Group body: rounded bottom on container, flat rows inside */
 .rt #p-stock .stock-group .stock-group-body.item-table{
@@ -3881,6 +4019,7 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
     overflow-y:auto;overflow-x:hidden;
     scrollbar-width:thin;
     scrollbar-color:var(--border-strong) transparent;
+    position:relative;z-index:1;   /* keep below .side-nav-footer's upward popup (v2.11.3) */
   }
   .rt #side-nav .side-nav-items::-webkit-scrollbar{width:6px;}
   .rt #side-nav .side-nav-items::-webkit-scrollbar-track{background:transparent;}
@@ -3973,6 +4112,7 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
     border-top:1px solid var(--border);
     display:flex;flex-direction:column;gap:8px;
     position:relative;
+    z-index:20;              /* footer (+ its upward settings popup) always paints above .side-nav-items (v2.11.3) */
   }
   .rt #side-nav .side-nav-sync{
     display:flex;align-items:center;gap:8px;
@@ -5925,7 +6065,7 @@ let MODAL_CALLBACK=null;
 let MONTH_FILTER='all';
 let MONTH_SORT='date-sold';
 // Costs & Trips page: period scope + active category filter (V2 redesign)
-let COST_PERIOD='taxyear';   // taxyear|mtd|lastMonth|last30|last90|all
+let COST_PERIOD='mtd';       // mtd|taxyear|lastMonth|last30|last90|all — defaults to This month to mirror Sales History (v2.11.3)
 let COST_CAT_FILTER='all';   // 'all' or a canonical EXPENSE_CATEGORY_DEFS label
 let SELECTION_MODE=false;
 let STOCK_SORT='days-asc';          // stock sort: profit | roi | price | days-desc | days-asc | cost-desc
@@ -10122,9 +10262,11 @@ function renderActiveRunPage(){
     return ss+'s';
   }
   const kc=function(label,val,sub,cls){
-    return '<div class="kcard '+(cls||'')+'"><div class="klabel">'+label+'</div><div class="kval">'+val+'</div><div class="ksub">'+sub+'</div></div>';
+    // cls g/r -> semantic green/red on the value (P&L signal); b/'' -> neutral.
+    const vc=cls==='g'?' style="color:var(--green);"':cls==='r'?' style="color:var(--red);"':'';
+    return '<div class="card kpi"><div class="kpi-label">'+label+'</div><div class="kpi-value num"'+vc+'>'+val+'</div><div class="kpi-foot">'+sub+'</div></div>';
   }
-  const kpiHTML='<div class="kgrid kgrid-3" style="margin-bottom:20px;">'
+  const kpiHTML='<div class="runs-kpis-v2" style="margin-bottom:20px;">'
     +kc('ITEMS',String(itemCount),itemCount===1?'1 item sourced':itemCount+' items sourced','')
     +kc('SPENT',fmt(spent),'Cost + parts','b')
     +kc('EST. PROFIT',estItems.length?fmt(estProfit):'\u2014',estItems.length?estItems.length+' with estimate':(itemCount>0?'Tap items to add estimates':'No estimates yet'),estItems.length&&estProfit>=0?'g':estItems.length?'r':'')
@@ -10148,7 +10290,7 @@ function renderActiveRunPage(){
     // the body opens the item page. The per-row \u22EE dropdown is kept in
     // both modes (single-item actions still work) — event.stopPropagation
     // keeps the dropdown clicks from bubbling to the row click.
-    const rowBg=_isSel?'background:var(--surface2);':'';
+    const rowBg='';  // selected styling handled by .ar-item-row.selected (v2.11.1)
     const rowClick=RUN_SELECTION_MODE
       ?'onclick="toggleRunSelect(\''+qid+'\')"'
       :'';
@@ -10162,7 +10304,7 @@ function renderActiveRunPage(){
       +leftSlot
       +'<div style="flex:1;min-width:0;'+bodyClick+'">'
         +'<div style="font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(i.item||'Untitled')+'</div>'
-        +'<div style="font-size:12px;color:var(--text-secondary);">'+fmt(i.costPrice||0)+'<span style="color:var(--muted)"> cost</span>'+_estStr+_profStr+_estInput+'</div>'
+        +'<div style="font-size:12px;color:var(--text-secondary);">'+fmt(i.costPrice||0)+'<span style="color:var(--text-tertiary)"> cost</span>'+_estStr+_profStr+_estInput+'</div>'
       +'</div>'
       +'<div class="ddwrap" id="ardd-'+i.id+'">'
         +'<button class="ddbtn" onclick="event.stopPropagation();toggleDD(\'ardd-'+qid+'\')" title="Actions" style="width:32px;height:32px;display:inline-flex;align-items:center;justify-content:center;background:transparent;border:1px solid var(--border);border-radius:6px;color:var(--text-secondary);font-size:16px;cursor:pointer;transition:background var(--dur-fast,150ms) var(--ease-out,ease-out),border-color var(--dur-fast,150ms) var(--ease-out,ease-out);-webkit-tap-highlight-color:transparent;">\u22EE</button>'
@@ -10954,19 +11096,21 @@ function renderRunsPage(){
     const overallROI=totalCapital>0?(totalProfit/totalCapital)*100:null;
 
     const mc=function(label,val,sub,valCol,clickRunId){
-      const cursor=clickRunId?'cursor:pointer;':'cursor:default;';
+      const cursor=clickRunId?'cursor:pointer;':'';
       const click=clickRunId?'onclick="openRunPageFromRuns(\''+clickRunId+'\')"':'';
-      return '<div class="kcard" style="'+cursor+'" '+click+'>'
+      // Keep semantic green/red on the value; omit inline colour when neutral.
+      const vc=(valCol&&valCol!=='var(--text)')?' style="color:'+valCol+';"':'';
+      return '<div class="card kpi'+(clickRunId?' clickable':'')+'" style="'+cursor+'" '+click+'>'
         +'<div style="display:flex;align-items:center;justify-content:space-between;gap:6px;">'
-          +'<div class="klabel">'+label+'</div>'
-          +(clickRunId?'<div style="font-size:11px;font-weight:600;color:var(--accent);white-space:nowrap;">View run \u203a</div>':'')
+          +'<div class="kpi-label">'+label+'</div>'
+          +(clickRunId?'<div class="kpi-viewlink">View run \u203a</div>':'')
         +'</div>'
-        +'<div class="kval" style="color:'+(valCol||'var(--text)')+';">'+val+'</div>'
-        +(sub?'<div class="ksub">'+sub+'</div>':'')
+        +'<div class="kpi-value num"'+vc+'>'+val+'</div>'
+        +(sub?'<div class="kpi-foot">'+sub+'</div>':'')
       +'</div>';
     };
 
-    metricsHTML='<div class="kgrid kgrid-3 kgrid-1col" style="margin-bottom:18px;">'
+    metricsHTML='<div class="runs-kpis-v2 runs-kpis-stack" style="margin-bottom:18px;">'
       +mc('Net profit','\u00a3'+totalProfit.toFixed(0),
         overallROI!==null?overallROI.toFixed(0)+'% ROI on \u00a3'+totalCapital.toFixed(0)+' deployed':ended.length+' run'+(ended.length!==1?'s':''),
         totalProfit>0?'var(--green)':totalProfit<0?'var(--red)':'var(--text)')
@@ -11550,11 +11694,13 @@ function _renderAccountPage(acct){
   const active=items.filter(function(i){return i.state!=='sold'&&!i.resaleSalePrice&&!i.isReturned;});
 
   const mc=function(label,val,sub,valCol){
-    return '<div class="kcard"><div class="klabel">'+label+'</div>'
-      +'<div class="kval" style="color:'+(valCol||'var(--text)')+';">'+val+'</div>'
-      +(sub?'<div class="ksub">'+sub+'</div>':'')+'</div>';
+    // Keep semantic value colour (green/red/--warn); omit when neutral.
+    const vc=(valCol&&valCol!=='var(--text)')?' style="color:'+valCol+';"':'';
+    return '<div class="card kpi"><div class="kpi-label">'+label+'</div>'
+      +'<div class="kpi-value num"'+vc+'>'+val+'</div>'
+      +(sub?'<div class="kpi-foot">'+sub+'</div>':'')+'</div>';
   };
-  const heroHTML='<div class="kgrid kgrid-4" style="margin-bottom:18px;">'
+  const heroHTML='<div class="accounts-kpis-v2" style="margin-bottom:18px;">'
     +mc('Your share','\u00a3'+stats.yourShare.toFixed(0),stats.soldCount+' sold',stats.yourShare>=0?'var(--green)':'var(--red)')
     +mc('Owed to partner','\u00a3'+stats.totalOwed.toFixed(0),stats.splitItemCount+' split item'+(stats.splitItemCount!==1?'s':''))
     +mc('Unsettled','\u00a3'+stats.unsettledOwed.toFixed(0),stats.unsettledOwed>0?'Tap items to settle':'All settled \u2713',stats.unsettledOwed>0?'var(--warn)':'var(--green)')
@@ -16046,26 +16192,26 @@ function renderMonth(){
       </div>
     </div>
 
-    <div class="kgrid kgrid-4">
-      <div class="kcard b">
-        <div class="klabel">Revenue</div>
-        <div class="kval">${fmtK(stats.totalRev)}</div>
-        <div class="ksub">${stats.soldCount} sale${stats.soldCount!==1?'s':''}${stats.returnedCount>0?' · '+stats.returnedCount+' returned':''}</div>
+    <div class="sales-kpis-v2">
+      <div class="card kpi">
+        <div class="kpi-label">Revenue</div>
+        <div class="kpi-value num">${fmtK(stats.totalRev)}</div>
+        <div class="kpi-foot">${stats.soldCount} sale${stats.soldCount!==1?'s':''}${stats.returnedCount>0?' · '+stats.returnedCount+' returned':''}</div>
       </div>
-      <div class="kcard g">
-        <div class="klabel">Realised P&amp;L</div>
-        <div class="kval">${fmtK(stats.realisedProfit)}</div>
-        <div class="ksub">${stats.totalRev>0?(stats.realisedProfit/stats.totalRev*100).toFixed(0)+'% margin':'—'}</div>
+      <div class="card kpi kpi-realised">
+        <div class="kpi-label">Realised P&amp;L</div>
+        <div class="kpi-value num">${fmtK(stats.realisedProfit)}</div>
+        <div class="kpi-foot">${stats.totalRev>0?(stats.realisedProfit/stats.totalRev*100).toFixed(0)+'% margin':'—'}</div>
       </div>
-      <div class="kcard">
-        <div class="klabel">Avg Margin</div>
-        <div class="kval">${stats.avgMargin!==null&&stats.avgMargin!==undefined?stats.avgMargin.toFixed(1)+'%':'—'}</div>
-        <div class="ksub">${stats.avgDays!==null?stats.avgDays+'d avg to sell':stats.soldCount===0?'No sales':'—'}</div>
+      <div class="card kpi">
+        <div class="kpi-label">Avg Margin</div>
+        <div class="kpi-value num">${stats.avgMargin!==null&&stats.avgMargin!==undefined?stats.avgMargin.toFixed(1)+'%':'—'}</div>
+        <div class="kpi-foot">${stats.avgDays!==null?stats.avgDays+'d avg to sell':stats.soldCount===0?'No sales':'—'}</div>
       </div>
-      <div class="kcard r">
-        <div class="klabel">Refund rate</div>
-        <div class="kval">${refundLabel}</div>
-        <div class="ksub">${refundSub}</div>
+      <div class="card kpi">
+        <div class="kpi-label">Refund rate</div>
+        <div class="kpi-value num">${refundLabel}</div>
+        <div class="kpi-foot">${refundSub}</div>
       </div>
     </div>
 
@@ -17850,6 +17996,7 @@ function editTrip(idx){
     ${_tripExtrasHTML(Array.isArray(t.expenses)?t.expenses:[])}
     ${_runDropdownHTML('trip-run-id',t.sourcingRunId||null)}
     <button class="btn btn-primary" style="width:100%;margin-top:16px" onclick="saveTripEdit(${idx})">Update Trip</button>
+    <button class="btn btn-secondary danger" style="width:100%;margin-top:8px" onclick="deleteTrip(${idx})">Delete Trip</button>
   `);
 }
 function saveTripEdit(idx){
@@ -17891,7 +18038,7 @@ function saveTripEdit(idx){
 async function deleteTrip(idx){
   if(!await showConfirm('Delete this trip?','This sourcing trip will be permanently removed.'))return;
   const _overheadReturnId=_runOverheadReturnId; // capture before any fn that could reset it
-  (DB.trips=DB.trips||[]).splice(idx,1);saveDB();toast('Trip deleted');
+  (DB.trips=DB.trips||[]).splice(idx,1);saveDB();closePanel();toast('Trip deleted');
   if(_overheadReturnId){
     const _r=_sourcingRuns.find(function(r){return r.id===_overheadReturnId;});
     if(_r&&document.getElementById('p-item')&&document.getElementById('p-item').classList.contains('on')){ _renderRunPage(_r); return; }
@@ -17980,6 +18127,7 @@ function editExpense(idx){
     <div class="fg"><label>Amount (£)</label><input type="number" id="exp-amt" step="0.01" min="0" value="${e.amount||''}"></div>
     ${_runDropdownHTML('exp-run-id',e.sourcingRunId||null)}
     <button class="btn btn-primary" style="width:100%;margin-top:16px" onclick="saveExpenseEdit(${idx})">Update Expense</button>
+    <button class="btn btn-secondary danger" style="width:100%;margin-top:8px" onclick="deleteExpense(${idx})">Delete Expense</button>
   `);
 }
 function saveExpenseEdit(idx){
@@ -18009,7 +18157,7 @@ function saveExpenseEdit(idx){
 async function deleteExpense(idx){
   if(!await showConfirm('Delete this expense?','This expense will be permanently removed.'))return;
   const _overheadReturnId=_runOverheadReturnId; // capture before saveDB/toast
-  (DB.expenses=DB.expenses||[]).splice(idx,1);saveDB();toast('Expense deleted');
+  (DB.expenses=DB.expenses||[]).splice(idx,1);saveDB();closePanel();toast('Expense deleted');
   if(_overheadReturnId){
     const _r=_sourcingRuns.find(function(r){return r.id===_overheadReturnId;});
     if(_r&&document.getElementById('p-item')&&document.getElementById('p-item').classList.contains('on')){ _renderRunPage(_r); return; }
