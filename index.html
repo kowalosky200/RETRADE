@@ -2630,7 +2630,7 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
 
   /* Snapshot strip at this breakpoint — the strip's auto-fit minmax(150,1fr)
      grid wraps to 2+1 inside the half-width card, leaving an empty cell to
-     the right of "Average net profit". Re-use the mobile row pattern
+     the right of "Average gross profit". Re-use the mobile row pattern
      (label-left / value-right rows with hairline dividers) so the panel
      fills cleanly without dead space. Same rule set as the ≤600px mobile
      block at line ~2682 — kept inlined here so the two contexts can drift
@@ -14274,7 +14274,7 @@ function showAvgBuyBreakdown(){
 
 function showAvgProfitBreakdown(){
   const items=_snapshotSoldItems();
-  if(!items.length){openPanel('Average Profit','<div style="padding:30px;text-align:center;color:var(--muted)">No sales in this period.</div>');return;}
+  if(!items.length){openPanel('Average Gross Profit','<div style="padding:30px;text-align:center;color:var(--muted)">No sales in this period.</div>');return;}
   const profits=items.map(i=>i._profit||0);
   const avg=profits.reduce((s,v)=>s+v,0)/profits.length;
   const periodLabel={'7d':'Last 7 days','30d':'Last 30 days','60d':'Last 60 days','90d':'Last 90 days','current_fy':'Current FY','prev_fy':'Previous FY'}[SUMMARY_PERIOD]||SUMMARY_PERIOD;
@@ -14283,7 +14283,7 @@ function showAvgProfitBreakdown(){
     <div style="display:flex;align-items:center;gap:12px">
       <div class="stat-num" style="color:var(--green)">${fmt(avg)}</div>
       <div>
-        <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px">Avg Profit Per Sale</div>
+        <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px">Avg Gross Profit Per Sale</div>
         <div style="font-size:13px;color:var(--text-secondary)">${items.length} sold items in ${periodLabel}</div>
         <div style="font-size:11px;color:var(--muted);margin-top:3px">Total ${fmt(profits.reduce((s,v)=>s+v,0))} ÷ ${items.length} items</div>
       </div>
@@ -14304,7 +14304,7 @@ function showAvgProfitBreakdown(){
       </div>
     </div>`;
   }).join('');
-  openPanel('Average Profit — Breakdown',header+rows);
+  openPanel('Average Gross Profit — Breakdown',header+rows);
 }
 
 function showFilteredItems(filter){
@@ -15283,7 +15283,7 @@ function renderSummary(){
           <div class="inv-band-grid">
             <div class="inv-metrics">
               <div class="inv-stat clickable" onclick="showFilteredItems('sourced')"><div class="inv-stat-k">Active stock value</div><div class="inv-stat-v num">${fmt(activeStockVal)}</div><div class="inv-stat-sub">At current ask</div></div>
-              <div class="inv-stat clickable" onclick="openDashboardStock('all')"><div class="inv-stat-k">Active stock</div><div class="inv-stat-v num">${activeStockCount}</div><div class="inv-stat-sub">Current live inventory</div></div>
+              <div class="inv-stat clickable" onclick="openDashboardStock('all')"><div class="inv-stat-k">Stock on hand</div><div class="inv-stat-v num">${activeStockCount}</div><div class="inv-stat-sub">Sourced + listed</div></div>
               <div class="inv-stat clickable" onclick="showListedInPeriodItems()"><div class="inv-stat-k">Listed in period</div><div class="inv-stat-v num">${listedInPeriod}</div><div class="inv-stat-sub">Fresh sourcing pace</div></div>
             </div>
             ${activeStockCount>0?(()=>{
@@ -15327,7 +15327,7 @@ function renderSummary(){
           <div class="snap-strip-row">
             <div class="snap-stat clickable" onclick="showAvgSaleBreakdown()"><div class="snap-stat-k">Average sale price</div><div class="snap-stat-v num">${fmt(stats.avgSale||0)}</div></div>
             <div class="snap-stat clickable" onclick="showAvgBuyBreakdown()"><div class="snap-stat-k">Average buy price</div><div class="snap-stat-v num">${fmt(stats.avgCostPrice||0)}</div></div>
-            <div class="snap-stat clickable" onclick="showAvgProfitBreakdown()"><div class="snap-stat-k">Average net profit</div><div class="snap-stat-v num" style="color:var(--profit)">${fmt(stats.avgProfit||0)}</div></div>
+            <div class="snap-stat clickable" onclick="showAvgProfitBreakdown()"><div class="snap-stat-k">Average gross profit</div><div class="snap-stat-v num" style="color:var(--profit)">${fmt(stats.avgProfit||0)}</div></div>
           </div>
         </div>
         <div class="card summary-panel summary-velocity">
