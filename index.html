@@ -11353,6 +11353,13 @@ function _runROI(runId){
 // accountSplitPercent (the partner's % share of THAT item's profit; null =
 // no split, item is just tracked under this account) and accountSettled
 // (whether their share has actually been paid out).
+// Canonical sold check for account reporting. Some older/imported items can have
+// a stale state='listed' even though their sale fields are populated. Accounts must
+// follow the financial evidence so sold items expose their real profit and settlement.
+function _accountItemIsSold(i){
+  return !!(i && (i.dateSold || i.resaleSalePrice || i.resaleDateSold || i.state==='sold'));
+}
+
 function _accountItems(accountId){
   const items=[];
   allDBKeys().forEach(function(k){
@@ -11390,7 +11397,7 @@ function _itemAccountType(i){
 // invariant keeps SA103 reconciliation penny-perfect. For settlement tracking
 // on the account page use _accountItemDebt() instead.
 function _accountItemOwed(i){
-  const isSold=i.state==='sold'||!!i.resaleSalePrice;
+  const isSold=_accountItemIsSold(i);
   if(!isSold)return null;
   if(i.accountPaidAmount!=null)return +Number(i.accountPaidAmount).toFixed(2);
   if(i.accountSplitPercent==null)return null;
@@ -11421,8 +11428,8 @@ function _accountItemIsManual(i){
 // partner's total owed, and how much of that owed amount is still unsettled.
 function _accountStats(accountId){
   const items=_accountItems(accountId);
-  const sold=items.filter(function(i){return i.state==='sold'||!!i.resaleSalePrice;});
-  const active=items.filter(function(i){return i.state!=='sold'&&!i.resaleSalePrice&&!i.isReturned;});
+  const sold=items.filter(_accountItemIsSold);
+  const active=items.filter(function(i){return !_accountItemIsSold(i)&&!i.isReturned;});
   const grossProfit=sold.reduce(function(s,i){return s+(calcGrossProfit(i)||0);},0);
   let totalOwed=0,unsettledOwed=0,settledOwed=0,splitItemCount=0,partnerProfitCut=0;
   // Iterate ALL items — supplier debt is per-purchase (returns non-null even when
@@ -11685,13 +11692,13 @@ function _renderAccountPage(acct){
   if(!page)return;
   const stats=_accountStats(acct.id);
   const items=_accountItems(acct.id);
-  const sold=items.filter(function(i){return i.state==='sold'||!!i.resaleSalePrice;})
+  const sold=items.filter(_accountItemIsSold)
     .sort(function(a,b){
       const da=(a.resaleSalePrice?a.resaleDateSold:a.dateSold)||'';
       const db=(b.resaleSalePrice?b.resaleDateSold:b.dateSold)||'';
       return db.localeCompare(da);
     });
-  const active=items.filter(function(i){return i.state!=='sold'&&!i.resaleSalePrice&&!i.isReturned;});
+  const active=items.filter(function(i){return !_accountItemIsSold(i)&&!i.isReturned;});
 
   const mc=function(label,val,sub,valCol){
     // Keep semantic value colour (green/red/--warn); omit when neutral.
@@ -14194,7 +14201,7 @@ function showFilteredItems(filter){
   // Sort
   if(filter==='revenue'||filter==='realised')items.sort((a,b)=>(b._displayDate||'').localeCompare(a._displayDate||''));
   if(filter==='realised')items.sort((a,b)=>(b._entryProfit||0)-(a._entryProfit||0));
-  const titles={revenue:'Total Revenue',realised:'Realised P&L',unrealised:'Unrealised Profit',stock:'Stock Value'};
+  const titles={revenue:'Total Revenue',realised:'Net Profit',unrealised:'Unrealised Profit',stock:'Stock Value'};
   let summaryVal='',summaryLabel='',summaryColor='var(--accent)';
   const uniqueItemCount=new Set(items.map(i=>i.id)).size;
   const returnEntryCount=items.filter(i=>i._entryType==='sale1').length;
@@ -15228,7 +15235,7 @@ function showMonthSnapshot(monthKey){
   const renderEvent = (e) => {
     const i=e.item;
     const profColor = (e.profit||0)>=0?'var(--green)':'var(--red)';
-    const lineage = e.sale==='2'?'Resold':'Sold';
+    const lineage = e.isReturnAdjustment?'Returned':(e.sale==='2'?'Resold':'Sold');
     return `<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);cursor:pointer" onclick="openItemDetail('${e.month}','${i.id}')">
       <div style="flex:1;min-width:0">
         <div style="font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(i.item)}</div>
@@ -17768,9 +17775,9 @@ function _runDropdownHTML(fieldId, currentRunId){
 // Open expense panel pre-tagged to a specific run
 function addRunExpense(runId){
   const run=_sourcingRuns.find(r=>r.id===runId);
-  const today=new Date().toISOString().split('T')[0];
+  const defaultDate=(run&&run.dateStarted?String(run.dateStarted).slice(0,10):new Date().toISOString().split('T')[0]);
   const html=`
-    <div class="fg"><label>Date</label><input type="date" id="exp-date" value="${today}"></div>
+    <div class="fg"><label>Date</label><input type="date" id="exp-date" value="${defaultDate}"></div>
     <div class="fg"><label>Description</label><input type="text" id="exp-desc" placeholder="e.g. Packaging, entry fee"></div>
     <div class="fg"><label>Category</label><select id="exp-cat">${_expenseCatOptionsHTML('')}</select></div>
     <div class="fg"><label>Amount (£)</label><input type="number" id="exp-amt" step="0.01" min="0" placeholder="0.00" inputmode="decimal"></div>
@@ -17797,9 +17804,9 @@ function saveRunExpenseInline(runId){
 // Open trip panel pre-tagged to a specific run
 function addRunTrip(runId){
   const run=_sourcingRuns.find(r=>r.id===runId);
-  const today=new Date().toISOString().split('T')[0];
+  const defaultDate=(run&&run.dateStarted?String(run.dateStarted).slice(0,10):new Date().toISOString().split('T')[0]);
   const html=`
-    <div class="fg"><label>Date</label><input type="date" id="trip-date" value="${today}"></div>
+    <div class="fg"><label>Date</label><input type="date" id="trip-date" value="${defaultDate}"></div>
     <div class="fg"><label>Description</label><input type="text" id="trip-desc" placeholder="e.g. Car boot sale drive"></div>
     <div class="fg"><label>Mileage (round trip)</label><input type="number" id="trip-miles" step="0.1" min="0" placeholder="0" inputmode="decimal"></div>
     <div class="fg" style="background:var(--surface2);border-radius:8px;padding:8px 12px;font-size:12px;color:var(--text-secondary);">Tagged to run: <strong style="color:var(--text)">${esc(run?run.name:'Unknown')}</strong></div>
@@ -20877,34 +20884,16 @@ function calcYearlyStats(period){
       totalItems++;
       if(soldInRange&&(i.dateSold||i.resaleSalePrice)&&!i.isReturned&&i.condition!=='spares')saleTransactions.push(i.salePrice||0);
       if(soldInRange&&i.resaleSalePrice&&i.condition!=='spares')saleTransactions.push(i.resaleSalePrice||0);
-      // Refund counting: bucket by original sale date, not loggedAt.
+      // Refund counting is attributed to the date each refund was logged.
       const rh=i.returnHistory||[];
+      const periodReturns=rh.filter(function(r){return inRange(_returnEventDate(r));});
       const hadFullReturn=rh.some(r=>r.type==='full_seller'||r.type==='full_ebay');
       const hadPartial=rh.some(r=>r.type==='partial_seller'||r.type==='partial_ebay');
-      if(hadFullReturn||hadPartial){
-        // Find the original sale date for this refund event. For full returns,
-        // dateSold may be null (wiped on full return) so fall back to the
-        // snapshot stored on the return entry.
-        const fullEntry=rh.find(r=>r.type==='full_seller'||r.type==='full_ebay');
-        const partialEntry=rh.find(r=>r.type==='partial_seller'||r.type==='partial_ebay');
-        // Prefer the full-return snapshot; if no full return, partial entry's
-        // snapshot (if present) or the live dateSold.
-        const refundSaleDate=(fullEntry&&fullEntry._dateSoldAtReturn)
-                           ||(partialEntry&&partialEntry._dateSoldAtReturn)
-                           ||i.dateSold||null;
-        if(inRange(refundSaleDate)){
-          if(hadFullReturn)fullRefundCount++;
-          else if(hadPartial)partialOnlyCount++;
-        }
+      if(periodReturns.length){
+        if(periodReturns.some(r=>r.type==='full_seller'||r.type==='full_ebay'))fullRefundCount++;
+        else if(periodReturns.some(r=>r.type==='partial_seller'||r.type==='partial_ebay'))partialOnlyCount++;
       }
-      // Legacy returnCount kept (full returns only, sale-date attributed) so
-      // downstream consumers that read `returnCount` keep working. Replaces
-      // the older loggedAt-based count.
-      if(hadFullReturn){
-        const fullEntry=rh.find(r=>r.type==='full_seller'||r.type==='full_ebay');
-        const refundSaleDate=(fullEntry&&fullEntry._dateSoldAtReturn)||i.dateSold||null;
-        if(inRange(refundSaleDate))returnCount++;
-      }
+      if(periodReturns.some(r=>r.type==='full_seller'||r.type==='full_ebay'))returnCount++;
       // Revenue + profit: attributed to the date the final resolved sale happened.
       // calcItemRevenue() handles the rules: returned+not-resold=0, returned+resold=resalePrice only.
       if(soldInRange){
@@ -21049,14 +21038,8 @@ function calcYearlyStats(period){
       if((i.item||'').trim().toUpperCase()==='MONTH END')return;
       const rh=i.returnHistory||[];
       if(rh.length>0){
-        const fullEntry=rh.find(r=>r.type==='full_seller'||r.type==='full_ebay');
-        const partialEntry=rh.find(r=>r.type==='partial_seller'||r.type==='partial_ebay');
-        const refundSaleDate=(fullEntry&&fullEntry._dateSoldAtReturn)
-                           ||(partialEntry&&partialEntry._dateSoldAtReturn)
-                           ||i.dateSold||null;
-        if(inRange(refundSaleDate)){
-          _refundMoneyTotal+=rh.reduce(function(s,r){return s+(r.refundAmount||0);},0);
-        }
+        _refundMoneyTotal+=rh.filter(function(r){return inRange(_returnEventDate(r));})
+          .reduce(function(s,r){return s+(r.refundAmount||0);},0);
       }
       // Revenue denominator: items with a sale date in period (gross).
       // Note: calcItemRevenue returns 0 for fully-returned-not-yet-resold AND
@@ -21067,6 +21050,31 @@ function calcYearlyStats(period){
     });
   });
   const refundMoneyRate=_refundMoneyDenom>0?(_refundMoneyTotal/_refundMoneyDenom*100):0;
+
+  // Move refund economics from the original sale period into the logged return period.
+  // Existing item profit/revenue functions are lifetime-based, so without this
+  // adjustment a July return rewrites June. Add the impact back to the sale
+  // period and subtract it from the period containing loggedAt.
+  let _returnProfitShift=0,_returnRevenueShift=0;
+  allDBKeys().forEach(function(k){
+    (DB[k]||[]).forEach(function(i){
+      (i.returnHistory||[]).forEach(function(r){
+        const logged=_returnEventDate(r);
+        const saleAtReturn=r._dateSoldAtReturn||i.dateSold||null;
+        const impact=_returnEventImpact(i,r);
+        if(inRange(saleAtReturn)&&!inRange(logged)){
+          _returnProfitShift-=impact.profit; // impact.profit is negative: restore sale-period profit
+          _returnRevenueShift+=impact.refund;
+        }
+        if(inRange(logged)&&!inRange(saleAtReturn)){
+          _returnProfitShift+=impact.profit;
+          _returnRevenueShift-=impact.refund;
+        }
+      });
+    });
+  });
+  realisedProfit=+(realisedProfit+_returnProfitShift).toFixed(2);
+  totalRev=+(totalRev+_returnRevenueShift).toFixed(2);
 
   const totalStaleCount=byCat.reduce((s,c)=>s+(c.stale||0),0);
 
@@ -21150,8 +21158,9 @@ function _statsForRange(range){
       const saleDate=i.resaleSalePrice?i.resaleDateSold:(i.dateSold||_retSaleDate);
       if(!inRange(saleDate))return;
       const rh=i.returnHistory||[];
-      const hadFull=rh.some(r=>r.type==='full_seller'||r.type==='full_ebay');
-      const hadPartial=rh.some(r=>r.type==='partial_seller'||r.type==='partial_ebay');
+      const periodRh=rh.filter(function(r){return inRange(_returnEventDate(r));});
+      const hadFull=periodRh.some(r=>r.type==='full_seller'||r.type==='full_ebay');
+      const hadPartial=periodRh.some(r=>r.type==='partial_seller'||r.type==='partial_ebay');
       if(hadFull)fullRef++; else if(hadPartial)partialOnly++;
       totalRev+=calcItemRevenue(i);
       const _relisted=!i.isReturned&&!i.dateSold&&!i.resaleSalePrice&&hadFull;
@@ -21220,6 +21229,37 @@ function _monthKeyFromDate(ds){
 // snapshot stored on the full_return entry (see _origSalePrice convention).
 // `sale2` uses calcGrossProfit on the full item (which already includes the
 // relist accounting).
+// Return/refund events are dated independently from the original sale.
+// This preserves the original sale in its sale month and records the cash impact
+// in the month the return/refund was actually logged.
+function _returnEventDate(r){
+  return r&&r.loggedAt?String(r.loggedAt).slice(0,10):null;
+}
+function _returnEventImpact(i,r){
+  const refund=Number(r&&r.refundAmount)||0;
+  const postage=Number(r&&r.returnPostage)||0;
+  const isFull=r&&(r.type==='full_seller'||r.type==='full_ebay');
+  let recoveredBpf=0;
+  if(isFull){
+    const originalPrice=Number(r._salePriceAtReturn||r._salePriceAtRelist||refund||i.salePrice)||0;
+    recoveredBpf=calcPlatformBPF(i,originalPrice,Number(i.postage)||0);
+  }
+  const profitImpact=-(Math.max(0,refund-recoveredBpf)+postage);
+  return {refund:+refund.toFixed(2),postage:+postage.toFixed(2),profit:+profitImpact.toFixed(2)};
+}
+function _returnEventsForItem(i,k,predicate){
+  const out=[];
+  (i.returnHistory||[]).forEach(function(r,idx){
+    const d=_returnEventDate(r);
+    if(!d||!predicate(d))return;
+    const impact=_returnEventImpact(i,r);
+    out.push({item:i,month:k,sale:'R',saleDate:d,salePrice:-impact.refund,
+      profit:impact.profit,roi:null,margin:null,daysToSell:null,isReturned:true,
+      isReturnAdjustment:true,returnEntry:r,returnIndex:idx});
+  });
+  return out;
+}
+
 function getSaleEventsInMonth(m){
   const out=[];
   allDBKeys().forEach(function(k){
@@ -21303,6 +21343,13 @@ function getSaleEventsInMonth(m){
       }
     });
   });
+  // Return/refund adjustments belong to the month they were logged.
+  allDBKeys().forEach(function(k){
+    (DB[k]||[]).forEach(function(i){
+      if((i.item||'').trim().toUpperCase()==='MONTH END')return;
+      _returnEventsForItem(i,k,function(d){return _monthKeyFromDate(d)===m;}).forEach(function(ev){out.push(ev);});
+    });
+  });
   return out;
 }
 
@@ -21350,6 +21397,13 @@ function getSaleEventsInRange(from,to){
           profit:calcGrossProfit(i),roi:calcROI(i),margin:calcMargin(i),
           daysToSell:calcDaysToSell(i),isReturned:false});
       }
+    });
+  });
+  // Return/refund adjustments belong to the date they were logged.
+  allDBKeys().forEach(function(k){
+    (DB[k]||[]).forEach(function(i){
+      if((i.item||'').trim().toUpperCase()==='MONTH END')return;
+      _returnEventsForItem(i,k,function(d){return inR(d);}).forEach(function(ev){out.push(ev);});
     });
   });
   return out;
@@ -21411,6 +21465,10 @@ function _unsoldStockCostInRange(from,to){
 // partner split). Uses sale 1 / sale 2 economics depending on ev.sale.
 function _saleBreakdown(ev){
   const i=ev.item;
+  if(ev.isReturnAdjustment){
+    const impact=_returnEventImpact(i,ev.returnEntry||{});
+    return{saleNo:'Return',platform:(_itemPlatform(i)||''),salePrice:-impact.refund,postage:0,bpf:0,promoPct:0,promoFee:0,shipping:0,packaging:0,itemCost:0,parts:0,listingFee:0,returnRefund:impact.refund,returnPostage:impact.postage,partialRefund:0,partnerSplit:0,totalCosts:+(impact.refund+impact.postage).toFixed(2),netProfit:impact.profit};
+  }
   const isSale2=(ev.sale==='2');
   const platform=_itemPlatform(i);
   const sellerPaysShipping=(platform!=='vinted'&&platform!=='fb');
@@ -22012,11 +22070,13 @@ function calcMonthStatsBySale(m){
   let marginSum=0,marginCount=0;
   events.forEach(function(e){
     eventCount++;
-    // For sale1 events that ended in a return+resale, revenue = 0 (counted on sale2).
-    const _evRev=(e.isReturned&&e.sale==='1'&&e.item.resaleSalePrice)?0:(e.salePrice||0);
+    // Return adjustments are negative cash events in their logged month.
+    const _evRev=e.isReturnAdjustment?(e.salePrice||0):((e.isReturned&&e.sale==='1'&&e.item.resaleSalePrice)?0:(e.salePrice||0));
     totalRev+=_evRev;
     realisedProfit+=e.profit||0;
-    if(e.isReturned){
+    if(e.isReturnAdjustment){
+      returnedCount++;
+    } else if(e.isReturned){
       returnedCount++;
     } else {
       soldCount++;
@@ -22025,25 +22085,14 @@ function calcMonthStatsBySale(m){
       if(e.daysToSell!==null){daysSum+=e.daysToSell;daysCount++;}
     }
   });
-  // Refund rate: returns whose original sale month (dateSoldAtReturn fallback,
-  // Refund counting — per item, attributed to the ORIGINAL sale month using
-  // the _dateSoldAtReturn snapshot (with i.dateSold fallback). Matches the
-  // single-pass convention used in calcYearlyStats / showReturnedItems.
-  //   fullRefundCount  — items in m with at least one full return
-  //   partialOnlyCount — items in m with partial refund(s) and no full return
+  // Refund rate: count refund events in the month they were logged.
   let fullRefundCount=0,partialOnlyCount=0;
   allDBKeys().forEach(function(k){
     (DB[k]||[]).forEach(function(i){
-      const rh=i.returnHistory||[];
-      if(rh.length===0)return;
-      const fullEntry=rh.find(r=>r.type==='full_seller'||r.type==='full_ebay');
-      const partialEntry=rh.find(r=>r.type==='partial_seller'||r.type==='partial_ebay');
-      const saleDate=(fullEntry&&fullEntry._dateSoldAtReturn)
-                   ||(partialEntry&&partialEntry._dateSoldAtReturn)
-                   ||i.dateSold||null;
-      if(_monthKeyFromDate(saleDate)!==m)return;
-      if(fullEntry)fullRefundCount++;
-      else if(partialEntry)partialOnlyCount++;
+      const monthEntries=(i.returnHistory||[]).filter(function(r){return _monthKeyFromDate(_returnEventDate(r))===m;});
+      if(!monthEntries.length)return;
+      if(monthEntries.some(function(r){return r.type==='full_seller'||r.type==='full_ebay';}))fullRefundCount++;
+      else if(monthEntries.some(function(r){return r.type==='partial_seller'||r.type==='partial_ebay';}))partialOnlyCount++;
     });
   });
   const refundedItemCount=fullRefundCount+partialOnlyCount;
