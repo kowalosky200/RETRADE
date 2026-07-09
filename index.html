@@ -5167,6 +5167,10 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
       style="width:100%;padding:12px;background:var(--accent);color:#000;border:none;border-radius:8px;font-weight:700;font-size:15px;cursor:pointer;transition:background 0.15s;">
       Sign In
     </button>
+    <button onclick="startPreviewMode()" id="preview-btn"
+      style="display:none;width:100%;padding:12px;background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:8px;font-weight:700;font-size:15px;cursor:pointer;transition:background 0.15s;margin-top:10px;">
+      Developer preview
+    </button>
 
     <button onclick="showForgotPassword()"
       style="width:100%;padding:10px;background:none;border:none;color:var(--text-secondary);font-size:13px;cursor:pointer;margin-top:8px;text-decoration:underline;text-underline-offset:3px;">
@@ -6773,7 +6777,7 @@ const _previewParam = new URLSearchParams(window.location.search).get('preview')
 const PREVIEW_STORAGE_KEY='retrade_preview_mode';
 const LEGACY_PREVIEW_STORAGE_KEYS=['general_preview_mode'];
 const _previewStored = localStorage.getItem(PREVIEW_STORAGE_KEY) === '1' || LEGACY_PREVIEW_STORAGE_KEYS.some(function(k){ return localStorage.getItem(k) === '1'; });
-const PREVIEW_MODE_ENABLED = false; // Dev: true / Push: false — controls preview-btn visibility, startPreviewMode guard, and localStorage hardening below.
+const PREVIEW_MODE_ENABLED = true; // Dev: true / Push: false — controls preview-btn visibility, startPreviewMode guard, and localStorage hardening below.
 if(!PREVIEW_MODE_ENABLED){
   try{
     localStorage.removeItem(PREVIEW_STORAGE_KEY);
@@ -14933,7 +14937,7 @@ function _renderChartInto(svgEl,labels,revData,profitData,handlers,opts){
     +'</g>';
 
   // Wire up scrubber (per-SVG closure over sx/sy/pad/W)
-  _setupChartScrub(svgEl,{W:W,pad:pad,innerW:innerW,n:n,sx:sx,sy:sy,revData:revData,profitData:profitData,labels:labels});
+  _setupChartScrub(svgEl,{W:W,pad:pad,innerW:innerW,n:n,sx:sx,sy:sy,revData:revData,profitData:profitData,labels:labels,primaryColor:primaryColor,secondaryColor:secondaryColor,primaryLabel:primaryLabel,secondaryLabel:secondaryLabel});
 
   // Column-click drill — delegated. stopPropagation prevents the hero card's
   // own onclick from firing when a column is tapped. Gated on wasScrub so a
@@ -14967,7 +14971,7 @@ function _renderChartInto(svgEl,labels,revData,profitData,handlers,opts){
 // drill by redirecting event target). Hover via pointermove with buttons===0
 // shows the indicator + tooltip; native click flows to the column drill.
 function _setupChartScrub(svgEl,ctx){
-  const {W,pad,innerW,n,sx,sy,revData,profitData,labels}=ctx;
+  const {W,pad,innerW,n,sx,sy,revData,profitData,labels,primaryColor,secondaryColor,primaryLabel,secondaryLabel}=ctx;
   const parent=svgEl.parentElement;
   if(!parent)return;
   const cs=getComputedStyle(parent);
@@ -15008,7 +15012,7 @@ function _setupChartScrub(svgEl,ctx){
     const r=revData[idx]||0,p=profitData[idx]||0;
     if(r>0){sRev.setAttribute('cx',cx.toFixed(1));sRev.setAttribute('cy',sy(r).toFixed(1));sRev.style.display='';}
     else{sRev.style.display='none';}
-    if(p>0){sProf.setAttribute('cx',cx.toFixed(1));sProf.setAttribute('cy',sy(p).toFixed(1));sProf.style.display='';}
+    if(p!==0){sProf.setAttribute('cx',cx.toFixed(1));sProf.setAttribute('cy',sy(p).toFixed(1));sProf.style.display='';}
     else{sProf.style.display='none';}
     scrubG.style.display='';
     tip.innerHTML=
