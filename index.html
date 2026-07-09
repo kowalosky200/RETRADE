@@ -2379,7 +2379,46 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
    the chart by swiping *over* it. They swipe above or below — the chart
    is short enough on mobile that this is fine. */
 .rt #summary-chart-svg,
-.rt #summary-chart-svg-mobile{touch-action:none;-webkit-user-select:none;user-select:none;}
+.rt #summary-chart-svg-mobile,
+.rt #monthly-profitability-svg{
+  touch-action:none;
+  -webkit-user-select:none;user-select:none;
+  -webkit-touch-callout:none;          /* iOS: no copy/share callout on long-press */
+  -webkit-tap-highlight-color:transparent;
+}
+/* Child <text>/<rect> nodes are selectable independently of the parent rule —
+   without this a press-and-hold still highlights the axis labels. */
+.rt #summary-chart-svg *,
+.rt #summary-chart-svg-mobile *,
+.rt #monthly-profitability-svg *{
+  -webkit-user-select:none;user-select:none;-webkit-touch-callout:none;
+}
+
+/* ── Mobile touch hardening (v2.12.2) ──────────────────────────────────────
+   Long-press on interactive chrome must not raise the native selection or the
+   iOS callout. Deliberately scoped to controls/rows/cards — item names, notes
+   and amounts in body copy stay selectable, and inputs keep user-select:text
+   from the global input rule. */
+.rt .item-row,
+.rt .kpi,
+.rt .mcard,
+.rt .inv-stat,
+.rt .legend-item,
+.rt .summary-chart-legend,
+.rt .mf-row,
+.rt .run-history-row,
+.rt .ar-item-row,
+.rt .exp-month-header,
+.rt .cost-period-pill,
+.rt .cost-cat-card,
+.rt .chip,
+.rt .side-nav-item,
+.rt .fab,
+.rt button{
+  -webkit-user-select:none;user-select:none;
+  -webkit-touch-callout:none;
+  -webkit-tap-highlight-color:transparent;
+}
 .rt .rt-chart-scrub-tip{
   position:absolute;top:6px;left:0;
   background:var(--surface-2,#1a2236);
@@ -2564,16 +2603,58 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
 .rt .summary-chart-card #summary-chart-svg{width:100%;flex:1;min-height:220px;max-height:320px;display:block;}
 /* Sales History profitability chart — intentionally mirrors the dashboard
    chart card exactly: same card padding, heading, legend, type and spacing. */
+/* Two-up charts row (v2.12.0): trend chart | FY money-flow panel.
+   Narrowing the trend chart into a column is what actually fixes the
+   "overwhelmingly big" full-width chart — plus a shorter max-height. */
+.rt #p-monthly .monthly-charts-row{
+  display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr);gap:16px;margin-bottom:18px;
+  /* start, not stretch: the chart card sized to the (taller) money-flow card
+     left a dead band under the x-axis, since the SVG is height-capped. */
+  align-items:start;
+}
+/* BUGFIX (v2.12.1): .summary-chart-card carries the DASHBOARD grid placement
+   (grid-column:1/8; grid-row:2). Inside this 2-col row that spawned 7 implicit
+   columns (overflow) and forced the chart to row 2, floating the money-flow
+   card above it. Reset placement + allow the SVG to shrink. */
+.rt #p-monthly .monthly-charts-row>.card{
+  margin-bottom:0;grid-column:auto!important;grid-row:auto!important;order:0!important;min-width:0;
+}
+.rt #p-monthly .monthly-charts-row #monthly-profitability-svg{max-width:100%;}
+/* Stack only when the columns genuinely stop working (small tablet / mobile). */
+@media(max-width:860px){
+  .rt #p-monthly .monthly-charts-row{grid-template-columns:minmax(0,1fr);}
+}
+/* Period selector sits in the page header, styled by .period-select-inline
+   (the same control the Dashboard uses). Just cap its width here. */
+.rt #p-monthly .monthly-period-select{max-width:210px;flex-shrink:0;}
+.rt #p-monthly .monthly-profitability-card .summary-chart-head{gap:10px;}
+/* FY money-flow (P&L waterfall) side panel */
+.rt #p-monthly .money-flow-card{display:flex;flex-direction:column;padding:22px;}
+.rt #p-monthly .money-flow-rows{display:flex;flex-direction:column;gap:11px;margin-top:6px;}
+.rt #p-monthly .mf-row{display:flex;flex-direction:column;gap:5px;}
+.rt #p-monthly .mf-top{display:flex;align-items:baseline;justify-content:space-between;gap:10px;}
+.rt #p-monthly .mf-label{font-size:12px;color:var(--text-secondary);}
+.rt #p-monthly .mf-val{font-size:13px;font-weight:700;color:var(--text-primary);font-variant-numeric:tabular-nums lining-nums;}
+.rt #p-monthly .mf-bar{height:8px;border-radius:999px;background:var(--surface-3);overflow:hidden;}
+.rt #p-monthly .mf-fill{height:100%;border-radius:999px;display:block;min-width:2px;}
+.rt #p-monthly .mf-net{margin-top:4px;padding-top:12px;border-top:1px solid var(--border);}
+.rt #p-monthly .mf-net .mf-label{font-size:12px;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.04em;font-weight:600;}
+.rt #p-monthly .mf-net .mf-val{font-size:22px;}
+.rt #p-monthly .mf-foot{font-size:11px;color:var(--text-tertiary);margin-top:10px;line-height:1.45;}
 .rt #p-monthly .monthly-profitability-card{display:flex;flex-direction:column;padding:22px;margin-bottom:18px;}
 .rt #p-monthly .monthly-profitability-card .summary-chart-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;gap:12px;flex-wrap:wrap;}
 .rt #p-monthly .monthly-profitability-card .sl{margin:0;}
 .rt #p-monthly .monthly-profitability-card .summary-chart-legend{display:flex;gap:14px;font-size:11px;color:var(--text-tertiary);}
 .rt #p-monthly .monthly-profitability-card .legend-item{display:inline-flex;align-items:center;gap:5px;}
 .rt #p-monthly .monthly-profitability-card .legend-dot{width:8px;height:8px;border-radius:2px;display:inline-block;}
-.rt #p-monthly .monthly-profitability-svg{width:100%;min-height:220px;max-height:320px;display:block;}
+/* NOTE: the element is <svg id="monthly-profitability-svg"> with no class —
+   the old `.monthly-profitability-svg` rules never matched. Height is driven by
+   the viewBox ratio (800x360); preserveAspectRatio="none" would distort the
+   axis text if we pinned a CSS height that fought the ratio. */
+.rt #p-monthly #monthly-profitability-svg{width:100%;display:block;max-height:360px;}
 @media(max-width:600px){
   .rt #p-monthly .monthly-profitability-card{padding:16px;border-radius:18px;}
-  .rt #p-monthly .monthly-profitability-svg{min-height:200px;max-height:260px;}
+  .rt #p-monthly #monthly-profitability-svg{max-height:300px;}
 }
 
 .rt .summary-categories-empty{display:none;}
@@ -5167,10 +5248,6 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
       style="width:100%;padding:12px;background:var(--accent);color:#000;border:none;border-radius:8px;font-weight:700;font-size:15px;cursor:pointer;transition:background 0.15s;">
       Sign In
     </button>
-    <button onclick="startPreviewMode()" id="preview-btn"
-      style="display:none;width:100%;padding:12px;background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:8px;font-weight:700;font-size:15px;cursor:pointer;transition:background 0.15s;margin-top:10px;">
-      Developer preview
-    </button>
 
     <button onclick="showForgotPassword()"
       style="width:100%;padding:10px;background:none;border:none;color:var(--text-secondary);font-size:13px;cursor:pointer;margin-top:8px;text-decoration:underline;text-underline-offset:3px;">
@@ -6777,7 +6854,7 @@ const _previewParam = new URLSearchParams(window.location.search).get('preview')
 const PREVIEW_STORAGE_KEY='retrade_preview_mode';
 const LEGACY_PREVIEW_STORAGE_KEYS=['general_preview_mode'];
 const _previewStored = localStorage.getItem(PREVIEW_STORAGE_KEY) === '1' || LEGACY_PREVIEW_STORAGE_KEYS.some(function(k){ return localStorage.getItem(k) === '1'; });
-const PREVIEW_MODE_ENABLED = true; // Dev: true / Push: false — controls preview-btn visibility, startPreviewMode guard, and localStorage hardening below.
+const PREVIEW_MODE_ENABLED = false; // Dev: true / Push: false — controls preview-btn visibility, startPreviewMode guard, and localStorage hardening below.
 if(!PREVIEW_MODE_ENABLED){
   try{
     localStorage.removeItem(PREVIEW_STORAGE_KEY);
@@ -14822,13 +14899,22 @@ function _renderChartInto(svgEl,labels,revData,profitData,handlers,opts){
   const secondaryColor=opts.secondaryColor||'var(--profit)';
   const primaryLabel=opts.primaryLabel||'Revenue';
   const secondaryLabel=opts.secondaryLabel||'Gross Profit';
+  // Optional third series (v2.12.0). Null for the dashboard → all tertiary
+  // code paths below are inert, so the 2-series charts are unchanged.
+  const tertiaryData=Array.isArray(opts.tertiaryData)?opts.tertiaryData:null;
+  const tertiaryColor=opts.tertiaryColor||'var(--brand)';
+  const tertiaryLabel=opts.tertiaryLabel||'Net Profit';
+  const tertiaryStroke=opts.tertiaryStroke||1.6;
+  const tertiaryDotR=opts.tertiaryDotR||2.5;
+  const fillColor=opts.fillColor||secondaryColor;
   const innerW=W-pad.l-pad.r;
   const innerH=H-pad.t-pad.b;
 
   // Y scale supports negative return adjustments. Both series share one
   // scale so the chart can visibly cross £0 and still reconcile to the KPI.
-  const rawMax=Math.max(0,...revData,...profitData);
-  const rawMin=Math.min(0,...revData,...profitData);
+  const _tert=tertiaryData||[];
+  const rawMax=Math.max(0,...revData,...profitData,..._tert);
+  const rawMin=Math.min(0,...revData,...profitData,..._tert);
   const niceBound=function(v){
     v=Math.abs(v); if(v<=0)return 0;
     const mag=Math.pow(10,Math.floor(Math.log10(v)));
@@ -14874,14 +14960,23 @@ function _renderChartInto(svgEl,labels,revData,profitData,handlers,opts){
     return '<text x="'+sx(i).toFixed(1)+'" y="'+xLabY+'" font-size="'+fontSize+'" fill="var(--text-tertiary)" text-anchor="middle" font-family="var(--font-body)">'+esc(l)+'</text>';
   }).join('');
 
-  // Profit area path (filled, anchored to y=0)
+  // Area path (filled, anchored to y=0). Defaults to the secondary series;
+  // opts.fillData lets a caller shade a different series (v2.12.1 — the
+  // monthly chart shades Net Profit, its bottom line, in gold).
+  const fillData=Array.isArray(opts.fillData)?opts.fillData:profitData;
   let area='M '+sx(0).toFixed(1)+' '+sy(0).toFixed(1);
-  for(let i=0;i<n;i++)area+=' L '+sx(i).toFixed(1)+' '+sy(profitData[i]||0).toFixed(1);
+  for(let i=0;i<n;i++)area+=' L '+sx(i).toFixed(1)+' '+sy(fillData[i]||0).toFixed(1);
   area+=' L '+sx(n-1).toFixed(1)+' '+sy(0).toFixed(1)+' Z';
 
   // Profit line (soft green stroke above the area fill, below revenue line)
   let profitLine='';
   for(let i=0;i<n;i++)profitLine+=(i===0?'M ':' L ')+sx(i).toFixed(1)+' '+sy(profitData[i]||0).toFixed(1);
+
+  // Tertiary line (e.g. Net Profit) — drawn above the area, below revenue.
+  let tertLine='';
+  if(tertiaryData){
+    for(let i=0;i<n;i++)tertLine+=(i===0?'M ':' L ')+sx(i).toFixed(1)+' '+sy(tertiaryData[i]||0).toFixed(1);
+  }
 
   // Revenue line (primary visual)
   let line='';
@@ -14906,11 +15001,14 @@ function _renderChartInto(svgEl,labels,revData,profitData,handlers,opts){
     const p=profitData[i]||0;
     const has=r>0;
     const hasP=p!==0;
+    const t=tertiaryData?(tertiaryData[i]||0):0;
+    const hasT=tertiaryData&&t!==0;
     return '<g class="rt-chart-col'+(has?' clickable':'')+'" data-idx="'+i+'">'
       +'<rect x="'+(cx-colW/2).toFixed(1)+'" y="'+pad.t+'" width="'+colW.toFixed(1)+'" height="'+innerH+'" fill="transparent"/>'
+      +(hasT&&showDots?'<circle cx="'+cx.toFixed(1)+'" cy="'+sy(t).toFixed(1)+'" r="'+tertiaryDotR+'" fill="'+tertiaryColor+'" stroke="var(--surface-1)" stroke-width="1.2"/>':'')
       +(hasP&&showDots?'<circle cx="'+cx.toFixed(1)+'" cy="'+sy(p).toFixed(1)+'" r="'+profitDotR+'" fill="'+secondaryColor+'" stroke="var(--surface-1)" stroke-width="1.2"/>':'')
       +(has&&showDots?'<circle cx="'+cx.toFixed(1)+'" cy="'+sy(r).toFixed(1)+'" r="'+revDotR+'" fill="'+primaryColor+'" stroke="var(--surface-1)" stroke-width="1.5"/>':'')
-      +'<title>'+esc(l)+' · '+primaryLabel+' '+fmtMoney(r)+' · '+secondaryLabel+' '+fmtMoney(p)+'</title>'
+      +'<title>'+esc(l)+' · '+primaryLabel+' '+fmtMoney(r)+' · '+secondaryLabel+' '+fmtMoney(p)+(tertiaryData?' · '+tertiaryLabel+' '+fmtMoney(t):'')+'</title>'
       +'</g>';
   }).join('');
 
@@ -14919,13 +15017,14 @@ function _renderChartInto(svgEl,labels,revData,profitData,handlers,opts){
   svgEl.innerHTML=
      '<defs>'
     +'<linearGradient id="'+gradientId+'" x1="0" x2="0" y1="0" y2="1">'
-    +  '<stop offset="0%" stop-color="'+secondaryColor+'" stop-opacity="0.5"/>'
-    +  '<stop offset="100%" stop-color="'+secondaryColor+'" stop-opacity="0"/>'
+    +  '<stop offset="0%" stop-color="'+fillColor+'" stop-opacity="0.5"/>'
+    +  '<stop offset="100%" stop-color="'+fillColor+'" stop-opacity="0"/>'
     +'</linearGradient>'
     +'</defs>'
     +grid+yLab+xLab
     +'<path d="'+area+'" fill="url(#'+gradientId+')" stroke="none"/>'
     +'<path d="'+profitLine+'" fill="none" stroke="'+secondaryColor+'" stroke-width="'+profitStroke+'" stroke-linejoin="round" stroke-linecap="round" opacity="0.95"/>'
+    +(tertiaryData?'<path d="'+tertLine+'" fill="none" stroke="'+tertiaryColor+'" stroke-width="'+tertiaryStroke+'" stroke-linejoin="round" stroke-linecap="round" opacity="0.95"/>':'')
     +'<path d="'+line+'" fill="none" stroke="'+primaryColor+'" stroke-width="'+revStroke+'" stroke-linejoin="round" stroke-linecap="round"/>'
     +hits
     // Scrub indicator — hidden by default, positioned via JS during
@@ -14934,10 +15033,16 @@ function _renderChartInto(svgEl,labels,revData,profitData,handlers,opts){
     +  '<line class="rt-scrub-line" x1="0" x2="0" y1="'+pad.t+'" y2="'+(H-pad.b)+'" stroke="var(--text-secondary)" stroke-width="1" stroke-dasharray="3 3" opacity="0.7"/>'
     +  '<circle class="rt-scrub-rev" cx="0" cy="0" r="'+scrubDotR+'" fill="'+primaryColor+'" stroke="var(--surface-1)" stroke-width="2"/>'
     +  '<circle class="rt-scrub-prof" cx="0" cy="0" r="'+scrubDotR+'" fill="'+secondaryColor+'" stroke="var(--surface-1)" stroke-width="2"/>'
+    +  (tertiaryData?'<circle class="rt-scrub-tert" cx="0" cy="0" r="'+scrubDotR+'" fill="'+tertiaryColor+'" stroke="var(--surface-1)" stroke-width="2"/>':'')
     +'</g>';
 
   // Wire up scrubber (per-SVG closure over sx/sy/pad/W)
-  _setupChartScrub(svgEl,{W:W,pad:pad,innerW:innerW,n:n,sx:sx,sy:sy,revData:revData,profitData:profitData,labels:labels,primaryColor:primaryColor,secondaryColor:secondaryColor,primaryLabel:primaryLabel,secondaryLabel:secondaryLabel});
+  // BUGFIX (v2.12.0): colours/labels are const-scoped to this function; the
+  // scrub tooltip referenced them as free variables → 'primaryColor is not
+  // defined' ReferenceError on every touch scrub (mobile, incl. dashboard).
+  _setupChartScrub(svgEl,{W:W,pad:pad,innerW:innerW,n:n,sx:sx,sy:sy,revData:revData,profitData:profitData,labels:labels,
+    primaryColor:primaryColor,secondaryColor:secondaryColor,primaryLabel:primaryLabel,secondaryLabel:secondaryLabel,
+    tertiaryData:tertiaryData,tertiaryColor:tertiaryColor,tertiaryLabel:tertiaryLabel});
 
   // Column-click drill — delegated. stopPropagation prevents the hero card's
   // own onclick from firing when a column is tapped. Gated on wasScrub so a
@@ -14971,7 +15076,14 @@ function _renderChartInto(svgEl,labels,revData,profitData,handlers,opts){
 // drill by redirecting event target). Hover via pointermove with buttons===0
 // shows the indicator + tooltip; native click flows to the column drill.
 function _setupChartScrub(svgEl,ctx){
-  const {W,pad,innerW,n,sx,sy,revData,profitData,labels,primaryColor,secondaryColor,primaryLabel,secondaryLabel}=ctx;
+  const {W,pad,innerW,n,sx,sy,revData,profitData,labels}=ctx;
+  const primaryColor=ctx.primaryColor||'var(--state-listed)';
+  const secondaryColor=ctx.secondaryColor||'var(--profit)';
+  const primaryLabel=ctx.primaryLabel||'Revenue';
+  const secondaryLabel=ctx.secondaryLabel||'Gross Profit';
+  const tertiaryData=Array.isArray(ctx.tertiaryData)?ctx.tertiaryData:null;
+  const tertiaryColor=ctx.tertiaryColor||'var(--brand)';
+  const tertiaryLabel=ctx.tertiaryLabel||'Net Profit';
   const parent=svgEl.parentElement;
   if(!parent)return;
   const cs=getComputedStyle(parent);
@@ -14983,6 +15095,7 @@ function _setupChartScrub(svgEl,ctx){
   const sLine=scrubG.querySelector('.rt-scrub-line');
   const sRev=scrubG.querySelector('.rt-scrub-rev');
   const sProf=scrubG.querySelector('.rt-scrub-prof');
+  const sTert=scrubG.querySelector('.rt-scrub-tert');
   const fmtMoneyTip=v=>'£'+(v||0).toLocaleString('en-GB',{minimumFractionDigits:0,maximumFractionDigits:0});
 
   // Detach old listeners from a prior render (prevents stack + stale sx/sy)
@@ -15014,11 +15127,17 @@ function _setupChartScrub(svgEl,ctx){
     else{sRev.style.display='none';}
     if(p!==0){sProf.setAttribute('cx',cx.toFixed(1));sProf.setAttribute('cy',sy(p).toFixed(1));sProf.style.display='';}
     else{sProf.style.display='none';}
+    const tv=tertiaryData?(tertiaryData[idx]||0):0;
+    if(sTert){
+      if(tv!==0){sTert.setAttribute('cx',cx.toFixed(1));sTert.setAttribute('cy',sy(tv).toFixed(1));sTert.style.display='';}
+      else{sTert.style.display='none';}
+    }
     scrubG.style.display='';
     tip.innerHTML=
       '<div class="tip-period">'+esc(labels[idx])+'</div>'
       +'<div class="tip-row"><span class="tip-dot" style="background:'+primaryColor+'"></span>'+primaryLabel+' <strong>'+fmtMoneyTip(r)+'</strong></div>'
-      +'<div class="tip-row"><span class="tip-dot" style="background:'+secondaryColor+'"></span>'+secondaryLabel+' <strong>'+fmtMoneyTip(p)+'</strong></div>';
+      +'<div class="tip-row"><span class="tip-dot" style="background:'+secondaryColor+'"></span>'+secondaryLabel+' <strong>'+fmtMoneyTip(p)+'</strong></div>'
+      +(tertiaryData?'<div class="tip-row"><span class="tip-dot" style="background:'+tertiaryColor+'"></span>'+tertiaryLabel+' <strong>'+fmtMoneyTip(tv)+'</strong></div>':'');
     tip.style.display='block';
     const rect=svgEl.getBoundingClientRect();
     const cssX=(cx/W)*rect.width;
@@ -15584,39 +15703,193 @@ function toggleFYSection(fyStart){
 }
 
 
+// ── Sales History period scope (v2.12.1) ───────────────────────────────────
+// Drives BOTH the monthly profitability chart and the money-flow panel.
+let MONTHLY_PERIOD=(function(){
+  try{ const v=localStorage.getItem('rt_monthly_period'); if(v)return v; }catch(e){}
+  return 'fy:'+_currentFYStart();
+})();
+
+function _monthKeySort(k){ return keyYear(k)*100 + MONTHS.indexOf(keyCode(k)); }
+
+// Build the option list from whatever data exists, plus the current FY.
+function _monthlyPeriodOptions(){
+  const fys=new Set([_currentFYStart()]);
+  const cys=new Set();
+  allDBKeys().forEach(function(k){
+    const mo=MONTHS.indexOf(keyCode(k)); if(mo<0)return;
+    const yr=keyYear(k);
+    if(!(DB[k]||[]).length)return;
+    cys.add(yr);
+    fys.add(mo>=3?yr:yr-1);
+  });
+  const opts=[{v:'all',label:'All time'}];
+  Array.from(fys).sort(function(a,b){return b-a;}).forEach(function(y){
+    opts.push({v:'fy:'+y,label:'FY '+y+'–'+String(y+1).slice(-2)});
+  });
+  Array.from(cys).sort(function(a,b){return b-a;}).forEach(function(y){
+    opts.push({v:'cy:'+y,label:y+' (calendar year)'});
+  });
+  return opts;
+}
+
+// Resolve a period value → {keys, from, to, label}
+function _monthlyPeriodResolve(v){
+  const pad=function(n){return (n<10?'0':'')+n;};
+  const cyKeys=function(y){return MONTHS.map(function(m){return m+'-'+String(y).slice(-2);});};
+  if(v&&v.indexOf('cy:')===0){
+    const y=parseInt(v.slice(3),10);
+    return {keys:cyKeys(y),from:y+'-01-01',to:y+'-12-31',label:y+' calendar year'};
+  }
+  if(v&&v.indexOf('fy:')===0){
+    const y=parseInt(v.slice(3),10);
+    return {keys:_fyKeys(y),from:y+'-04-01',to:(y+1)+'-03-31',label:'FY '+y+'–'+String(y+1).slice(-2)};
+  }
+  // All time — span every month that holds data.
+  const withData=allDBKeys().filter(function(k){return (DB[k]||[]).length&&MONTHS.indexOf(keyCode(k))>=0;});
+  if(!withData.length){
+    const y=_currentFYStart();
+    return {keys:_fyKeys(y),from:y+'-04-01',to:(y+1)+'-03-31',label:'FY '+y+'–'+String(y+1).slice(-2)};
+  }
+  withData.sort(function(a,b){return _monthKeySort(a)-_monthKeySort(b);});
+  const first=withData[0], last=withData[withData.length-1];
+  // Fill every month between first and last so gaps render as £0, not a skip.
+  const keys=[];
+  let yr=keyYear(first), mo=MONTHS.indexOf(keyCode(first));
+  const endYr=keyYear(last), endMo=MONTHS.indexOf(keyCode(last));
+  while(yr<endYr||(yr===endYr&&mo<=endMo)){
+    keys.push(MONTHS[mo]+'-'+String(yr).slice(-2));
+    mo++; if(mo>11){mo=0;yr++;}
+  }
+  const lastDay=new Date(endYr,endMo+1,0).getDate();
+  return {keys:keys,from:keyYear(first)+'-'+pad(MONTHS.indexOf(keyCode(first))+1)+'-01',
+          to:endYr+'-'+pad(endMo+1)+'-'+pad(lastDay),label:'All time'};
+}
+
+function setMonthlyPeriod(v){
+  MONTHLY_PERIOD=v;
+  try{ localStorage.setItem('rt_monthly_period',v); }catch(e){}
+  // Full re-render (mirrors setSummaryPeriod -> renderSummary on the Dashboard).
+  // renderMonthlyGrid() rebuilds the header/select and ends by calling
+  // renderMonthlyProfitabilityChart(), which in turn re-renders the money-flow
+  // panel — so the chart, the panel and the FY groups can never disagree.
+  if(MONTHLY_VIEW==='grid')renderMonthlyGrid();
+  else renderMonthlyProfitabilityChart();
+}
+
+function _monthlyPeriodSelectHTML(){
+  const opts=_monthlyPeriodOptions();
+  const has=opts.some(function(o){return o.v===MONTHLY_PERIOD;});
+  if(!has)MONTHLY_PERIOD=opts.length>1?opts[1].v:'all';
+  return '<select id="monthly-period-select" class="period-select-inline monthly-period-select" aria-label="Sales history period" '
+    +'onchange="setMonthlyPeriod(this.value)">'
+    +opts.map(function(o){
+        return '<option value="'+esc(o.v)+'"'+(o.v===MONTHLY_PERIOD?' selected':'')+'>'+esc(o.label)+'</option>';
+      }).join('')
+    +'</select>';
+}
+
 function _monthlyNetProfitChartHTML(){
-  return '<div class="card summary-panel summary-chart-card monthly-profitability-card">'
-    +'<div class="summary-chart-head"><div class="sl">Monthly profitability</div><div class="summary-chart-legend">'
+  return '<div class="monthly-charts-row">'
+    +'<div class="card summary-panel summary-chart-card monthly-profitability-card">'
+    +'<div class="summary-chart-head"><div class="sl">Monthly profitability</div>'
+    +'<div class="summary-chart-legend">'
+    +'<span class="legend-item"><span class="legend-dot" style="background:var(--state-listed)"></span>Revenue</span>'
     +'<span class="legend-item"><span class="legend-dot" style="background:var(--profit)"></span>Gross Profit</span>'
-    +'<span class="legend-item"><span class="legend-dot" style="background:var(--accent)"></span>Net Profit</span></div></div>'
-    +'<svg id="monthly-profitability-svg" viewBox="0 0 800 280" preserveAspectRatio="none" role="img" aria-label="Monthly gross profit and net profit over time"></svg></div>';
+    +'<span class="legend-item"><span class="legend-dot" style="background:var(--brand)"></span>Net Profit</span></div>'
+    +'</div>'
+    +'<svg id="monthly-profitability-svg" viewBox="0 0 800 360" preserveAspectRatio="none" role="img" aria-label="Monthly revenue, gross profit and net profit over time"></svg></div>'
+    +_monthlyMoneyFlowHTML()
+    +'</div>';
+}
+
+// FY-to-date money flow. Uses _buildPnLSummary — the SAME engine as the Tax
+// Return page — so Turnover − COGS − Selling costs − Overheads = Net Profit
+// reconciles penny-for-penny with SA103.
+function _monthlyMoneyFlowHTML(){
+  return '<div class="card summary-panel money-flow-card">'
+    +'<div class="summary-chart-head"><div class="sl">Where the money went</div></div>'
+    +'<div id="monthly-money-flow" class="money-flow-rows"></div></div>';
+}
+
+function renderMonthlyMoneyFlow(){
+  const host=document.getElementById('monthly-money-flow');
+  if(!host)return;
+  const r=_monthlyPeriodResolve(MONTHLY_PERIOD);
+  let p;
+  try{ p=_buildPnLSummary(r.from,r.to,r.label); }
+  catch(e){ host.innerHTML='<div class="mf-foot">Unable to build P&amp;L summary.</div>'; return; }
+
+  const turnover=Number(p.revenue)||0;
+  const cogs=Number(p.cogs)||0;
+  const selling=Number((p.selling&&p.selling.total))||0;
+  const overheads=Number((p.overheads&&p.overheads.total))||0;
+  const net=Number(p.netProfit)||0;
+
+  if(turnover<=0){
+    host.innerHTML='<div class="mf-foot">No sales in '+esc(r.label)+'. Once you log sales, this shows exactly where your money goes.</div>';
+    return;
+  }
+  const pct=function(v){return Math.max(0,Math.min(100,(Math.abs(v)/turnover)*100));};
+  const row=function(label,val,colour){
+    return '<div class="mf-row">'
+      +'<div class="mf-top"><span class="mf-label">'+esc(label)+'</span><span class="mf-val">'+fmt(val)+'</span></div>'
+      +'<div class="mf-bar"><span class="mf-fill" style="width:'+pct(val).toFixed(1)+'%;background:'+colour+'"></span></div>'
+      +'</div>';
+  };
+  const netColour=net>=0?'var(--green)':'var(--red)';
+  host.innerHTML=
+     row('Turnover',turnover,'var(--state-listed)')
+    +row('− Cost of goods',cogs,'var(--red)')
+    +row('− Selling costs (fees, postage, splits)',selling,'var(--red)')
+    +row('− Overheads (trips, expenses)',overheads,'var(--warn)')
+    +'<div class="mf-row mf-net">'
+      +'<div class="mf-top"><span class="mf-label">Net profit</span><span class="mf-val" style="color:'+netColour+'">'+fmt(net)+'</span></div>'
+      +'<div class="mf-bar"><span class="mf-fill" style="width:'+pct(net).toFixed(1)+'%;background:'+netColour+'"></span></div>'
+    +'</div>'
+    +'<div class="mf-foot">'+esc(r.label)+' · '+(p.soldCount||0)+' sold. Bars are % of turnover. Reconciles with your Tax Return.</div>';
 }
 
 function renderMonthlyProfitabilityChart(){
   const svg=document.getElementById('monthly-profitability-svg');
   if(!svg)return;
-  const fy=_currentFYStart(),keys=_fyKeys(fy);
-  const labels=[],gross=[],net=[];
+  const per=_monthlyPeriodResolve(MONTHLY_PERIOD);
+  const keys=per.keys;
+  // Beyond 12 points the bare month name repeats across years — qualify it.
+  const showYear=keys.length>12;
+  const labels=[],rev=[],gross=[],net=[];
   keys.forEach(function(k){
     const ms=calcMonthStatsBySale(k);
-    labels.push(MONTH_NAMES[keyCode(k)].slice(0,3));
+    const short=MONTH_NAMES[keyCode(k)].slice(0,3);
+    labels.push(showYear?short+' '+String(keyYear(k)).slice(-2):short);
+    rev.push(Number(ms.totalRev)||0);
     gross.push(Number(ms.grossProfit)||0);
     net.push(Number(ms.netProfit)||0);
   });
-  _renderChartInto(svg,labels,gross,net,[],{
-    W:800,H:280,
-    pad:{t:14,r:14,b:38,l:60},
+  // Revenue = primary (blue line), Gross = secondary (green, area fill),
+  // Net = tertiary (gold). Mirrors the dashboard's rev/profit semantics.
+  _renderChartInto(svg,labels,rev,gross,[],{
+    W:800,H:360,
+    pad:{t:16,r:14,b:40,l:60},
     fontSize:13,
     yTicks:4,
-    maxXLabels:12,
+    maxXLabels:keys.length>18?12:keys.length,
     profitDotR:2.5,revDotR:3,
     profitStroke:1.8,revStroke:2,scrubDotR:4.5,
+    maxDotsN:14,
     gradientId:'rt-monthly-net-fill',
-    primaryColor:'var(--profit)',
-    secondaryColor:'var(--accent)',
-    primaryLabel:'Gross Profit',
-    secondaryLabel:'Net Profit'
+    primaryColor:'var(--state-listed)',
+    secondaryColor:'var(--profit)',
+    primaryLabel:'Revenue',
+    secondaryLabel:'Gross Profit',
+    tertiaryData:net,
+    tertiaryColor:'var(--brand)',
+    tertiaryLabel:'Net Profit',
+    // Shade the bottom line (what you actually kept), in brand gold.
+    fillData:net,
+    fillColor:'var(--brand)'
   });
+  renderMonthlyMoneyFlow();
 }
 
 function renderMonthlyGrid(){
@@ -15636,7 +15909,11 @@ function renderMonthlyGrid(){
   const fyYears=Array.from(fySet).sort(function(a,b){return b-a;}); // newest first
 
   let html='<div style="padding-bottom:80px;">';
-  html+='<div class="page-header"><div><div class="page-title">Sales History</div><div class="page-subtitle">Sales performance, month by month.</div></div></div>';
+  // Period selector lives in the page header (right side), mirroring the
+  // Dashboard. .page-header is flex/space-between, so it right-aligns.
+  html+='<div class="page-header"><div><div class="page-title">Sales History</div><div class="page-subtitle">Sales performance, month by month.</div></div>'
+    +_monthlyPeriodSelectHTML()
+    +'</div>';
   html+=_monthlyNetProfitChartHTML();
 
   fyYears.forEach(function(fy){
