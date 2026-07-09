@@ -2608,9 +2608,10 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
    "overwhelmingly big" full-width chart — plus a shorter max-height. */
 .rt #p-monthly .monthly-charts-row{
   display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr);gap:16px;margin-bottom:18px;
-  /* start, not stretch: the chart card sized to the (taller) money-flow card
-     left a dead band under the x-axis, since the SVG is height-capped. */
-  align-items:start;
+  /* Equal-height cards. The SVG flexes to fill the chart card and its viewBox
+     is computed from the measured pixel box (see renderMonthlyProfitabilityChart),
+     so there is no dead band under the axis and no text distortion. */
+  align-items:stretch;
 }
 /* BUGFIX (v2.12.1): .summary-chart-card carries the DASHBOARD grid placement
    (grid-column:1/8; grid-row:2). Inside this 2-col row that spawned 7 implicit
@@ -2651,10 +2652,10 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
    the old `.monthly-profitability-svg` rules never matched. Height is driven by
    the viewBox ratio (800x360); preserveAspectRatio="none" would distort the
    axis text if we pinned a CSS height that fought the ratio. */
-.rt #p-monthly #monthly-profitability-svg{width:100%;display:block;max-height:360px;}
+.rt #p-monthly #monthly-profitability-svg{width:100%;display:block;flex:1 1 auto;min-height:220px;}
 @media(max-width:600px){
   .rt #p-monthly .monthly-profitability-card{padding:16px;border-radius:18px;}
-  .rt #p-monthly #monthly-profitability-svg{max-height:300px;}
+  .rt #p-monthly #monthly-profitability-svg{min-height:200px;}
 }
 
 .rt .summary-categories-empty{display:none;}
@@ -8505,6 +8506,11 @@ function exitItemPage(){
     }
   }
   else if(origin==='p-runs'&&typeof renderRunsPage==='function'){renderRunsPage();_restoreTabScroll('runs');}
+  // v2.12.6: Costs & Trips / Tax / Data had no scroll restore, so returning from
+  // an item snapped them to the top (openItemDetail does scrollTo(0,0)).
+  else if(origin==='p-expenses'&&typeof renderExpenses==='function'){renderExpenses();_restoreTabScroll('expenses');}
+  else if(origin==='p-tax'&&typeof renderTax==='function'){renderTax();_restoreTabScroll('tax');}
+  else if(origin==='p-data'&&typeof renderData==='function'){renderData();_restoreTabScroll('data');}
 }
 
 // ── Simple Delivery rate bands (UK, current as of late 2025) ─────────────────
@@ -15682,7 +15688,9 @@ function backToMonthlyGrid(){
   const mt=document.querySelector('[data-tab="monthly"]');
   if(mt)mt.classList.add('on');
   handleNavResize();
-  window.scrollTo(0,0);
+  // Return to the month the user was actually viewing, not the top of the page
+  // and not the current month (v2.12.6). renderMonthlyGrid() consumes this.
+  _monthlyScrollToKey=SELECTED_MONTH||currentMonthKey();
   renderMonthlyGrid();
 }
 
@@ -15766,9 +15774,13 @@ function _monthlyPeriodResolve(v){
           to:endYr+'-'+pad(endMo+1)+'-'+pad(lastDay),label:'All time'};
 }
 
+// Month key the grid should scroll to on its next render (set when returning
+// from a month's detail view). null => don't move the page at all.
+let _monthlyScrollToKey=null;
 function setMonthlyPeriod(v){
   MONTHLY_PERIOD=v;
   try{ localStorage.setItem('rt_monthly_period',v); }catch(e){}
+  _monthlyScrollToKey=null;   // a period change must never move the page
   // Full re-render (mirrors setSummaryPeriod -> renderSummary on the Dashboard).
   // renderMonthlyGrid() rebuilds the header/select and ends by calling
   // renderMonthlyProfitabilityChart(), which in turn re-renders the money-flow
@@ -15853,6 +15865,12 @@ function renderMonthlyMoneyFlow(){
 function renderMonthlyProfitabilityChart(){
   const svg=document.getElementById('monthly-profitability-svg');
   if(!svg)return;
+  // Measure the rendered box and use it as the viewBox. preserveAspectRatio is
+  // "none", so a viewBox that matches the pixel box scales x and y by the same
+  // factor — the axis text stays undistorted while the plot fills the card.
+  const _box=svg.getBoundingClientRect();
+  const _W=Math.max(320,Math.round(_box.width)||800);
+  const _H=Math.max(200,Math.round(_box.height)||360);
   const per=_monthlyPeriodResolve(MONTHLY_PERIOD);
   const keys=per.keys;
   // Beyond 12 points the bare month name repeats across years — qualify it.
@@ -15869,11 +15887,11 @@ function renderMonthlyProfitabilityChart(){
   // Revenue = primary (blue line), Gross = secondary (green, area fill),
   // Net = tertiary (gold). Mirrors the dashboard's rev/profit semantics.
   _renderChartInto(svg,labels,rev,gross,[],{
-    W:800,H:360,
+    W:_W,H:_H,
     pad:{t:16,r:14,b:40,l:60},
     fontSize:13,
     yTicks:4,
-    maxXLabels:keys.length>18?12:keys.length,
+    maxXLabels:_W<520?6:(keys.length>18?12:keys.length),
     profitDotR:2.5,revDotR:3,
     profitStroke:1.8,revStroke:2,scrubDotR:4.5,
     maxDotsN:14,
@@ -16020,11 +16038,18 @@ function renderMonthlyGrid(){
   // Render with the exact same SVG engine, axes, grid, spacing, typography,
   // scrub tooltip and responsive geometry as the dashboard chart.
   renderMonthlyProfitabilityChart();
-  // Scroll current month card into view so it's immediately visible
-  requestAnimationFrame(function(){
-    const cur=document.querySelector('#p-monthly .mcard[onclick*="\''+currentMonthKey()+'\'"]');
-    if(cur)cur.scrollIntoView({block:'center',behavior:'smooth'});
-  });
+  // Scroll ONLY when an explicit target month was requested (i.e. returning
+  // from that month's detail view). Everything else — period changes, FY
+  // collapse toggles — leaves the page exactly where the user left it.
+  // Instant, not smooth: smooth made the page visibly travel from the top.
+  const _target=_monthlyScrollToKey;
+  _monthlyScrollToKey=null;
+  if(_target){
+    requestAnimationFrame(function(){
+      const el=document.querySelector('#p-monthly .mcard[onclick*="\''+_target+'\'"]');
+      if(el)el.scrollIntoView({block:'center',behavior:'auto'});
+    });
+  }
 }
 
 function toggleMonthPicker(){
@@ -23382,6 +23407,18 @@ function handleNavResize(){
 }
 
 window.addEventListener('resize',handleNavResize);
+// The monthly chart's viewBox is derived from its pixel box, so it must be
+// re-rendered when that box changes (v2.12.5). Debounced.
+let _monthlyChartResizeT=null;
+window.addEventListener('resize',function(){
+  const pm=document.getElementById('p-monthly');
+  if(!pm||!pm.classList.contains('on'))return;
+  if(!document.getElementById('monthly-profitability-svg'))return;
+  clearTimeout(_monthlyChartResizeT);
+  _monthlyChartResizeT=setTimeout(function(){
+    try{ renderMonthlyProfitabilityChart(); }catch(e){}
+  },140);
+});
 window.addEventListener('load',handleNavResize);
 // Drop 4 — initial paint of sidebar user row + stock badge + sync indicator
 // after everything is bound. Wrapped in setTimeout(0) so it fires after
