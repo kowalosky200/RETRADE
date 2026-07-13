@@ -11655,18 +11655,67 @@ function _acctBulkSettle(){
     _openConsignmentSettlementBuilder(acct.id,Array.from(_acctSelected));
     return;
   }
-  let n=0;
-  _acctSelected.forEach(function(id){
+  // Supplier: open a grouped-settlement confirm so it lands as ONE transaction
+  // (with a slip) rather than silent flag flips.
+  _openSupplierSettlement(acct.id,Array.from(_acctSelected));
+}
+
+// Grouped supplier settlement. Sums the debt of the selected UNSETTLED items,
+// lets the user confirm amount/date/note, writes a single transaction to
+// acct.settlements and marks the items settled.
+function _openSupplierSettlement(accountId,ids){
+  const acct=_accounts.find(function(a){return a.id===accountId;});
+  if(!acct)return;
+  const picked=_selectedAccountItems(ids,accountId).filter(function(i){
+    return _accountItemDebt(i)!==null && !i.accountSettled;
+  });
+  if(!picked.length){toast('No unsettled items selected');return;}
+  const total=picked.reduce(function(s,i){return s+(_accountItemDebt(i)||0);},0);
+  const today=new Date().toISOString().split('T')[0];
+  const rows=picked.map(function(i){
+    return '<div class="metric-inline"><div class="metric-k" style="min-width:0;overflow:hidden;text-overflow:ellipsis;">'+esc(i.item||'Item')+'</div><strong>'+fmt(_accountItemDebt(i)||0)+'</strong></div>';
+  }).join('');
+  const html=''
+    +'<div style="font-size:12px;color:var(--text-secondary);margin-bottom:12px;">Paying '+esc(acct.name||'partner')+' for '+picked.length+' item'+(picked.length!==1?'s':')')+':</div>'
+    +'<div class="panel-card" style="margin-bottom:14px;">'+rows
+      +'<div class="pnl-row total"><span>Total</span><strong>'+fmt(total)+'</strong></div></div>'
+    +'<div class="fg"><label>Amount paid (\u00a3)</label>'
+      +'<input type="number" id="sup-settle-amt" min="0" step="0.01" value="'+total.toFixed(2)+'" autocomplete="off"></div>'
+    +'<div class="fg"><label>Date paid</label>'
+      +'<input type="date" id="sup-settle-date" value="'+today+'"></div>'
+    +'<div class="fg"><label>Note / reference (optional)</label>'
+      +'<input type="text" id="sup-settle-note" placeholder="e.g. bank transfer ref" autocomplete="off"></div>'
+    +'<button class="btn btn-primary" style="width:100%;margin-top:6px" onclick="_confirmSupplierSettlement(\''+accountId+'\','+JSON.stringify(picked.map(function(i){return i.id;}))+')">Record payment &amp; settle '+picked.length+' item'+(picked.length!==1?'s':'')+'</button>';
+  openPanel('Settle with '+esc(acct.name||'partner'),html);
+}
+
+function _confirmSupplierSettlement(accountId,ids){
+  const acct=_accounts.find(function(a){return a.id===accountId;});
+  if(!acct)return;
+  const amtEl=document.getElementById('sup-settle-amt');
+  const amount=Math.max(0,Number(amtEl?amtEl.value:0)||0);
+  const date=(document.getElementById('sup-settle-date')||{}).value||new Date().toISOString().split('T')[0];
+  const note=((document.getElementById('sup-settle-note')||{}).value||'').trim();
+  const allocations=[];let nSettled=0;
+  (ids||[]).forEach(function(id){
     allDBKeys().forEach(function(k){
       const item=(DB[k]||[]).find(function(i){return i.id===id;});
-      if(item&&_accountItemDebt(item)!==null&&!item.accountSettled){item.accountSettled=true;n++;}
+      if(item&&_accountItemDebt(item)!==null&&!item.accountSettled){
+        allocations.push({id:item.id,amount:+( _accountItemDebt(item)||0).toFixed(2),name:item.item||''});
+        item.accountSettled=true;nSettled++;
+      }
     });
   });
-  saveDB();
-  toast('Settled '+n+' item'+(n!==1?'s':''));
-  _acctSelected.clear();
-  _acctSelectMode=false;
-  if(acct)_renderAccountPage(acct);
+  if(!nSettled){toast('Nothing to settle');closePanel();return;}
+  if(!Array.isArray(acct.settlements))acct.settlements=[];
+  const tx={id:'stl_'+Date.now()+'_'+Math.random().toString(36).slice(2,8),date:date,
+    createdAt:new Date().toISOString(),paid:true,kind:'supplier',
+    partnerAmount:+amount.toFixed(2),yourAmount:0,note:note||null,items:allocations};
+  acct.settlements.unshift(tx);
+  saveDB();closePanel();
+  toast('Recorded \u00a3'+amount.toFixed(0)+' \u00b7 settled '+nSettled+' item'+(nSettled!==1?'s':''));
+  _acctSelected.clear();_acctSelectMode=false;
+  _renderAccountPage(acct);
 }
 
 let _consignmentSettlementDraft=null;
@@ -11771,7 +11820,53 @@ function _openSettlementDetail(accountId,settlementId){
     let found=null;allDBKeys().some(function(k){found=(DB[k]||[]).find(function(i){return i.id===a.id;});return !!found;});
     return '<div class="metric-inline"><div class="metric-k">'+esc(found?found.item:'Item no longer found')+'</div><strong>'+fmt(a.amount||0)+'</strong></div>';
   }).join('');
-  openPanel('Settlement · '+tx.date,'<div class="panel-card">'+rows+'</div><div class="pnl-row total"><span>Partner paid</span><strong>'+fmt(tx.partnerAmount||0)+'</strong></div><div class="pnl-row"><span>Your share</span><strong>'+fmt(tx.yourAmount||0)+'</strong></div>'+(tx.note?'<div style="margin-top:12px;font-size:12px;color:var(--text-secondary);">'+esc(tx.note)+'</div>':''));
+  openPanel('Settlement · '+tx.date,'<div class="panel-card">'+rows+'</div><div class="pnl-row total"><span>Partner paid</span><strong>'+fmt(tx.partnerAmount||0)+'</strong></div>'+((tx.yourAmount||0)?'<div class="pnl-row"><span>Your share</span><strong>'+fmt(tx.yourAmount||0)+'</strong></div>':'')+(tx.note?'<div style="margin-top:12px;font-size:12px;color:var(--text-secondary);">'+esc(tx.note)+'</div>':'')
+    +'<button class="btn btn-secondary" style="width:100%;margin-top:16px" onclick="downloadSettlementSlip(\''+accountId+'\',\''+settlementId+'\')">\u2193 Download slip (PDF)</button>');
+}
+
+// Printable partner remittance slip. Opens a styled HTML doc in a new window;
+// the browser's print dialog saves it as PDF (iOS: Share -> Save to Files).
+// Dependency-free, matching the app's other exports.
+function downloadSettlementSlip(accountId,settlementId){
+  const acct=_accounts.find(function(a){return a.id===accountId;});if(!acct)return;
+  const tx=(acct.settlements||[]).find(function(t){return t.id===settlementId;});if(!tx)return;
+  const esc2=function(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});};
+  const money=function(n){return '\u00a3'+(Number(n)||0).toFixed(2);};
+  const itemRows=(tx.items||[]).map(function(a){
+    let found=null;allDBKeys().some(function(k){found=(DB[k]||[]).find(function(i){return i.id===a.id;});return !!found;});
+    return '<tr><td>'+esc2((found&&found.item)||a.name||'Item')+'</td><td class="r">'+money(a.amount)+'</td></tr>';
+  }).join('');
+  const ref=tx.id.replace('stl_','').slice(0,14).toUpperCase();
+  const doc=''
+    +'<!doctype html><html><head><meta charset="utf-8"><title>Settlement '+esc2(tx.date)+' — '+esc2(acct.name||'')+'</title>'
+    +'<style>'
+    +'*{box-sizing:border-box;} body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;color:#111;margin:0;padding:40px;}'
+    +'.wrap{max-width:560px;margin:0 auto;} .top{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #111;padding-bottom:16px;margin-bottom:24px;}'
+    +'.brand{font-weight:800;font-size:22px;letter-spacing:.02em;} .brand span{color:#c8912f;}'
+    +'.doc-title{font-size:13px;text-transform:uppercase;letter-spacing:.08em;color:#666;text-align:right;} .doc-title strong{display:block;font-size:15px;color:#111;margin-top:2px;}'
+    +'.meta{display:flex;gap:32px;margin-bottom:24px;font-size:13px;} .meta div{line-height:1.5;} .meta .k{color:#888;text-transform:uppercase;font-size:10px;letter-spacing:.06em;}'
+    +'table{width:100%;border-collapse:collapse;font-size:13px;margin-bottom:8px;} th,td{text-align:left;padding:9px 4px;border-bottom:1px solid #e5e5e5;} th{font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:#888;}'
+    +'.r{text-align:right;font-variant-numeric:tabular-nums;} tfoot td{border-top:2px solid #111;border-bottom:none;font-weight:800;font-size:15px;padding-top:12px;}'
+    +'.paid{display:inline-block;margin-top:20px;padding:6px 14px;border:2px solid #1f9d63;color:#1f9d63;border-radius:6px;font-weight:700;font-size:13px;transform:rotate(-3deg);}'
+    +'.note{margin-top:20px;font-size:12px;color:#555;} .foot{margin-top:36px;font-size:10px;color:#999;text-align:center;}'
+    +'@media print{body{padding:0;} .noprint{display:none;}}'
+    +'.noprint{margin-top:28px;text-align:center;} .noprint button{font:inherit;padding:10px 22px;border:0;border-radius:8px;background:#111;color:#fff;font-weight:700;cursor:pointer;}'
+    +'</style></head><body><div class="wrap">'
+    +'<div class="top"><div class="brand">RE<span>TRADE</span></div><div class="doc-title">Settlement slip<strong>Ref '+esc2(ref)+'</strong></div></div>'
+    +'<div class="meta"><div><div class="k">Paid to</div>'+esc2(acct.name||'Partner')+'<br><span style="color:#888;text-transform:capitalize;">'+esc2(acct.accountType||'partner')+' account</span></div>'
+      +'<div><div class="k">Date</div>'+esc2(tx.date||'')+'</div>'
+      +'<div><div class="k">Items</div>'+((tx.items||[]).length)+'</div></div>'
+    +'<table><thead><tr><th>Item</th><th class="r">Amount</th></tr></thead><tbody>'+itemRows+'</tbody>'
+    +'<tfoot><tr><td>Total paid</td><td class="r">'+money(tx.partnerAmount)+'</td></tr></tfoot></table>'
+    +(tx.paid?'<div class="paid">PAID \u2713</div>':'')
+    +(tx.note?'<div class="note"><strong>Reference:</strong> '+esc2(tx.note)+'</div>':'')
+    +'<div class="foot">Generated by RETRADE \u00b7 '+esc2(new Date().toLocaleDateString())+'</div>'
+    +'<div class="noprint"><button onclick="window.print()">Print / Save as PDF</button></div>'
+    +'</div></body></html>';
+  const w=window.open('','_blank');
+  if(!w){toast('Allow pop-ups to download the slip');return;}
+  w.document.open();w.document.write(doc);w.document.close();
+  setTimeout(function(){try{w.focus();w.print();}catch(e){}},350);
 }
 
 function _acctBulkSetSplit(){
