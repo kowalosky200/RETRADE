@@ -11560,7 +11560,7 @@ function _accountStats(accountId){
   const sold=items.filter(_accountItemIsSold);
   const active=items.filter(function(i){return !_accountItemIsSold(i)&&!i.isReturned;});
   const grossProfit=sold.reduce(function(s,i){return s+(calcGrossProfit(i)||0);},0);
-  let totalOwed=0,unsettledOwed=0,settledOwed=0,splitItemCount=0,partnerProfitCut=0,unsettledCount=0,unsettledSoldCount=0,unsettledUnsoldCount=0;
+  let totalOwed=0,unsettledOwed=0,settledOwed=0,splitItemCount=0,partnerProfitCut=0,unsettledCount=0,unsettledSoldCount=0,unsettledUnsoldCount=0,unsettledUnsoldOwed=0;
   // Iterate ALL items — supplier debt is per-purchase (returns non-null even when
   // unsold), consignment/hybrid debt is per-sale (returns null when unsold).
   items.forEach(function(i){
@@ -11570,7 +11570,8 @@ function _accountStats(accountId){
     totalOwed+=owed;
     if(i.accountSettled)settledOwed+=owed;
     else {unsettledOwed+=owed;unsettledCount++;
-      if(_accountItemIsSold(i))unsettledSoldCount++;else unsettledUnsoldCount++;}
+      if(_accountItemIsSold(i))unsettledSoldCount++;
+      else {unsettledUnsoldCount++;unsettledUnsoldOwed+=owed;}}
     // For consignment/hybrid the "owed" comes out of profit — subtract from
     // yourShare. For supplier, cost is already deducted inside calcGrossProfit,
     // so don't double-count it.
@@ -11589,7 +11590,8 @@ function _accountStats(accountId){
     activePotential:+activePotential.toFixed(2),
     grossProfit:+grossProfit.toFixed(2), yourShare:+yourShare.toFixed(2),
     totalOwed:+totalOwed.toFixed(2), settledOwed:+settledOwed.toFixed(2),
-    unsettledOwed:+unsettledOwed.toFixed(2), splitItemCount, unsettledCount, unsettledSoldCount, unsettledUnsoldCount
+    unsettledOwed:+unsettledOwed.toFixed(2), splitItemCount, unsettledCount, unsettledSoldCount, unsettledUnsoldCount,
+    unsettledUnsoldOwed:+unsettledUnsoldOwed.toFixed(2)
   };
 }
 
@@ -11964,7 +11966,7 @@ function _renderAccountPage(acct){
   })();
   const heroHTML='<div class="accounts-kpis-v2" style="margin-bottom:18px;">'
     +mc('Your realised profit','\u00a3'+stats.yourShare.toFixed(0),stats.soldCount+' sold',stats.yourShare>=0?'var(--green)':'var(--red)')
-    +mc('Outstanding to partner','\u00a3'+stats.unsettledOwed.toFixed(0),_outSub,stats.unsettledOwed>0?'var(--warn)':'var(--green)')
+    +mc('Outstanding to partner','\u00a3'+stats.unsettledOwed.toFixed(0)+(stats.unsettledUnsoldOwed>0?' <span style="font-size:0.62em;font-weight:600;color:var(--text-tertiary);">(\u00a3'+stats.unsettledUnsoldOwed.toFixed(0)+' unsold)</span>':''),_outSub,stats.unsettledOwed>0?'var(--warn)':'var(--green)')
     +mc('Paid to partner','\u00a3'+stats.settledOwed.toFixed(0),(acct.settlements||[]).length+' settlement'+((acct.settlements||[]).length!==1?'s':''))
     +mc('Active stock potential','\u00a3'+stats.activePotential.toFixed(0),stats.activeCount+' unsold',stats.activePotential>=0?'var(--green)':'var(--red)')
   +'</div>';
