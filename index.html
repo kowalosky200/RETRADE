@@ -8925,6 +8925,10 @@ function _renderItemPageInner(m,id){
   // Active-listing maintenance log — refreshes and relists the seller logged.
   (i.refreshHistory||[]).forEach(function(rh,rhIdx){
     if(rh.type==='relist'){
+      // v2.15.0 — one relist = one timeline row. A _fromReturn entry exists
+      // purely to feed the relist counter and the freshness clock; the
+      // returnHistory loop below renders that same event with richer detail.
+      if(rh._fromReturn)return;
       timeline.push({date:rh.date||'',badge:'relist',label:'Relisted',detail:'Freshness clock reset',_maint:true,_maintIdx:rhIdx});
     }else{
       timeline.push({date:rh.date||'',badge:'refresh',label:'Refreshed',detail:'Price nudge / photo update — listing kept',_maint:true,_maintIdx:rhIdx});
@@ -20813,6 +20817,20 @@ function confirmRelist(m,id){
     const relistDate=document.getElementById('relist-date').value||new Date().toISOString().split('T')[0];
     i.returnHistory[i.returnHistory.length-1]._relistedAt=relistDate;
     i.returnHistory[i.returnHistory.length-1]._relistCondition=condition;
+    // v2.15.0 — register the relist in the maintenance log. Two reasons:
+    //  1. The item-page relist COUNTER only reads refreshHistory, so a
+    //     relist-after-return never registered. That's why it was being logged
+    //     manually as well — which produced a second "Relisted" timeline row
+    //     for one real event (the reported double-log).
+    //  2. _effectiveListDate resets the freshness clock from _lastRelistAt.
+    //     Without this, a relisted item kept its ORIGINAL dateListed age and
+    //     drifted into the wrong Stock Room aging bucket.
+    // _fromReturn marks this entry as owned by the returnHistory _relistedAt
+    // record: the timeline skips it and renders the richer _relistedAt row
+    // (which carries condition + price), so one relist stays one row.
+    if(!i.refreshHistory)i.refreshHistory=[];
+    i.refreshHistory.push({type:'relist',date:relistDate,_fromReturn:true});
+    i._lastRelistAt=relistDate;
   }
   saveDB();
   window._relistCondition=null;
@@ -21040,8 +21058,20 @@ function undoRelist(m,id,rtnIdx){
   const r=i.returnHistory[rtnIdx];
   if(!r||!r._relistedAt)return;
   // Remove relist markers from this return entry
+  const _undoneDate=r._relistedAt;
   delete r._relistedAt;
   delete r._relistCondition;
+  // v2.15.0 — drop the paired maintenance entry, or the relist counter and the
+  // freshness clock would keep counting a relist that has just been undone.
+  if(Array.isArray(i.refreshHistory)){
+    const _paired=i.refreshHistory
+      .map(function(e,ix){return {e:e,ix:ix};})
+      .filter(function(o){return o.e.type==='relist'&&o.e._fromReturn&&o.e.date===_undoneDate;})
+      .pop();
+    if(_paired)i.refreshHistory.splice(_paired.ix,1);
+    const _prior=i.refreshHistory.slice().reverse().find(function(e){return e.type==='relist';});
+    i._lastRelistAt=_prior?_prior.date:null;
+  }
   // Restore returned state
   i.isReturned=true;
   i.state='returned';
@@ -23376,13 +23406,19 @@ function daysBetween(d1,d2){
 // For all other items this is just dateListed.
 function _effectiveListDate(i){
   if(!i)return null;
-  if(i.isReturned&&!i.resaleSalePrice){
+  if(!i.dateSold&&!i.resaleSalePrice){
+    // Most recent relist wins. confirmRelist and markRelisted both maintain
+    // _lastRelistAt, so this is the authoritative clock-reset point.
+    if(i._lastRelistAt)return i._lastRelistAt;
+    // v2.15.0 legacy fallback — items relisted BEFORE this version have a
+    // _relistedAt on their return entry but no maintenance record. The old
+    // guard here was `i.isReturned && !i.resaleSalePrice`, which could never
+    // be true for a relisted item because confirmRelist sets isReturned=false
+    // when it restores the item to active stock. The branch was therefore dead
+    // and those items silently kept their ORIGINAL dateListed age.
     const r=(i.returnHistory||[]).slice().reverse().find(function(r){return(r.type==='full_seller'||r.type==='full_ebay')&&r._relistedAt;});
     if(r&&r._relistedAt)return r._relistedAt;
   }
-  // Active-listing relist (no return) — the most recent relist resets the
-  // freshness clock, mirroring eBay ending+recreating the listing.
-  if(i._lastRelistAt&&!i.dateSold&&!i.resaleSalePrice)return i._lastRelistAt;
   return i.dateListed||null;
 }
 // Lifetime age — always from the original list date, ignoring relists. Used on
