@@ -7760,13 +7760,19 @@ function _decodeAccountNotes(raw){
   if(end<0)return {notes:raw||null,settlements:[]};
   let meta={};
   try{meta=JSON.parse(decodeURIComponent(escape(atob(raw.slice(idx+_ACCOUNT_META_MARKER.length,end)))));}catch(e){meta={};}
-  return {notes:(raw.slice(0,idx)||'').trim()||null,settlements:Array.isArray(meta.settlements)?meta.settlements:[]};
+  return {notes:(raw.slice(0,idx)||'').trim()||null,settlements:Array.isArray(meta.settlements)?meta.settlements:[],
+          paymentTerms:(meta.paymentTerms==='on_sale')?'on_sale':'upfront'};
 }
 function _encodeAccountNotes(a){
   const visible=(a.notes||'').trim();
   const settlements=Array.isArray(a.settlements)?a.settlements:[];
-  if(!settlements.length)return visible||null;
-  const payload=btoa(unescape(encodeURIComponent(JSON.stringify({settlements:settlements}))));
+  // paymentTerms rides in the meta blob (no Supabase column) — so the blob must
+  // survive even with zero settlements, or the setting would be lost (v2.14.1).
+  const terms=(a.paymentTerms==='on_sale')?'on_sale':null;
+  if(!settlements.length&&!terms)return visible||null;
+  const meta={settlements:settlements};
+  if(terms)meta.paymentTerms=terms;
+  const payload=btoa(unescape(encodeURIComponent(JSON.stringify(meta))));
   return (visible?visible:'')+_ACCOUNT_META_MARKER+payload+']]';
 }
 function _accountToRow(a){
@@ -7788,6 +7794,7 @@ function _rowToAccount(row){
     notes: decoded.notes,
     settlements: decoded.settlements,
     accountType:             row.account_type||'supplier',
+    paymentTerms:            decoded.paymentTerms||'upfront',
     defaultSplitPercent:     row.default_split_percent!=null ? Number(row.default_split_percent) : null,
     defaultCostContribution: row.default_cost_contribution!=null ? Number(row.default_cost_contribution) : null,
   };
@@ -11553,9 +11560,22 @@ function _accountItemIsManual(i){
   return i.accountPaidAmount!=null;
 }
 
+// Does this account get paid only once stock sells?
+// Consignment/hybrid always do — their debt is a profit split that doesn't
+// exist until a sale. Supplier accounts depend on the agreed terms
+// (paymentTerms: 'upfront' = owe at purchase [default], 'on_sale' = owe when sold).
+function _accountPaysOnSale(acct){
+  if(!acct)return false;
+  const t=acct.accountType||'supplier';
+  if(t!=='supplier')return true;
+  return (acct.paymentTerms||'upfront')==='on_sale';
+}
+
 // Lifetime stats for one account: total items, sold count, your-side profit,
 // partner's total owed, and how much of that owed amount is still unsettled.
 function _accountStats(accountId){
+  const _acctForTerms=_accounts.find(function(a){return a.id===accountId;});
+  const _paysOnSale=_accountPaysOnSale(_acctForTerms);
   const items=_accountItems(accountId);
   const sold=items.filter(_accountItemIsSold);
   const active=items.filter(function(i){return !_accountItemIsSold(i)&&!i.isReturned;});
@@ -11591,7 +11611,13 @@ function _accountStats(accountId){
     grossProfit:+grossProfit.toFixed(2), yourShare:+yourShare.toFixed(2),
     totalOwed:+totalOwed.toFixed(2), settledOwed:+settledOwed.toFixed(2),
     unsettledOwed:+unsettledOwed.toFixed(2), splitItemCount, unsettledCount, unsettledSoldCount, unsettledUnsoldCount,
-    unsettledUnsoldOwed:+unsettledUnsoldOwed.toFixed(2), unsettledSoldOwed:+unsettledSoldOwed.toFixed(2)
+    unsettledUnsoldOwed:+unsettledUnsoldOwed.toFixed(2), unsettledSoldOwed:+unsettledSoldOwed.toFixed(2),
+    // Single source of truth for "what do I owe right now", honouring the
+    // account's payment terms. The page, the list and the total strip all use
+    // these — that's what keeps them reconciled (v2.14.1).
+    dueNow:+(_paysOnSale?unsettledSoldOwed:unsettledOwed).toFixed(2),
+    pipeline:+(_paysOnSale?unsettledUnsoldOwed:0).toFixed(2),
+    paysOnSale:_paysOnSale
   };
 }
 
@@ -12054,10 +12080,11 @@ function _renderAccountPage(acct){
   };
   // Cash-flow view: headline = owed on unsettled SOLD items (payable now),
   // bracket = owed on unsettled UNSOLD stock (grey — comes due once it sells).
-  const _outSoldOwed=stats.unsettledSoldOwed||0;
-  const _outUnsoldOwed=stats.unsettledUnsoldOwed||0;
+  const _outSoldOwed=stats.dueNow||0;
+  const _outUnsoldOwed=stats.pipeline||0;
   const _outSub=(function(){
     if(stats.unsettledOwed<=0)return 'All paid \u2713';
+    if(!stats.paysOnSale)return stats.unsettledCount+' unsettled item'+(stats.unsettledCount!==1?'s':'');
     if(_outSoldOwed>0&&_outUnsoldOwed>0)return 'Due now \u00b7 rest when unsold sells';
     if(_outSoldOwed>0)return stats.unsettledSoldCount+' sold, due now';
     return 'Comes due as stock sells';
@@ -12497,6 +12524,15 @@ function _accountModalFields(acct){
       <div id="acc-type-hint" style="font-size:11px;color:var(--text-secondary);margin-top:4px;"></div>
     </div>
 
+    <div id="acc-terms-row" class="fg" style="display:none;">
+      <label>When do you pay them?</label>
+      <select id="acc-terms" style="width:100%;">
+        <option value="upfront" ${((acct&&acct.paymentTerms)||'upfront')==='upfront'?'selected':''}>Upfront — I owe as soon as I take the stock</option>
+        <option value="on_sale" ${((acct&&acct.paymentTerms)||'upfront')==='on_sale'?'selected':''}>When it sells — I only owe once the item sells</option>
+      </select>
+      <div style="font-size:11px;color:var(--text-secondary);margin-top:4px;">Controls what counts as outstanding. "When it sells" keeps unsold stock out of what you owe now, showing it as a muted pipeline figure instead.</div>
+    </div>
+
     <div id="acc-split-row" class="fg" style="display:none;">
       <label>Default profit split to partner (%)</label>
       <input type="number" id="acc-split" min="0" max="100" step="0.5" value="${split}" placeholder="e.g. 50" autocomplete="off">
@@ -12521,6 +12557,10 @@ function _accTypeChange(v){
   if(hintEl)hintEl.textContent=hints[v]||'';
   if(splitRow)splitRow.style.display=(v==='consignment'||v==='hybrid')?'block':'none';
   if(costRow)costRow.style.display=(v==='hybrid')?'block':'none';
+  // Consignment/hybrid are inherently pay-on-sale, so the choice only applies
+  // to supplier accounts.
+  const termsRow=document.getElementById('acc-terms-row');
+  if(termsRow)termsRow.style.display=(v==='supplier')?'block':'none';
 }
 function openAddAccountModal(){
   const html=`
@@ -12550,6 +12590,7 @@ function submitAddAccount(){
     id:'acct_'+Date.now()+'_'+Math.random().toString(36).slice(2,9),
     name:name,
     accountType:type,
+    paymentTerms:(type==='supplier'?((document.getElementById('acc-terms')||{}).value||'upfront'):'on_sale'),
     defaultSplitPercent:splitNum,
     defaultCostContribution:costNum,
     notes:(document.getElementById('acc-notes').value||'').trim()||null,
@@ -12587,6 +12628,7 @@ function submitEditAccount(accountId){
   if(!name){toast('Name required','error');return;}
   acct.name=name;
   acct.accountType=document.getElementById('acc-type').value||'supplier';
+  acct.paymentTerms=(acct.accountType==='supplier')?(((document.getElementById('acc-terms')||{}).value)||'upfront'):'on_sale';
   const splitRaw=(document.getElementById('acc-split').value||'').trim();
   acct.defaultSplitPercent=(acct.accountType!=='supplier'&&splitRaw!=='')?Math.max(0,Math.min(100,parseFloat(splitRaw)||0)):null;
   const costRaw=(document.getElementById('acc-cost-contrib').value||'').trim();
@@ -12783,7 +12825,7 @@ function renderAccountsPage(){
     // then alphabetically — surfaces what needs attention without a manual sort control.
     const withStats=_accounts.map(function(a){return {acct:a,stats:_accountStats(a.id)};});
     withStats.sort(function(a,b){
-      if(a.stats.unsettledOwed!==b.stats.unsettledOwed)return b.stats.unsettledOwed-a.stats.unsettledOwed;
+      if(a.stats.dueNow!==b.stats.dueNow)return b.stats.dueNow-a.stats.dueNow;
       return (a.acct.name||'').localeCompare(b.acct.name||'');
     });
     listHTML=withStats.map(function(w){
@@ -12791,7 +12833,13 @@ function renderAccountsPage(){
     const _tLabel={consignment:'Consignment',supplier:'Supplier',hybrid:'Hybrid'};
     const _tClr={consignment:'var(--accent)',supplier:'var(--blue)',hybrid:'var(--green)'};
     const _tTag='<span style="font-size:10px;font-weight:700;padding:1px 6px;border-radius:10px;background:rgba(255,255,255,0.07);color:'+(_tClr[a.accountType]||'var(--muted)')+';">'+(_tLabel[a.accountType]||'Supplier')+'</span>';
-    const owedStr=s.unsettledOwed>0?'<span style="color:var(--accent);font-weight:700;">'+fmt(s.unsettledOwed)+' owed</span>':'<span style="color:var(--green);">Settled up</span>';
+    // Must match the account page headline exactly (v2.14.1): show what's due
+    // now, with any not-yet-due pipeline in muted brackets.
+    const owedStr=s.dueNow>0
+      ?'<span style="color:var(--accent);font-weight:700;">'+fmt(s.dueNow)+' owed</span>'+(s.pipeline>0?'<span style="color:var(--text-tertiary);"> ('+fmt(s.pipeline)+' unsold)</span>':'')
+      :(s.pipeline>0
+        ?'<span style="color:var(--green);">Settled up</span><span style="color:var(--text-tertiary);"> ('+fmt(s.pipeline)+' unsold)</span>'
+        :'<span style="color:var(--green);">Settled up</span>');
       return '<div class="run-history-row" data-acctid="'+a.id+'" onclick="openAccountPage(this.dataset.acctid)">'
         +'<div class="rh-body">'
           +'<div class="rh-name" style="display:flex;align-items:center;gap:6px;">'+esc(a.name)+_tTag+'</div>'
@@ -12806,7 +12854,7 @@ function renderAccountsPage(){
     // Summary strip — total owed across all accounts is the one number worth
     // surfacing at a glance, since it's money that's left your business but
     // isn't yet officially settled.
-    const totalUnsettled=withStats.reduce(function(s,w){return s+w.stats.unsettledOwed;},0);
+    const totalUnsettled=withStats.reduce(function(s,w){return s+w.stats.dueNow;},0);
     const totalYourShare=withStats.reduce(function(s,w){return s+w.stats.yourShare;},0);
     if(totalUnsettled>0){
       listHTML='<div class="panel-card" style="margin-bottom:14px;background:rgba(212,136,10,0.06);border-color:rgba(212,136,10,0.25);">'
