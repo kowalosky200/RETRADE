@@ -1683,6 +1683,35 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
 #app-loading{opacity:1;transition:opacity var(--dur-medium) var(--ease-out);}
 #app-loading.rt-boot-out{opacity:0;pointer-events:none;}
 
+/* Chart draw-in (v2.19.2 -- 7A)
+   Lines draw left-to-right via stroke-dashoffset; the area fill and the dots
+   fade in behind them, dots delayed so they land as the line arrives rather
+   than floating ahead of it.
+   --rt-len is set per path in JS from getTotalLength(): each series is a
+   different length, so the dash geometry cannot be expressed in static CSS.
+   .rt-chart-draw is toggled per render by _renderChartInto -- see the drawKey
+   gate there. It must be REMOVED when not drawing, because innerHTML creates
+   fresh paths every render and a fresh element matching an animation rule will
+   always run it.
+   Reduced motion: this is a CSS animation, so the global killswitch (~1655)
+   clamps it. It still resolves to dashoffset:0 = an ordinary solid line. */
+@keyframes rtChartDraw{from{stroke-dashoffset:var(--rt-len);}to{stroke-dashoffset:0;}}
+@keyframes rtChartFadeIn{from{opacity:0;}to{opacity:1;}}
+/* --rt-draw-dur is the live duration: one indirection so the dot delay tracks
+   whichever variant is active without a calc per variant. .rt-chart-draw-quick
+   is added by _renderChartInto for a period redraw (see the drawKey gate). */
+svg.rt-chart-draw{--rt-draw-dur:var(--dur-draw);}
+svg.rt-chart-draw.rt-chart-draw-quick{--rt-draw-dur:var(--dur-draw-quick);}
+svg.rt-chart-draw .rt-chart-line{
+  stroke-dasharray:var(--rt-len);
+  animation:rtChartDraw var(--rt-draw-dur) var(--ease-draw) both;
+}
+svg.rt-chart-draw .rt-chart-area{animation:rtChartFadeIn var(--rt-draw-dur) var(--ease-draw) both;}
+svg.rt-chart-draw .rt-chart-col circle{
+  animation:rtChartFadeIn var(--dur-base) var(--ease-out) both;
+  animation-delay:calc(var(--rt-draw-dur) * 0.9);
+}
+
 /* Panel */
 @keyframes panelContentIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
 #panel-content{animation:panelContentIn .24s cubic-bezier(0.34,1.2,0.64,1) both;}
@@ -1860,9 +1889,27 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
 
   /* Motion */
   --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+  /* v2.19.7 -- easing for the chart line draw ONLY. --ease-out front-loads far
+     too hard for a draw (~72% of the path covered in the first 25% of the
+     duration), so the line "appears" then crawls and extra duration only extends
+     the crawl. v2.19.6 used (0.4,0,0.6,1), still a pronounced S: 14.8% at t=0.25.
+     This is near-linear -- soft ends only, so the stroke travels at a near-constant
+     rate like a pen, without pure linear's abrupt start/stop.
+     Do NOT reuse for UI transitions: they want --ease-out's snappy front-load. */
+  --ease-draw: cubic-bezier(0.4, 0.25, 0.6, 0.75);
   --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
   --ease-spring: cubic-bezier(0.34, 1.2, 0.64, 1);
   --dur-fast: 120ms; --dur-base: 200ms; --dur-medium: 280ms; --dur-slow: 360ms;
+  --dur-draw: 460ms;       /* v2.19.8 -- chart line draw on REVEAL. Deliberately
+     EQUAL to --dur-draw-quick: the draw should feel the same on first load as it
+     does on every redraw. v2.19.3-7 pushed this to 1600ms, which is what made the
+     first load drag while later redraws (520ms) felt right -- the redraw was the
+     control group all along. 460ms is a shade under that 520ms. */
+  --dur-draw-quick: 460ms; /* v2.19.8 -- chart redraw on a PERIOD CHANGE. Kept as
+     a separate token because reveal and change ARE different events (the count-up
+     still splits them 1100 vs 450) and we may want to part them again. Equal for
+     now: if they stay equal, collapse this token and .rt-chart-draw-quick in a
+     cleanup pass rather than leaving machinery that does nothing. */
 
   /* Type */
   --font-body: 'Inter', system-ui, -apple-system, sans-serif;
@@ -2714,7 +2761,7 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
    Velocity + Top Flips side-by-side — both pairs have natural visual
    weight matches. Below 800px (small tablet / large phone in landscape),
    everything stacks single-column. */
-@media(max-width:999px){
+@media(max-width:1279px){
   .rt .summary-grid-v3{grid-template-columns:repeat(12,minmax(0,1fr));gap:16px;}
   .rt .summary-kpis-v3{grid-column:1 / -1;}
   .rt .summary-chart-card  {grid-column:1 / -1;grid-row:auto;order:1;}
@@ -2725,7 +2772,7 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
   .rt .summary-topflips    {grid-column:1 / -1;grid-row:auto;order:6;}
   .rt .summary-velocity .category-mini-grid{grid-template-columns:repeat(2,1fr);gap:8px 20px;}
 }
-@media(min-width:800px) and (max-width:999px){
+@media(min-width:800px) and (max-width:1279px){
   /* Pair Categories + Snapshot (both medium-density panels) and
      Velocity + Top Flips (already paired on full desktop) */
   .rt .summary-categories  {grid-column:1 / 7;}
@@ -2742,7 +2789,10 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
      at that width since it had no horizontal partner. The ≤980 block already
      caps it at 260px; this rule extends that cap across the whole medium
      band so the chart stays in a balanced 200-260px range until the layout
-     shifts to chart+categories paired at ≥1000px. */
+     shifts to chart+categories paired at ≥1280px (v2.19.10 -- was ≥1000px; the
+     query measures the viewport but the grid lives in viewport minus the 240px
+     sidebar, so 1000px gave the grid only 760px and Categories 5/12 = 287px,
+     with the 180px donut leaving an 87px legend). */
   .rt .summary-chart-card #summary-chart-svg{min-height:200px;max-height:260px;}
 
   /* Snapshot strip at this breakpoint — the strip's auto-fit minmax(150,1fr)
@@ -4596,7 +4646,7 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
   .rt #p-summary .summary-velocity .category-mini-grid{grid-template-columns:1fr!important;}
 }
 
-@media(min-width:800px) and (max-width:999px){
+@media(min-width:800px) and (max-width:1279px){
   .rt #p-summary .summary-grid-v3,
   .rt #p-summary .summary-kpis-v3{gap:18px!important;}
   .rt #p-summary .summary-panel{padding:20px!important;}
@@ -15167,6 +15217,7 @@ function renderSummaryChart(labels,revData,profitData){
         maxXLabels:10,
         profitDotR:2.5,revDotR:3,
         profitStroke:1.8,revStroke:2,scrubDotR:4.5,
+        drawKey:SUMMARY_PERIOD,
         gradientId:'rt-profit-fill'
       });
     }
@@ -15193,6 +15244,7 @@ function renderSummaryChart(labels,revData,profitData){
         maxDotsN:12,
         profitDotR:3,revDotR:3.5,
         profitStroke:2.2,revStroke:2.6,scrubDotR:5,
+        drawKey:SUMMARY_PERIOD,
         gradientId:'rt-profit-fill-m'
       });
     }
@@ -15248,6 +15300,13 @@ function renderSummaryChart(labels,revData,profitData){
 //   scrubDotR     — scrub-indicator dot radius
 //   gradientId    — unique linearGradient id (avoids cross-SVG paint-server
 //                   collisions when the same DOM has multiple chart SVGs)
+// v2.19.2 -- 7A draw gate state. MUST be module-level, not an expando on the
+// svg: renderSummary() rewrites the summary's innerHTML wholesale, so the svg
+// element itself is destroyed and rebuilt on every render and any expando on it
+// is lost. Keyed by svgEl.id, falling back to opts.gradientId (unique per call
+// site) for charts whose svg carries no id.
+// Value = the last drawKey drawn for that chart. undefined = never drawn.
+const _chartDrawKey = Object.create(null);
 function _renderChartInto(svgEl,labels,revData,profitData,handlers,opts){
   const n=labels.length;
   const {W,H,pad,fontSize,yTicks,maxXLabels,profitDotR,revDotR,profitStroke,revStroke,scrubDotR,gradientId}=opts;
@@ -15378,10 +15437,10 @@ function _renderChartInto(svgEl,labels,revData,profitData,handlers,opts){
     +'</linearGradient>'
     +'</defs>'
     +grid+yLab+xLab
-    +'<path d="'+area+'" fill="url(#'+gradientId+')" stroke="none"/>'
-    +'<path d="'+profitLine+'" fill="none" stroke="'+secondaryColor+'" stroke-width="'+profitStroke+'" stroke-linejoin="round" stroke-linecap="round" opacity="0.95"/>'
-    +(tertiaryData?'<path d="'+tertLine+'" fill="none" stroke="'+tertiaryColor+'" stroke-width="'+tertiaryStroke+'" stroke-linejoin="round" stroke-linecap="round" opacity="0.95"/>':'')
-    +'<path d="'+line+'" fill="none" stroke="'+primaryColor+'" stroke-width="'+revStroke+'" stroke-linejoin="round" stroke-linecap="round"/>'
+    +'<path class="rt-chart-area" d="'+area+'" fill="url(#'+gradientId+')" stroke="none"/>'
+    +'<path class="rt-chart-line" d="'+profitLine+'" fill="none" stroke="'+secondaryColor+'" stroke-width="'+profitStroke+'" stroke-linejoin="round" stroke-linecap="round" opacity="0.95"/>'
+    +(tertiaryData?'<path class="rt-chart-line" d="'+tertLine+'" fill="none" stroke="'+tertiaryColor+'" stroke-width="'+tertiaryStroke+'" stroke-linejoin="round" stroke-linecap="round" opacity="0.95"/>':'')
+    +'<path class="rt-chart-line" d="'+line+'" fill="none" stroke="'+primaryColor+'" stroke-width="'+revStroke+'" stroke-linejoin="round" stroke-linecap="round"/>'
     +hits
     // Scrub indicator — hidden by default, positioned via JS during
     // press-and-drag interaction. Drawn last so it overlays the lines.
@@ -15403,6 +15462,50 @@ function _renderChartInto(svgEl,labels,revData,profitData,handlers,opts){
   // Column-click drill — delegated. stopPropagation prevents the hero card's
   // own onclick from firing when a column is tapped. Gated on wasScrub so a
   // press-and-drag release doesn't accidentally drill.
+  // v2.19.2 -- 7A chart draw-in.
+  // Gate: draw on first render of this svg (the reveal) and whenever the
+  // caller's drawKey changes (period switch). A filter re-render keeps the same
+  // drawKey, so it re-renders silently -- matching the count-up, which tweens on
+  // change rather than replaying its from-zero reveal.
+  // Expandos on svgEl survive innerHTML writes (same pattern as __wasScrub).
+  (function(){
+    const _dk = opts.drawKey;
+    const _id = svgEl.id || opts.gradientId || 'rt-chart-anon';
+    const _prev = _chartDrawKey[_id];
+    // undefined  -> never drawn -> this is the reveal.
+    // different  -> drawKey moved -> period switch.
+    // identical  -> filter/no-op re-render -> stay silent.
+    const _isReveal = (_prev === undefined);
+    const _shouldDraw = _isReveal || (_prev !== _dk);
+    _chartDrawKey[_id] = _dk;
+    // Always clear first: innerHTML just replaced every path, and a fresh
+    // element matching svg.rt-chart-draw would animate on EVERY render if the
+    // class were left behind. Removing it is what enforces the gate.
+    svgEl.classList.remove('rt-chart-draw','rt-chart-draw-quick');
+    if(!_shouldDraw) return;
+    let _any = false;
+    svgEl.querySelectorAll('.rt-chart-line').forEach(function(p){
+      let len = 0;
+      // getTotalLength() is geometry, not layout, so it works on hidden charts
+      // (the desktop/mobile pair means one is always display:none). It can still
+      // throw or return 0 on a detached or zero-length path -- degrade to no
+      // draw rather than a permanently invisible line.
+      try{ len = p.getTotalLength(); }catch(e){ return; }
+      if(!isFinite(len) || len <= 0) return;
+      p.style.setProperty('--rt-len', len.toFixed(1) + 'px');
+      _any = true;
+    });
+    // Only arm the animation if at least one path measured. Without --rt-len,
+    // stroke-dasharray:var(--rt-len) is invalid and the line would render solid
+    // but still burn an animation -- harmless, but pointless.
+    if(_any){
+      svgEl.classList.add('rt-chart-draw');
+      // A period switch redraws at the quicker duration; only the first reveal
+      // gets the full --dur-draw.
+      if(!_isReveal) svgEl.classList.add('rt-chart-draw-quick');
+    }
+  })();
+
   svgEl.onclick=function(e){
     if(svgEl.__wasScrub&&svgEl.__wasScrub())return;
     const col=e.target.closest('.rt-chart-col');
@@ -15660,7 +15763,7 @@ function renderSummary(){
 
     const topRows=top.length ? top.map((i,idx)=>{
       const profitCol=(i.profit||0)>=0?'var(--green)':'var(--red)';
-      return `<div class="metric-inline clickable" onclick="openItemDetail('${i.month}','${i.id}')"><div><div class="metric-k">#${idx+1} · ${esc(i.item)}</div><div style="font-size:11px;color:var(--muted);margin-top:4px">${keyName(i.month)} · ${i.dateSold||i.resaleDateSold||''}</div></div><div style="text-align:right"><div class="metric-v" style="font-size:20px;color:${profitCol}">${fmt(i.profit)}</div><div style="font-size:11px;color:var(--text-secondary)">${i.margin!==null&&i.margin!==undefined?i.margin.toFixed(1)+'% margin':'—'}</div></div></div>`;
+      return `<div class="metric-inline clickable" onclick="openItemDetail('${i.month}','${i.id}')"><div><div class="metric-k">#${idx+1} · ${esc(i.item)}</div><div style="font-size:11px;color:var(--muted);margin-top:4px">${keyName(i.month)} · ${i.dateSold||i.resaleDateSold||''}</div></div><div style="text-align:right"><div class="metric-v" style="font-size:20px;color:${profitCol}" data-cv="${Number(i.profit||0)}" data-cv-fmt="money" data-cv-key="sum-flip-${idx}">${fmt(i.profit)}</div><div style="font-size:11px;color:var(--text-secondary)">${i.margin!==null&&i.margin!==undefined?i.margin.toFixed(1)+'% margin':'—'}</div></div></div>`;
     }).join('') : `<div style="font-size:13px;color:var(--text-secondary)">No completed sales in this period yet.</div>`;
     // catRows removed — category rendering is inline in velocity section
     const html=`
@@ -15703,7 +15806,7 @@ function renderSummary(){
           <div class="summary-hero-top">
             <div class="summary-hero-head">
               <div class="kpi-label">Revenue · ${(periods.find(p=>p.key===SUMMARY_PERIOD)||{}).label||''}</div>
-              <div class="summary-hero-value num">${fmt(stats.totalRev||0)}</div>
+              <div class="summary-hero-value num" data-cv="${Number(stats.totalRev||0)}" data-cv-fmt="money" data-cv-key="sum-m-rev">${fmt(stats.totalRev||0)}</div>
               <div class="kpi-foot">${deltaChip(deltas&&deltas.totalRev)||((stats.soldCount||0)+' sold')}</div>
             </div>
             <svg class="summary-hero-spark" viewBox="0 0 120 44" preserveAspectRatio="none" aria-hidden="true"></svg>
@@ -15761,9 +15864,9 @@ function renderSummary(){
           <div class="summary-cat-head"><div class="sl">Inventory health</div><div class="summary-cat-count">By age in current state</div></div>
           <div class="inv-band-grid">
             <div class="inv-metrics">
-              <div class="inv-stat clickable" onclick="showFilteredItems('sourced')"><div class="inv-stat-k">Active stock value</div><div class="inv-stat-v num">${fmt(activeStockVal)}</div><div class="inv-stat-sub">At current ask</div></div>
-              <div class="inv-stat clickable" onclick="openDashboardStock('all')"><div class="inv-stat-k">Stock on hand</div><div class="inv-stat-v num">${activeStockCount}</div><div class="inv-stat-sub">Sourced + listed</div></div>
-              <div class="inv-stat clickable" onclick="showListedInPeriodItems()"><div class="inv-stat-k">Listed in period</div><div class="inv-stat-v num">${listedInPeriod}</div><div class="inv-stat-sub">Fresh sourcing pace</div></div>
+              <div class="inv-stat clickable" onclick="showFilteredItems('sourced')"><div class="inv-stat-k">Active stock value</div><div class="inv-stat-v num" data-cv="${Number(activeStockVal||0)}" data-cv-fmt="money" data-cv-key="sum-inv-value">${fmt(activeStockVal)}</div><div class="inv-stat-sub">At current ask</div></div>
+              <div class="inv-stat clickable" onclick="openDashboardStock('all')"><div class="inv-stat-k">Stock on hand</div><div class="inv-stat-v num" data-cv="${Number(activeStockCount||0)}" data-cv-fmt="int" data-cv-key="sum-inv-count">${activeStockCount}</div><div class="inv-stat-sub">Sourced + listed</div></div>
+              <div class="inv-stat clickable" onclick="showListedInPeriodItems()"><div class="inv-stat-k">Listed in period</div><div class="inv-stat-v num" data-cv="${Number(listedInPeriod||0)}" data-cv-fmt="int" data-cv-key="sum-inv-listed">${listedInPeriod}</div><div class="inv-stat-sub">Fresh sourcing pace</div></div>
             </div>
             ${activeStockCount>0?(()=>{
               const segs=[
@@ -15804,17 +15907,17 @@ function renderSummary(){
         <div class="card summary-panel summary-snapshot summary-snapshot-strip">
           <div class="snap-strip-head"><div class="sl">Snapshot</div><div class="summary-snapshot-sub">Per sale · ${(periods.find(p=>p.key===SUMMARY_PERIOD)||{}).label||''}</div></div>
           <div class="snap-strip-row">
-            <div class="snap-stat clickable" onclick="showAvgSaleBreakdown()"><div class="snap-stat-k">Average sale price</div><div class="snap-stat-v num">${fmt(stats.avgSale||0)}</div></div>
-            <div class="snap-stat clickable" onclick="showAvgBuyBreakdown()"><div class="snap-stat-k">Average buy price</div><div class="snap-stat-v num">${fmt(stats.avgCostPrice||0)}</div></div>
-            <div class="snap-stat clickable" onclick="showAvgProfitBreakdown()"><div class="snap-stat-k">Average gross profit</div><div class="snap-stat-v num" style="color:var(--profit)">${fmt(stats.avgProfit||0)}</div></div>
+            <div class="snap-stat clickable" onclick="showAvgSaleBreakdown()"><div class="snap-stat-k">Average sale price</div><div class="snap-stat-v num" data-cv="${Number(stats.avgSale||0)}" data-cv-fmt="money" data-cv-key="sum-snap-avgsale">${fmt(stats.avgSale||0)}</div></div>
+            <div class="snap-stat clickable" onclick="showAvgBuyBreakdown()"><div class="snap-stat-k">Average buy price</div><div class="snap-stat-v num" data-cv="${Number(stats.avgCostPrice||0)}" data-cv-fmt="money" data-cv-key="sum-snap-avgbuy">${fmt(stats.avgCostPrice||0)}</div></div>
+            <div class="snap-stat clickable" onclick="showAvgProfitBreakdown()"><div class="snap-stat-k">Average gross profit</div><div class="snap-stat-v num" style="color:var(--profit)" data-cv="${Number(stats.avgProfit||0)}" data-cv-fmt="money" data-cv-key="sum-snap-avgprofit">${fmt(stats.avgProfit||0)}</div></div>
           </div>
         </div>
         <div class="card summary-panel summary-velocity">
           <div class="sl">Velocity</div>
-          <div class="metric-inline clickable" onclick="showAvgDaysBreakdown()"><div><div class="metric-k">Avg days to sell</div><div style="font-size:11px;color:var(--muted);margin-top:4px">Current period signal · tap for detail</div></div><div class="metric-v">${stats.avgDays!==null&&stats.avgDays!==undefined?stats.avgDays+'d':'—'}</div></div>
+          <div class="metric-inline clickable" onclick="showAvgDaysBreakdown()"><div><div class="metric-k">Avg days to sell</div><div style="font-size:11px;color:var(--muted);margin-top:4px">Current period signal · tap for detail</div></div><div class="metric-v" data-cv="${stats.avgDays!==null&&stats.avgDays!==undefined?Number(stats.avgDays):''}" data-cv-fmt="days" data-cv-key="sum-vel-avgdays">${stats.avgDays!==null&&stats.avgDays!==undefined?stats.avgDays+'d':'—'}</div></div>
           ${SUMMARY_PERIOD==='7d'
-            ?`<div class="metric-inline clickable" onclick="showSellThroughBreakdown()"><div><div class="metric-k">Fast-mover rate</div><div style="font-size:11px;color:var(--muted);margin-top:4px">Sold within 14d · tap for detail</div></div><div class="metric-v" style="color:${(stats.sellThrough14||0)>=50?'var(--green)':(stats.sellThrough14||0)>=25?'var(--warn)':'var(--text)'}">${stats.eligible14Count>0?Math.round(stats.sellThrough14||0)+'%':'—'}</div></div>`
-            :`<div class="metric-inline clickable" onclick="showSellThroughBreakdown()"><div><div class="metric-k">Sell-through</div><div style="font-size:11px;color:var(--muted);margin-top:4px">Listed in period that sold · tap for detail</div></div><div class="metric-v">${stats.sellThrough!==null&&stats.sellThrough!==undefined?Math.round(stats.sellThrough)+'%':'—'}</div></div>`
+            ?`<div class="metric-inline clickable" onclick="showSellThroughBreakdown()"><div><div class="metric-k">Fast-mover rate</div><div style="font-size:11px;color:var(--muted);margin-top:4px">Sold within 14d · tap for detail</div></div><div class="metric-v" style="color:${(stats.sellThrough14||0)>=50?'var(--green)':(stats.sellThrough14||0)>=25?'var(--warn)':'var(--text)'}" data-cv="${stats.eligible14Count>0?Math.round(stats.sellThrough14||0):''}" data-cv-fmt="pct0" data-cv-key="sum-vel-fastmover">${stats.eligible14Count>0?Math.round(stats.sellThrough14||0)+'%':'—'}</div></div>`
+            :`<div class="metric-inline clickable" onclick="showSellThroughBreakdown()"><div><div class="metric-k">Sell-through</div><div style="font-size:11px;color:var(--muted);margin-top:4px">Listed in period that sold · tap for detail</div></div><div class="metric-v" data-cv="${stats.sellThrough!==null&&stats.sellThrough!==undefined?Math.round(stats.sellThrough):''}" data-cv-fmt="pct0" data-cv-key="sum-vel-sellthrough">${stats.sellThrough!==null&&stats.sellThrough!==undefined?Math.round(stats.sellThrough)+'%':'—'}</div></div>`
           }
           ${catLeaders.length?(()=>{
             const MAX_INLINE=4;
@@ -23914,6 +24017,17 @@ function _recalcRelist(currentPL,salePrice,bpf,shipping,packaging,postage){
 //    does not touch a JS tween.
 const _CV_FMT = {
   k:    function(v){ return fmtK(v); },
+  // v2.19.1 -- full-precision money. The mobile revenue hero renders via fmt(),
+  // which always shows pence + thousands separators. fmtK abbreviates at >=100k
+  // and drops pence at <=390px, so reusing `k` here would visibly reformat the
+  // hero. Kept as its own entry because _countUp falls back to `k` on an
+  // unknown fmt name WITHOUT warning -- an unregistered name looks deliberate.
+  money: function(v){ return fmt(v); },
+  // v2.19.9 -- whole counts (stock on hand, listed in period). Without this the
+  // silent `|| _CV_FMT.k` fallback would render a count of 18 as money.
+  int:  function(v){ return String(Math.round(v)); },
+  // v2.19.9 -- day counts, e.g. "10d".
+  days: function(v){ return Math.round(v) + 'd'; },
   pct0: function(v){ return Math.round(v) + '%'; },
   pct1: function(v){ return Number(v).toFixed(1) + '%'; }
 };
@@ -23967,7 +24081,7 @@ function _animateKPIs(root){
     if(!key || !isFinite(to)){ return; }
     // Where do we start? On reveal: 0. On change: whatever this key last showed.
     const from = reveal ? 0 : (isFinite(_kpiPrev[key]) ? _kpiPrev[key] : to);
-    _countUp(el, from, to, reveal ? 700 : 450, fmtName, key);
+    _countUp(el, from, to, reveal ? 1100 : 450, fmtName, key);  // v2.19.4 -- reveal 900->1100. Change tween stays 450: a value update is not a reveal.
   });
   _kpiRevealDone = true;
 }
