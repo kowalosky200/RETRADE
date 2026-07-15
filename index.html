@@ -1662,6 +1662,27 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
    is visible without feeling slow. */
 .page.on{animation:pageFade var(--dur-medium) var(--ease-out) both;}
 
+/* Boot cross-fade (v2.19.0 -- 7C)
+   #app-loading is an opaque z-index:9998 overlay. hideLoadingScreen() used to
+   set display:none -- a hard cut. The page underneath then started pageFade
+   from opacity 0, so the eye caught a flash of bare --bg between the two.
+   The overlay now dissolves while the page fades in underneath it. Both run
+   --dur-medium and start on the SAME paint: initDB() calls hideLoadingScreen(),
+   renderSummary() and .classList.add('on') inside one synchronous block, so no
+   style recalc happens between them. _animateKPIs' 700ms reveal is kicked off
+   in that same block -- it is already ~40% through as the skeleton thins out,
+   which is the point: the skeleton's KPI blocks dissolve into real cards that
+   are already moving.
+   opacity + transition live in CSS, NOT inline -- same lesson as #more-sheet
+   (v2.17.1), where an inline transition was deleted by style.transition=''
+   instead of restored. Only `display` stays inline; showLoadingScreen owns it.
+   prefers-reduced-motion: the global killswitch (~line 1655) clamps the
+   transition to .01ms, so the overlay snaps to opacity 0 and the teardown timer
+   hides it. No JS motion check needed here -- unlike the count-up, this IS a
+   CSS transition, so the killswitch does cover it. */
+#app-loading{opacity:1;transition:opacity var(--dur-medium) var(--ease-out);}
+#app-loading.rt-boot-out{opacity:0;pointer-events:none;}
+
 /* Panel */
 @keyframes panelContentIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
 #panel-content{animation:panelContentIn .24s cubic-bezier(0.34,1.2,0.64,1) both;}
@@ -8157,8 +8178,18 @@ function _bootSkeletonHTML(){
     + '<div style="text-align:center;margin-top:20px;font-size:13px;color:var(--text-secondary);" id="app-loading-msg"></div>'
     + '</div>';
 }
+// v2.19.0 -- 7C boot cross-fade.
+// Failsafe only. The teardown is driven by transitionend (see hideLoadingScreen);
+// this timer exists solely for the case where the transition never fires at all.
+let _bootFadeTimer = null;
 function showLoadingScreen(msg){
   let el = document.getElementById('app-loading');
+  if(_bootFadeTimer){ clearTimeout(_bootFadeTimer); _bootFadeTimer = null; }
+  // Re-entrancy (load-error banner Retry -> initDB -> showLoadingScreen while a
+  // fade is still in flight): drop the fading element and rebuild rather than
+  // reversing it. Reversing would run opacity 0->1, fire the pending
+  // transitionend, and tear down the screen we just re-showed.
+  if(el && el.classList.contains('rt-boot-out')){ el.remove(); el = null; }
   if(!el){
     el = document.createElement('div');
     el.id = 'app-loading';
@@ -8172,7 +8203,34 @@ function showLoadingScreen(msg){
 }
 function hideLoadingScreen(){
   const el = document.getElementById('app-loading');
-  if(el) el.style.display = 'none';
+  if(!el) return;
+  if(_bootFadeTimer){ clearTimeout(_bootFadeTimer); _bootFadeTimer = null; }
+  // Remove, don't display:none. showLoadingScreen() rebuilds from scratch when
+  // the element is absent, so removal costs nothing, guarantees a clean opacity:1
+  // start next time, lets the {once:true} listener die with its element, and
+  // stops the skeleton DOM squatting in the tree for the rest of the session.
+  const _finish = function(){
+    if(_bootFadeTimer){ clearTimeout(_bootFadeTimer); _bootFadeTimer = null; }
+    if(el.parentNode) el.remove();
+  };
+  el.addEventListener('transitionend', function(e){
+    if(e.propertyName === 'opacity') _finish();
+  }, {once:true});
+  // Force a style flush BEFORE the class lands, so the browser has a
+  // before-change style for opacity. Without it, a load that resolves inside a
+  // single task (warm cache, or any future in-memory path) lets the browser
+  // coalesce create+fade into the end state -- the transition silently never
+  // runs and the hard cut is back. Verified both ways in Puppeteer.
+  void el.offsetWidth;
+  el.classList.add('rt-boot-out');
+  // Failsafe ONLY -- transitionend is the real teardown. A fixed timer must
+  // never be the schedule here: measured start of the transition is t+110..130ms
+  // (initDB's synchronous block plus first dashboard paint must clear first),
+  // so any timer counted from this call races an animation it cannot see.
+  // 1200ms is deliberately far past any plausible finish. If the transition
+  // never fires (coalesced away, element hidden), the overlay is already at
+  // opacity 0 + pointer-events:none, so the wait is invisible.
+  _bootFadeTimer = setTimeout(_finish, 1200);
 }
 
 function refreshActivePage(){
