@@ -269,6 +269,16 @@ nav:not(#bottom-nav){position:sticky;top:env(safe-area-inset-top,0px);z-index:20
   .fab-dial{bottom:calc(62px + env(safe-area-inset-bottom,0px) + 18px);right:16px;}
 }
 /* MORE SHEET */
+/* v2.17.1 — #more-sheet rest state + transition, moved out of the inline style
+   attribute. Two bugs fixed:
+   1. The transition was inline-only, so initMoreSheetSwipe's style.transition=''
+      (meant to hand control back after a drag) deleted it outright — the sheet
+      then teleported instead of sliding.
+   2. translateY(100%) moves the sheet by its OWN HEIGHT, but it rests 62px above
+      the viewport bottom to clear the nav, so it landed 62px short and left a
+      sliver on screen until display:none fired. The hidden transform now clears
+      the offset and the safe-area inset too. */
+#more-sheet{transform:translateY(calc(100% + 62px + env(safe-area-inset-bottom,0px)));transition:transform .28s cubic-bezier(0.32,1.1,0.5,1);}
 .more-sheet-row{display:flex;align-items:center;gap:16px;width:100%;padding:14px 22px;background:none;border:none;text-align:left;cursor:pointer;font-size:15px;font-weight:500;color:var(--text);-webkit-tap-highlight-color:transparent;transition:background 0.12s;}
 .more-sheet-row:active{background:var(--surface2);}
 .more-sheet-row svg{flex-shrink:0;color:var(--text-secondary);}
@@ -4807,7 +4817,7 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
 
 <!-- MORE SHEET — hamburger menu, slides up from bottom nav -->
 <div id="more-sheet-overlay" onclick="closeMoreSheet()" style="display:none;position:fixed;inset:0;z-index:335;background:var(--overlay);backdrop-filter:blur(2px);"></div>
-<div id="more-sheet" style="display:none;position:fixed;bottom:calc(62px + env(safe-area-inset-bottom,0px));left:0;right:0;z-index:336;background:var(--surface);border-top:1px solid var(--border);border-radius:20px 20px 0 0;padding:8px 0 16px;box-shadow:0 -8px 40px var(--shadow-md);overflow-y:auto;max-height:70vh;transform:translateY(100%);transition:transform .28s cubic-bezier(0.32,1.1,0.5,1);">
+<div id="more-sheet" style="display:none;position:fixed;bottom:calc(62px + env(safe-area-inset-bottom,0px));left:0;right:0;z-index:336;background:var(--surface);border-top:1px solid var(--border);border-radius:20px 20px 0 0;padding:8px 0 16px;box-shadow:0 -8px 40px var(--shadow-md);overflow-y:auto;max-height:70vh;">
   <div style="width:36px;height:4px;background:var(--border2);border-radius:2px;margin:0 auto 16px;"></div>
   <!-- MAIN sheet contents — page nav + country trigger + theme + sign out -->
   <div id="more-sheet-main" class="more-sheet-pane">
@@ -6580,12 +6590,15 @@ function closeMoreSheet(){
   // and aborted the caller (blank item page).
   if(sheet){
     sheet._msOpen=false;
-    sheet.style.transform='translateY(100%)';
+    // v2.17.1 — clear the inline transform so the CSS rest state applies. That
+    // state clears the sheet's own height PLUS its 62px bottom offset, so it
+    // leaves the viewport completely instead of parking a sliver on screen.
+    sheet.style.transform='';
   }
   if(overlay)overlay.style.opacity='0';
   setTimeout(function(){
     if(sheet&&!sheet._msOpen){sheet.style.display='none';if(overlay)overlay.style.display='none';}
-  },260);
+  },300);   // v2.17.1 — was 260ms, which clipped the tail of the .28s slide.
   const _bm=document.getElementById('bnt-more');
   if(_bm)_bm.classList.remove('on');
   if(typeof moreSheetShowMain==='function')moreSheetShowMain();
@@ -8105,16 +8118,56 @@ function _showLoadError(msg){
   el.style.display = 'flex';
 }
 
+// v2.17.0 — Boot skeleton.
+// This screen covers a REAL wait: initDB() -> loadFromSupabase(), racing a 15s
+// timeout. It used to be a 32px hourglass emoji on an opaque backdrop, which
+// communicated "stopped" rather than "working". The V2 design system already
+// shipped `.rt .skeleton` (tokenised shimmer + reduced-motion killswitch) and
+// nothing ever used it — this wires it up.
+// The skeleton mirrors the Summary page (KPI row -> chart -> list rows) so the
+// layout the user is about to get is already forming while the data lands.
+// Deliberately NOT used for page-to-page navigation: that renders from memory
+// and has nothing to wait for, so a skeleton there would be inventing delay.
+// #app-loading-msg is preserved — showLoadingScreen(msg) still writes to it.
+function _bootSkeletonHTML(){
+  const kpi = '<div style="background:var(--surface-1);border:1px solid var(--border);border-radius:var(--r-l);padding:16px;">'
+    + '<div class="skeleton" style="height:9px;width:52%;margin-bottom:12px;"></div>'
+    + '<div class="skeleton" style="height:22px;width:72%;"></div>'
+    + '</div>';
+  const row = '<div style="display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--border);">'
+    + '<div class="skeleton" style="height:34px;width:34px;border-radius:var(--r-s);flex-shrink:0;"></div>'
+    + '<div style="flex:1;min-width:0;">'
+      + '<div class="skeleton" style="height:9px;width:46%;margin-bottom:7px;"></div>'
+      + '<div class="skeleton" style="height:8px;width:26%;"></div>'
+    + '</div>'
+    + '<div class="skeleton" style="height:14px;width:56px;flex-shrink:0;"></div>'
+    + '</div>';
+  return '<div style="width:100%;max-width:1100px;margin:0 auto;padding:20px;box-sizing:border-box;">'
+    + '<div class="skeleton" style="height:13px;width:132px;margin-bottom:20px;"></div>'
+    + '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:16px;">'
+      + kpi + kpi + kpi + kpi
+    + '</div>'
+    + '<div style="background:var(--surface-1);border:1px solid var(--border);border-radius:var(--r-l);padding:16px;margin-bottom:16px;">'
+      + '<div class="skeleton" style="height:9px;width:88px;margin-bottom:14px;"></div>'
+      + '<div class="skeleton" style="height:150px;width:100%;border-radius:var(--r-m);"></div>'
+    + '</div>'
+    + '<div style="background:var(--surface-1);border:1px solid var(--border);border-radius:var(--r-l);padding:4px 16px 8px;">'
+      + row + row + row
+    + '</div>'
+    + '<div style="text-align:center;margin-top:20px;font-size:13px;color:var(--text-secondary);" id="app-loading-msg"></div>'
+    + '</div>';
+}
 function showLoadingScreen(msg){
   let el = document.getElementById('app-loading');
   if(!el){
     el = document.createElement('div');
     el.id = 'app-loading';
-    el.style.cssText = 'position:fixed;inset:0;z-index:9998;background:var(--bg);display:flex;align-items:center;justify-content:center;flex-direction:column;gap:12px;';
-    el.innerHTML = '<div style="font-size:32px;">⏳</div><div style="font-size:15px;color:var(--text-secondary);" id="app-loading-msg"></div>';
+    el.style.cssText = 'position:fixed;inset:0;z-index:9998;background:var(--bg);display:flex;align-items:flex-start;justify-content:center;overflow-y:auto;';
+    el.innerHTML = _bootSkeletonHTML();
     document.body.appendChild(el);
   }
-  document.getElementById('app-loading-msg').textContent = msg || 'Loading…';
+  const _m = document.getElementById('app-loading-msg');
+  if(_m) _m.textContent = msg || 'Loading…';
   el.style.display = 'flex';
 }
 function hideLoadingScreen(){
@@ -10070,10 +10123,11 @@ function initMoreSheetSwipe(){
     const isFlick=vy>0.5&&curDy>20;
     const dismiss=isFlick||(curDy>threshold);
     curDy=0;vy=0;
-    sheet.style.transition='';              // hand back to the inline transition
+    // v2.17.1 — clearing style.transition now falls back to the #more-sheet CSS
+    // rule (it used to fall back to nothing, killing the slide).
+    sheet.style.transition='';
     if(dismiss){
-      sheet.style.transform='';             // closeMoreSheet sets translateY(100%)
-      closeMoreSheet();
+      closeMoreSheet();                     // clears transform -> CSS hidden state
     }else{
       sheet.style.transform='translateY(0)';
     }
@@ -15604,21 +15658,21 @@ function renderSummary(){
         <div class="summary-mobile-twoup summary-mobile-only">
           <div class="card kpi clickable" onclick="showFilteredItems('realised')">
             <div class="kpi-label">Gross profit</div>
-            <div class="kpi-value num">${fmtK(stats.grossProfit||0)}</div>
+            <div class="kpi-value num" data-cv="${Number(stats.grossProfit||0)}" data-cv-fmt="k" data-cv-key="sum-m-gp">${fmtK(stats.grossProfit||0)}</div>
             <div class="kpi-foot">${deltaChip(deltas&&deltas.grossProfit)||'After returns · before overheads'}</div>
           </div>
           <div class="card kpi clickable" onclick="showMarginItems()">
             <div class="kpi-label">Avg margin</div>
-            <div class="kpi-value num">${Math.round(stats.grossMargin||0)}%</div>
+            <div class="kpi-value num" data-cv="${Number(stats.grossMargin||0)}" data-cv-fmt="pct0" data-cv-key="sum-m-margin">${Math.round(stats.grossMargin||0)}%</div>
             <div class="kpi-foot">${deltaChip(deltas&&deltas.grossMargin,{pp:true})||'Item-level margin'}</div>
           </div>
         </div>
         <!-- Tier 1: 4-KPI grid -->
         <div class="summary-kpis-v3">
-          <div class="card kpi clickable" onclick="showFilteredItems('revenue')"><div class="kpi-label">Total revenue</div><div class="kpi-value num">${fmtK(stats.totalRev||0)}</div><div class="kpi-foot">${deltaChip(deltas&&deltas.totalRev)||((stats.soldCount||0)+' sold in view')}</div></div>
-          <div class="card kpi clickable kpi-netprofit" onclick="showFilteredItems('realised')"><div class="kpi-label">Gross profit</div><div class="kpi-value num">${fmtK(stats.grossProfit||0)}</div><div class="kpi-foot">${deltaChip(deltas&&deltas.grossProfit)||'After returns · before overheads'}</div></div>
-          <div class="card kpi clickable" onclick="showMarginItems()"><div class="kpi-label">Avg margin</div><div class="kpi-value num">${Math.round(stats.grossMargin||0)}%</div><div class="kpi-foot">${deltaChip(deltas&&deltas.grossMargin,{pp:true})||'Item-level margin'}</div></div>
-          <div class="card kpi clickable" onclick="showReturnedItems()"><div class="kpi-label">Refund rate</div><div class="kpi-value num">${Number(stats.refundItemRate||0).toFixed(1)}%</div><div class="kpi-foot">${deltaChip(deltas&&deltas.refundItemRate,{pp:true,invert:true})||((stats.fullRefundCount||0)+' full · '+(stats.partialOnlyCount||0)+' partial')}</div></div>
+          <div class="card kpi clickable" onclick="showFilteredItems('revenue')"><div class="kpi-label">Total revenue</div><div class="kpi-value num" data-cv="${Number(stats.totalRev||0)}" data-cv-fmt="k" data-cv-key="sum-rev">${fmtK(stats.totalRev||0)}</div><div class="kpi-foot">${deltaChip(deltas&&deltas.totalRev)||((stats.soldCount||0)+' sold in view')}</div></div>
+          <div class="card kpi clickable kpi-netprofit" onclick="showFilteredItems('realised')"><div class="kpi-label">Gross profit</div><div class="kpi-value num" data-cv="${Number(stats.grossProfit||0)}" data-cv-fmt="k" data-cv-key="sum-gp">${fmtK(stats.grossProfit||0)}</div><div class="kpi-foot">${deltaChip(deltas&&deltas.grossProfit)||'After returns · before overheads'}</div></div>
+          <div class="card kpi clickable" onclick="showMarginItems()"><div class="kpi-label">Avg margin</div><div class="kpi-value num" data-cv="${Number(stats.grossMargin||0)}" data-cv-fmt="pct0" data-cv-key="sum-margin">${Math.round(stats.grossMargin||0)}%</div><div class="kpi-foot">${deltaChip(deltas&&deltas.grossMargin,{pp:true})||'Item-level margin'}</div></div>
+          <div class="card kpi clickable" onclick="showReturnedItems()"><div class="kpi-label">Refund rate</div><div class="kpi-value num" data-cv="${Number(stats.refundItemRate||0)}" data-cv-fmt="pct1" data-cv-key="sum-refund">${Number(stats.refundItemRate||0).toFixed(1)}%</div><div class="kpi-foot">${deltaChip(deltas&&deltas.refundItemRate,{pp:true,invert:true})||((stats.fullRefundCount||0)+' full · '+(stats.partialOnlyCount||0)+' partial')}</div></div>
         </div>
 
         <!-- Tier 2: chart + categories -->
@@ -15719,6 +15773,7 @@ function renderSummary(){
         </div>
       </div>`;
     el.innerHTML=html;
+    _animateKPIs(el);   // v2.18.0 — reveal counts from 0, later renders tween from current
     window.__summaryByCat=stats.byCat||[];
     renderSummaryChart(chartLabels,chartRev,chartProfit);
     // V3 layout: the old 2-column main/side height-matching no longer applies
@@ -23784,6 +23839,79 @@ function _recalcRelist(currentPL,salePrice,bpf,shipping,packaging,postage){
   if(promoEl)promoEl.textContent='−'+fmt(promoCost);
   if(profitEl){profitEl.textContent=fmt(rlProfit);profitEl.style.color=rlProfit>=0?'var(--green)':'var(--red)';}
   if(lifetimeEl){lifetimeEl.textContent=fmt(combinedP);lifetimeEl.style.color=combinedP>=0?'var(--green)':'var(--red)';}
+}
+
+// v2.18.0 — KPI count-up.
+// Rules (locked with Oskar, and §8 of the handover):
+//  * REVEAL (first paint after data lands): count from 0, slower — you've never
+//    seen this number, there is no "before".
+//  * CHANGE (period pill, filter): tween from the CURRENT displayed number to
+//    the new one — that's informative (£2,480 BECAME £3,120), not fake loading.
+//    Faster, because these get tapped constantly and a long tween is unreadable.
+//  * NEVER leave a wrong number on screen. The final frame always writes the
+//    exact formatted target, never the tween's approximation.
+//  * Rapid taps must not fight: each key cancels its in-flight rAF and restarts
+//    from wherever the digits actually are, not from the previous target.
+//  * prefers-reduced-motion is checked explicitly — the global CSS killswitch
+//    does not touch a JS tween.
+const _CV_FMT = {
+  k:    function(v){ return fmtK(v); },
+  pct0: function(v){ return Math.round(v) + '%'; },
+  pct1: function(v){ return Number(v).toFixed(1) + '%'; }
+};
+const _kpiPrev = {};        // stable key -> last numeric value shown
+const _kpiRAF  = {};        // stable key -> in-flight rAF id
+let   _kpiRevealDone = false;
+
+function _kpiReducedMotion(){
+  try{ return window.matchMedia('(prefers-reduced-motion: reduce)').matches; }
+  catch(e){ return false; }
+}
+
+function _countUp(el, from, to, dur, fmtName, key){
+  const fmt = _CV_FMT[fmtName] || _CV_FMT.k;
+  if(_kpiRAF[key]){ cancelAnimationFrame(_kpiRAF[key]); delete _kpiRAF[key]; }
+  // Settle immediately when motion is off, the delta is nil, or values are junk.
+  if(_kpiReducedMotion() || !isFinite(from) || !isFinite(to) || from === to || dur <= 0){
+    el.textContent = fmt(to);
+    _kpiPrev[key] = to;
+    return;
+  }
+  const t0 = performance.now();
+  const step = function(now){
+    const p = Math.min(1, (now - t0) / dur);
+    // ease-out cubic — fast start, gentle settle
+    const e = 1 - Math.pow(1 - p, 3);
+    if(p >= 1){
+      el.textContent = fmt(to);      // EXACT target, always
+      _kpiPrev[key] = to;
+      delete _kpiRAF[key];
+      return;
+    }
+    el.textContent = fmt(from + (to - from) * e);
+    _kpiRAF[key] = requestAnimationFrame(step);
+  };
+  _kpiPrev[key] = to;   // record intent up-front so an interrupting tween reads the target
+  _kpiRAF[key] = requestAnimationFrame(step);
+}
+
+// Walks [data-cv] inside root and animates each to its target.
+// Call AFTER innerHTML has been written.
+function _animateKPIs(root){
+  if(!root) return;
+  const nodes = root.querySelectorAll('[data-cv]');
+  if(!nodes.length) return;
+  const reveal = !_kpiRevealDone;
+  nodes.forEach(function(el){
+    const key = el.getAttribute('data-cv-key');
+    const to  = parseFloat(el.getAttribute('data-cv'));
+    const fmtName = el.getAttribute('data-cv-fmt') || 'k';
+    if(!key || !isFinite(to)){ return; }
+    // Where do we start? On reveal: 0. On change: whatever this key last showed.
+    const from = reveal ? 0 : (isFinite(_kpiPrev[key]) ? _kpiPrev[key] : to);
+    _countUp(el, from, to, reveal ? 700 : 450, fmtName, key);
+  });
+  _kpiRevealDone = true;
 }
 
 function fmtK(n){
