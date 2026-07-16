@@ -1736,6 +1736,66 @@ svg.rt-chart-draw .rt-chart-col circle{
   animation-delay:calc(var(--dur-draw) * 0.9);
 }
 
+/* v2.19.15 -- the category donut sweeps clockwise. Same pen as the chart line
+   beside it, bent into a ring: --ease-draw exists because the stroke should
+   travel at a near-constant rate, and a donut is the same gesture closed on
+   itself. A scale/bounce entrance was the alternative and was rejected -- it
+   speaks a different (elastic) language to both the line draw and the count-up
+   settle, and three motion vocabularies on one dashboard is what makes a UI
+   feel assembled rather than designed.
+   Each slice carries its own --seg-t0 (where it STARTS on the ring, as a
+   fraction of the circumference) and --seg-t (how much of the ring it IS).
+   Delay and duration are both scaled off --dur-draw by those fractions, so
+   every slice draws at the same angular speed and the whole set reads as ONE
+   pen going round once in --dur-draw -- not six animations that happen to
+   overlap. That is also why each slice runs `linear` rather than --ease-draw:
+   easing a slice would ease the pen in and out at every colour boundary, and
+   the ring would stutter five times on the way round.
+   The `both` fill is load-bearing: the backwards fill holds `from` during the
+   delay, which is what keeps a slice invisible until its turn comes. */
+@keyframes donutSweep{
+  from{stroke-dasharray:0 var(--seg-c);}
+  to{stroke-dasharray:var(--seg-len) var(--seg-rest);}
+}
+svg.cat-donut-draw circle{
+  animation:donutSweep calc(var(--seg-t) * var(--dur-draw)) linear both;
+  animation-delay:calc(var(--seg-t0) * var(--dur-draw));
+}
+
+/* Legend rows ride the same clock: each row's delay is its own slice's --seg-t0,
+   so the label lands as its arc starts drawing. The ring and the legend are one
+   choreography rather than two things that happen near each other -- that
+   pairing is most of what reads as "professional" here, not the movement
+   itself. --row-t0 is set per row in buildCategoryDonut. */
+@keyframes catLegendIn{
+  from{opacity:0;transform:translateX(-6px);}
+  to{opacity:1;transform:none;}
+}
+.rt .cat-donut-legend.cat-legend-draw .cat-legend-row{
+  animation:catLegendIn var(--dur-base) var(--ease-out) both;
+  animation-delay:calc(var(--row-t0) * var(--dur-draw));
+}
+/* A category that is genuinely new since the last render, on a render that is
+   NOT a full sweep. No delay -- it is not part of a sequence, it is one row
+   arriving. See _animateDonut for who gets this class. */
+.rt .cat-legend-row.cat-legend-row--enter{
+  animation:catLegendIn var(--dur-base) var(--ease-out) both;
+}
+
+/* The global killswitch (~line 1655) clamps animation-DURATION but not
+   animation-DELAY, and a staggered sweep is nothing but delays -- without this
+   a reduced-motion user would still watch slices pop in across 460ms, which is
+   precisely the thing they asked not to see. Clamp the delays too and the whole
+   ring lands in one frame.
+   NOTE: svg.rt-chart-draw .rt-chart-col circle above has the same latent gap
+   (its 0.9 dot delay is not clamped either) -- left alone here rather than
+   folded into an unrelated change. */
+@media(prefers-reduced-motion:reduce){
+  svg.cat-donut-draw circle,
+  .rt .cat-donut-legend.cat-legend-draw .cat-legend-row,
+  .rt .cat-legend-row.cat-legend-row--enter{animation-delay:0ms!important;}
+}
+
 /* Panel */
 @keyframes panelContentIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
 #panel-content{animation:panelContentIn .24s cubic-bezier(0.34,1.2,0.64,1) both;}
@@ -15115,17 +15175,32 @@ function buildCategoryDonut(byCat){
   // SVG arc geometry
   const size=132, cx=size/2, cy=size/2, r=52, sw=18;
   const C=2*Math.PI*r;
+  // v2.19.15 -- geometry computed ONCE, up front, because the arcs and the
+  // legend both need it and they are separate .map()s. The legend used to have
+  // no access to `offset`, which is exactly why the two could not be
+  // choreographed together before.
+  //   t0 = where this slice starts on the ring, as a fraction of C
+  //   t  = how much of the ring this slice occupies
+  // Both are unitless fractions so the CSS can scale them off --dur-draw and
+  // the whole sweep stays tunable from that one token.
   let offset=0;
-  const arcs=slices.map(function(s,i){
-    const frac=s.val/total;
-    const len=frac*C;
-    const dash=len+' '+(C-len);
-    const seg='<circle cx="'+cx+'" cy="'+cy+'" r="'+r+'" fill="none" '
-      +'stroke="'+_DONUT_COLORS[i%_DONUT_COLORS.length]+'" stroke-width="'+sw+'" '
-      +'stroke-dasharray="'+dash+'" stroke-dashoffset="'+(-offset)+'" '
-      +'transform="rotate(-90 '+cx+' '+cy+')"/>';
+  const geo=slices.map(function(s){
+    const frac=s.val/total, len=frac*C;
+    const g={len:len, rest:C-len, off:offset, t0:offset/C, t:frac};
     offset+=len;
-    return seg;
+    return g;
+  });
+  const n2=function(v){return Math.round(v*100)/100;};
+  const n4=function(v){return Math.round(v*10000)/10000;};
+  const arcs=slices.map(function(s,i){
+    const g=geo[i];
+    const dash=g.len+' '+g.rest;
+    return '<circle cx="'+cx+'" cy="'+cy+'" r="'+r+'" fill="none" '
+      +'stroke="'+_DONUT_COLORS[i%_DONUT_COLORS.length]+'" stroke-width="'+sw+'" '
+      +'stroke-dasharray="'+dash+'" stroke-dashoffset="'+(-g.off)+'" '
+      +'style="--seg-len:'+n2(g.len)+';--seg-rest:'+n2(g.rest)+';--seg-c:'+n2(C)
+      +';--seg-t0:'+n4(g.t0)+';--seg-t:'+n4(g.t)+'" '
+      +'transform="rotate(-90 '+cx+' '+cy+')"/>';
   }).join('');
   const svg='<svg class="cat-donut-svg" viewBox="0 0 '+size+' '+size+'" width="'+size+'" height="'+size+'">'+arcs+'</svg>';
   const legend=slices.map(function(s,i){
@@ -15135,7 +15210,11 @@ function buildCategoryDonut(byCat){
     // going 85 -> 60 is exactly the movement the eye is tracking. Name keys
     // would strand a _kpiPrev entry for every category that drops out, and a
     // re-entering category would then tween from a stale figure.
-    return '<div class="cat-legend-row">'
+    // data-cat is what _animateDonut diffs against the previous render to spot
+    // a genuinely new category. Reading it back off the DOM keeps the whole
+    // gate self-contained instead of threading a second return value through
+    // the template-literal IIFE that renders this panel.
+    return '<div class="cat-legend-row" data-cat="'+esc(s.cat)+'" style="--row-t0:'+n4(geo[i].t0)+'">'
       +'<span class="cat-legend-dot" style="background:'+_DONUT_COLORS[i%_DONUT_COLORS.length]+'"></span>'
       +'<span class="cat-legend-name" title="'+esc(s.cat)+'">'+esc(s.cat)+'</span>'
       +'<span class="cat-legend-pct num" data-cv="'+pct+'" data-cv-fmt="pct0" data-cv-key="sum-catpct-'+i+'">'+pct+'%</span></div>';
@@ -15345,6 +15424,59 @@ function renderSummaryChart(labels,revData,profitData){
 // site) for charts whose svg carries no id.
 // Value = the last drawKey drawn for that chart. undefined = never drawn.
 const _chartDrawKey = Object.create(null);
+
+// v2.19.15 -- donut sweep gate. Same contract as _renderChartInto's, and
+// deliberately keyed off the same SUMMARY_PERIOD: the ring and the line sit
+// side by side, so they have to agree on what counts as a redraw or they
+// contradict each other in the corner of the eye. The split the dashboard
+// already uses holds -- a STRUCTURAL change (period) redraws, a VALUE change is
+// the count-up's job.
+// Without this gate the sweep would replay on every filter click and every
+// background refresh: renderSummary writes innerHTML wholesale, so the <svg> is
+// a fresh element every render and a fresh element ALWAYS matches an animation
+// rule. Clearing the class is what enforces the gate, exactly as it is for
+// .rt-chart-draw.
+// Phase 3 note: _donutCats moves with render-summary.js alongside _kpiPrev.
+const _DONUT_ID = 'summary-cat-donut';
+let _donutCats = null;   // null = never rendered / panel was empty
+
+function _animateDonut(root, drawKey){
+  const svg = root.querySelector('.cat-donut-svg');
+  const leg = root.querySelector('.cat-donut-legend');
+  if(!svg || !leg){
+    // Panel rendered empty (no categories with value). Forget everything so it
+    // sweeps as a fresh reveal when data comes back, rather than treating the
+    // return as an unremarkable redraw.
+    _donutCats = null;
+    delete _chartDrawKey[_DONUT_ID];
+    return;
+  }
+  const cats = Array.prototype.map.call(
+    leg.querySelectorAll('.cat-legend-row'), function(r){ return r.getAttribute('data-cat'); });
+  const prev = _chartDrawKey[_DONUT_ID];
+  const prevCats = _donutCats;
+  const isReveal = (prev === undefined);
+  const shouldSweep = isReveal || (prev !== drawKey);
+  _chartDrawKey[_DONUT_ID] = drawKey;
+  _donutCats = cats;
+
+  svg.classList.remove('cat-donut-draw');
+  leg.classList.remove('cat-legend-draw');
+
+  if(shouldSweep){
+    svg.classList.add('cat-donut-draw');
+    leg.classList.add('cat-legend-draw');
+    return;   // the sweep already introduces every row -- no per-row enter on top
+  }
+  // Same period, panel already on screen: the only thing worth announcing is a
+  // category that was not here last time. Everything else stays still, so the
+  // one new row is the only thing moving and the eye goes straight to it.
+  if(!prevCats) return;
+  const rows = leg.querySelectorAll('.cat-legend-row');
+  cats.forEach(function(c, i){
+    if(prevCats.indexOf(c) === -1 && rows[i]) rows[i].classList.add('cat-legend-row--enter');
+  });
+}
 function _renderChartInto(svgEl,labels,revData,profitData,handlers,opts){
   const n=labels.length;
   const {W,H,pad,fontSize,yTicks,maxXLabels,profitDotR,revDotR,profitStroke,revStroke,scrubDotR,gradientId}=opts;
@@ -15993,6 +16125,7 @@ function renderSummary(){
       </div>`;
     el.innerHTML=html;
     _animateKPIs(el);   // v2.18.0 — reveal counts from 0, later renders tween from current
+    _animateDonut(el, SUMMARY_PERIOD);  // v2.19.15 — sweep on reveal/period, enter-anim new categories
     window.__summaryByCat=stats.byCat||[];
     renderSummaryChart(chartLabels,chartRev,chartProfit);
     // V3 layout: the old 2-column main/side height-matching no longer applies
