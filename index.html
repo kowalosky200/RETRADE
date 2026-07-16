@@ -1699,6 +1699,45 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
 #app-loading{opacity:1;transition:opacity var(--dur-medium) var(--ease-out);}
 #app-loading.rt-boot-out{opacity:0;pointer-events:none;}
 
+/* Boot app shell (v2.19.19)
+   The skeleton had no nav. Measured pre-patch (test_shell.js): at 1440 the
+   sidebar was display:none for the entire load and the 240px the overlay
+   politely padded around (8.9) was flat --bg; at 800 and 390 the top/bottom
+   bars WERE displayed but sat under the z-index:9998 overlay. So on every
+   viewport the whole chrome arrived in one pop at the dissolve, next to a
+   content column that cross-faded. One thing moved, one thing teleported.
+
+   The fix is NOT to skeleton the nav. A skeleton is a promise that data is
+   coming, and the nav has no data coming: the brand, the search field and
+   every item label are static markup that exist at first paint. Shimmering
+   them would invent a wait that is not happening — and it would be §4's
+   "described the page instead of being it" mistake made on the one region of
+   the UI where the real thing is already sitting there, free. So the real
+   chrome is what shows. The overlay stops being a screen over the app and
+   becomes a screen over the app's CONTENT, which is the only part that waits.
+
+   The genuinely data-driven bits are already honest without help: the stock
+   badge is inline display:none, the run dot is appended by JS, and both appear
+   with the data that justifies them.
+
+   z-index 9999 clears the overlay's 9998. It is scoped to the boot class, not
+   given to the chrome permanently — modals (1000-1201) must keep winning after
+   boot. #auth-overlay is also 9999 but is display:none before this class can
+   exist (showApp hides it, then initDB shows the overlay).
+
+   pointer-events:none because the chrome is visible, not ready: DB is empty until
+   the load resolves, so a nav item clicked here would render an empty page that
+   initDB then overwrites. It goes live with the same _finish that removes the
+   overlay — one teardown, not two. The ~280ms of the dissolve is not a window
+   anyone clicks in.
+
+   Deliberately no display/opacity work here: the chrome is not fading in, it
+   was never gone. That is the whole point. */
+body.rt-boot-shell #side-nav,
+body.rt-boot-shell #mobile-top-bar,
+body.rt-boot-shell nav#nav,
+body.rt-boot-shell #bottom-nav{z-index:9999;pointer-events:none;}
+
 /* v2.19.18 -- 7B. The skeleton is built from the real page classes, so it needs
    .page to be visible without .on. It must NOT use .on: that matches the
    pageFade rule (~1663) and the skeleton would fade in over the loading
@@ -4295,6 +4334,24 @@ svg.cat-donut-draw circle.donut-seg-last{
   /* Hide the tablet top bar; nudge body content to the right of the sidebar */
   .rt nav#nav{display:none!important;}
   body.rt{margin-left:var(--sidebar-w);}
+
+  /* v2.19.18 -- 8.9. The boot overlay must sit in the same content column as the
+     page it dissolves into, or the skeleton hands over to content 240px to its
+     right (measured: test_7b.js G8).
+     #app-loading is position:fixed;inset:0, and fixed resolves against the
+     VIEWPORT -- it ignores body's margin box by design. That is why 7B's
+     class-level rebuild could not fix this on its own: the overlay is outside
+     the flow that carries the offset, so no amount of borrowing real classes
+     reaches it. It has to be told.
+     PADDING, not margin: the border box must stay full-width so the backdrop
+     still covers the sidebar strip (body's background is a gradient, the
+     overlay's is flat var(--bg) -- shrink the box and a seam appears at x=240).
+     padding insets only the content, so the skeleton's .page centres inside a
+     box identical to body's content box: starts at --sidebar-w, ends at the
+     right edge. Same token, same breakpoint, same source of truth as the
+     body rule directly above -- change --sidebar-w and both follow. Do NOT
+     substitute a literal 240px here. */
+  #app-loading{padding-left:var(--sidebar-w);}
 
   /* Shell — fixed, full-height, canvas-continuous chrome */
   .rt #side-nav{
@@ -8546,6 +8603,11 @@ function showLoadingScreen(msg, tab){
   }
   const _m = document.getElementById('app-loading-msg');
   if(_m) _m.textContent = msg || 'Loading…';
+  // v2.19.19 -- boot app shell. Lifts the nav chrome above this overlay and
+  // makes it inert for the duration. Disarmed in hideLoadingScreen's _finish,
+  // so the overlay and the shell state share one teardown. Safe on the Retry
+  // path: re-adding a class that is already there is a no-op.
+  document.body.classList.add('rt-boot-shell');
   el.style.display = 'block';
 }
 function hideLoadingScreen(){
@@ -8559,6 +8621,9 @@ function hideLoadingScreen(){
   const _finish = function(){
     if(_bootFadeTimer){ clearTimeout(_bootFadeTimer); _bootFadeTimer = null; }
     if(el.parentNode) el.remove();
+    // v2.19.19 -- the chrome drops back to its own z-index and goes live. This
+    // must not run before the overlay is gone or the nav is buried mid-dissolve.
+    document.body.classList.remove('rt-boot-shell');
   };
   el.addEventListener('transitionend', function(e){
     if(e.propertyName === 'opacity') _finish();
@@ -24856,15 +24921,19 @@ function _restoreAuthInputs(){
     // as a sign-in form anywhere in the app. Changing type away from
     // password/email and stripping the autocomplete hints removes the signal.
     _neutralizeAuthInputs();
-    // Top nav — desktop only; bottom nav — mobile only
-    if(window.innerWidth > 600){
-      document.getElementById('nav').style.display = '';
-      document.getElementById('bottom-nav').style.display = 'none';
-    } else {
-      document.getElementById('nav').style.display = 'none';
-      document.getElementById('bottom-nav').style.display = 'flex';
-    }
     document.getElementById('main-content').style.display = '';
+    // v2.19.19 -- boot app shell. This replaces a hand-rolled `innerWidth > 600`
+    // nav branch that was a FOURTH opinion on nav visibility and predated the
+    // tablet band: it showed #nav on desktop (masked only by the >=1000
+    // display:none!important) and never touched #side-nav at all, which is why
+    // the sidebar stayed display:none through the entire load -- initDB did not
+    // call handleNavResize() until AFTER hideLoadingScreen(). handleNavResize is
+    // the single source of truth for all three bands; called here the chrome is
+    // correct before the load starts rather than after it ends.
+    // Order matters: it early-returns while #main-content is display:none, so it
+    // must come after the line above. Same task, no paint between -- nothing
+    // flashes.
+    handleNavResize();
     const _fd=document.getElementById('fab-dial');if(_fd)_fd.style.display='';
     // Sync theme label on show
     const _t = document.documentElement.getAttribute('data-theme')||'light';
