@@ -1699,6 +1699,32 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
 #app-loading{opacity:1;transition:opacity var(--dur-medium) var(--ease-out);}
 #app-loading.rt-boot-out{opacity:0;pointer-events:none;}
 
+/* v2.19.18 -- 7B. The skeleton is built from the real page classes, so it needs
+   .page to be visible without .on. It must NOT use .on: that matches the
+   pageFade rule (~1663) and the skeleton would fade in over the loading
+   backdrop for no reason.
+   Everything else about the box -- max-width 1100/1280/1600, the padding ramp,
+   margin:0 auto -- comes from .page itself and therefore cannot drift from the
+   page this dissolves into. That drift is exactly what 7B existed to kill. */
+.rt .page.rt-skel{display:block;}
+/* The real classes carry interaction affordances (cursor:pointer, hover borders,
+   :active transform). Nothing here is clickable, and #app-loading is
+   pointer-events:none only AFTER .rt-boot-out lands, so suppress them. */
+/* .rt-skel-summary / .rt-skel-monthly: .page geometry is NOT only class-driven.
+   Six rules scope padding/max-width to a page ID (search `#p-summary.page`), and
+   an ID is the one thing a skeleton cannot borrow. Each of those rules therefore
+   carries a `.rt .rt-skel-<tab>.page` partner selector so the skeleton resolves
+   to the same box as the page it dissolves into. Summary alone runs a private
+   padding ramp of 14/16/18/20/22px across five breakpoints -- get this wrong and
+   the content visibly steps sideways at the handover.
+   This duplication is guarded, not trusted: test_7b.js G7 enumerates every
+   `#p-X.page` rule and fails on any that lacks a partner. Add a 7th ID rule and
+   the test tells you. Do NOT rely on remembering. */
+.rt .rt-skel .card,
+.rt .rt-skel .kpi{cursor:default!important;transform:none!important;}
+.rt .rt-skel .card:hover,
+.rt .rt-skel .kpi:hover{border-color:var(--border)!important;transform:none!important;}
+
 /* Chart draw-in (v2.19.2 -- 7A)
    Lines draw left-to-right via stroke-dashoffset; the area fill and the dots
    fade in behind them, dots delayed so they land as the line arrives rather
@@ -1731,6 +1757,9 @@ svg.rt-chart-draw .rt-chart-line{
   animation:rtChartDraw var(--dur-draw) var(--ease-draw) both;
 }
 svg.rt-chart-draw .rt-chart-area{animation:rtChartFadeIn var(--dur-draw) var(--ease-draw) both;}
+/* This delay is clamped for reduced motion further down -- search
+   prefers-reduced-motion. The duration is covered by the global killswitch;
+   the delay is not, and this rule is nothing but delay. */
 svg.rt-chart-draw .rt-chart-col circle{
   animation:rtChartFadeIn var(--dur-base) var(--ease-out) both;
   animation-delay:calc(var(--dur-draw) * 0.9);
@@ -1837,17 +1866,29 @@ svg.cat-donut-draw circle.donut-seg-last{
   animation:catLegendIn var(--dur-base) var(--ease-out) both;
 }
 
-/* The global killswitch (~line 1655) clamps animation-DURATION but not
-   animation-DELAY, and a staggered sweep is nothing but delays -- without this
-   a reduced-motion user would still watch slices pop in across 460ms, which is
-   precisely the thing they asked not to see. Clamp the delays too and the whole
-   ring lands in one frame.
-   NOTE: svg.rt-chart-draw .rt-chart-col circle above has the same latent gap
-   (its 0.9 dot delay is not clamped either) -- left alone here rather than
-   folded into an unrelated change. */
+/* Delay clamp for reduced motion (v2.19.18 -- §8.7 folds the chart dots in).
+
+   The global killswitch (~line 1655) clamps animation-DURATION but not
+   animation-DELAY. Any animation whose motion IS its delay therefore survives
+   the killswitch completely untouched:
+
+   - the donut sweep is nothing but per-slice delays, so a reduced-motion user
+     would still watch slices pop in across the full 460ms -- precisely the
+     thing they asked not to see;
+   - the chart dots ride a single delay of --dur-draw * 0.9, so with the line
+     clamped to .01ms the dots would land ~414ms into a chart that finished
+     instantly. Worse than the animation it replaced: the line arrives, then
+     nothing, then the dots appear on an already-static chart.
+
+   Clamp the delays and both land in the same frame as everything else.
+
+   ANY new staggered or delayed animation belongs in this block. The killswitch
+   above will not cover it and the omission is invisible unless you are testing
+   with reduce on -- which is why this gap survived from v2.19.2 to v2.19.18. */
 @media(prefers-reduced-motion:reduce){
   svg.cat-donut-draw circle,
-  svg.cat-donut-draw circle.donut-seg-last{animation-delay:0ms!important;}
+  svg.cat-donut-draw circle.donut-seg-last,
+  svg.rt-chart-draw .rt-chart-col circle{animation-delay:0ms!important;}
 }
 
 /* Panel */
@@ -3576,7 +3617,7 @@ svg.cat-donut-draw circle.donut-seg-last{
 /* Ultra-wide: cap Sales History content so list rows keep a readable line
    length instead of stretching to the global 1600px page width. */
 @media(min-width:1400px){
-  .rt #p-monthly.page{max-width:1400px;}
+  .rt #p-monthly.page,.rt .rt-skel-monthly.page{max-width:1400px;}
 }
 
 /* ── Runs KPI cards — V2 flat treatment (v2.11.0) ───────────────────────────
@@ -4676,7 +4717,7 @@ svg.cat-donut-draw circle.donut-seg-last{
    Keeps the dashboard sections visually even from phone through narrow desktop. */
 @media(max-width:600px){
   body.rt{padding-bottom:calc(82px + env(safe-area-inset-bottom,0px))!important;}
-  .rt #p-summary.page{padding:18px 16px calc(104px + env(safe-area-inset-bottom,0px))!important;}
+  .rt #p-summary.page,.rt .rt-skel-summary.page{padding:18px 16px calc(104px + env(safe-area-inset-bottom,0px))!important;}
   .rt #p-summary .summary-header{margin:2px 0 18px!important;gap:12px!important;align-items:center!important;}
   .rt #p-summary .summary-title{font-size:24px!important;line-height:1.05!important;}
   .rt #p-summary .summary-period-sel{height:38px!important;min-width:136px!important;border-radius:14px!important;}
@@ -4723,7 +4764,7 @@ svg.cat-donut-draw circle.donut-seg-last{
 }
 
 @media(max-width:380px){
-  .rt #p-summary.page{padding-left:14px!important;padding-right:14px!important;}
+  .rt #p-summary.page,.rt .rt-skel-summary.page{padding-left:14px!important;padding-right:14px!important;}
   .rt #p-summary .summary-period-sel{min-width:124px!important;}
   .rt #p-summary .summary-hero-card .summary-hero-value{font-size:36px!important;line-height:40px!important;}
   .rt #p-summary .summary-inventory .age-legend{gap:6px!important;}
@@ -4731,7 +4772,7 @@ svg.cat-donut-draw circle.donut-seg-last{
 }
 
 @media(min-width:601px) and (max-width:1280px){
-  .rt #p-summary.page{padding-left:20px!important;padding-right:20px!important;padding-bottom:calc(96px + env(safe-area-inset-bottom,0px))!important;}
+  .rt #p-summary.page,.rt .rt-skel-summary.page{padding-left:20px!important;padding-right:20px!important;padding-bottom:calc(96px + env(safe-area-inset-bottom,0px))!important;}
   .rt #p-summary .summary-header{margin:4px 0 18px!important;gap:14px!important;align-items:center!important;}
   .rt #p-summary .summary-grid-v3{gap:18px!important;align-items:stretch!important;}
   .rt #p-summary .summary-grid-v3 > *,
@@ -4760,7 +4801,7 @@ svg.cat-donut-draw circle.donut-seg-last{
 }
 
 @media(min-width:601px) and (max-width:799px){
-  .rt #p-summary.page{padding-left:18px!important;padding-right:18px!important;}
+  .rt #p-summary.page,.rt .rt-skel-summary.page{padding-left:18px!important;padding-right:18px!important;}
   .rt #p-summary .summary-grid-v3{grid-template-columns:1fr!important;gap:18px!important;}
   .rt #p-summary .summary-kpis-v3,
   .rt #p-summary .summary-chart-card,
@@ -4790,7 +4831,7 @@ svg.cat-donut-draw circle.donut-seg-last{
 }
 
 @media(min-width:1000px) and (max-width:1280px){
-  .rt #p-summary.page{max-width:1180px!important;padding-left:22px!important;padding-right:22px!important;}
+  .rt #p-summary.page,.rt .rt-skel-summary.page{max-width:1180px!important;padding-left:22px!important;padding-right:22px!important;}
   .rt #p-summary .summary-grid-v3,
   .rt #p-summary .summary-kpis-v3{gap:20px!important;}
   .rt #p-summary .summary-panel{padding:22px!important;}
@@ -8234,7 +8275,19 @@ async function initDB(){
   if(_dbLoading){ console.warn('initDB already in progress, skipping'); return; }
   _dbLoading = true;
   try{
-    showLoadingScreen('Loading your data…');
+    // v2.19.18 -- 7B. Resolve the boot tab BEFORE the load so the skeleton can be
+    // the right page. Everything this reads (_SK.tab, _SK.lastActive) is
+    // localStorage and is not written again until the end of this function, so
+    // reading early is equivalent -- with one improvement: _isSameSession() is a
+    // clock comparison against _SESSION_FRESH_MS, and the load can take up to
+    // 15s. Computed after the load, a session sitting near the boundary could
+    // resolve differently from the skeleton already on screen. Resolved ONCE and
+    // reused below, the skeleton and the rendered page cannot disagree.
+    const _freshSession = !_isSameSession();
+    const _lastTab = (() => { if(_freshSession) return 'summary';
+      try{ return localStorage.getItem(_SK.tab) || 'summary'; }catch(e){ return 'summary'; } })();
+    const _safeTab = ['summary','monthly','stock','expenses','tax','data','runs'].includes(_lastTab) ? _lastTab : 'summary';
+    showLoadingScreen('Loading your data…', _safeTab);
     await Promise.race([
       loadFromSupabase(),
       new Promise((_,reject) => setTimeout(() => reject(new Error('Request timed out. Try refreshing.')), 15000))
@@ -8268,12 +8321,10 @@ async function initDB(){
     }
     _loadUIState();
     hideLoadingScreen();
-    // On a fresh session, always start on Summary (the natural home), ignoring
+    // _freshSession / _lastTab / _safeTab were resolved before the load (7B) --
+    // on a fresh session we always start on Summary (the natural home), ignoring
     // whatever page was last open. _loadUIState() above already kept default
     // filters for a new session, so this completes the clean-start behaviour.
-    const _freshSession=!_isSameSession();
-    const _lastTab=(()=>{if(_freshSession)return 'summary';try{return localStorage.getItem(_SK.tab)||'summary';}catch(e){return 'summary';}})();
-    const _safeTab=['summary','monthly','stock','expenses','tax','data','runs'].includes(_lastTab)?_lastTab:'summary';
     if(_safeTab==='summary')renderSummary();
     else if(_safeTab==='monthly')renderMonthlyPage();
     else if(_safeTab==='stock')renderStock();
@@ -8325,42 +8376,146 @@ function _showLoadError(msg){
   el.style.display = 'flex';
 }
 
-// v2.17.0 — Boot skeleton.
+// v2.17.0 — Boot skeleton. Rebuilt v2.19.18 (7B) as per-page + class-driven.
 // This screen covers a REAL wait: initDB() -> loadFromSupabase(), racing a 15s
 // timeout. It used to be a 32px hourglass emoji on an opaque backdrop, which
 // communicated "stopped" rather than "working". The V2 design system already
 // shipped `.rt .skeleton` (tokenised shimmer + reduced-motion killswitch) and
-// nothing ever used it — this wires it up.
-// The skeleton mirrors the Summary page (KPI row -> chart -> list rows) so the
-// layout the user is about to get is already forming while the data lands.
+// nothing ever used it — v2.17.0 wired it up.
 // Deliberately NOT used for page-to-page navigation: that renders from memory
 // and has nothing to wait for, so a skeleton there would be inventing delay.
 // #app-loading-msg is preserved — showLoadingScreen(msg) still writes to it.
-function _bootSkeletonHTML(){
-  const kpi = '<div style="background:var(--surface-1);border:1px solid var(--border);border-radius:var(--r-l);padding:16px;">'
-    + '<div class="skeleton" style="height:9px;width:52%;margin-bottom:12px;"></div>'
-    + '<div class="skeleton" style="height:22px;width:72%;"></div>'
+//
+// ── 7B: why this is built from real class names ──────────────────────────────
+// v2.17.0's skeleton hand-tuned an inline-styled mirror of Summary and served it
+// for every tab. Both halves of that were wrong:
+//   • GEOMETRY. It hardcoded max-width:1100px;padding:20px. The real .page runs
+//     max-width 1100 -> 1280 -> 1600 (>=1400px) on a padding ramp of 16/20 ->
+//     28/28. On a wide desktop the skeleton was up to 500px narrower than the
+//     page it dissolved into. Nobody saw it because until v2.19.14 the page
+//     underneath was still fading in over the top of the mismatch.
+//   • IDENTITY. Boot on Stock, get a skeleton of Summary.
+// The fix is not to measure the layout more carefully — that is what drifts. It
+// is to REUSE the layout. Every container below is a real class, so the box
+// model is not copied, it is the same code path. Change .page's padding and the
+// skeleton follows on its own.
+//
+// The load-bearing trick: the shimmer goes INSIDE the real typographic element,
+// not instead of it. <div class="page-title"><div class="skeleton" height:1em>>
+// inherits font-size:clamp(20px,5.5vw,34px) and line-height:1.1, so the bar is
+// exactly the height of the text it stands in for at every viewport — and the
+// breakpoints come free: .page-subtitle collapses to max-height:0 at <=420px and
+// .summary-subtitle is display:none at <=600px. The old skeleton drew a bar in
+// both cases. Size shimmer in `em`, never `px`, for anything standing in for text.
+//
+// Widths are the one honest hardcode: they are how much TEXT is pending, which
+// no class knows. Keep them in % or ch so they still track the container.
+function _sk(css){ return '<div class="skeleton" style="' + css + '"></div>'; }
+
+// Title block for the eight pages using the .page-header family.
+function _skPageHead(titleW, subW){
+  return '<div class="page-header"><div>'
+    + '<div class="page-title">' + _sk('height:1em;width:' + titleW + ';') + '</div>'
+    + '<div class="page-subtitle">' + _sk('height:1em;width:' + subW + ';') + '</div>'
+    + '</div></div>';
+}
+// A .card.kpi with a pending label + value. Real card, real padding, real border.
+function _skKpi(){
+  return '<div class="card kpi">'
+    + '<div class="kpi-label">' + _sk('height:1em;width:62%;') + '</div>'
+    + '<div class="kpi-value">' + _sk('height:1em;width:78%;') + '</div>'
+    + '<div class="kpi-foot">' + _sk('height:1em;width:46%;') + '</div>'
     + '</div>';
-  const row = '<div style="display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--border);">'
-    + '<div class="skeleton" style="height:34px;width:34px;border-radius:var(--r-s);flex-shrink:0;"></div>'
-    + '<div style="flex:1;min-width:0;">'
-      + '<div class="skeleton" style="height:9px;width:46%;margin-bottom:7px;"></div>'
-      + '<div class="skeleton" style="height:8px;width:26%;"></div>'
-    + '</div>'
-    + '<div class="skeleton" style="height:14px;width:56px;flex-shrink:0;"></div>'
+}
+function _skRows(n){
+  let h = '';
+  for(let i = 0; i < n; i++){
+    h += '<div style="display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--border);">'
+      + _sk('height:34px;width:34px;border-radius:var(--r-s);flex-shrink:0;')
+      + '<div style="flex:1;min-width:0;">'
+        + _sk('height:9px;width:46%;margin-bottom:7px;')
+        + _sk('height:8px;width:26%;')
+      + '</div>'
+      + _sk('height:14px;width:56px;flex-shrink:0;')
+      + '</div>';
+  }
+  return h;
+}
+
+// Summary. The only page worth mirroring in full — it is the default boot tab and
+// the one whose reveal is busiest (count-ups ~40% in and the donut mid-sweep by
+// the time this dissolves, per 7C). .summary-mobile-only and .summary-kpis-v3
+// already carry every breakpoint rule, so reusing them means this skeleton
+// reflows exactly like the page without a single media query of its own.
+function _skelSummary(){
+  return '<div class="summary-header"><div class="summary-header-text">'
+      + '<div class="summary-title">' + _sk('height:1em;width:150px;') + '</div>'
+      + '<div class="summary-subtitle">' + _sk('height:1em;width:290px;') + '</div>'
+      + '</div></div>'
+    + '<div class="summary-grid-v3">'
+      // Mobile hero — auto-hidden on desktop by .summary-mobile-only.
+      + '<div class="card summary-hero-card summary-mobile-only">'
+        + '<div class="summary-hero-top"><div class="summary-hero-head">'
+          + '<div class="kpi-label">' + _sk('height:1em;width:120px;') + '</div>'
+          + '<div class="summary-hero-value">' + _sk('height:1em;width:64%;') + '</div>'
+          + '<div class="kpi-foot">' + _sk('height:1em;width:40%;') + '</div>'
+        + '</div></div>'
+        + '<div class="summary-hero-chart">' + _sk('height:150px;width:100%;border-radius:var(--r-m);') + '</div>'
+      + '</div>'
+      + '<div class="summary-mobile-twoup summary-mobile-only">' + _skKpi() + _skKpi() + '</div>'
+      + '<div class="summary-kpis-v3">' + _skKpi() + _skKpi() + _skKpi() + _skKpi() + '</div>'
+      + '<div class="card summary-panel summary-chart-card">'
+        + '<div class="summary-chart-head"><div class="sl">' + _sk('height:1em;width:120px;') + '</div></div>'
+        + _sk('height:220px;width:100%;border-radius:var(--r-m);')
+      + '</div>'
+      + '<div class="card summary-panel summary-categories">'
+        + '<div class="sl">' + _sk('height:1em;width:100px;') + '</div>'
+        + '<div class="cat-donut-wrap">' + _sk('height:132px;width:132px;border-radius:50%;flex-shrink:0;')
+          + '<div style="flex:1;min-width:0;">'
+            + _sk('height:9px;width:70%;margin-bottom:10px;')
+            + _sk('height:9px;width:54%;margin-bottom:10px;')
+            + _sk('height:9px;width:62%;')
+          + '</div>'
+        + '</div>'
+      + '</div>'
     + '</div>';
-  return '<div style="width:100%;max-width:1100px;margin:0 auto;padding:20px;box-sizing:border-box;">'
-    + '<div class="skeleton" style="height:13px;width:132px;margin-bottom:20px;"></div>'
-    + '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:16px;">'
-      + kpi + kpi + kpi + kpi
-    + '</div>'
-    + '<div style="background:var(--surface-1);border:1px solid var(--border);border-radius:var(--r-l);padding:16px;margin-bottom:16px;">'
-      + '<div class="skeleton" style="height:9px;width:88px;margin-bottom:14px;"></div>'
-      + '<div class="skeleton" style="height:150px;width:100%;border-radius:var(--r-m);"></div>'
-    + '</div>'
-    + '<div style="background:var(--surface-1);border:1px solid var(--border);border-radius:var(--r-l);padding:4px 16px 8px;">'
-      + row + row + row
-    + '</div>'
+}
+
+// Stock. The other tab that boots often (it is the one you leave open mid-session).
+function _skelStock(){
+  return _skPageHead('180px', '280px')
+    + '<div class="stock-kpis-v2 stock-kpis">' + _skKpi() + _skKpi() + _skKpi() + _skKpi() + '</div>'
+    + '<div class="section-card">' + _skRows(5) + '</div>';
+}
+
+// Everything else. Deliberately one shared shape rather than five bespoke ones:
+// these tabs are a rare boot, they genuinely share the header + metrics + list
+// skeleton, and five hand-maintained variants is how v2.17.0's skeleton drifted
+// in the first place. .kgrid is the real class these pages use for metric rows.
+function _skelGeneric(titleW){
+  return _skPageHead(titleW || '160px', '260px')
+    + '<div class="kgrid">' + _skKpi() + _skKpi() + _skKpi() + _skKpi() + '</div>'
+    + '<div class="section-card">' + _skRows(4) + '</div>';
+}
+
+// tab is resolved from localStorage BEFORE the load starts (see initDB) so the
+// skeleton and the page that renders can never disagree. Unknown/absent -> summary,
+// mirroring initDB's own _safeTab fallback.
+function _bootSkeletonHTML(tab){
+  let body;
+  if(tab === 'stock')            body = _skelStock();
+  else if(tab === 'monthly')     body = _skelGeneric('200px');
+  else if(tab === 'runs')        body = _skelGeneric('110px');
+  else if(tab === 'expenses')    body = _skelGeneric('220px');
+  else if(tab === 'tax')         body = _skelGeneric('170px');
+  else if(tab === 'data')        body = _skelGeneric('90px');
+  else                           body = _skelSummary();
+  // .page (not .page.on — see the .rt-skel CSS note) so the box model is shared.
+  // rt-skel-<tab> is what lets the ID-scoped page rules reach this element --
+  // see the .rt-skel-summary note in the CSS. Emitted for every tab so a future
+  // ID rule on any page has a selector waiting for it.
+  const _t = ['summary','monthly','stock','expenses','tax','data','runs'].includes(tab) ? tab : 'summary';
+  return '<div class="page rt-skel rt-skel-' + _t + '">' + body
     + '<div style="text-align:center;margin-top:20px;font-size:13px;color:var(--text-secondary);" id="app-loading-msg"></div>'
     + '</div>';
 }
@@ -8368,7 +8523,9 @@ function _bootSkeletonHTML(){
 // Failsafe only. The teardown is driven by transitionend (see hideLoadingScreen);
 // this timer exists solely for the case where the transition never fires at all.
 let _bootFadeTimer = null;
-function showLoadingScreen(msg){
+// v2.19.18 -- 7B. `tab` selects the skeleton. Callers that do not know the tab
+// (the Retry path) may omit it and get Summary, which is also where a retry lands.
+function showLoadingScreen(msg, tab){
   let el = document.getElementById('app-loading');
   if(_bootFadeTimer){ clearTimeout(_bootFadeTimer); _bootFadeTimer = null; }
   // Re-entrancy (load-error banner Retry -> initDB -> showLoadingScreen while a
@@ -8379,13 +8536,17 @@ function showLoadingScreen(msg){
   if(!el){
     el = document.createElement('div');
     el.id = 'app-loading';
-    el.style.cssText = 'position:fixed;inset:0;z-index:9998;background:var(--bg);display:flex;align-items:flex-start;justify-content:center;overflow-y:auto;';
-    el.innerHTML = _bootSkeletonHTML();
+    // display:block, NOT flex (v2.19.18). The skeleton's root is a real .page,
+    // which centres itself with margin:0 auto against its max-width. A flex
+    // parent would size it as a flex item and defeat that -- the box model has
+    // to be the page's own or 7B is pointless.
+    el.style.cssText = 'position:fixed;inset:0;z-index:9998;background:var(--bg);display:block;overflow-y:auto;';
+    el.innerHTML = _bootSkeletonHTML(tab);
     document.body.appendChild(el);
   }
   const _m = document.getElementById('app-loading-msg');
   if(_m) _m.textContent = msg || 'Loading…';
-  el.style.display = 'flex';
+  el.style.display = 'block';
 }
 function hideLoadingScreen(){
   const el = document.getElementById('app-loading');
