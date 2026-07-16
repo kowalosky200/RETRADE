@@ -1661,6 +1661,22 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
    front-loads, so ~80% of a 5px move completed inside 60ms. --dur-medium +10px
    is visible without feeling slow. */
 .page.on{animation:pageFade var(--dur-medium) var(--ease-out) both;}
+/* v2.19.14 -- §8.1. The boot reveal must NOT run pageFade. The page sits opaque
+   under the dissolving #app-loading overlay, which is what makes the cross-fade
+   read as one surface: two fades stacked dip luminance at the 50/50 point, and
+   pageFade's 10px translate would slide the content against the skeleton
+   mid-dissolve.
+   That was already the behaviour -- but only by luck. p-summary ships .on in
+   the static markup, so initDB's remove-then-add coalesced into no class change
+   and the animation never restarted. A same-session reload landing on Stock was
+   a genuine class change and DID fade, so boot differed by tab. This suppresses
+   it explicitly for whichever tab boot lands on.
+   Removal is the delicate part: taking .rt-boot-noanim off while .on is still
+   present makes .page.on start matching the pageFade rule again and fires a
+   stray fade. So it is ONLY ever cleared in _deactivatePages(), in the same
+   sweep that removes .on -- which is why that sweep is now a helper instead of
+   ten copies of the same line. Specificity (0,3,0) beats .page.on (0,2,0). */
+.page.on.rt-boot-noanim{animation:none;}
 
 /* Boot cross-fade (v2.19.0 -- 7C)
    #app-loading is an opaque z-index:9998 overlay. hideLoadingScreen() used to
@@ -1697,19 +1713,27 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
    clamps it. It still resolves to dashoffset:0 = an ordinary solid line. */
 @keyframes rtChartDraw{from{stroke-dashoffset:var(--rt-len);}to{stroke-dashoffset:0;}}
 @keyframes rtChartFadeIn{from{opacity:0;}to{opacity:1;}}
-/* --rt-draw-dur is the live duration: one indirection so the dot delay tracks
-   whichever variant is active without a calc per variant. .rt-chart-draw-quick
-   is added by _renderChartInto for a period redraw (see the drawKey gate). */
-svg.rt-chart-draw{--rt-draw-dur:var(--dur-draw);}
-svg.rt-chart-draw.rt-chart-draw-quick{--rt-draw-dur:var(--dur-draw-quick);}
+/* v2.19.12 -- §8.2. Reveal and redraw have run at the same 460ms since
+   v2.19.8, which left --dur-draw-quick, the .rt-chart-draw-quick class and the
+   --rt-draw-dur indirection as machinery with nothing to switch between.
+   Collapsed to --dur-draw used directly.
+   The drawKey gate in _renderChartInto still separates reveal from redraw --
+   that decides WHETHER to draw, and it is only the DURATION that is now
+   shared. To part them again: add a second token, re-add the variant class,
+   and reinstate --rt-draw-dur so the dot delay below tracks whichever variant
+   is live. That indirection is the whole reason it existed.
+   The 0.9 dot delay is derived from --ease-draw, NOT just from the duration:
+   under this near-linear curve 0.9 of the time is ~90% of the line, so the
+   dots land as the stroke arrives. Re-derive it if the curve OR the duration
+   moves (handover §6). */
 svg.rt-chart-draw .rt-chart-line{
   stroke-dasharray:var(--rt-len);
-  animation:rtChartDraw var(--rt-draw-dur) var(--ease-draw) both;
+  animation:rtChartDraw var(--dur-draw) var(--ease-draw) both;
 }
-svg.rt-chart-draw .rt-chart-area{animation:rtChartFadeIn var(--rt-draw-dur) var(--ease-draw) both;}
+svg.rt-chart-draw .rt-chart-area{animation:rtChartFadeIn var(--dur-draw) var(--ease-draw) both;}
 svg.rt-chart-draw .rt-chart-col circle{
   animation:rtChartFadeIn var(--dur-base) var(--ease-out) both;
-  animation-delay:calc(var(--rt-draw-dur) * 0.9);
+  animation-delay:calc(var(--dur-draw) * 0.9);
 }
 
 /* Panel */
@@ -1900,16 +1924,14 @@ svg.rt-chart-draw .rt-chart-col circle{
   --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
   --ease-spring: cubic-bezier(0.34, 1.2, 0.64, 1);
   --dur-fast: 120ms; --dur-base: 200ms; --dur-medium: 280ms; --dur-slow: 360ms;
-  --dur-draw: 460ms;       /* v2.19.8 -- chart line draw on REVEAL. Deliberately
-     EQUAL to --dur-draw-quick: the draw should feel the same on first load as it
-     does on every redraw. v2.19.3-7 pushed this to 1600ms, which is what made the
-     first load drag while later redraws (520ms) felt right -- the redraw was the
-     control group all along. 460ms is a shade under that 520ms. */
-  --dur-draw-quick: 460ms; /* v2.19.8 -- chart redraw on a PERIOD CHANGE. Kept as
-     a separate token because reveal and change ARE different events (the count-up
-     still splits them 1100 vs 450) and we may want to part them again. Equal for
-     now: if they stay equal, collapse this token and .rt-chart-draw-quick in a
-     cleanup pass rather than leaving machinery that does nothing. */
+  --dur-draw: 460ms;       /* Chart line draw -- reveal AND period redraw. One
+     value since v2.19.12; §8.2 collapsed the old --dur-draw-quick twin once it
+     had been equal for four versions. The draw should feel the same on first
+     load as on every redraw. v2.19.3-7 pushed the reveal to 1600ms, which is
+     what made first load drag while redraws (520ms) felt right -- the redraw
+     had been an accidental control group all along. 460ms is a shade under
+     that 520ms. The count-up still splits reveal from change (700 vs 450, see
+     _animateKPIs); the chart deliberately does not. */
 
   /* Type */
   --font-body: 'Inter', system-ui, -apple-system, sans-serif;
@@ -2575,21 +2597,10 @@ svg.rt-chart-draw .rt-chart-col circle{
 /* ── Dashboard panels ── */
 .rt #p-summary .summary-panel{padding:22px;}
 
-/* ── Snapshot v2 — subtitle + clean money rows ── */
-.rt .summary-snapshot-v2 .summary-snapshot-head{margin-bottom:6px;}
-.rt .summary-snapshot-v2 .summary-snapshot-sub{
-  font-size:11px;color:var(--text-tertiary);text-transform:uppercase;
-  letter-spacing:0.06em;margin-top:2px;
-}
-.rt .summary-snapshot-v2 .snap-row{
-  display:flex;align-items:center;justify-content:space-between;gap:12px;
-  padding:13px 0;border-bottom:1px solid var(--border);cursor:pointer;
-  -webkit-tap-highlight-color:transparent;
-}
-.rt .summary-snapshot-v2 .snap-row:last-child{border-bottom:none;padding-bottom:2px;}
-@media(hover:hover){.rt .summary-snapshot-v2 .snap-row:hover .snap-k{color:var(--text-primary);}}
-.rt .summary-snapshot-v2 .snap-k{font-size:14px;color:var(--text-secondary);transition:color var(--dur-fast) var(--ease-out);}
-.rt .summary-snapshot-v2 .snap-v{font-size:18px;font-weight:700;color:var(--text-primary);letter-spacing:-0.01em;}
+/* v2.19.11 -- the .summary-snapshot-v2 block lived here (.snap-row/.snap-k/
+   .snap-v). Nothing rendered it: the live class has been .summary-snapshot-strip
+   with .snap-stat-v since the V3 grid landed. Deleted rather than left sitting
+   here looking load-bearing (handover §9). */
 
 /* Suppress legacy chart-mobile-summary fallback — SVG chart is responsive */
 .rt #p-summary .chart-mobile-summary{display:none !important;}
@@ -8152,10 +8163,16 @@ async function initDB(){
     else if(_safeTab==='tax')renderTax();
     else if(_safeTab==='data')renderData();
     else renderSummary();
-    document.querySelectorAll('.page').forEach(p=>p.classList.remove('on'));
+    _deactivatePages();
     document.querySelectorAll('.tab').forEach(t=>t.classList.remove('on'));
     document.querySelectorAll('.bnt').forEach(b=>b.classList.remove('on'));
-    const _pg=document.getElementById('p-'+_safeTab);if(_pg)_pg.classList.add('on');
+    // v2.19.14 -- §8.1. Suppress pageFade on the boot reveal, deterministically
+    // and for every tab. The class must land in the SAME task as .on: no style
+    // recalc happens between them, so the browser only ever sees the end state
+    // and never queues the animation. Splitting these across a rAF would paint
+    // a before-state and the fade would run (§2.4, inverted).
+    const _pg=document.getElementById('p-'+_safeTab);
+    if(_pg){_pg.classList.add('rt-boot-noanim');_pg.classList.add('on');}
     const _tb=document.querySelector('[data-tab="'+_safeTab+'"]');if(_tb)_tb.classList.add('on');
     const _bn=document.querySelector('#bottom-nav .bnt[data-tab="'+_safeTab+'"]');if(_bn)_bn.classList.add('on');
     handleNavResize();
@@ -8455,6 +8472,22 @@ function _loadUIState(){try{
 function _saveTabScroll(){const a=document.querySelector('.page.on');if(a)_scrollMap[a.id.replace('p-','')]=window.scrollY||window.pageYOffset||0;}
 function _restoreTabScroll(tab){const y=_scrollMap[tab];if(y)requestAnimationFrame(function(){requestAnimationFrame(function(){window.scrollTo(0,y);});});}
 
+// v2.19.14 -- §8.1. The one place that takes .on off every page. Was ten
+// identical inline sweeps; it is a helper now because it has to do a second
+// thing atomically:
+//   .rt-boot-noanim (the boot pageFade suppressor) MUST come off while .on is
+//   ABSENT. Remove it first and .page.on starts matching the pageFade rule
+//   again -> a stray fade on a page the user is already looking at. Removing
+//   both in one classList call means .page.on never matches an armed rule.
+// Any future page switch must go through here rather than re-inlining the
+// sweep, or the suppressor gets stranded and that page stops fading forever.
+// Phase 3 note: this moves with app.js alongside _chartDrawKey / _kpiPrev.
+function _deactivatePages(){
+  document.querySelectorAll('.page').forEach(function(p){
+    p.classList.remove('on','rt-boot-noanim');
+  });
+}
+
 function goToTab(name,sourceEl){
   // Restore nav search wrap visibility (may have been hidden while on p-search)
   const _gttSW=document.querySelector('.nav-inner .search-wrap');
@@ -8482,7 +8515,7 @@ function goToTab(name,sourceEl){
   document.querySelectorAll('.tab').forEach(t=>t.classList.remove('on'));
   document.querySelectorAll('.bnt').forEach(b=>b.classList.remove('on'));
   document.querySelectorAll('.side-nav-item').forEach(s=>s.classList.remove('on'));
-  document.querySelectorAll('.page').forEach(p=>p.classList.remove('on'));
+  _deactivatePages();
   const activeTab=sourceEl||document.querySelector('[data-tab="'+name+'"]');
   if(activeTab)activeTab.classList.add('on');
   // Sync side-nav (may or may not have been the source element)
@@ -8560,7 +8593,7 @@ function openItemPage(m,id,origin){
   _itemPageOrigin=origin||(document.querySelector('.page.on')?document.querySelector('.page.on').id:'p-summary');
   _saveTabScroll();
   document.querySelectorAll('.tab').forEach(t=>t.classList.remove('on'));
-  document.querySelectorAll('.page').forEach(p=>p.classList.remove('on'));
+  _deactivatePages();
   document.getElementById('p-item').classList.add('on');
   window.scrollTo(0,0);
   renderItemPage(m,id);
@@ -8583,7 +8616,7 @@ function openItemPageFromPanel(m,id){
   _itemPageOrigin='panel';
   closePanel();
   document.querySelectorAll('.tab').forEach(t=>t.classList.remove('on'));
-  document.querySelectorAll('.page').forEach(p=>p.classList.remove('on'));
+  _deactivatePages();
   document.getElementById('p-item').classList.add('on');
   window.scrollTo(0,0);
   renderItemPage(m,id);
@@ -8591,7 +8624,7 @@ function openItemPageFromPanel(m,id){
 
 function exitItemPage(){
   if(typeof window._resetNavScrollState==='function')window._resetNavScrollState();
-  document.querySelectorAll('.page').forEach(p=>p.classList.remove('on'));
+  _deactivatePages();
   document.querySelectorAll('.tab').forEach(t=>t.classList.remove('on'));
   const origin=_itemPageOrigin||'p-summary';
   if(origin==='returns'){
@@ -9901,7 +9934,7 @@ function openSearchPage(q){
   if(_navSW&&window.innerWidth<=600)_navSW.style.visibility='hidden';
   // Switch to search page without using goToTab (no tab element to highlight)
   document.querySelectorAll('.tab').forEach(t=>t.classList.remove('on'));
-  document.querySelectorAll('.page').forEach(p=>p.classList.remove('on'));
+  _deactivatePages();
   document.getElementById('p-search').classList.add('on');
   renderSearchResults(q);
 }
@@ -10580,7 +10613,7 @@ function openActiveRunPage(){
     goToTab('stock',document.querySelector('[data-tab="stock"]'));
     return;
   }
-  document.querySelectorAll('.page').forEach(function(p){p.classList.remove('on');});
+  _deactivatePages();
   document.querySelectorAll('.tab').forEach(function(t){t.classList.remove('on');});
   document.querySelectorAll('.bnt').forEach(function(b){b.classList.remove('on');});
   const page=document.getElementById('p-active-run');
@@ -10997,7 +11030,7 @@ function openRunPage(runId){
   if(!run){ toast('Run not found','error'); return; }
   const page=document.getElementById('p-item');
   if(!page)return;
-  document.querySelectorAll('.page').forEach(p=>p.classList.remove('on'));
+  _deactivatePages();
   page.classList.add('on');
   _syncFabVisibility();
   _renderRunPage(run);
@@ -11864,7 +11897,7 @@ function openAccountPage(accountId){
   const acct=_accounts.find(function(a){return a.id===accountId;});
   if(!acct){toast('Account not found','error');return;}
   _itemPageOrigin='p-accounts';
-  document.querySelectorAll('.page').forEach(function(p){p.classList.remove('on');});
+  _deactivatePages();
   document.querySelectorAll('.tab').forEach(function(t){t.classList.remove('on');});
   document.querySelectorAll('.bnt').forEach(function(b){b.classList.remove('on');});
   document.getElementById('p-item').classList.add('on');
@@ -13122,7 +13155,7 @@ function openRunPageFromRuns(runId){
   const run=_sourcingRuns.find(function(r){return r.id===runId;});
   if(!run){toast('Run not found','error');return;}
   _itemPageOrigin='p-runs';
-  document.querySelectorAll('.page').forEach(function(p){p.classList.remove('on');});
+  _deactivatePages();
   document.querySelectorAll('.tab').forEach(function(t){t.classList.remove('on');});
   document.querySelectorAll('.bnt').forEach(function(b){b.classList.remove('on');});
   document.getElementById('p-item').classList.add('on');
@@ -15097,10 +15130,15 @@ function buildCategoryDonut(byCat){
   const svg='<svg class="cat-donut-svg" viewBox="0 0 '+size+' '+size+'" width="'+size+'" height="'+size+'">'+arcs+'</svg>';
   const legend=slices.map(function(s,i){
     const pct=Math.round((s.val/total)*100);
+    // v2.19.11 -- Tier 1 (handover §9). Keyed by SLOT index, not category name.
+    // The legend is a fixed ladder of positions sorted by share, so slot 0
+    // going 85 -> 60 is exactly the movement the eye is tracking. Name keys
+    // would strand a _kpiPrev entry for every category that drops out, and a
+    // re-entering category would then tween from a stale figure.
     return '<div class="cat-legend-row">'
       +'<span class="cat-legend-dot" style="background:'+_DONUT_COLORS[i%_DONUT_COLORS.length]+'"></span>'
       +'<span class="cat-legend-name" title="'+esc(s.cat)+'">'+esc(s.cat)+'</span>'
-      +'<span class="cat-legend-pct num">'+pct+'%</span></div>';
+      +'<span class="cat-legend-pct num" data-cv="'+pct+'" data-cv-fmt="pct0" data-cv-key="sum-catpct-'+i+'">'+pct+'%</span></div>';
   }).join('');
   return { svg:svg, legend:legend, count:weighted.length };
 }
@@ -15481,7 +15519,7 @@ function _renderChartInto(svgEl,labels,revData,profitData,handlers,opts){
     // Always clear first: innerHTML just replaced every path, and a fresh
     // element matching svg.rt-chart-draw would animate on EVERY render if the
     // class were left behind. Removing it is what enforces the gate.
-    svgEl.classList.remove('rt-chart-draw','rt-chart-draw-quick');
+    svgEl.classList.remove('rt-chart-draw');
     if(!_shouldDraw) return;
     let _any = false;
     svgEl.querySelectorAll('.rt-chart-line').forEach(function(p){
@@ -15498,12 +15536,10 @@ function _renderChartInto(svgEl,labels,revData,profitData,handlers,opts){
     // Only arm the animation if at least one path measured. Without --rt-len,
     // stroke-dasharray:var(--rt-len) is invalid and the line would render solid
     // but still burn an animation -- harmless, but pointless.
-    if(_any){
-      svgEl.classList.add('rt-chart-draw');
-      // A period switch redraws at the quicker duration; only the first reveal
-      // gets the full --dur-draw.
-      if(!_isReveal) svgEl.classList.add('rt-chart-draw-quick');
-    }
+    // v2.19.12 -- §8.2: reveal and redraw share --dur-draw, so there is no
+    // second class to add here. _isReveal above still decides WHETHER to draw
+    // (it is what makes a first render with an undefined drawKey still draw).
+    if(_any) svgEl.classList.add('rt-chart-draw');
   })();
 
   svgEl.onclick=function(e){
@@ -15881,12 +15917,26 @@ function renderSummary(){
                 if(pct===0)return '';
                 return `<div class="age-bar-seg" style="width:${pct}%;background:${s.col};" title="${s.label}: ${s.count}" onclick="openDashboardStock('${s.key}')"></div>`;
               }).join('');
+              // v2.19.11 -- Tier 1 (handover §9). The carried-forward note
+              // warned these sit inside interactive filter buttons and would
+              // need reveal-only treatment "or they re-tween on every filter
+              // click". Checked, and they do not:
+              //   1. openDashboardStock() navigates to the Stock page. It never
+              //      re-renders the summary, so the click itself cannot retween.
+              //   2. Even when the summary IS re-rendered, _countUp early-exits
+              //      on from===to (from is _kpiPrev[key], the last value this
+              //      key showed) -- it writes the text and returns without ever
+              //      scheduling a rAF. A tween only happens when the number
+              //      actually moved, which is the behaviour we want.
+              // data-cv="0" is correct here and is NOT the §5 null case: zero
+              // stale items is a real claim. §5's rule bans 0 for MISSING data,
+              // where the em-dash must survive.
               const legend=segs.map(s=>{
                 const zeroCls=s.count===0?' age-legend-btn--zero':'';
                 return `<button class="age-legend-btn${zeroCls}" onclick="openDashboardStock('${s.key}')">
                   <span class="age-legend-dot" style="background:${s.col};"></span>
                   <span class="age-legend-label">${s.label}</span>
-                  <span class="age-legend-count">${s.count}</span>
+                  <span class="age-legend-count" data-cv="${Number(s.count)}" data-cv-fmt="int" data-cv-key="sum-age-${s.key}">${s.count}</span>
                 </button>`;
               }).join('');
               return `<div class="inv-age">
@@ -15921,10 +15971,18 @@ function renderSummary(){
           }
           ${catLeaders.length?(()=>{
             const MAX_INLINE=4;
-            const _catRow=function(c){
+            // v2.19.11 -- Tier 1 (handover §9). Slot-indexed keys, same
+            // reasoning as the donut legend: a ranked ladder's stable identity
+            // is its position, not its label. map() supplies the index, so the
+            // visible.map(_catRow) call site below needs no change.
+            // Only ever rendered into the summary root, so _animateKPIs(el) at
+            // the end of renderSummary picks these up. showAllCategoriesModal
+            // builds its own rows elsewhere and stays static by design -- it is
+            // outside the animated root and its list is unbounded.
+            const _catRow=function(c,i){
               const sp=c.total?Math.round((c.sold/c.total)*100):0;
               const ad=c.avgDays!==null?c.avgDays+'d avg':'\u2014';
-              return '<div class="category-mini-row vel-cat-item" onclick="showCategoryItems('+JSON.stringify(c.cat).replace(/"/g,'&quot;')+')">'+'<div><div class="metric-k">'+esc(c.cat)+'</div><div class="category-mini-meta">'+c.sold+'/'+c.total+' sold \u00b7 '+ad+'</div></div>'+'<div class="category-mini-val">'+sp+'%</div></div>';
+              return '<div class="category-mini-row vel-cat-item" onclick="showCategoryItems('+JSON.stringify(c.cat).replace(/"/g,'&quot;')+')">'+'<div><div class="metric-k">'+esc(c.cat)+'</div><div class="category-mini-meta">'+c.sold+'/'+c.total+' sold \u00b7 '+ad+'</div></div>'+'<div class="category-mini-val" data-cv="'+sp+'" data-cv-fmt="pct0" data-cv-key="sum-velcat-'+i+'">'+sp+'%</div></div>';
             };
             const visible=catLeaders.slice(0,MAX_INLINE);
             const hidden=catLeaders.length-MAX_INLINE;
@@ -24081,7 +24139,15 @@ function _animateKPIs(root){
     if(!key || !isFinite(to)){ return; }
     // Where do we start? On reveal: 0. On change: whatever this key last showed.
     const from = reveal ? 0 : (isFinite(_kpiPrev[key]) ? _kpiPrev[key] : to);
-    _countUp(el, from, to, reveal ? 1100 : 450, fmtName, key);  // v2.19.4 -- reveal 900->1100. Change tween stays 450: a value update is not a reveal.
+    // v2.19.13 -- §8.3: reveal 1100 -> 700. The 1100 was tuned in v2.19.4 when
+    // the chart line took 1600ms. The line settled at 460ms in v2.19.8 and the
+    // numbers were left counting ~640ms after it had landed. 700ms puts the
+    // tail at ~240ms, which reads as a settle rather than a drag, and it
+    // restores the figure the boot cross-fade comment (~line 1663) was written
+    // against: the 280ms overlay dissolve ends with the count-up ~40% through,
+    // so the skeleton thins out over cards that are already moving.
+    // Change tween stays 450: a value update is not a reveal.
+    _countUp(el, from, to, reveal ? 700 : 450, fmtName, key);
   });
   _kpiRevealDone = true;
 }
