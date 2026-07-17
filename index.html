@@ -6,8 +6,34 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="mobile-web-app-capable" content="yes">
-<meta name="theme-color" content="#11111a" media="(prefers-color-scheme: dark)">
-<meta name="theme-color" content="#f4f5f7" media="(prefers-color-scheme: light)">
+<!-- theme-color v2.19.25 — was #11111a / #f4f5f7, which are V1's --bg values and
+     were never updated when V2 landed. V2 --bg is #0f1724 dark / #eef1f7 light.
+     _syncThemeColorMeta() hardcodes the same pair and overwrites these at runtime,
+     so BOTH must change or this is silently pointless. -->
+<meta name="theme-color" content="#0f1724" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#eef1f7" media="(prefers-color-scheme: light)">
+
+<!-- App icon v2.19.25 — there was NO icon of any kind here: no apple-touch-icon,
+     no favicon, no manifest. iOS was auto-generating a letter tile from the first
+     character of <title> ("Retrade" -> R) on a dark plate. It was not showing the
+     logo because there was nothing to show.
+
+     PNG, not SVG, and that is not a regression from the vector work: iOS does not
+     accept SVG for apple-touch-icon, full stop. These are RENDERED FROM the vector
+     mark (headless Chromium at exact pixel sizes), so the vector stays the single
+     source of truth and the raster is a build artifact of it.
+
+     Square, not pre-rounded: iOS applies its own corner radius and a pre-rounded
+     source gets double-rounded. Mark sits at ~71% of the canvas, centred, on the V2
+     navy plate. Fill is hardcoded #F2B33D / #FFFFFF because a data: URI cannot see
+     the page's custom properties -- the icon is outside the document.
+
+     Chrome on Android falls back to apple-touch-icon when no manifest exists, so
+     this covers Android too. A real manifest would additionally give name, standalone
+     display and a maskable variant -- see handover §8.13. 180px = iPhone home screen;
+     32px = desktop browser tab. ~3.8KB of base64 for both. -->
+<link rel="apple-touch-icon" sizes="180x180" href="data:image/png;base64,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">
+<link rel="icon" type="image/png" sizes="32x32" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAMAAABEpIrGAAAAwFBMVEX////y8/Tn5+na293Ky87ysz3DxMjorDu0trrkqTrhqDrepTrWoDnSnTjOmTfBkTa4ijWYm6GTinqyhjSxhjWtgjSlfTOiezOhejKeeDKYdDGTcTCCc1mHaC57Zj97YC15Xi13XC10WixvVyxrVCtfXFlnUStlUCphTipJTVhcSilZRylKSElWRSlTQylNPyhGOidANiY8NCY0NDYvMDUxLCQqLDMrJyMiISIfICIcIS8dHSIXHCcVGCAUFyEMEiAXSGyCAAABY0lEQVR42rWTXXeCMAyG61xVEAU/QMXTwxQVhaNiJ0N02v//r5a2uNM6tt1suUiAPiRv0xSxXwz9NZCFweF7ICftDvGxNaVVwC0eNr2UP1HftGbZAxANDW97/fxt7+NOdFWArTE76aWLuRUqQGxzv2yU1udvk7kCrB0RnlFprUcgGojwdAfQKwAzFRhy/wYrZ8aOEDaMjVRgLTIsEaqLbwgdGfM0kUJDH6Ge5J4guCsF2He4b0EG2AOSnJ0oAMXc1+4S66CEGVQBLjiX4hp1qRCODaudZO11qfFYFmALWzsLfyI0QoN6CNV4BSfQgIMpNPZlMyDk+KQfd3fHNfLqPMU7I4OHeYCSm41Qd4Z4rhiYVG6H7kIyHbtO133JNOCULohrG1iYOYoKPUOWpPOxJVftgFKSVA3tFlYHq4JdxphUTfW06cYFNDRum0nFVN9WO2htYHoOHhU/XJxrGOT/fDe/2gfE/skUbTVgigAAAABJRU5ErkJggg==">
 <title>Retrade</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,300;0,14..32,400;0,14..32,500;0,14..32,600;0,14..32,700;0,14..32,800;0,14..32,900;1,14..32,400&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
 <!-- V2 Session 1 — JetBrains Mono (Inter is already loaded above with the full weight range V2 needs) -->
@@ -1315,7 +1341,17 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
 .nav-inner{max-width:1280px;height:68px;padding:0 24px;gap:16px;}
 .brand{margin-right:8px!important;position:relative;padding-right:18px;}
 .brand::after{content:'';position:absolute;right:0;top:50%;transform:translateY(-50%);height:24px;width:1px;background:linear-gradient(180deg,transparent,var(--border2),transparent);}
-.brand span{font-size:15px!important;letter-spacing:.14em!important;font-weight:800!important;}
+/* v2.19.23 — a V1 rule was removed from this spot. It targeted `.brand span` and
+   forced font-size 15px, letter-spacing .14em and font-weight 800, all !important.
+   Its only remaining targets were the V2 brand mark + wordmark spans -- class="brand"
+   appears exactly ONCE in the app markup, the tablet top bar -- so it existed solely
+   to fight the V2 rule, and !important meant it won on weight and tracking no matter
+   how specific the V2 selector was. Symptom: the skew and the two-tone landed, the
+   typography did not, and measured width/cap stayed at 8.06 instead of the 6.42 target.
+   The `.brand` in the PDF partner slip is a separate document with its own style block,
+   so it is unaffected. Sibling landmines survive in the same V1 family -- the one
+   forcing display:none on `.brand svg` near line 1283 is beaten by an !important near
+   4102 rather than removed. Left alone, but that is what they are. */
 .search-wrap{width:360px!important;}
 .search-wrap input{height:42px;border-radius:14px;padding-left:38px;background:color-mix(in srgb,var(--surface2) 75%, var(--surface));}
 .search-wrap input:-webkit-autofill,.search-wrap input:-webkit-autofill:hover,.search-wrap input:-webkit-autofill:focus{transition:background-color 99999s ease-out 0s;-webkit-text-fill-color:var(--text);box-shadow:0 0 0 1000px color-mix(in srgb,var(--surface2) 75%, var(--surface)) inset;}
@@ -1780,6 +1816,13 @@ body.rt-boot-shell #bottom-nav{z-index:9999;pointer-events:none;}
    Everything else about the box -- max-width 1100/1280/1600, the padding ramp,
    margin:0 auto -- comes from .page itself and therefore cannot drift from the
    page this dissolves into. That drift is exactly what 7B existed to kill. */
+/* Wordmark accent — the TRADE half. v2.19.23.
+   Marketing sets RE white / TRADE gold and always has; the V1 login markup did
+   too until the v2.19.20 reskin flattened it. One rule, four consumers (three
+   nav slots + login), so the split cannot drift between them. Tokenised, so it
+   follows the theme like everything else -- and inside #auth-overlay it picks up
+   that subtree's pinned --brand automatically. */
+.rt-word-accent{color:var(--brand);}
 .rt .page.rt-skel{display:block;}
 /* The real classes carry interaction affordances (cursor:pointer, hover borders,
    :active transform). Nothing here is clickable, and #app-loading is
@@ -3996,8 +4039,9 @@ svg.cat-donut-draw circle.donut-seg-last{
   .mtb-brand:active{opacity:0.7;}
   .mtb-brand-mark{display:inline-flex;flex:none;line-height:0;}
   .mtb-brand-word{
-    font-size:15px;font-weight:800;line-height:1;letter-spacing:0.16em;
+    font-size:17px;font-weight:900;line-height:1;letter-spacing:-0.01em;
     color:var(--text-primary);text-transform:uppercase;
+    transform:skewX(-10.7deg);display:inline-block;
   }
 
   /* Search button — ghost styling, V2 tokens, mirrors #search-fab.active state */
@@ -4094,9 +4138,10 @@ svg.cat-donut-draw circle.donut-seg-last{
   .rt #nav .brand-mark-v2 svg{display:block!important;}  /* beats .brand svg{display:none} */
   .rt #nav .brand-word-v2{
     font-family:var(--font-body);
-    font-size:15px;font-weight:800;line-height:1;
-    letter-spacing:0.16em;text-transform:uppercase;
+    font-size:17px;font-weight:900;line-height:1;
+    letter-spacing:-0.01em;text-transform:uppercase;
     color:var(--text-primary);
+    transform:skewX(-10.7deg);display:inline-block;
   }
 
   /* Search — V2 picker family treatment. Width is fluid up to 280px so the
@@ -4414,9 +4459,10 @@ svg.cat-donut-draw circle.donut-seg-last{
   .rt #side-nav .side-nav-brand-mark svg{display:block;}
   .rt #side-nav .side-nav-brand-word{
     font-family:var(--font-body);
-    font-size:15px;font-weight:800;line-height:1;
-    letter-spacing:0.16em;text-transform:uppercase;
+    font-size:17px;font-weight:900;line-height:1;
+    letter-spacing:-0.01em;text-transform:uppercase;
     color:var(--text-primary);
+    transform:skewX(-10.7deg);display:inline-block;
   }
 
   /* ── Search ── */
@@ -4980,9 +5026,12 @@ svg.cat-donut-draw circle.donut-seg-last{
      SIZING THE NAV SLOTS -- 21x24, derived, not taste. The mark contains an R and
      the wordmark beside it starts with an R, so the two are read together and any
      disagreement reads as "the logo is too big" -- which it did at 27x25. All
-     three wordmarks are 15px/800 Inter, cap height ~10.9px. The R occupies 0.508
-     of the FULL mark's height (getBBox, not eyeballed), so:
-         21x24 -> R renders 12.2px = 112% of cap; shield portion 17.9px tall.
+     three wordmarks are 17px/900 Inter (v2.19.24, up from 15px on Oskar's
+     hardware read -- the lockup was correct but undersized), cap height ~12.4px.
+     The R occupies 0.508 of the FULL mark's height (getBBox, not eyeballed), so:
+         24x27 -> R renders 14.0px = 113% of cap; shield portion 20.2px tall.
+     The mark was rescaled WITH the wordmark rather than nudged: hold the ratio,
+     move the lockup. 21x24 at 15px and 24x27 at 17px are the same lockup.
      112% is not arbitrary: the old placeholder badge drew its R at font-size 17,
      ~12.4px cap, 113% of the wordmark, and shipped through Drops 2-4 without
      complaint. So this reproduces the one optical relationship already proven in
@@ -5036,11 +5085,11 @@ c-230 453 -565 1105 -674 1315 -63 120 -114 221 -114 225 0 4 47 19 104 34
     <!-- Brand — V2 R-shield + RETRADE wordmark (Drop 3, matches Drop 2 mobile) -->
     <div class="brand" onclick="goToTab('summary')" role="button" aria-label="Go to dashboard">
       <span class="brand-mark-v2" aria-hidden="true">
-        <svg width="21" height="24" viewBox="0 0 811 946" aria-hidden="true" focusable="false">
+        <svg width="24" height="27" viewBox="0 0 811 946" aria-hidden="true" focusable="false">
           <use href="#rt-mark"/>
         </svg>
       </span>
-      <span class="brand-word-v2">RETRADE</span>
+      <span class="brand-word-v2">RE<span class="rt-word-accent">TRADE</span></span>
     </div>
 
     <!-- Search — left, next to brand (LinkedIn-style) -->
@@ -5202,11 +5251,11 @@ c-230 453 -565 1105 -674 1315 -63 120 -114 221 -114 225 0 4 47 19 104 34
 <header id="mobile-top-bar" aria-label="App header">
   <button class="mtb-brand" onclick="goToTab('summary')" aria-label="Go to dashboard">
     <span class="mtb-brand-mark" aria-hidden="true">
-      <svg width="21" height="24" viewBox="0 0 811 946" aria-hidden="true" focusable="false">
+      <svg width="24" height="27" viewBox="0 0 811 946" aria-hidden="true" focusable="false">
         <use href="#rt-mark"/>
       </svg>
     </span>
-    <span class="mtb-brand-word">RETRADE</span>
+    <span class="mtb-brand-word">RE<span class="rt-word-accent">TRADE</span></span>
   </button>
   <button class="mtb-search" onclick="toggleNavSearch()" aria-label="Search items">
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
@@ -5428,11 +5477,11 @@ c-230 453 -565 1105 -674 1315 -63 120 -114 221 -114 225 0 4 47 19 104 34
   <!-- Brand -->
   <div class="side-nav-brand" onclick="goToTab('summary')" role="button" tabindex="0" aria-label="Go to dashboard">
     <span class="side-nav-brand-mark" aria-hidden="true">
-      <svg width="21" height="24" viewBox="0 0 811 946" aria-hidden="true" focusable="false">
+      <svg width="24" height="27" viewBox="0 0 811 946" aria-hidden="true" focusable="false">
         <use href="#rt-mark"/>
       </svg>
     </span>
-    <span class="side-nav-brand-word">RETRADE</span>
+    <span class="side-nav-brand-word">RE<span class="rt-word-accent">TRADE</span></span>
   </div>
 
   <!-- Search -->
@@ -5656,7 +5705,7 @@ c-230 453 -565 1105 -674 1315 -63 120 -114 221 -114 225 0 4 47 19 104 34
         <svg width="66" height="77" viewBox="0 0 811 946" aria-hidden="true" focusable="false" style="display:block;">
           <use href="#rt-mark"/>
         </svg>
-        <span style="font-family:var(--font-body);font-size:20px;font-weight:800;letter-spacing:0.18em;color:var(--text-primary);text-transform:uppercase;display:block;line-height:1;">Retrade</span>
+        <span style="font-family:var(--font-body);font-size:20px;font-weight:900;letter-spacing:-0.01em;color:var(--text-primary);text-transform:uppercase;display:inline-block;line-height:1;transform:skewX(-10.7deg);">Re<span class="rt-word-accent">trade</span></span>
       </div>
     </div>
     <div id="auth-error" style="display:none;background:var(--red-dim);border:1px solid var(--red);border-radius:8px;padding:10px 14px;font-size:13px;color:var(--red);margin-bottom:16px;"></div>
@@ -6824,7 +6873,7 @@ function toggleTheme(){
   setThemePref(next);
 }
 function _syncThemeColorMeta(theme){
-  const colour=theme==='dark'?'#11111a':'#f4f5f7';
+  const colour=theme==='dark'?'#0f1724':'#eef1f7';  // v2.19.25 — V2 --bg. Must match the <meta> pair in <head>.
   document.querySelectorAll('meta[name="theme-color"]').forEach(function(m){
     m.setAttribute('content',colour);
     m.removeAttribute('media');
