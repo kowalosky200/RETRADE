@@ -177,6 +177,16 @@ nav:not(#bottom-nav){position:sticky;top:env(safe-area-inset-top,0px);z-index:20
   pointer-events:auto;
   transform:translateX(0);
 }
+/* v2.19.27 — Default Platform pops out left exactly as Country does. The
+   panel carries BOTH classes: .country-panel supplies every bit of geometry,
+   motion and chrome, .platform-panel supplies only the open state. Reuse, not
+   a second copy — a duplicated 240px/8px/z-301 block would drift the moment
+   either panel moved. (§4: don't duplicate a layout, reuse it.) */
+.user-menu.platform-open .platform-panel{
+  opacity:1;
+  pointer-events:auto;
+  transform:translateX(0);
+}
 .country-panel-header{display:flex;align-items:center;gap:8px;padding:8px 10px 6px;font-family:var(--font-display);font-size:11px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:0.1em;}
 .country-panel-back{width:24px;height:24px;display:flex;align-items:center;justify-content:center;border:none;background:transparent;border-radius:6px;cursor:pointer;color:var(--text-secondary);transition:all 0.15s;flex-shrink:0;}
 .country-panel-back:hover{background:var(--surface2);color:var(--text);}
@@ -194,6 +204,9 @@ nav:not(#bottom-nav){position:sticky;top:env(safe-area-inset-top,0px);z-index:20
   }
   /* Hide the main dropdown items when country-open — country panel takes its place */
   .user-menu.country-open .user-menu-dropdown{display:none;}
+  /* v2.19.27 — same swap for the platform panel, or it renders on top of a
+     still-visible menu at this width. */
+  .user-menu.platform-open .user-menu-dropdown{display:none;}
 }
 .user-menu-country-sub{display:flex;flex-direction:column;}
 .user-menu-country-item{width:100%;padding:8px 14px;background:none;border:none;text-align:left;cursor:pointer;font-size:13px;font-weight:500;color:var(--text-secondary);transition:all 0.15s;border-radius:8px;display:flex;align-items:center;gap:10px;}
@@ -4803,14 +4816,19 @@ svg.cat-donut-draw circle.donut-seg-last{
     scrollbar-width:thin;
     border-left:2px solid var(--border);
   }
-  .rt #side-nav .side-user-menu.country-open .side-country-panel-list{display:block;}
+  .rt #side-nav .side-user-menu.country-open #side-user-menu-country-sub{display:block;}
+  /* v2.19.27 — the platform accordion. Same list styling (the element carries
+     .side-country-panel-list), only the open state differs. */
+  .rt #side-nav .side-user-menu.platform-open #side-user-menu-platform-sub{display:block;}
   /* Chevron on trigger row rotates when open */
-  .rt #side-nav #side-user-menu-country-trigger .side-country-chev{
+  .rt #side-nav #side-user-menu-country-trigger .side-country-chev,
+  .rt #side-nav #side-user-menu-platform-trigger .side-country-chev{
     display:inline-flex;flex:none;line-height:0;
     transition:transform var(--dur-fast) var(--ease-out);
     color:var(--text-tertiary);
   }
-  .rt #side-nav .side-user-menu.country-open #side-user-menu-country-trigger .side-country-chev{
+  .rt #side-nav .side-user-menu.country-open #side-user-menu-country-trigger .side-country-chev,
+  .rt #side-nav .side-user-menu.platform-open #side-user-menu-platform-trigger .side-country-chev{
     transform:rotate(90deg);
   }
   .rt #side-nav .side-country-panel-list .user-menu-country-item{
@@ -5154,12 +5172,16 @@ c-230 453 -565 1105 -674 1315 -63 120 -114 221 -114 225 0 4 47 19 104 34
         <div class="user-menu-dropdown" id="user-menu-dropdown">
           <!-- PREFERENCES group -->
           <div style="padding:6px 10px 2px;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:var(--muted);">Preferences</div>
-          <button class="user-menu-item" onclick="event.stopPropagation();openDefaultPlatformPanel();closeUserMenu()">
+          <!-- v2.19.27 — resolves in place (pops out left, as Country does)
+               instead of shutting the menu and opening a slide-over. The
+               chevron now means what it means on the Country row. -->
+          <button class="user-menu-item" onclick="event.stopPropagation();togglePlatformPanel()" id="user-menu-platform-trigger">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
             <span style="flex:1;text-align:left;display:flex;flex-direction:column;gap:1px;">
               <span style="font-size:12px;color:var(--text);font-weight:500;">Default Platform</span>
               <span id="user-menu-defplat-label" style="font-size:11px;color:var(--muted);font-weight:400;">eBay UK</span>
             </span>
+            <svg width="11" height="11" viewBox="0 0 12 12" fill="none" style="color:var(--muted);"><path d="M4 2l4 4-4 4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
           </button>
           <button class="user-menu-item user-menu-country-trigger" onclick="event.stopPropagation();toggleCountryPanel()" id="user-menu-country-trigger">
             <span id="user-menu-country-trigger-flag" class="user-menu-country-trigger-flag" aria-hidden="true"></span>
@@ -5191,6 +5213,10 @@ c-230 453 -565 1105 -674 1315 -63 120 -114 221 -114 225 0 4 47 19 104 34
               <span style="font-size:12px;color:var(--text);font-weight:500;">Shipping Policies</span>
               <span id="user-menu-policies-label" style="font-size:11px;color:var(--muted);font-weight:400;">Saved delivery presets</span>
             </span>
+            <!-- v2.19.27 — arrow-out-of-box: "this one opens a panel". It is a
+                 form, not a value pick; it does not fit an accordion, and it
+                 sits under a different section header for exactly that reason. -->
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--muted);"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
           </button>
           <!-- ACCOUNT group -->
           <div class="user-menu-divider"></div>
@@ -5200,6 +5226,15 @@ c-230 453 -565 1105 -674 1315 -63 120 -114 221 -114 225 0 4 47 19 104 34
           </button>
         </div>
         <!-- Session E1: country panel pops out to the LEFT of the user menu when triggered -->
+        <div class="country-panel platform-panel" id="platform-panel" onclick="event.stopPropagation()">
+          <div class="country-panel-header">
+            <button class="country-panel-back" onclick="event.stopPropagation();closePlatformPanel()" aria-label="Back to menu">
+              <svg width="14" height="14" viewBox="0 0 12 12" fill="none"><path d="M8 2L4 6l4 4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+            <span>Default platform</span>
+          </div>
+          <div id="user-menu-platform-sub" class="user-menu-country-sub"></div>
+        </div>
         <div class="country-panel" id="country-panel" onclick="event.stopPropagation()">
           <div class="country-panel-header">
             <button class="country-panel-back" onclick="event.stopPropagation();closeCountryPanel()" aria-label="Back to menu">
@@ -5565,10 +5600,21 @@ c-230 453 -565 1105 -674 1315 -63 120 -114 221 -114 225 0 4 47 19 104 34
         <div class="side-nav-settings-main">
           <div class="side-nav-settings-section-hdr">Preferences</div>
 
-          <button class="side-nav-settings-row" onclick="event.stopPropagation();openDefaultPlatformPanel();closeSideNavSettings()">
+          <!-- v2.19.27 — accordion, matching Country on this band. Also gains
+               the current value as a sublabel: the tablet bar already showed
+               it, this row showed a bare title and no state. -->
+          <button class="side-nav-settings-row" onclick="event.stopPropagation();togglePlatformPanel('side-user-menu')" id="side-user-menu-platform-trigger">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="12" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
-            <span>Default Platform</span>
+            <span class="side-country-label">Default Platform<span id="side-user-menu-platform-label" style="display:block;font-size:11px;color:var(--text-tertiary);font-weight:400;">eBay UK</span></span>
+            <span class="side-country-chev" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+            </span>
           </button>
+          <!-- Platform list — inline accordion under the trigger. Toggled by
+               .platform-open on .side-user-menu; content from
+               renderPlatformSubmenu('side-user-menu'). Mutually exclusive with
+               the country accordion (see togglePlatformPanel). -->
+          <div class="side-country-panel-list" id="side-user-menu-platform-sub"></div>
 
           <button class="side-nav-settings-row" onclick="event.stopPropagation();toggleCountryPanel('side-user-menu')" id="side-user-menu-country-trigger">
             <span class="side-country-flag" id="side-user-menu-country-trigger-flag" aria-hidden="true"></span>
@@ -5596,7 +5642,11 @@ c-230 453 -565 1105 -674 1315 -63 120 -114 221 -114 225 0 4 47 19 104 34
 
           <button class="side-nav-settings-row" onclick="event.stopPropagation();openShippingPoliciesPanel();closeSideNavSettings()">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="3" width="15" height="13" rx="1.5"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
-            <span>Shipping Policies</span>
+            <span class="side-country-label">Shipping Policies</span>
+            <!-- v2.19.27 — "opens a panel", vs the chevrons above which expand. -->
+            <span class="side-country-chev" aria-hidden="true" style="opacity:0.75;">
+              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+            </span>
           </button>
 
           <div class="side-nav-settings-divider"></div>
@@ -6341,6 +6391,44 @@ const PLATFORMS={
   fb:        { id:'fb',        label:'Facebook Marketplace', short:'FB',     live:true,  pattern:'seller_receives', country:'uk' },
   amazon_uk: { id:'amazon_uk', label:'Amazon UK (used)',     short:'Amazon', live:true,  pattern:'listed_plus_fee', country:'uk' }
 };
+// ── Per-listing insertion fees (v2.19.26) ─────────────────────────────────
+// What eBay bills you to PUT A LISTING UP, independent of whether it sells.
+// Keyed by platform id so adding Vinted/Depop later is a table edit, not a
+// code change. A platform absent from this table charges nothing.
+//
+// STAMPED, NOT DERIVED. _stampListingFee writes the fee onto the item at the
+// moment a listing is created and it is thereafter a stored, immutable number
+// (editable by hand in the item receipt). It is deliberately NOT computed at
+// calc time from a date comparison: a derived fee would leave every historical
+// item one bad comparison away from silently re-pricing a filed tax return.
+// Stamping is naturally forward-only — untouched items simply have no stamp.
+const LISTING_FEES={
+  ebay_biz: 0.36,   // eBay UK Business — 36p per listing, no free allowance
+};
+// Returns the fee for a platform id, or 0. Safe on unknown/null input.
+function _listingFeeFor(platformId){
+  return LISTING_FEES[platformId]||0;
+}
+// Stamps the sale-1 listing fee onto a NEWLY CREATED listing. Call this at the
+// exact point an item becomes a live listing (creation, sourced→listed,
+// duplicate) — never from a migration, a reconcile, or an undo, all of which
+// would bill a listing that was never actually created.
+function _stampListingFee(item){
+  if(!item)return item;
+  item.listingFee=_listingFeeFor(_itemPlatform(item));
+  return item;
+}
+// Stamps the sale-2 (relist) fee. A relist is a second, separately-billed
+// listing on the SAME item record, which is why it gets its own field rather
+// than accumulating into listingFee — mirroring resalePostage /
+// resaleShippingCost / resalePromoPercent, which exist for the same reason.
+// Sale 1's P&L keeps its own 36p; the relist P&L carries its own; the item
+// totals 72p. See _saleBreakdown + calcGrossProfit.
+function _stampRelistFee(item){
+  if(!item)return item;
+  item.resaleListingFee=_listingFeeFor(item.resalePlatform||_itemPlatform(item));
+  return item;
+}
 // User-configurable default platform — persisted to localStorage
 function _getDefaultPlatform(){
   try{ const v=localStorage.getItem('_rtrade_default_platform'); return(v&&PLATFORMS[v])?v:'ebay'; }catch(e){return'ebay';}
@@ -6960,10 +7048,17 @@ function toggleMoreSheet(){
   if(_searchFabMS)_searchFabMS.style.visibility='hidden';
 }
 function _refreshDefaultPlatLabel(){
-  const el=document.getElementById('user-menu-defplat-label');
-  if(!el)return;
   const p=_getDefaultPlatform();
-  el.textContent=(PLATFORMS[p]&&PLATFORMS[p].label)||'eBay UK';
+  const label=(PLATFORMS[p]&&PLATFORMS[p].label)||'eBay UK';
+  // v2.19.27 — two bands, two elements, guarded independently. The old body
+  // did `if(!el)return;` on the TAB-BAR element, so on the desktop side nav
+  // (where that element does not exist) it bailed before touching anything.
+  // A sidebar label added under the old shape would have silently never
+  // updated — the §2.14 failure mode again.
+  const el=document.getElementById('user-menu-defplat-label');
+  if(el)el.textContent=label;
+  const el2=document.getElementById('side-user-menu-platform-label');
+  if(el2)el2.textContent=label;
 }
 function toggleUserMenu(){
   _refreshDefaultPlatLabel();
@@ -6984,12 +7079,71 @@ function toggleCountryPanel(menuId){
   if(!menu)return;
   // Re-render the list each time so the active state is fresh.
   renderCountrySubmenu(id);
+  // v2.19.27 — mutual exclusion with the platform accordion. Stated in BOTH
+  // toggles on purpose: one-directional exclusion is the bug that leaves two
+  // lists open and the popup scrolling.
+  const opening=!menu.classList.contains('country-open');
+  if(opening)menu.classList.remove('platform-open');
   menu.classList.toggle('country-open');
 }
 function closeCountryPanel(menuId){
   const id=menuId||'user-menu';
   const menu=document.getElementById(id);
   if(menu)menu.classList.remove('country-open');
+}
+
+// ── v2.19.27 — Default Platform picker, in-menu ───────────────────────────
+// Was openDefaultPlatformPanel(): closed the whole settings menu and threw a
+// slide-over at you to pick one of three radio options. A preference that
+// behaved like a tool. Now it resolves in place on both bands, exactly as
+// Country does — which is the pattern Oskar asked for at Drop 4.1 ("size
+// change and other parts disappear") and the reason the country accordion
+// exists in the first place.
+//
+// The two accordions are MUTUALLY EXCLUSIVE. Both open at once is how the
+// side-nav popup grows past its max-height and starts scrolling — it fits
+// because only one list is ever expanded.
+function togglePlatformPanel(menuId){
+  const id=menuId||'user-menu';
+  const menu=document.getElementById(id);
+  if(!menu)return;
+  renderPlatformSubmenu(id);
+  const opening=!menu.classList.contains('platform-open');
+  if(opening)menu.classList.remove('country-open');
+  menu.classList.toggle('platform-open');
+}
+function closePlatformPanel(menuId){
+  const id=menuId||'user-menu';
+  const menu=document.getElementById(id);
+  if(menu)menu.classList.remove('platform-open');
+}
+// Renders the platform list. Non-live platforms render disabled with a
+// "coming soon" tag rather than being hidden — same treatment COUNTRIES gets,
+// so the user can see where this is going without being able to pick it.
+function renderPlatformSubmenu(menuId){
+  const id=menuId||'user-menu';
+  const targetSubId = id==='side-user-menu' ? 'side-user-menu-platform-sub' : 'user-menu-platform-sub';
+  const sub=document.getElementById(targetSubId);
+  if(!sub)return;
+  const cur=_getDefaultPlatform();
+  // Sidebar keeps the popup open after a pick (accordion); the top bar closes
+  // both panel and menu — matching each band's country behaviour exactly.
+  const closeCalls = id==='side-user-menu'
+    ? "closePlatformPanel('side-user-menu')"
+    : "closePlatformPanel();closeUserMenu()";
+  sub.innerHTML=Object.values(PLATFORMS).map(function(p){
+    const isActive=p.id===cur;
+    const cls='user-menu-country-item'+(isActive?' active':'')+(!p.live?' coming-soon':'');
+    const onclick=p.live?"_setDefaultPlatform('"+p.id+"');_refreshDefaultPlatLabel();"+closeCalls+";toast('Default: "+p.label.replace(/'/g,"")+"');":'';
+    const dis=!p.live?'disabled':'';
+    const tag=!p.live?'<span class="cs-tag">Coming soon</span>':'';
+    return '<button type="button" class="'+cls+'" data-platform="'+p.id+'" '+dis+' onclick="'+onclick+'">'
+      +'<span class="plat-badge '+(p.id==='ebay_biz'?'ebay':p.id)+'" style="font-size:9px;">'+p.short+'</span>'
+      +'<span class="cl">'+esc(p.label)+'</span>'
+      +tag
+      +(isActive?'<svg class="cc" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>':'')
+      +'</button>';
+  }).join('');
 }
 
 // Session E1 — Updates the trigger row inside the user-menu dropdown that
@@ -7038,7 +7192,7 @@ function renderCountrySubmenu(menuId){
 }
 function closeUserMenu(){
   const menu=document.getElementById('user-menu');
-  if(menu){menu.classList.remove('open');menu.classList.remove('country-open');}
+  if(menu){menu.classList.remove('open');menu.classList.remove('country-open');menu.classList.remove('platform-open');}
 }
 // Close user menu on outside click
 document.addEventListener('click',(e)=>{
@@ -7821,6 +7975,10 @@ function _rowToItem(row, parts, returns){
     defaultPlatform: row.default_platform || null,
     soldOnPlatform:  row.sold_on_platform || null,
     listingFee:      row.listing_fee != null ? Number(row.listing_fee) : 0,
+    // v2.19.26 — sale-2 insertion fee. Column may not exist yet on older
+    // deployments; row.resale_listing_fee is then undefined and this is 0,
+    // which is exactly the pre-patch behaviour.
+    resaleListingFee: row.resale_listing_fee != null ? Number(row.resale_listing_fee) : 0,
     _shippingMigrated: true,
     returnData:      null,
     parts: (parts||[]).map(p=>({id:p.id, description:p.description||'', cost:Number(p.cost)||0})),
@@ -7899,6 +8057,7 @@ function _itemToRow(i, month){
     default_platform: i.defaultPlatform || null,
     sold_on_platform: i.soldOnPlatform || null,
     listing_fee:      i.listingFee || null,
+    resale_listing_fee: i.resaleListingFee || null,
   };
 }
 
@@ -9743,6 +9902,16 @@ function _renderItemPageInner(m,id){
   } else if((i.listingFee||0)>0){
     pb+=rcp('Listing fee','−'+fmt(i.listingFee),'var(--red)');
   }
+  // v2.19.26 — sale-2 insertion fee, shown whenever one is stamped. Editable
+  // on the same terms as sale 1's so a multi-quantity relist can be corrected
+  // to a single charge by hand.
+  if((i.resaleListingFee||0)>0||(_wasRelistedDetect&&_plat==='ebay_biz')){
+    pb+='<div class="ip-receipt-row"><span style="flex:1;color:var(--text-secondary)">Relist fee</span>'
+      +'<span class="ip-receipt-val" style="color:var(--red);display:flex;align-items:center;gap:4px">'
+      +'−£<input type="number" class="rcpt-relist-fee-input" data-m="'+m+'" data-id="'+id+'" value="'+( i.resaleListingFee||0 )+'" min="0" step="0.01" '
+      +'style="width:60px;padding:2px 4px;background:var(--surface2);border:1px solid var(--border);border-radius:5px;color:var(--red);font-size:13px;font-weight:600;text-align:right">'
+      +'</span></div>';
+  }
   if(_showPostage&&_rcptShipping>0)pb+=rcp('Shipping cost','−'+fmt(_rcptShipping),'var(--red)');
   if(_showPostage&&_rcptPackaging>0)pb+=rcp('Packaging','−'+fmt(_rcptPackaging),'var(--red)');
   if(_rcptPromo)pb+=rcp((_plat==='ebay'?'Promo fee ('+((_rcptPromo*100).toFixed(0))+'% +VAT)':'Boost fee ('+((_rcptPromo*100).toFixed(0))+'%)'),'−'+fmt(promoCost),'var(--red)');
@@ -11266,6 +11435,9 @@ function renderActiveRunPage(){
         '<button class="bulk-ctrl" onclick="runBulkAction(\'remove\')" style="margin-left:auto;font-size:13px;padding:7px 12px;border:1px solid var(--border);background:var(--surface2);border-radius:8px;color:var(--text);cursor:pointer;font-weight:600;">'
           +'Remove from run'
         +'</button>'
+        +'<button class="bulk-ctrl" onclick="runBulkAction(\'move\')" style="font-size:13px;padding:7px 12px;border:1px solid var(--border);background:var(--surface2);border-radius:8px;color:var(--text);cursor:pointer;font-weight:600;">'
+          +'Move to run'
+        +'</button>'
         +'<button class="bulk-ctrl is-danger" onclick="runBulkAction(\'delete\')" style="font-size:13px;padding:7px 12px;border:1px solid rgba(220,55,55,0.4);background:rgba(220,55,55,0.08);border-radius:8px;color:var(--red);cursor:pointer;font-weight:600;display:flex;align-items:center;gap:5px;">'
           +icon('trash',13)+'Delete'
         +'</button>'
@@ -11342,7 +11514,7 @@ function _removeFromActiveRun(m,id){
   if(!item) return;
   item.sourcingRunId=null;
   saveDB();
-  renderActiveRunPage();
+  _rerenderRunSurface();
   toast('Removed from run');
 }
 
@@ -11351,19 +11523,35 @@ function _removeFromActiveRun(m,id){
 // and Stock (STOCK_SELECTION_MODE / STOCK_SELECTED / stockBulkAction).
 // "Remove from run" untags items (sourcingRunId = null) so they stay in
 // stock but are no longer part of this run. "Delete" wipes items entirely.
+// v2.19.26 — which run surface is on screen? p-active-run (the live run) and
+// p-item (any run's detail, including ended ones) both host the item list and
+// share RUN_SELECTION_MODE / RUN_SELECTED. Only one is ever visible.
+function _currentRunSurfaceId(){
+  const p=document.querySelector('.page.on');
+  if(p&&p.id==='p-item'&&_lastOpenedRunId) return _lastOpenedRunId;
+  return _activeSourcingRun?_activeSourcingRun.id:null;
+}
+function _rerenderRunSurface(){
+  const p=document.querySelector('.page.on');
+  if(p&&p.id==='p-item'&&_lastOpenedRunId){
+    const r=_sourcingRuns.find(function(x){return x.id===_lastOpenedRunId;});
+    if(r){ _renderRunPage(r); return; }
+  }
+  if(typeof renderActiveRunPage==='function') renderActiveRunPage();
+}
 function toggleRunSelection(){
   RUN_SELECTION_MODE=!RUN_SELECTION_MODE;
   if(!RUN_SELECTION_MODE) RUN_SELECTED.clear();
-  renderActiveRunPage();
+  _rerenderRunSurface();
 }
 function toggleRunSelect(id){
   if(RUN_SELECTED.has(id)) RUN_SELECTED.delete(id);
   else                     RUN_SELECTED.add(id);
-  renderActiveRunPage();
+  _rerenderRunSurface();
 }
 function selectAllRunItems(){
-  if(!_activeSourcingRun) return;
-  const runId=_activeSourcingRun.id;
+  const runId=_currentRunSurfaceId();
+  if(!runId) return;
   const ids=[];
   allDBKeys().forEach(function(k){
     (DB[k]||[]).forEach(function(i){
@@ -11373,7 +11561,7 @@ function selectAllRunItems(){
   const allSel=ids.length>0 && ids.every(function(id){return RUN_SELECTED.has(id);});
   if(allSel) ids.forEach(function(id){RUN_SELECTED.delete(id);});
   else       ids.forEach(function(id){RUN_SELECTED.add(id);});
-  renderActiveRunPage();
+  _rerenderRunSurface();
 }
 async function runBulkAction(action){
   if(RUN_SELECTED.size===0) return;
@@ -11389,7 +11577,9 @@ async function runBulkAction(action){
     const n=RUN_SELECTED.size;
     RUN_SELECTED.clear(); RUN_SELECTION_MODE=false;
     toast(n===1?'Removed from run':n+' items removed from run');
-    renderActiveRunPage();
+    _rerenderRunSurface();
+  } else if(action==='move'){
+    openRunMovePicker();
   } else if(action==='delete'){
     const n=RUN_SELECTED.size;
     const ok=await showConfirm('Delete '+n+(n===1?' item?':' items?'),'This cannot be undone.',{icon:'delete',okLabel:'Delete all'});
@@ -11403,8 +11593,56 @@ async function runBulkAction(action){
     saveDB();
     RUN_SELECTED.clear(); RUN_SELECTION_MODE=false;
     toast(n===1?'Item deleted':n+' items deleted');
-    renderActiveRunPage();
+    _rerenderRunSurface();
   }
+}
+
+// v2.19.26 — "Move to another run". Retagging, not deleting: the item keeps
+// every cost, part and sale it has; only sourcingRunId changes, so both runs'
+// P&L re-derive from the tag on next render. Deliberately a picker rather than
+// a free-text field — a run id typo would silently orphan the item out of
+// every run at once, which is the same one-way door this whole patch closes.
+function openRunMovePicker(){
+  const fromId=_currentRunSurfaceId();
+  const n=RUN_SELECTED.size;
+  if(n===0) return;
+  const targets=(_sourcingRuns||[]).filter(function(r){return r.id!==fromId;});
+  let body;
+  if(targets.length===0){
+    body='<div class="empty-state"><div class="empty-state-text">No other runs</div>'
+      +'<div class="empty-state-sub">Create another sourcing run first, then move these items into it.</div></div>';
+  } else {
+    body='<div style="font-size:13px;color:var(--text-secondary);margin-bottom:12px;">'
+      +'Moving '+n+' item'+(n!==1?'s':'')+'. Costs, parts and sales travel with the item — only the run tag changes.</div>'
+      +'<div style="display:flex;flex-direction:column;gap:8px;">'
+      +targets.map(function(r){
+        const cnt=_runItems(r.id).length;
+        const meta=(r.status==='ended'?'Ended':'Active')+' \u00b7 '+cnt+' item'+(cnt!==1?'s':'');
+        return '<button class="btn btn-secondary" style="text-align:left;justify-content:flex-start;width:100%;flex-direction:column;align-items:flex-start;gap:2px;padding:12px 14px;" '
+          +'onclick="_runMoveConfirm(\''+r.id.replace(/'/g,"\\'")+'\')">'
+          +'<span style="font-weight:600;">'+esc(r.name)+'</span>'
+          +'<span style="font-size:11px;color:var(--text-secondary);font-weight:400;">'+meta+'</span>'
+          +'</button>';
+      }).join('')
+      +'</div>';
+  }
+  openPanel('Move to another run', body);
+}
+function _runMoveConfirm(targetId){
+  const run=(_sourcingRuns||[]).find(function(r){return r.id===targetId;});
+  if(!run) return;
+  const n=RUN_SELECTED.size;
+  RUN_SELECTED.forEach(function(id){
+    allDBKeys().forEach(function(k){
+      const x=(DB[k]||[]).find(function(i){return i.id===id;});
+      if(x) x.sourcingRunId=targetId;
+    });
+  });
+  saveDB();
+  RUN_SELECTED.clear(); RUN_SELECTION_MODE=false;
+  closePanel();
+  toast(n===1?('Moved to '+run.name):(n+' items moved to '+run.name));
+  _rerenderRunSurface();
 }
 
 function endSourcingRun(runId){
@@ -11740,7 +11978,19 @@ function _renderRunPage(run){
         ?(gp!==null?'<span style="font-size:13px;font-weight:700;color:'+(gp>=0?'var(--green)':'var(--red)')+';">\u00a3'+gp.toFixed(2)+'</span>':'')
         :(ep!==null?'<span style="font-size:12px;color:var(--muted);">est <span style="color:'+(ep>=0?'var(--green)':'var(--red)')+';">\u00a3'+ep.toFixed(2)+'</span></span>':'<span style="font-size:11px;color:var(--muted);">\u00a3'+(i.costPrice||0).toFixed(2)+' cost</span>');
       const qm=i._month.replace(/'/g,"\\'"), qid=i.id.replace(/'/g,"\\'");
-      itemsHTML+='<div style="display:flex;align-items:center;gap:8px;padding:10px 14px;cursor:pointer;'+(idx>0?'border-top:1px solid var(--border)':'')+'" onclick="_openItemFromRun(\''+qm+'\',\''+qid+'\',\''+run.id+'\')">'
+      // v2.19.26 — select mode. The row's click target swaps between "open the
+      // item" and "toggle the checkbox"; the box is a span, not an <input>, so
+      // the row's single handler owns the whole hit area and there is no
+      // nested-control click to fight with.
+      const _rdSel=RUN_SELECTED.has(i.id);
+      const _rdClick=RUN_SELECTION_MODE
+        ?'toggleRunSelect(\''+qid+'\')'
+        :'_openItemFromRun(\''+qm+'\',\''+qid+'\',\''+run.id+'\')';
+      const _rdBox=RUN_SELECTION_MODE
+        ?'<span style="width:18px;height:18px;flex-shrink:0;border:1.5px solid '+(_rdSel?'var(--brand)':'var(--border-strong)')+';border-radius:4px;display:inline-flex;align-items:center;justify-content:center;background:'+(_rdSel?'var(--brand)':'transparent')+';color:'+(_rdSel?'#1a1205':'transparent')+';font-size:12px;font-weight:700;">\u2713</span>'
+        :'';
+      itemsHTML+='<div style="display:flex;align-items:center;gap:8px;padding:10px 14px;cursor:pointer;'+(_rdSel?'background:var(--accent-dim);':'')+(idx>0?'border-top:1px solid var(--border)':'')+'" onclick="'+_rdClick+'">'
+        +_rdBox
         +'<div style="flex:1;min-width:0;">'
           +'<div style="font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(i.item||'Untitled')+'</div>'
           +'<div style="font-size:11px;color:var(--text-secondary);">\u00a3'+(i.costPrice||0).toFixed(2)+' cost'+(i.salePrice&&isItemSold?' \u00b7 sold \u00a3'+i.salePrice.toFixed(2):'')+(i.estSalePrice&&!isItemSold?' \u00b7 est \u00a3'+i.estSalePrice.toFixed(2):'')+'</div>'
@@ -11753,6 +12003,29 @@ function _renderRunPage(run){
   if(items.length===0){
     itemsHTML='<div class="empty-state"><div class="empty-state-text">No items in this run</div><div class="empty-state-sub">Items added while this run was active appear here.</div></div>';
   }
+  // v2.19.26 — run-detail bulk bar. Same actions and same wording as the
+  // active-run bar so the two surfaces cannot drift apart in behaviour.
+  const _rdSelCount=RUN_SELECTED.size;
+  const _rdToolbar=(items.length===0||!RUN_SELECTION_MODE)?'':(
+    '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px;padding:8px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;">'
+    +'<button onclick="selectAllRunItems()" style="display:flex;align-items:center;gap:8px;background:none;border:none;cursor:pointer;padding:4px 6px;color:var(--text);">'
+      +'<span style="width:18px;height:18px;border:1.5px solid var(--border-strong);border-radius:4px;display:inline-flex;align-items:center;justify-content:center;background:'+(_rdSelCount===items.length?'var(--brand)':'transparent')+';color:'+(_rdSelCount===items.length?'#1a1205':'transparent')+';font-size:12px;font-weight:700;">'
+        +(_rdSelCount===items.length?'\u2713':_rdSelCount>0?'\u2212':'')
+      +'</span>'
+      +'<span style="color:'+(_rdSelCount>0?'var(--text)':'var(--text-secondary)')+';font-weight:600;font-size:13px;">'
+        +(_rdSelCount>0?_rdSelCount+' selected':'Select all')
+      +'</span>'
+    +'</button>'
+    +(_rdSelCount>0
+      ?(
+        '<button onclick="runBulkAction(\'remove\')" style="margin-left:auto;font-size:12px;padding:6px 10px;border:1px solid var(--border);background:var(--surface);border-radius:8px;color:var(--text);cursor:pointer;font-weight:600;">Remove from run</button>'
+        +'<button onclick="runBulkAction(\'move\')" style="font-size:12px;padding:6px 10px;border:1px solid var(--border);background:var(--surface);border-radius:8px;color:var(--text);cursor:pointer;font-weight:600;">Move to run</button>'
+        +'<button onclick="runBulkAction(\'delete\')" style="font-size:12px;padding:6px 10px;border:1px solid rgba(220,55,55,0.4);background:rgba(220,55,55,0.08);border-radius:8px;color:var(--red);cursor:pointer;font-weight:600;">Delete</button>'
+      )
+      :'')
+    +'<button onclick="toggleRunSelection()" style="'+(_rdSelCount===0?'margin-left:auto;':'')+'background:none;border:none;color:var(--text-secondary);font-size:12px;cursor:pointer;padding:6px 8px;font-weight:500;">\u2715 Done</button>'
+    +'</div>'
+  );
 
   // ── Cost breakdown (collapsed, compact) ──────────────────────────────────
   let costsHTML='';
@@ -11839,10 +12112,14 @@ function _renderRunPage(run){
           ${costsHTML}
         </div>
         <div class="run-detail-right">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;gap:8px;flex-wrap:wrap;">
             <div style="font-size:13px;font-weight:600;">Items in this run</div>
-            <button class="btn btn-secondary" style="font-size:12px;padding:6px 10px;" onclick="openBulkAssignModal('${run.id}')">+ Add existing</button>
+            <div style="display:flex;gap:6px;">
+              ${items.length>0&&!RUN_SELECTION_MODE?`<button class="btn btn-secondary" style="font-size:12px;padding:6px 10px;" onclick="toggleRunSelection()" title="Select items to remove, move or delete">Select</button>`:''}
+              ${RUN_SELECTION_MODE?'':`<button class="btn btn-secondary" style="font-size:12px;padding:6px 10px;" onclick="openBulkAssignModal('${run.id}')">+ Add existing</button>`}
+            </div>
           </div>
+          ${_rdToolbar}
           ${itemsHTML}
         </div>
       </div>
@@ -12219,19 +12496,21 @@ function toggleSideNavSettings(){
   const btn =document.getElementById('side-nav-user-btn');
   if(!menu)return;
   const isOpen=menu.classList.toggle('open');
-  // Closing the popup also closes any open country sub-panel
-  if(!isOpen){menu.classList.remove('country-open');}
+  // Closing the popup also closes any open sub-panel (v2.19.27: both of them —
+  // a stale accordion would be restored on reopen).
+  if(!isOpen){menu.classList.remove('country-open');menu.classList.remove('platform-open');}
   if(btn)btn.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
   // Refresh dynamic content on open
   if(isOpen){
     if(typeof refreshCountryTrigger==='function')refreshCountryTrigger();
+    if(typeof _refreshDefaultPlatLabel==='function')_refreshDefaultPlatLabel();
     if(typeof _syncThemePrefUI==='function')_syncThemePrefUI();
   }
 }
 function closeSideNavSettings(){
   const menu=document.getElementById('side-user-menu');
   const btn =document.getElementById('side-nav-user-btn');
-  if(menu){menu.classList.remove('open');menu.classList.remove('country-open');}
+  if(menu){menu.classList.remove('open');menu.classList.remove('country-open');menu.classList.remove('platform-open');}
   if(btn)btn.setAttribute('aria-expanded','false');
 }
 // Outside-click closes the sidebar settings popup
@@ -13695,6 +13974,7 @@ function openBulkAssignModal(runId){
   const cutoffStr=cutoff.toISOString().split('T')[0];
   let _baFilter='7d'; // default
   let _baSearch='';
+  let _baShowInRuns=false; // v2.19.26 — see filter below
 
   const _baItems=function(){
     let all=[];
@@ -13702,6 +13982,10 @@ function openBulkAssignModal(runId){
       (DB[k]||[]).forEach(function(i){
         if((i.item||'').trim().toUpperCase()==='MONTH END')return;
         if(i.sourcingRunId===runId)return; // already in this run — hide from picker
+        // v2.19.26 — items tagged to a DIFFERENT run are hidden by default.
+        // Adding one here doesn't copy it, it MOVES it: the other run silently
+        // loses an item and its spend and profit both change. Opt in.
+        if(!_baShowInRuns && i.sourcingRunId && i.sourcingRunId!==runId)return;
         all.push(Object.assign({},i,{_month:k}));
       });
     });
@@ -13742,7 +14026,12 @@ function openBulkAssignModal(runId){
       +'<option value="all"'+((_baFilter==='all')?' selected':'')+'>All time</option>'
       +'</select>'
       +'<input type="text" id="ba-search" value="'+esc(_baSearch)+'" placeholder="Search\u2026" style="flex:1;min-width:100px;padding:7px 10px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);font-size:12px;color:var(--text);" oninput="_baSearchChange(this.value,\''+runId+'\');">'
-      +'</div>';
+      +'</div>'
+      // v2.19.26 — the escape hatch for a genuine re-tag. Off by default.
+      +'<label style="display:flex;align-items:center;gap:7px;margin-bottom:10px;font-size:12px;color:var(--text-secondary);cursor:pointer;">'
+      +'<input type="checkbox" '+(_baShowInRuns?'checked ':'')+'onchange="_baShowInRunsChange(this.checked);" style="width:14px;height:14px;accent-color:var(--accent);">'
+      +'Show items already in another run'
+      +'</label>';
 
     if(items.length===0){
       html+='<div style="padding:20px;text-align:center;color:var(--muted);font-size:13px;">No items match this filter</div>';
@@ -13815,6 +14104,20 @@ function openBulkAssignModal(runId){
   window._baRender=_baRender;
 
   window._baFilterChange=function(v,rId){ window._baFilter=v; _baFilter=v; _baRender(); };
+  window._baShowInRunsChange=function(on){
+    _baShowInRuns=!!on;
+    // Turning the filter back ON drops any now-hidden selections. A checked
+    // box you can no longer see is one you cannot uncheck, and _baConfirm
+    // reads the Set, not the DOM — it would move them anyway.
+    if(!_baShowInRuns){
+      Array.from(_baSelected).forEach(function(id){
+        let found=null;
+        allDBKeys().forEach(function(k){const x=(DB[k]||[]).find(function(y){return y.id===id;});if(x)found=x;});
+        if(found&&found.sourcingRunId&&found.sourcingRunId!==runId)_baSelected.delete(id);
+      });
+    }
+    _baRender();
+  };
   window._baSearchChange=function(v,rId){ window._baSearch=v; _baSearch=v; _baRender(); };
   window._baToggle=function(id,rId,checked){ if(checked)_baSelected.add(id); else _baSelected.delete(id); _baRender(); };
   window._baToggleAll=function(rId){
@@ -14157,6 +14460,8 @@ function submitListFromSourced(m, srcId){
   srcItem._postageMode=_postageMode; srcItem._sdRateIdx=_sdRateIdx; srcItem._sdBuyerPays=_sdBuyerPays;
   srcItem.promoPercent=(parseFloat(document.getElementById('qa-promo').value)||0)/100;
   srcItem.defaultPlatform=_qaPlat;
+  // v2.19.26 — sourced stock becoming a live listing for the first time.
+  _stampListingFee(srcItem);
   srcItem.dateSold=null; srcItem.grossProfit=null; srcItem.isReturned=false;
   // Patch C: preserve existing run tag (withdraw→sourced already keeps it);
   // if item has no tag and a run is active, tag it now (e.g. user added item
@@ -14252,6 +14557,7 @@ function submitQuickAdd(){
     defaultPlatform:(document.getElementById('qa-platform')?.value)||DEFAULT_PLATFORM,
     dateSold:null,grossProfit:null,isReturned:false
   };
+  _stampListingFee(item); // v2.19.26 — new listing = insertion fee
   item.category=item.category||autoCategory(item.item);
   if(!item.notes)item.notes='';if(!item.parts)item.parts=[];
   if(!item.returnHistory)item.returnHistory=[];
@@ -21546,6 +21852,12 @@ function duplicateItem(m,id,context){
   copy.state='listed';
   copy.dateSold=null;copy.grossProfit=null;copy.isReturned=false;
   copy.resaleSalePrice=null;copy.resaleDateSold=null;copy.resaleGrossProfit=null;
+  // v2.19.26 — the clone inherits resaleListingFee, which calcGrossProfit now
+  // charges unconditionally. Left uncleared the duplicate would be billed for
+  // the ORIGINAL's relist. Clear it, then stamp a fresh sale-1 fee: a
+  // duplicate is a new listing and eBay bills it as one.
+  copy.resaleListingFee=0;
+  _stampListingFee(copy);
   copy.accountSettled=false; // new item = new debt to the partner
   copy.returnHistory=[];delete copy.returnData;
   const stripSuffix=function(name){
@@ -21772,6 +22084,10 @@ function confirmRelist(m,id){
   // Restore to active stock
   i.isReturned=false;
   i.state='listed';
+  // v2.19.26 — a relist is a second billable listing. Stamped here, after the
+  // resalePlatform/defaultPlatform assignment above, so a return-then-relist
+  // onto a DIFFERENT platform is priced on the platform it actually went to.
+  _stampRelistFee(i);
   i.dateSold=null;
   i.salePrice=price;
   i.promoPercent=promoInput/100;
@@ -23199,7 +23515,7 @@ function _saleBreakdown(ev){
   // COGS: item cost + parts. Only counted against sale 1 (parts persist on the item and are a one-time input).
   itemCost=isSale2?0:(i.costPrice||0);
   parts=isSale2?0:calcPartsCost(i);
-  listingFee=isSale2?0:(i.listingFee||0);
+  listingFee=isSale2?(i.resaleListingFee||0):(i.listingFee||0);
   const promoFee=+(salePrice*promoPct*1.20).toFixed(2);
   const shipOut=sellerPaysShipping?shipping:0;
   const pkgOut=sellerPaysShipping?packaging:0;
@@ -24194,7 +24510,10 @@ function calcGrossProfit(i){
   // Vinted (and any future buyer-pays-postage-only platform): seller pays nothing to ship
   const _platForCost=_itemPlatform(i);
   const _sellerPaysShipping=(_platForCost!=='vinted'&&_platForCost!=='fb');
-  const listingFee=i.listingFee||0;
+  // v2.19.26 — both listings' insertion fees. resaleListingFee is added here
+  // rather than inside the resale branch below so a relisted-but-unsold item
+  // still carries the fee it has already been charged.
+  const listingFee=(i.listingFee||0)+(i.resaleListingFee||0);
   const cost=(i.costPrice||0)+(_sellerPaysShipping?_s1Shipping:0)+(_sellerPaysShipping?_s1Packaging:0)+promoCost+returnCost+partsCost+listingFee;
   let profit=rev-cost;
   // Second sale (resold after return)
@@ -25404,14 +25723,18 @@ window.addEventListener('load', function(){
   // F1: Delegated listener for inline listing fee input in P&L receipt
   document.addEventListener('change', function(e){
     const el=e.target;
-    if(!el.classList.contains('rcpt-listing-fee-input'))return;
+    // v2.19.26 — same listener now serves the sale-2 fee input too.
+    const _isS1=el.classList.contains('rcpt-listing-fee-input');
+    const _isS2=el.classList.contains('rcpt-relist-fee-input');
+    if(!_isS1&&!_isS2)return;
     const m=el.dataset.m;
     const id=el.dataset.id;
     if(!m||!id)return;
     const items=DB[m]||[];
     const it=items.find(function(x){return x.id===id;});
     if(!it)return;
-    it.listingFee=+(parseFloat(el.value)||0).toFixed(2);
+    const _v=+(parseFloat(el.value)||0).toFixed(2);
+    if(_isS2) it.resaleListingFee=_v; else it.listingFee=_v;
     saveDB();
     renderItemPage(m,id);
   });
