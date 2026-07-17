@@ -1155,9 +1155,44 @@ button .rt-icon,.btn .rt-icon{pointer-events:none;}
 /* Ambient page glow — warms up the summary page */
 [data-theme="dark"] #p-summary{background-image:radial-gradient(ellipse 60% 30% at 50% 0%,rgba(245,166,35,0.04) 0%,transparent 60%);}
 [data-theme="dark"] #p-monthly{background-image:radial-gradient(ellipse 50% 25% at 50% 0%,rgba(125,185,247,0.03) 0%,transparent 55%);}
-/* Auth overlay — dark background always, regardless of theme */
-#auth-overlay{background:#111118!important;background-image:radial-gradient(ellipse 70% 50% at 50% 110%, rgba(245,166,35,0.06) 0%, transparent 60%),radial-gradient(ellipse 50% 40% at 15% 85%, rgba(229,83,83,0.05) 0%, transparent 55%),radial-gradient(ellipse 40% 40% at 85% 20%, rgba(125,185,247,0.04) 0%, transparent 50%);background-attachment:fixed;}
-#auth-screen-login,#auth-screen-reset{background:#1a1a24!important;border-color:#2e2e3e!important;}
+/* Auth overlay — V2 design system, pinned dark in both themes (v2.19.20)
+   The markup in both auth cards was ALREADY tokenised -- it asked for
+   var(--surface), var(--surface2), var(--text), var(--accent). What was wrong
+   was what those names resolved TO: the old rules here nailed the screen to the
+   V1 dark palette with !important. V1 dark is purple-grey (#111118 / #1a1a24 /
+   #2e2e3e); V2 is navy (#0C1220 / #131A2A / #232B40). Same layout, different
+   product. That mismatch is the whole bug, and it is a token bug, so this is a
+   token fix -- no markup rewrite, no !important, and the inputs, labels,
+   buttons and error states all follow on their own.
+
+   The V1 names below are ALIASES onto the V2 values, scoped to this subtree.
+   They exist because the auth markup speaks V1 and the rest of the app speaks
+   V2; aliasing is what lets one screen cross that line without touching forty
+   inline styles.
+
+   WHY THE VALUES ARE RESTATED and not reused: :root carries these exact numbers
+   as its dark default, but :root[data-theme="light"] overrides them, and this
+   screen is deliberately dark in BOTH themes (it is the pre-app moment -- it
+   should look like the brand, not like the user's preference). Once light has
+   overridden :root there is nothing left to inherit from, so the values have to
+   be restated. That is §4's duplicate-only-where-reuse-is-impossible, and it
+   takes §4's other half too: test_auth.js A4 diffs this block against :root's
+   dark block and FAILS when they drift. Do not edit one without the other. */
+#auth-overlay{
+  --surface-0:#0C1220; --surface-1:#131A2A; --surface-2:#1A2236;
+  --border:#232B40; --border-strong:#36405A;
+  --brand:#F2B33D;
+  --text-primary:#F2F2EE; --text-secondary:#B5B6B0; --text-tertiary:#7E7F79;
+  /* V1 aliases -> V2 values, for the markup that predates the reskin */
+  --surface:var(--surface-1); --surface2:var(--surface-2);
+  --text:var(--text-primary); --muted:var(--text-tertiary);
+  --accent:var(--brand); --accent-hover:#F7C05E; --accent-dim:rgba(242,179,61,0.12);
+  --shadow-md:rgba(0,0,0,0.5);
+  background:var(--surface-0);
+  background-image:radial-gradient(ellipse 70% 50% at 50% 110%, rgba(242,179,61,0.07) 0%, transparent 60%),radial-gradient(ellipse 40% 40% at 85% 20%, rgba(125,185,247,0.035) 0%, transparent 50%);
+  background-attachment:fixed;
+}
+#auth-screen-login,#auth-screen-reset{background:var(--surface-1);border-color:var(--border);}
 
 /* FAB — double ring on hover (target motif) */
 .fab-dial{position:fixed;bottom:24px;right:24px;z-index:330;display:flex;flex-direction:column;align-items:flex-end;gap:10px;pointer-events:none;transition:bottom 0.22s cubic-bezier(0.34,1.38,0.64,1);}
@@ -4911,6 +4946,89 @@ svg.cat-donut-draw circle.donut-seg-last{
 </head>
 <body class="rt">
 
+<!-- ================= BRAND MARK — one definition, three consumers ==========
+     v2.19.20. Vectorised from the supplied R_Shield artwork (potrace, two
+     colour layers traced separately and re-registered on a shared bbox), NOT
+     embedded as a raster. Reasons, in order:
+       - THEME. The R is fill:var(--text-primary), so it is navy on light and
+         off-white on dark -- which is exactly the difference between the two
+         artwork variants supplied. One asset, both variants, no JS.
+       - SIZE. The whole mark is ~2.2KB of path data. The source PNGs are
+         700KB-2MB; base64 in a single-file app they would have been ~1-3MB.
+       - CAPACITOR. Vector survives any DPR on any device with no @2x/@3x set.
+     Two symbols, because the mark does not survive being shrunk whole: at
+     28px the swoosh and its tail turn to mush. -sm drops both and keeps the
+     shield + R, which is the same brand at a size where detail cannot read.
+     Consumed by <use> from the three nav brand slots + the login screen, so
+     the artwork exists ONCE -- the previous placeholder was three hand-copied
+     SVG blocks, which is the drift §4 warns about, sat in the file already.
+
+     WHY THERE IS NO SHIELD-ONLY VARIANT. There was one (rt-mark-sm, shield + R,
+     swoosh dropped) on the theory that the swoosh mushes at nav sizes. The
+     artwork disagrees, and it took shipping it to find out. Measured extents in
+     the 811x946 space:
+         shield  y   0..707      swoosh  y 694..917      tip  y 777..946
+     The swoosh does not sit BESIDE the shield, it CROSSES it: the shield tapers
+     to a point at y=946 and the swoosh occludes the taper, which is why potrace
+     returned the shield as two disconnected regions. Drop the swoosh and you do
+     not get a shield -- you get shield arms ending at 707 and a detached V
+     floating from 777, with a 70-unit hole where the swoosh used to be. That is
+     what "the logo is cut off" looked like. This mark reduces whole or not at all.
+     If a compact lockup is ever genuinely needed, it needs the shield redrawn
+     CLOSED, which is an artwork change and Oskar's call -- not a path subset.
+
+     SIZING THE NAV SLOTS -- 21x24, derived, not taste. The mark contains an R and
+     the wordmark beside it starts with an R, so the two are read together and any
+     disagreement reads as "the logo is too big" -- which it did at 27x25. All
+     three wordmarks are 15px/800 Inter, cap height ~10.9px. The R occupies 0.508
+     of the FULL mark's height (getBBox, not eyeballed), so:
+         21x24 -> R renders 12.2px = 112% of cap; shield portion 17.9px tall.
+     112% is not arbitrary: the old placeholder badge drew its R at font-size 17,
+     ~12.4px cap, 113% of the wordmark, and shipped through Drops 2-4 without
+     complaint. So this reproduces the one optical relationship already proven in
+     this bar. Note 21x24 renders the shield and the R at exactly the sizes the
+     broken 20x18 did -- the 6px is purely the tip and swoosh that were missing,
+     so the fix restores the artwork without re-opening the agreed size.
+     If the wordmark size ever changes, re-derive: mark_h = (cap * 1.13) / 0.508. -->
+<svg width="0" height="0" style="position:absolute;pointer-events:none;" aria-hidden="true" focusable="false">
+  <symbol id="rt-mark" viewBox="0 0 811 946">
+    <g transform="translate(0,946) scale(0.1,-0.1)">
+      <path fill="var(--brand)" d="M3825 9371 c-305 -110 -738 -264 -1765 -628 -537 -190 -1013 -359
+-1436 -510 l-381 -136 -7 -221 c-70 -2400 3 -3269 371 -4391 116 -354 422
+-1069 471 -1099 7 -4 442 62 450 69 2 2 -19 43 -47 93 -444 800 -733 1803
+-816 2832 -36 446 -45 1545 -18 2246 l6 171 46 15 c25 9 224 80 441 158 387
+139 882 315 1550 550 484 171 923 326 1175 417 l220 80 50 -18 c28 -10 325
+-114 660 -233 529 -186 1362 -482 2190 -780 132 -47 303 -109 380 -138 l140
+-53 8 -495 c9 -563 3 -1331 -13 -1590 -59 -991 -287 -1885 -681 -2672 -38 -76
+-69 -140 -69 -143 0 -3 106 -4 236 -3 l237 3 59 135 c344 780 525 1472 608
+2320 41 421 48 909 33 2176 l-6 570 -196 72 c-334 122 -701 253 -1736 621
+-434 155 -839 299 -900 321 -564 202 -988 350 -1003 349 -9 -1 -125 -40 -257
+-88z"/>
+      <path fill="var(--brand)" d="M7785 2500 c-1850 -108 -4034 -308 -5930 -546 -683 -85 -1787 -238
+-1835 -253 -32 -11 -42 -9 350 -61 407 -54 1649 -226 1776 -246 l102 -17 -32
+-27 c-44 -38 -336 -274 -811 -655 -482 -386 -496 -398 -491 -403 2 -2 375 119
+828 268 2507 826 4090 1315 5853 1805 132 37 294 82 360 101 66 19 127 34 137
+34 10 0 18 5 18 10 0 6 -3 9 -7 9 -5 -1 -147 -10 -318 -19z"/>
+      <path fill="var(--brand)" d="M6425 1669 c-44 -11 -222 -51 -395 -90 -245 -56 -322 -77 -345 -95
+-459 -361 -934 -668 -1433 -927 l-174 -90 -111 49 c-62 26 -212 96 -334 155
+l-221 107 -256 -97 c-141 -53 -256 -99 -256 -102 0 -22 758 -400 1092 -544
+l87 -38 63 28 c893 397 1628 888 2251 1504 81 80 147 149 147 153 0 11 -24 8
+-115 -13z"/>
+      <path fill="var(--text-primary)" d="M2306 7568 c157 -177 380 -432 382 -438 3 -7 -69 -359 -334 -1630
+-112 -536 -210 -1019 -300 -1475 -36 -181 -106 -534 -155 -783 -50 -250 -89
+-456 -86 -458 2 -3 265 -2 584 2 l580 7 42 211 c23 116 55 274 72 351 16 77
+59 280 94 450 36 171 72 339 80 375 8 36 22 102 31 148 l17 82 297 0 c226 0
+300 -3 307 -12 10 -13 524 -1026 708 -1395 l100 -202 657 0 657 -1 -111 218
+c-230 453 -565 1105 -674 1315 -63 120 -114 221 -114 225 0 4 47 19 104 34
+688 180 1050 741 1127 1745 51 664 -247 1081 -876 1224 l-100 23 -1555 3
+-1554 4 20 -23z m2631 -971 c222 -75 297 -288 223 -637 -71 -337 -203 -505
+-455 -577 -58 -16 -1161 -34 -1200 -20 -13 6 -20 -31 144 757 56 267 101 489
+101 493 0 18 1132 2 1187 -16z"/>
+    </g>
+  </symbol>
+</svg>
+
+
 <a href="#main-content" class="skip-nav" style="position:absolute;top:-40px;left:8px;z-index:9999;background:var(--accent);color:#000;font-weight:700;padding:8px 12px;border-radius:6px;font-size:13px;text-decoration:none;transition:top 0.15s;" onfocus="this.style.top='8px'" onblur="this.style.top='-40px'">Skip to main content</a>
 <nav id="nav" aria-label="Main navigation" style="display:none;">
   <div class="nav-inner">
@@ -4918,9 +5036,8 @@ svg.cat-donut-draw circle.donut-seg-last{
     <!-- Brand — V2 R-shield + RETRADE wordmark (Drop 3, matches Drop 2 mobile) -->
     <div class="brand" onclick="goToTab('summary')" role="button" aria-label="Go to dashboard">
       <span class="brand-mark-v2" aria-hidden="true">
-        <svg width="28" height="28" viewBox="0 0 28 28" xmlns="http://www.w3.org/2000/svg">
-          <rect width="28" height="28" rx="7" ry="7" fill="var(--brand)"/>
-          <text x="14" y="20.5" text-anchor="middle" font-family="Inter,system-ui,sans-serif" font-weight="800" font-size="17" fill="#1a1205">R</text>
+        <svg width="21" height="24" viewBox="0 0 811 946" aria-hidden="true" focusable="false">
+          <use href="#rt-mark"/>
         </svg>
       </span>
       <span class="brand-word-v2">RETRADE</span>
@@ -5085,9 +5202,8 @@ svg.cat-donut-draw circle.donut-seg-last{
 <header id="mobile-top-bar" aria-label="App header">
   <button class="mtb-brand" onclick="goToTab('summary')" aria-label="Go to dashboard">
     <span class="mtb-brand-mark" aria-hidden="true">
-      <svg width="28" height="28" viewBox="0 0 28 28" xmlns="http://www.w3.org/2000/svg">
-        <rect width="28" height="28" rx="7" ry="7" fill="var(--brand)"/>
-        <text x="14" y="20.5" text-anchor="middle" font-family="Inter,system-ui,sans-serif" font-weight="800" font-size="17" fill="#1a1205">R</text>
+      <svg width="21" height="24" viewBox="0 0 811 946" aria-hidden="true" focusable="false">
+        <use href="#rt-mark"/>
       </svg>
     </span>
     <span class="mtb-brand-word">RETRADE</span>
@@ -5312,9 +5428,8 @@ svg.cat-donut-draw circle.donut-seg-last{
   <!-- Brand -->
   <div class="side-nav-brand" onclick="goToTab('summary')" role="button" tabindex="0" aria-label="Go to dashboard">
     <span class="side-nav-brand-mark" aria-hidden="true">
-      <svg width="28" height="28" viewBox="0 0 28 28" xmlns="http://www.w3.org/2000/svg">
-        <rect width="28" height="28" rx="7" ry="7" fill="var(--brand)"/>
-        <text x="14" y="20.5" text-anchor="middle" font-family="Inter,system-ui,sans-serif" font-weight="800" font-size="17" fill="#1a1205">R</text>
+      <svg width="21" height="24" viewBox="0 0 811 946" aria-hidden="true" focusable="false">
+        <use href="#rt-mark"/>
       </svg>
     </span>
     <span class="side-nav-brand-word">RETRADE</span>
@@ -5522,16 +5637,26 @@ svg.cat-donut-draw circle.donut-seg-last{
 </div>
 
 <!-- ── AUTH OVERLAY ─────────────────────────────────────────────────────── -->
-<div id="auth-overlay" style="display:none;position:fixed;inset:0;z-index:9999;background:#0c1320;align-items:center;justify-content:center;padding:24px;" data-theme="dark">
+<!-- v2.19.20 — `background` deliberately NOT inline. It used to carry
+     background:#0c1320 here, which is why the CSS rule needed !important to
+     beat it; worse, the shorthand also reset background-image to none, so the
+     stylesheet's ambient gradients never rendered at all. Same lesson as 7C's
+     overlay opacity: colour lives in CSS, only `display` stays inline. -->
+<div id="auth-overlay" style="display:none;position:fixed;inset:0;z-index:9999;align-items:center;justify-content:center;padding:24px;" data-theme="dark">
 
   <!-- SIGN IN SCREEN -->
   <div id="auth-screen-login" style="background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:36px 32px;width:100%;max-width:380px;box-shadow:0 8px 40px var(--shadow-md);position:relative;overflow:hidden;">
-    <div style="position:absolute;top:0;left:50%;transform:translateX(-50%);width:1px;height:40px;background:linear-gradient(to bottom,var(--accent),transparent);opacity:0.4;pointer-events:none;"></div>
-    <div style="position:absolute;top:20px;left:50%;transform:translate(-50%,-50%);width:40px;height:1px;background:linear-gradient(to right,transparent,var(--accent),transparent);opacity:0.4;pointer-events:none;"></div>
-    <div style="text-align:center;margin-bottom:32px;padding-top:8px;">
-      <div style="margin-bottom:18px;display:flex;flex-direction:column;align-items:center;gap:10px;">
-        <span style="font-family:'Inter',sans-serif;font-size:22px;font-weight:800;letter-spacing:0.18em;color:#ffffff;text-transform:uppercase;display:block;text-align:center;line-height:1;">Re<span style="color:var(--accent)">trade</span></span>
-        <div style="width:64px;height:2px;background:linear-gradient(90deg,transparent,var(--accent),transparent);border-radius:2px;opacity:0.85;"></div>
+    <!-- v2.19.20 — the two absolutely-positioned accent hairlines that used to
+         sit here (a 1px vertical + a 40px horizontal crossing at the card's top
+         edge) are gone, along with the gradient rule under the wordmark. They
+         were V1 flourish: three decorative gradients doing the job the mark now
+         does properly. V2 is flat, and the logo does not need underlining. -->
+    <div style="text-align:center;margin-bottom:30px;padding-top:4px;">
+      <div style="display:flex;flex-direction:column;align-items:center;gap:14px;">
+        <svg width="66" height="77" viewBox="0 0 811 946" aria-hidden="true" focusable="false" style="display:block;">
+          <use href="#rt-mark"/>
+        </svg>
+        <span style="font-family:var(--font-body);font-size:20px;font-weight:800;letter-spacing:0.18em;color:var(--text-primary);text-transform:uppercase;display:block;line-height:1;">Retrade</span>
       </div>
     </div>
     <div id="auth-error" style="display:none;background:var(--red-dim);border:1px solid var(--red);border-radius:8px;padding:10px 14px;font-size:13px;color:var(--red);margin-bottom:16px;"></div>
