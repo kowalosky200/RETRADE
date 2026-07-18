@@ -7985,6 +7985,7 @@ function _rowToItem(row, parts, returns){
     returnHistory: (returns||[]).map(r=>({
       id:             r.id,
       loggedAt:       r.logged_at || null,
+      saleNo:         r.sale_no != null ? Number(r.sale_no) : 1,
       type:           r.type || null,
       refundAmount:   Number(r.refund_amount) || 0,
       returnPostage:  Number(r.return_postage) || 0,
@@ -8264,6 +8265,7 @@ async function saveItemToSupabase(m, i){
       item_id:       i.id,
       user_id:       _currentUserId || null,
       logged_at:     r.loggedAt || null,
+      sale_no:       r.saleNo || 1,
       type:          r.type || null,
       refund_amount: Number(r.refundAmount) || 0,
       return_postage:Number(r.returnPostage) || 0,
@@ -9926,12 +9928,28 @@ function _renderItemPageInner(m,id){
   }
   if(hasReturn){
     pb+='<div class="ip-receipt-row section-head"><span>Return impact</span><span></span></div>';
-    (i.returnHistory||[]).forEach(function(r){
+    (i.returnHistory||[]).forEach(function(r,ri){
       const fullReturn=(r.type==='full_seller'||r.type==='full_ebay');
       const lbl3={full_seller:'Full refund — you handled',full_ebay:'Full refund — eBay involved',partial_seller:'Partial refund — you handled',partial_ebay:'Partial refund — eBay decided'}[r.type]||r.type;
       pb+=rcp(lbl3,'−'+fmt(r.refundAmount||0),'var(--accent)');
+      // v2.19.31 — on a resold item, a partial refund can belong to Sale 1 or
+      // Sale 2. Offer a one-tap re-tag so an existing entry moves without
+      // re-entry. Full returns are always Sale 1, so no toggle for them.
+      if(i.resaleSalePrice&&(r.type==='partial_seller'||r.type==='partial_ebay')){
+        const _tgtSale=(r.saleNo===2)?1:2;
+        pb+='<div class="ip-receipt-row" style="padding-top:0"><span style="flex:1;color:var(--muted);font-size:11px">Against Sale '+(r.saleNo===2?2:1)+'</span>'
+          +'<button class="rcpt-retag-sale-btn" data-m="'+m+'" data-id="'+id+'" data-ri="'+ri+'" data-target="'+_tgtSale+'" '
+          +'style="background:var(--surface2);border:1px solid var(--border);border-radius:5px;color:var(--text-secondary);font-size:11px;padding:2px 8px;cursor:pointer">Move to Sale '+_tgtSale+'</button></div>';
+      }
       if(fullReturn&&_showFee)pb+=rcp((_plat==='ebay'?'eBay':'Platform')+' refunds fee back to you','+'+fmt(bpf),'var(--green)',true);
-      if((r.returnPostage||0)>0)pb+=rcp('Return postage','−'+fmt(r.returnPostage),'var(--red)');
+      // v2.19.30 — Return postage is now hand-editable to reconcile against the
+      // actual carrier charge on the eBay statement. Shown for every return
+      // entry so a missing charge can be added, not just an existing one edited.
+      pb+='<div class="ip-receipt-row"><span style="flex:1;color:var(--text-secondary)">Return postage</span>'
+        +'<span class="ip-receipt-val" style="color:var(--red);display:flex;align-items:center;gap:4px">'
+        +'−£<input type="number" class="rcpt-return-postage-input" data-m="'+m+'" data-id="'+id+'" data-ri="'+ri+'" value="'+( r.returnPostage||0 )+'" min="0" step="0.01" '
+        +'style="width:60px;padding:2px 4px;background:var(--surface2);border:1px solid var(--border);border-radius:5px;color:var(--red);font-size:13px;font-weight:600;text-align:right">'
+        +'</span></div>';
     });
     // Partial-seller: eBay refunds the fee difference (BPF + promo) on the reduced sale base.
     // Show explicit credit lines so line items reconcile to the net profit total.
@@ -9962,7 +9980,13 @@ function _renderItemPageInner(m,id){
     const rBPF=calcPlatformBPF(i,i.resaleSalePrice,_rPostageRcpt,i.resalePlatform);
     const rGrossInc=i.resaleSalePrice-rBPF;
     const rPromoCost=rGrossInc*(i.resalePromoPercent||0)*1.20;
-    const rRev=i.resaleSalePrice+_rPostageRcpt-rBPF-(i.resaleShippingCost||0)-rPromoCost; // v2.19.29 — +postage revenue
+    // v2.19.31 — Sale-2 partial refunds for display (mirror the calc above).
+    const _s2PS=(i.returnHistory||[]).filter(r=>r.type==='partial_seller'&&r.saleNo===2).reduce((s,r)=>s+(r.refundAmount||0),0);
+    const _s2PE=(i.returnHistory||[]).filter(r=>r.type==='partial_ebay'&&r.saleNo===2).reduce((s,r)=>s+(r.refundAmount||0),0);
+    const _s2BaseAfterPS=Math.max(0,i.resaleSalePrice-_s2PS);
+    const _s2BPFAfterPS=calcPlatformBPF(i,_s2BaseAfterPS,_rPostageRcpt,i.resalePlatform);
+    const _s2PsFeeCredit=Math.max(0,rBPF-_s2BPFAfterPS);
+    const rRev=i.resaleSalePrice+_rPostageRcpt-rBPF-(i.resaleShippingCost||0)-rPromoCost-_s2PS+_s2PsFeeCredit-_s2PE; // v2.19.31 — Sale-2 partial refunds
     const lifetimeProfit=profit;
     let s2b='';
     s2b+=rcp('Sale price',fmt(i.resaleSalePrice),'var(--green)');
@@ -9970,6 +9994,12 @@ function _renderItemPageInner(m,id){
     s2b+=rcp(_showFee?_feeLabel:'Platform fee (£0)','−'+fmt(rBPF),_showFee?'var(--red)':'var(--muted)');
     if((i.resaleShippingCost||0)>0)s2b+=rcp('Shipping cost','−'+fmt(i.resaleShippingCost),'var(--red)');
     if(rPromoCost>0)s2b+=rcp((_plat==='ebay'?'Promo fee ('+((i.resalePromoPercent||0)*100).toFixed(1)+'% +VAT)':'Boost fee ('+((i.resalePromoPercent||0)*100).toFixed(1)+'%)'),'−'+fmt(rPromoCost),'var(--red)');
+    // v2.19.31 — Sale-2 partial refund lines, so the resale card explains its own number.
+    if(_s2PS>0){
+      s2b+=rcp('Partial refund — you handled','−'+fmt(_s2PS),'var(--accent)');
+      if(_s2PsFeeCredit>0&&_showFee)s2b+=rcp((_plat==='ebay'?'eBay':'Platform')+' refunds fee difference','+'+fmt(_s2PsFeeCredit),'var(--green)',true);
+    }
+    if(_s2PE>0)s2b+=rcp('Partial refund — eBay decided','−'+fmt(_s2PE),'var(--accent)');
     s2b+=rcp('Item cost (sunk)','—','var(--muted)');
     s2b+='<div class="ip-receipt-row total"><span style="flex:1">Sale 2 net</span><span class="ip-receipt-val" style="color:'+(rRev>=0?'var(--green)':'var(--red)')+'">'+fmt(rRev)+'</span></div>';
     s2b+='<div class="ip-receipt-row" style="margin-top:6px;padding:10px 0 2px;border-top:2px solid var(--border)"><span style="flex:1;font-weight:700;font-size:13px">Lifetime P&amp;L</span><span class="ip-receipt-val" style="font-size:16px;color:'+(lifetimeProfit>=0?'var(--green)':'var(--red)')+'">'+fmt(lifetimeProfit)+'</span></div>';
@@ -22242,12 +22272,18 @@ function saveReturn(m,id){
   const returnPostage=parseFloat(document.getElementById('rtn-postage').value)||0;
   const notes=document.getElementById('rtn-notes').value.trim();
 
+  // v2.19.31 — which sale is this refund against? A full return is always a
+  // Sale-1 event (it sends the item back to stock; the relist becomes Sale 2).
+  // A PARTIAL refund logged while the item is already resold belongs to Sale 2.
+  const _isPartial=(type==='partial_seller'||type==='partial_ebay');
+  const _saleNo=(_isPartial && i.resaleSalePrice) ? 2 : 1;
   const entry={
     loggedAt:returnDate,
     type:type,
     refundAmount:refundAmount,
     returnPostage:returnPostage,
     notes:notes,
+    saleNo:_saleNo,                     // v2.19.31 — 1 = against sale 1, 2 = against the resale
     _salePriceAtReturn:i.salePrice||0,  // snapshot: used to get correct BPF refund in calcGrossProfit
     _dateSoldAtReturn:i.dateSold||null  // snapshot: original sale date for refund-rate period attribution after full return wipes dateSold
   };
@@ -23583,16 +23619,33 @@ function _saleBreakdown(ev){
   const pkgOut=sellerPaysShipping?packaging:0;
   // Return costs: refund principal + return postage (netted against sale 1 only)
   let returnCost=0, partialRefund=0, returnPostage=0;
-  if(!isSale2){
-    (i.returnHistory||[]).forEach(function(r){
-      const isFull=(r.type==='full_seller'||r.type==='full_ebay');
-      if(isFull&&!i.resaleSalePrice){
-        const origBPF=calcPlatformBPF(i,r._salePriceAtReturn||r.refundAmount||salePrice,postage);
-        returnCost+=Math.max(0,(r.refundAmount||0)-origBPF);
-      }
-      if(r.type==='partial_ebay')partialRefund+=(r.refundAmount||0);
-      returnPostage+=(r.returnPostage||0);
-    });
+  // v2.19.32 — per-sale refund attribution (feeds statements + SA103). Each
+  // entry's saleNo (default 1) routes it to the right sale. Full returns are a
+  // sale-1-only concept (they reverse sale 1 and drive a relist). partial_seller
+  // gets the FVF-credit treatment (recompute bpf on the reduced base) mirroring
+  // calcGrossProfit; partial_ebay is a flat cost with no fee relief.
+  const _thisSale=isSale2?2:1;
+  let _psTotalThisSale=0;
+  (i.returnHistory||[]).forEach(function(r){
+    const _rSale=(r.saleNo===2)?2:1;
+    const isFull=(r.type==='full_seller'||r.type==='full_ebay');
+    if(!isSale2&&isFull&&!i.resaleSalePrice){
+      const origBPF=calcPlatformBPF(i,r._salePriceAtReturn||r.refundAmount||salePrice,postage);
+      returnCost+=Math.max(0,(r.refundAmount||0)-origBPF);
+    }
+    // Return postage sits with sale 1 (that's where the return event lives).
+    if(!isSale2)returnPostage+=(r.returnPostage||0);
+    if(_rSale!==_thisSale)return;
+    if(r.type==='partial_ebay')partialRefund+=(r.refundAmount||0);
+    if(r.type==='partial_seller'){ partialRefund+=(r.refundAmount||0); _psTotalThisSale+=(r.refundAmount||0); }
+  });
+  // partial_seller fee credit: eBay refunds the FVF slice on the refunded
+  // portion, so recompute bpf on the reduced base and hand the difference back.
+  if(_psTotalThisSale>0){
+    const _reducedBase=Math.max(0,salePrice-_psTotalThisSale);
+    const _bpfAfterPS=isSale2?calcPlatformBPF(i,_reducedBase,postage,i.resalePlatform):calcPlatformBPF(i,_reducedBase,postage);
+    const _feeCredit=Math.max(0,bpf-_bpfAfterPS);
+    bpf=+(bpf-_feeCredit).toFixed(2); // net fee after eBay's partial credit
   }
   // Partner split share attributable to this sale
   let partnerSplit=0;
@@ -24514,7 +24567,9 @@ function calcGrossProfit(i){
   //   partial_seller (seller agreed): eBay refunds the fee difference — recalc BPF/promo on net sale price
   //   partial_ebay (eBay stepped in): eBay keeps the original fee — BPF/promo stay on full sale price
   //   Full returns are handled separately below (fee fully refunded on relist path)
-  const partialSellerRefund=(i.returnHistory||[]).filter(r=>r.type==='partial_seller')
+  // v2.19.31 — Sale-1 partial refunds only. saleNo===2 belongs to the resale
+  // branch below; untagged (legacy) entries are Sale 1 by default.
+  const partialSellerRefund=(i.returnHistory||[]).filter(r=>r.type==='partial_seller'&&r.saleNo!==2)
     .reduce((s,r)=>s+(r.refundAmount||0),0);
   // E3 P0 #1 — Resolve sale 1 economics. For items that were relisted then
   // resold, confirmRelist overwrites i.shippingCost/postage/packaging/promo
@@ -24547,7 +24602,7 @@ function calcGrossProfit(i){
   // Revenue = net sale after BPF + postage − partial-seller refunds (fees already
   // recalculated on reduced base above, so only subtract the refund principal).
   // Partial-ebay refunds still count as cost (seller eats the refund AND the fee).
-  const partialEbayRefund=(i.returnHistory||[]).filter(r=>r.type==='partial_ebay')
+  const partialEbayRefund=(i.returnHistory||[]).filter(r=>r.type==='partial_ebay'&&r.saleNo!==2)
     .reduce((s,r)=>s+(r.refundAmount||0),0);
   const rev=_wasRelisted ? 0 : effectiveSaleForFees+_s1Postage-bpf-partialEbayRefund;
   const returnCost=(i.returnHistory||[]).reduce(function(s,r){
@@ -24584,7 +24639,18 @@ function calcGrossProfit(i){
     const rBPF=calcPlatformBPF(i,i.resaleSalePrice,rPostage,i.resalePlatform);
     const rGrossInc=i.resaleSalePrice-rBPF;
     const rPromoCost=rGrossInc*(i.resalePromoPercent||0)*1.20;
-    const rRev=i.resaleSalePrice+rPostage-rBPF-(i.resaleShippingCost||0)-(i.resalePackagingCost||0)-rPromoCost; // v2.19.29 — +rPostage: buyer-paid resale postage is revenue, mirroring sale 1. Was silently dropped.
+    // v2.19.31 — partial refunds tagged to Sale 2.
+    const rPartialSeller=(i.returnHistory||[]).filter(r=>r.type==='partial_seller'&&r.saleNo===2).reduce((s,r)=>s+(r.refundAmount||0),0);
+    const rPartialEbay=(i.returnHistory||[]).filter(r=>r.type==='partial_ebay'&&r.saleNo===2).reduce((s,r)=>s+(r.refundAmount||0),0);
+    // partial_seller: eBay credits the FVF slice on the refunded portion, so the
+    // real cost is the refund net of that credit. Recompute BPF on the reduced
+    // sale base and credit the difference back, mirroring Sale 1.
+    const rBaseAfterPS=Math.max(0,i.resaleSalePrice-rPartialSeller);
+    const rBPFAfterPS=calcPlatformBPF(i,rBaseAfterPS,rPostage,i.resalePlatform);
+    const rPsFeeCredit=Math.max(0,rBPF-rBPFAfterPS);
+    const rRev=i.resaleSalePrice+rPostage-rBPF-(i.resaleShippingCost||0)-(i.resalePackagingCost||0)-rPromoCost
+      -rPartialSeller+rPsFeeCredit   // seller-agreed partial: refund out, fee slice back
+      -rPartialEbay;                 // eBay-decided partial: refund out, no fee relief
     profit+=rRev;
   }
   return+profit.toFixed(2);
@@ -25723,7 +25789,7 @@ function exportForSupabase(){
       });
       (i.returnHistory||[]).forEach(function(r){
         returns.push({
-          item_id:i.id, logged_at:r.loggedAt||null, type:r.type||null,
+          item_id:i.id, logged_at:r.loggedAt||null, type:r.type||null, sale_no:r.saleNo||1,
           refund_amount:r.refundAmount||0, return_postage:r.returnPostage||0,
           notes:r.notes||null, relisted_at:r._relistedAt||null, relist_condition:r._relistCondition||null
         });
@@ -25788,7 +25854,8 @@ window.addEventListener('load', function(){
     // v2.19.26 — same listener now serves the sale-2 fee input too.
     const _isS1=el.classList.contains('rcpt-listing-fee-input');
     const _isS2=el.classList.contains('rcpt-relist-fee-input');
-    if(!_isS1&&!_isS2)return;
+    const _isRP=el.classList.contains('rcpt-return-postage-input');
+    if(!_isS1&&!_isS2&&!_isRP)return;
     const m=el.dataset.m;
     const id=el.dataset.id;
     if(!m||!id)return;
@@ -25796,7 +25863,23 @@ window.addEventListener('load', function(){
     const it=items.find(function(x){return x.id===id;});
     if(!it)return;
     const _v=+(parseFloat(el.value)||0).toFixed(2);
-    if(_isS2) it.resaleListingFee=_v; else it.listingFee=_v;
+    if(_isRP){
+      // v2.19.30 — correct the recorded return-label charge on a specific entry.
+      const ri=parseInt(el.dataset.ri,10);
+      if(!Array.isArray(it.returnHistory)||!it.returnHistory[ri])return;
+      it.returnHistory[ri].returnPostage=_v;
+    } else if(_isS2){ it.resaleListingFee=_v; } else { it.listingFee=_v; }
+    saveDB();
+    renderItemPage(m,id);
+  });
+  // v2.19.31 — re-tag a refund entry between Sale 1 and Sale 2.
+  document.addEventListener('click', function(e){
+    const rb=e.target.closest('.rcpt-retag-sale-btn');
+    if(!rb)return;
+    const m=rb.dataset.m, id=rb.dataset.id, ri=parseInt(rb.dataset.ri,10), target=parseInt(rb.dataset.target,10);
+    const it=(DB[m]||[]).find(function(x){return x.id===id;});
+    if(!it||!Array.isArray(it.returnHistory)||!it.returnHistory[ri])return;
+    it.returnHistory[ri].saleNo=target;
     saveDB();
     renderItemPage(m,id);
   });
