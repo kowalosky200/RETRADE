@@ -6700,6 +6700,13 @@ function _writeS1Postage(it,v){
   if(it.resaleSalePrice&&fr){ fr._postageAtRelist=v; }
   else { it.postage=v; }
 }
+// Write Sale 1's shipping cost (what YOU pay the carrier): the relist snapshot
+// on a resold item, else i.shippingCost. v2.19.36.
+function _writeS1Shipping(it,v){
+  const fr=_latestFullReturn(it);
+  if(it.resaleSalePrice&&fr){ fr._shippingCostAtRelist=v; }
+  else { it.shippingCost=v; }
+}
 // An inline-editable money row (label + −/£ number input). cls routes the
 // delegated change handler; sign is '' or '+'.
 function _editMoneyRow(label,cls,m,id,val,color,sign){
@@ -9987,7 +9994,7 @@ function _renderItemPageInner(m,id){
       +'style="width:60px;padding:2px 4px;background:var(--surface2);border:1px solid var(--border);border-radius:5px;color:var(--red);font-size:13px;font-weight:600;text-align:right">'
       +'</span></div>';
   }
-  if(_showPostage&&_rcptShipping>0)pb+=rcp('Shipping cost','−'+fmt(_rcptShipping),'var(--red)');
+  if(_showPostage)pb+=_editMoneyRow('Shipping cost (you pay)','rcpt-s1-shipping-input',m,id,_rcptShipping,'var(--red)','−'); // v2.19.36 — editable per sale
   if(_showPostage&&_rcptPackaging>0)pb+=rcp('Packaging','−'+fmt(_rcptPackaging),'var(--red)');
   if(_rcptPromo)pb+=rcp((_plat==='ebay'?'Promo fee ('+((_rcptPromo*100).toFixed(0))+'% +VAT)':'Boost fee ('+((_rcptPromo*100).toFixed(0))+'%)'),'−'+fmt(promoCost),'var(--red)');
   pb+=rcp('Item cost','−'+fmt(i.costPrice||0),'var(--red)');
@@ -10066,7 +10073,7 @@ function _renderItemPageInner(m,id){
     s2b+=_editMoneyRow('Sale price','rcpt-s2-price-input',m,id,i.resaleSalePrice,'var(--green)','');
     s2b+=_editMoneyRow('Postage paid by buyer','rcpt-s2-postage-input',m,id,_rPostageRcpt,'var(--green)','+'); // v2.19.35 — editable
     s2b+=rcp(_showFee?_feeLabel:'Platform fee (£0)','−'+fmt(rBPF),_showFee?'var(--red)':'var(--muted)');
-    if((i.resaleShippingCost||0)>0)s2b+=rcp('Shipping cost','−'+fmt(i.resaleShippingCost),'var(--red)');
+    s2b+=_editMoneyRow('Shipping cost (you pay)','rcpt-s2-shipping-input',m,id,(i.resaleShippingCost||0),'var(--red)','−'); // v2.19.36 — editable per sale
     if(rPromoCost>0)s2b+=rcp((_plat==='ebay'?'Promo fee ('+((i.resalePromoPercent||0)*100).toFixed(1)+'% +VAT)':'Boost fee ('+((i.resalePromoPercent||0)*100).toFixed(1)+'%)'),'−'+fmt(rPromoCost),'var(--red)');
     // v2.19.31 — Sale-2 partial refund lines, so the resale card explains its own number.
     if(_s2PS>0){
@@ -10145,8 +10152,8 @@ function _renderItemPageInner(m,id){
   // Policy dropdown — full-width, sits between the mode toggle and the inputs
   const _ipPolSel='<select id="ip-policy-sel-'+id+'" onchange="applyIPPolicy(\''+m+'\',\''+id+'\')" style="width:100%;padding:6px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:7px;color:var(--text-secondary);font-size:12px;font-family:inherit;margin-bottom:8px;display:block"></select>';
   const _customPostageInner=_ipPolSel+'<div class="ip-postage-custom">'
-     +'<div class="ip-postage-custom-field"><label>You pay</label><input id="ip-ship-'+id+'" type="number" step="0.01" value="'+(i.shippingCost||0)+'" onchange="ipSaveNum(\''+m+'\',\''+id+'\',\'shippingCost\',this.value)" onkeydown="if(event.key===\'Enter\')this.blur()"></div>'
-     +'<div class="ip-postage-custom-field"><label>Buyer pays</label><input id="ip-post-'+id+'" type="number" step="0.01" value="'+(i.postage||0)+'" onchange="ipSaveNum(\''+m+'\',\''+id+'\',\'postage\',this.value)" onkeydown="if(event.key===\'Enter\')this.blur()"></div>'
+     +'<div class="ip-postage-custom-field"><label>You pay'+(i.resaleSalePrice?' (Sale 2)':'')+'</label><input id="ip-ship-'+id+'" type="number" step="0.01" value="'+(i.shippingCost||0)+'" onchange="ipSaveNum(\''+m+'\',\''+id+'\',\'shippingCost\',this.value)" onkeydown="if(event.key===\'Enter\')this.blur()"></div>'
+     +'<div class="ip-postage-custom-field"><label>Buyer pays'+(i.resaleSalePrice?' (Sale 2)':'')+'</label><input id="ip-post-'+id+'" type="number" step="0.01" value="'+(i.postage||0)+'" onchange="ipSaveNum(\''+m+'\',\''+id+'\',\'postage\',this.value)" onkeydown="if(event.key===\'Enter\')this.blur()"></div>'
      +'</div>';
   const postageRowInner=!_showPostage
     ?''
@@ -20580,6 +20587,8 @@ function renderData(){
         <button class="btn btn-secondary" onclick="retradeForceResync()">${icon('refresh',14)} Force resync</button>
       </div>
 
+      ${_renderDataIntegritySection()}
+
       ${_renderRecentlyDeletedSection()}
 
       <!-- ── DANGER ──────────────────────────────────────────────── -->
@@ -21977,6 +21986,76 @@ function restoreDeletedItem(idx){
 
 // Renders the Recently-deleted card for the Data page. Returns '' when the
 // session buffer is empty, so the section simply doesn't appear.
+// v2.19.37 — scan every item for return/resale integrity problems. Returns a
+// flat list of {month,id,gid,name,code,severity,detail}. Read-only.
+function _auditDataIntegrity(){
+  const out=[];
+  (typeof allDBKeys==='function'?allDBKeys():[]).forEach(function(k){
+    (Array.isArray(DB[k])?DB[k]:[]).forEach(function(i){
+      if(!i||(i.item||'').trim().toUpperCase()==='MONTH END')return;
+      const rh=Array.isArray(i.returnHistory)?i.returnHistory:[];
+      const hasFull=rh.some(function(r){return r.type==='full_seller'||r.type==='full_ebay';});
+      const push=function(code,severity,detail){
+        out.push({month:k,id:i.id,gid:i.gid||'',name:i.item||'(untitled)',code:code,severity:severity,detail:detail});
+      };
+      // DOUBLE_COUNT — resold with no full return: profit counts both sales.
+      if(i.resaleSalePrice&&!hasFull){
+        const g=calcGrossProfit(i);
+        push('DOUBLE_COUNT','high',
+          'Resold but no full return on record — profit counts BOTH sales (£'+(+((i.salePrice||0)+(i.resaleSalePrice||0))).toFixed(2)+' revenue, gross £'+(g!=null?g.toFixed(2):'?')+'). A return likely failed to save. Log the full return to correct it.');
+      }
+      // NO_LOGGED_AT — return with no date: invisible in the returns KPI.
+      rh.forEach(function(r,ri){
+        if(!r.loggedAt){
+          push('NO_LOGGED_AT','med','A '+(r.type||'return')+' (£'+(Number(r.refundAmount)||0).toFixed(2)+') has no date, so it never appears in the Returns KPI. Open the item and re-log or date it.');
+        }
+      });
+      // UNTAGGED_PARTIAL — resold item, partial with no saleNo.
+      if(i.resaleSalePrice){
+        rh.forEach(function(r){
+          if((r.type==='partial_seller'||r.type==='partial_ebay')&&r.saleNo==null){
+            push('UNTAGGED_PARTIAL','low','A partial refund (£'+(Number(r.refundAmount)||0).toFixed(2)+') isn\u2019t tagged to a sale, so it may sit on the wrong one. Open the item and use \u201cMove to Sale 2\u201d if it was against the resale.');
+          }
+        });
+      }
+      // NO_SNAPSHOT — resold, full return present but no sale-1 price snapshot.
+      if(i.resaleSalePrice&&hasFull){
+        const fr=rh.slice().reverse().find(function(r){return r.type==='full_seller'||r.type==='full_ebay';});
+        if(fr&&fr._salePriceAtRelist===undefined){
+          push('NO_SNAPSHOT','low','Relisted before Sale 1 figures were snapshotted, so Sale 1\u2019s price/postage are approximate. Set them on the Sale 1 card if you need them exact.');
+        }
+      }
+    });
+  });
+  return out;
+}
+function _renderDataIntegritySection(){
+  const rows=_auditDataIntegrity();
+  const sevRank={high:0,med:1,low:2};
+  rows.sort(function(a,b){return (sevRank[a.severity]-sevRank[b.severity]);});
+  const sevCol={high:'var(--red)',med:'var(--warn)',low:'var(--muted)'};
+  const sevLbl={high:'High',med:'Check',low:'Minor'};
+  if(!rows.length){
+    return '<div class="sl">Data integrity</div>'
+      +'<div class="section-card" style="margin-bottom:24px;"><div class="section-card-desc" style="color:var(--green)">\u2713 No return or resale integrity issues found.</div></div>';
+  }
+  const body=rows.map(function(r){
+    return '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:10px 0;border-top:1px solid var(--border);cursor:pointer" onclick="openItemDetail(\''+r.month+'\',\''+r.id+'\')">'
+      +'<div style="min-width:0">'
+      +'<div style="display:flex;align-items:center;gap:8px"><span style="font-size:10px;font-weight:700;padding:1px 6px;border-radius:4px;background:var(--surface2);color:'+sevCol[r.severity]+';border:1px solid '+sevCol[r.severity]+'">'+sevLbl[r.severity]+'</span>'
+      +'<span style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(r.name)+'</span>'
+      +(r.gid?'<span style="font-size:11px;color:var(--muted);font-family:monospace">'+esc(r.gid)+'</span>':'')+'</div>'
+      +'<div style="font-size:12px;color:var(--text-secondary);margin-top:3px">'+esc(r.detail)+'</div>'
+      +'</div>'
+      +'<span style="color:var(--muted);flex:0 0 auto;font-size:18px">\u203a</span>'
+      +'</div>';
+  }).join('');
+  return '<div class="sl">Data integrity <span style="color:var(--red);font-weight:600;font-size:12px">'+rows.length+' to review</span></div>'
+    +'<div class="section-card" style="margin-bottom:24px;">'
+    +'<div class="section-card-desc" style="margin-bottom:4px;">Return/resale records that don\u2019t add up. Tap one to open the item. Nothing is changed automatically \u2014 these need your eyes.</div>'
+    +body
+    +'</div>';
+}
 function _renderRecentlyDeletedSection(){
   if(!_deletedThisSession.length)return '';
   const rows=_deletedThisSession.map(function(rec,ix){
@@ -25981,15 +26060,20 @@ window.addEventListener('load', function(){
     const isS1Post=el.classList.contains('rcpt-s1-postage-input');
     const isS2P=el.classList.contains('rcpt-s2-price-input');
     const isS2Post=el.classList.contains('rcpt-s2-postage-input');
-    if(!isS1P&&!isS1Post&&!isS2P&&!isS2Post)return;
+    const _isShip=el.classList.contains('rcpt-s1-shipping-input')||el.classList.contains('rcpt-s2-shipping-input');
+    if(!isS1P&&!isS1Post&&!isS2P&&!isS2Post&&!_isShip)return;
     const m=el.dataset.m, id=el.dataset.id;
     const it=(DB[m]||[]).find(function(x){return x.id===id;});
     if(!it)return;
     const v=+(parseFloat(el.value)||0).toFixed(2);
+    const isS1Ship=el.classList.contains('rcpt-s1-shipping-input');
+    const isS2Ship=el.classList.contains('rcpt-s2-shipping-input');
     if(isS1P)_writeS1Price(it,v);
     else if(isS1Post)_writeS1Postage(it,v);
+    else if(isS1Ship)_writeS1Shipping(it,v);
     else if(isS2P)it.resaleSalePrice=v;
     else if(isS2Post)it.resalePostage=v;
+    else if(isS2Ship)it.resaleShippingCost=v;
     saveDB();
     renderItemPage(m,id);
   });
