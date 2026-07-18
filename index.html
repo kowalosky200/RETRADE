@@ -5548,17 +5548,17 @@ c-230 453 -565 1105 -674 1315 -63 120 -114 221 -114 225 0 4 47 19 104 34
       <span class="side-nav-item-label">Stock Room</span>
       <span class="side-nav-item-badge" id="side-nav-stock-count" style="display:none;" aria-label="Active stock count"></span>
     </button>
-    <button class="side-nav-item side-nav-item-runs" data-tab="runs" onclick="goToTab('runs',this)">
-      <span class="side-nav-item-ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h3l3-8 4 16 3-8h5"/></svg></span>
-      <span class="side-nav-item-label">Runs</span>
+    <button class="side-nav-item" data-tab="monthly" onclick="goToTab('monthly',this)">
+      <span class="side-nav-item-ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2.5"/><path d="M8 3v4M16 3v4"/><line x1="3" y1="10" x2="21" y2="10"/></svg></span>
+      <span class="side-nav-item-label">Sales History</span>
     </button>
     <button class="side-nav-item" data-tab="expenses" onclick="goToTab('expenses',this)">
       <span class="side-nav-item-ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 2h14a1 1 0 0 1 1 1v18l-2.5-1.5L15 21l-2.5-1.5L10 21l-2.5-1.5L5 21V3a1 1 0 0 1 0-1z"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="12" y2="16"/></svg></span>
       <span class="side-nav-item-label">Costs &amp; Trips</span>
     </button>
-    <button class="side-nav-item" data-tab="monthly" onclick="goToTab('monthly',this)">
-      <span class="side-nav-item-ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2.5"/><path d="M8 3v4M16 3v4"/><line x1="3" y1="10" x2="21" y2="10"/></svg></span>
-      <span class="side-nav-item-label">Sales History</span>
+    <button class="side-nav-item side-nav-item-runs" data-tab="runs" onclick="goToTab('runs',this)">
+      <span class="side-nav-item-ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h3l3-8 4 16 3-8h5"/></svg></span>
+      <span class="side-nav-item-label">Runs</span>
     </button>
 
     <hr class="side-nav-divider" aria-hidden="true">
@@ -9958,13 +9958,15 @@ function _renderItemPageInner(m,id){
   // Sale 2 block
   let resaleHTML='';
   if(i.resaleSalePrice){
-    const rBPF=calcPlatformBPF(i,i.resaleSalePrice,0,i.resalePlatform);
+    const _rPostageRcpt=(i.resalePostage!=null?i.resalePostage:(i.postage||0)); // v2.19.29 — real resale postage, was 0
+    const rBPF=calcPlatformBPF(i,i.resaleSalePrice,_rPostageRcpt,i.resalePlatform);
     const rGrossInc=i.resaleSalePrice-rBPF;
     const rPromoCost=rGrossInc*(i.resalePromoPercent||0)*1.20;
-    const rRev=i.resaleSalePrice-rBPF-(i.resaleShippingCost||0)-rPromoCost;
+    const rRev=i.resaleSalePrice+_rPostageRcpt-rBPF-(i.resaleShippingCost||0)-rPromoCost; // v2.19.29 — +postage revenue
     const lifetimeProfit=profit;
     let s2b='';
     s2b+=rcp('Sale price',fmt(i.resaleSalePrice),'var(--green)');
+    if((_rPostageRcpt||0)>0)s2b+=rcp('Postage paid by buyer','+'+fmt(_rPostageRcpt),'var(--green)'); // v2.19.29
     s2b+=rcp(_showFee?_feeLabel:'Platform fee (£0)','−'+fmt(rBPF),_showFee?'var(--red)':'var(--muted)');
     if((i.resaleShippingCost||0)>0)s2b+=rcp('Shipping cost','−'+fmt(i.resaleShippingCost),'var(--red)');
     if(rPromoCost>0)s2b+=rcp((_plat==='ebay'?'Promo fee ('+((i.resalePromoPercent||0)*100).toFixed(1)+'% +VAT)':'Boost fee ('+((i.resalePromoPercent||0)*100).toFixed(1)+'%)'),'−'+fmt(rPromoCost),'var(--red)');
@@ -12605,6 +12607,15 @@ function _itemAccountType(i){
 function _accountItemOwed(i){
   const isSold=_accountItemIsSold(i);
   if(!isSold)return null;
+  // v2.19.28 — LOCKED INVARIANT, now enforced HERE rather than only at the
+  // write sites. A supplier's cost is ALREADY inside calcGrossProfit via
+  // costPrice. Returning non-null for one deducts it a SECOND time in
+  // calcNetProfit and misclassifies it into SA103 Box 17 (partner) when it
+  // belongs in COGS — two boxes wrong, silently. The item split panel can set
+  // accountType='supplier' alongside a % or a fixed amount (and will not save
+  // without one), so a write-site guard cannot hold the line. Settlement
+  // tracking is _accountItemDebt()'s job and is deliberately separate.
+  if(_itemAccountType(i)==='supplier')return null;
   if(i.accountPaidAmount!=null)return +Number(i.accountPaidAmount).toFixed(2);
   if(i.accountSplitPercent==null)return null;
   const profit=calcGrossProfit(i);
@@ -20463,6 +20474,8 @@ function renderData(){
         <button class="btn btn-secondary" onclick="retradeForceResync()">${icon('refresh',14)} Force resync</button>
       </div>
 
+      ${_renderRecentlyDeletedSection()}
+
       <!-- ── DANGER ──────────────────────────────────────────────── -->
       <div class="sl">Danger Zone</div>
       <div class="section-card danger">
@@ -21804,16 +21817,27 @@ function closeResaleModal(){
   MODAL_CALLBACK=null;
 }
 
+// v2.19.29 — Recently-deleted (session undo, Option A). In-memory only by
+// design: NOT a DB key, so no calc, view or sync fingerprint ever sees these.
+// Cleared on reload. Persistent cross-device trash is Phase 3 (deleted_at
+// column in db.js, filtered at the query layer).
+let _deletedThisSession = [];
+
 async function deleteItem(m,id){
   const item=(DB[m]||[]).find(i=>i.id===id);
   const name=item?item.item:'this item';
-  const ok=await showConfirm('Delete item?',name+' will be permanently removed.',{icon:'delete',okLabel:'Delete'});
+  const ok=await showConfirm('Delete item?',esc(name)+' will be removed. You can restore it from Data \u2192 Recently deleted until you reload.',{icon:'delete',okLabel:'Delete'});
   if(!ok)return;
   const idx=(DB[m]||[]).findIndex(i=>i.id===id);
   if(idx>-1){
+    // Deep-copy into the session store WITH its month key, so restore knows
+    // where to put it back. Deep copy so a later mutation of DB can't reach it.
+    const _snapshot=JSON.parse(JSON.stringify(DB[m][idx]));
+    _deletedThisSession.unshift({month:m,deletedAt:Date.now(),item:_snapshot});
+    if(_deletedThisSession.length>50)_deletedThisSession.length=50; // cap the session buffer
     DB[m].splice(idx,1);
     saveDB();
-    toast('Item deleted');
+    toast('Item deleted \u2014 restore in Data');
     if(document.getElementById('slide-panel').classList.contains('on')){
       if(PANEL_STACK.length>0)panelBack();
       else closePanel();
@@ -21822,10 +21846,48 @@ async function deleteItem(m,id){
     if(cur==='p-monthly')renderMonth();
     else if(cur==='p-stock')renderStock();
     else if(cur==='p-item')exitItemPage();
+    else if(cur==='p-data')renderData();
     // E3 P1 #5 — Summary previously not re-rendered on delete/edit via panel.
     // KPIs went stale until tab nav. Add explicit summary refresh.
     else if(cur==='p-summary')renderSummary();
   }
+}
+
+// Restore one item from the session buffer back into its original month.
+function restoreDeletedItem(idx){
+  const rec=_deletedThisSession[idx];
+  if(!rec){toast('Nothing to restore','err');return;}
+  const m=rec.month;
+  if(!Array.isArray(DB[m]))DB[m]=[];
+  // Guard against a double-restore leaving two copies of the same id.
+  if(!DB[m].some(function(i){return i.id===rec.item.id;})){
+    DB[m].push(rec.item);
+  }
+  _deletedThisSession.splice(idx,1);
+  saveDB();
+  toast('Item restored');
+  if(document.querySelector('.page.on').id==='p-data')renderData();
+}
+
+// Renders the Recently-deleted card for the Data page. Returns '' when the
+// session buffer is empty, so the section simply doesn't appear.
+function _renderRecentlyDeletedSection(){
+  if(!_deletedThisSession.length)return '';
+  const rows=_deletedThisSession.map(function(rec,ix){
+    const nm=esc(rec.item.item||'(untitled)');
+    const gid=esc(rec.item.gid||rec.item.id||'');
+    const when=new Date(rec.deletedAt).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+    return '<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 0;border-top:1px solid var(--border);">'
+      +'<div style="min-width:0;"><div style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+nm+'</div>'
+      +'<div style="font-size:12px;color:var(--text-secondary);">'+gid+' \u00b7 deleted '+when+'</div></div>'
+      +'<button class="btn btn-secondary" style="padding:4px 10px;font-size:12px;flex:0 0 auto;" onclick="restoreDeletedItem('+ix+')">Restore</button>'
+      +'</div>';
+  }).join('');
+  return '<div class="sl">Recently deleted</div>'
+    +'<div class="section-card" style="margin-bottom:24px;">'
+    +'<div class="section-card-desc" style="margin-bottom:4px;">Deleted this session. Restores to the item\u2019s original month. Cleared when you reload.</div>'
+    +rows
+    +'</div>';
 }
 
 function confirmDupeItem(m,id){
@@ -24522,7 +24584,7 @@ function calcGrossProfit(i){
     const rBPF=calcPlatformBPF(i,i.resaleSalePrice,rPostage,i.resalePlatform);
     const rGrossInc=i.resaleSalePrice-rBPF;
     const rPromoCost=rGrossInc*(i.resalePromoPercent||0)*1.20;
-    const rRev=i.resaleSalePrice-rBPF-(i.resaleShippingCost||0)-(i.resalePackagingCost||0)-rPromoCost;
+    const rRev=i.resaleSalePrice+rPostage-rBPF-(i.resaleShippingCost||0)-(i.resalePackagingCost||0)-rPromoCost; // v2.19.29 — +rPostage: buyer-paid resale postage is revenue, mirroring sale 1. Was silently dropped.
     profit+=rRev;
   }
   return+profit.toFixed(2);
