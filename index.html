@@ -6415,7 +6415,7 @@ function _listingFeeFor(platformId){
 // would bill a listing that was never actually created.
 function _stampListingFee(item){
   if(!item)return item;
-  item.listingFee=_listingFeeFor(_itemPlatform(item));
+  item.listingFee=_listingFeeFor(_s1Platform(item)); // v2.19.33 — Sale-1 platform
   return item;
 }
 // Stamps the sale-2 (relist) fee. A relist is a second, separately-billed
@@ -6652,6 +6652,13 @@ function _itemPlatform(i){
   if(i.soldOnPlatform&&PLATFORMS[i.soldOnPlatform])return i.soldOnPlatform;
   if(i.defaultPlatform&&PLATFORMS[i.defaultPlatform])return i.defaultPlatform;
   return DEFAULT_PLATFORM;
+}
+// v2.19.33 — Sale 1's own platform. Defaults to the item platform so existing
+// items are byte-identical; set explicitly when Sale 1 sold on a different
+// platform than the relist (e.g. Sale 1 eBay Private, Sale 2 eBay Business).
+function _s1Platform(i){
+  if(i&&i.salePlatform&&PLATFORMS[i.salePlatform])return i.salePlatform;
+  return _itemPlatform(i);
 }
 
 // Session D1.5 — Platform-aware fee label for the BPF preview block.
@@ -7953,6 +7960,7 @@ function _rowToItem(row, parts, returns){
     resaleSalePrice:    row.resale_sale_price ? Number(row.resale_sale_price) : null,
     resaleDateSold:     row.resale_date_sold || null,
     resalePlatform:     row.resale_platform || null,
+    salePlatform:       row.sale_platform || null,   // v2.19.33 — Sale 1's own platform
     refreshHistory:     (function(){try{return row.refresh_history?JSON.parse(row.refresh_history):[];}catch(e){return [];}})(),
     _lastRelistAt:      row.last_relist_at || null,
     _lastRefreshAt:     row.last_refresh_at || null,
@@ -8037,6 +8045,7 @@ function _itemToRow(i, month){
     resale_sale_price:    i.resaleSalePrice    || null,
     resale_date_sold:     i.resaleDateSold     || null,
     resale_platform:      i.resalePlatform     || null,
+    sale_platform:        i.salePlatform       || null,   // v2.19.33
     resale_shipping_cost: i.resaleShippingCost || null,
     resale_promo_percent: i.resalePromoPercent || null,
     resale_packaging_cost:i.resalePackagingCost|| null,
@@ -9764,7 +9773,7 @@ function _renderItemPageInner(m,id){
   const _rcptShipping=_s1Snap&&_s1Snap._shippingCostAtRelist!==undefined?_s1Snap._shippingCostAtRelist:(i.shippingCost||0);
   const _rcptPackaging=_s1Snap&&_s1Snap._packagingCostAtRelist!==undefined?_s1Snap._packagingCostAtRelist:(i.packagingCost||0);
   const _rcptPromo=_s1Snap&&_s1Snap._promoPercentAtRelist!==undefined?_s1Snap._promoPercentAtRelist:(i.promoPercent||0);
-  const bpf=calcPlatformBPF(i,_origSalePrice,_rcptPostage);
+  const bpf=calcPlatformBPF(i,_origSalePrice,_rcptPostage,_s1Platform(i));
   const grossInc=_origSalePrice-bpf;
   const promoCost=_origSalePrice*_rcptPromo*1.20; // ad fee on full sale price, not on grossInc
   const profit=calcGrossProfit(i);
@@ -9777,7 +9786,7 @@ function _renderItemPageInner(m,id){
   const marginDisplay=(margin!==null?margin.toFixed(1)+'%':null);
   const status=i.isReturned?'returned':i.resaleSalePrice?'resold':i.dateSold?'sold':i.condition==='spares'?'spares':'active';
   const hasReturn=(i.returnHistory||[]).length>0;
-  const _plat=_itemPlatform(i);
+  const _plat=_s1Platform(i); // v2.19.33 — Sale 1 receipt reflects Sale 1's platform
   const _showPostage=(_plat!=='vinted');
   const _showSimpleDelivery=(_plat==='ebay'); // Simple Delivery: eBay private only; Biz uses postage policies
   const _showFee=(_plat!=='vinted'&&_plat!=='fb');
@@ -9894,6 +9903,15 @@ function _renderItemPageInner(m,id){
   if(_plat==='vinted')pb+=rcp('Buyer pays postage','(buyer covered)','var(--muted)');
   else if(_rcptPostage>0)pb+=rcp('+ Buyer postage','+'+fmt(_rcptPostage),'var(--green)');
   if(_showFee)pb+=rcp(_feeLabel,'−'+fmt(bpf),'var(--red)');
+  // v2.19.33 — Sale 1 platform picker. Setting it re-renders the whole card
+  // (fee label, BPF, listing fee) off the chosen platform. Defaults to the
+  // resolved Sale-1 platform so it shows today's value until changed.
+  pb+='<div class="ip-receipt-row"><span style="flex:1;color:var(--text-secondary)">Sold on</span>'
+    +'<span class="ip-receipt-val">'
+    +'<select class="rcpt-s1-platform-select" data-m="'+m+'" data-id="'+id+'" '
+    +'style="background:var(--surface2);border:1px solid var(--border);border-radius:5px;color:var(--text);font-size:12px;padding:2px 6px;font-family:inherit">'
+    +Object.values(PLATFORMS).map(function(p){return '<option value="'+p.id+'"'+(p.id===_plat?' selected':'')+(!p.live?' disabled':'')+'>'+(p.label||p.short)+'</option>';}).join('')
+    +'</select></span></div>';
   // F1: Listing fee — inline editable input in receipt for eBay Biz; read-only line for others if set
   if(_plat==='ebay_biz'){
     pb+='<div class="ip-receipt-row"><span style="flex:1;color:var(--text-secondary)">Listing fee</span>'
@@ -23421,7 +23439,7 @@ function _returnEventImpact(i,r){
   let recoveredBpf=0;
   if(isFull){
     const originalPrice=Number(r._salePriceAtReturn||r._salePriceAtRelist||refund||i.salePrice)||0;
-    recoveredBpf=calcPlatformBPF(i,originalPrice,Number(i.postage)||0);
+    recoveredBpf=calcPlatformBPF(i,originalPrice,Number(i.postage)||0,_s1Platform(i));
   }
   const profitImpact=-(Math.max(0,refund-recoveredBpf)+postage);
   return {refund:+refund.toFixed(2),postage:+postage.toFixed(2),profit:+profitImpact.toFixed(2)};
@@ -23608,7 +23626,7 @@ function _saleBreakdown(ev){
     shipping=snap&&fr._shippingCostAtRelist!==undefined?fr._shippingCostAtRelist:(i.shippingCost||0);
     packaging=snap&&fr._packagingCostAtRelist!==undefined?fr._packagingCostAtRelist:(i.packagingCost||0);
     promoPct=snap&&fr._promoPercentAtRelist!==undefined?fr._promoPercentAtRelist:(i.promoPercent||0);
-    bpf=calcPlatformBPF(i,salePrice,postage);
+    bpf=calcPlatformBPF(i,salePrice,postage,_s1Platform(i));
   }
   // COGS: item cost + parts. Only counted against sale 1 (parts persist on the item and are a one-time input).
   itemCost=isSale2?0:(i.costPrice||0);
@@ -23630,7 +23648,7 @@ function _saleBreakdown(ev){
     const _rSale=(r.saleNo===2)?2:1;
     const isFull=(r.type==='full_seller'||r.type==='full_ebay');
     if(!isSale2&&isFull&&!i.resaleSalePrice){
-      const origBPF=calcPlatformBPF(i,r._salePriceAtReturn||r.refundAmount||salePrice,postage);
+      const origBPF=calcPlatformBPF(i,r._salePriceAtReturn||r.refundAmount||salePrice,postage,_s1Platform(i));
       returnCost+=Math.max(0,(r.refundAmount||0)-origBPF);
     }
     // Return postage sits with sale 1 (that's where the return event lives).
@@ -23643,7 +23661,7 @@ function _saleBreakdown(ev){
   // portion, so recompute bpf on the reduced base and hand the difference back.
   if(_psTotalThisSale>0){
     const _reducedBase=Math.max(0,salePrice-_psTotalThisSale);
-    const _bpfAfterPS=isSale2?calcPlatformBPF(i,_reducedBase,postage,i.resalePlatform):calcPlatformBPF(i,_reducedBase,postage);
+    const _bpfAfterPS=isSale2?calcPlatformBPF(i,_reducedBase,postage,i.resalePlatform):calcPlatformBPF(i,_reducedBase,postage,_s1Platform(i));
     const _feeCredit=Math.max(0,bpf-_bpfAfterPS);
     bpf=+(bpf-_feeCredit).toFixed(2); // net fee after eBay's partial credit
   }
@@ -24587,7 +24605,7 @@ function calcGrossProfit(i){
   const _s1Promo=(_snap&&_fullReturnEntry._promoPercentAtRelist!==undefined)?_fullReturnEntry._promoPercentAtRelist:(i.promoPercent||0);
   const _baseSale=_snap?_s1SalePrice:i.salePrice;
   const effectiveSaleForFees=Math.max(0,_baseSale-partialSellerRefund);
-  const bpf=calcPlatformBPF(i,effectiveSaleForFees,_s1Postage);
+  const bpf=calcPlatformBPF(i,effectiveSaleForFees,_s1Postage,_s1Platform(i));
   const grossInc=effectiveSaleForFees-bpf;
   // Ad/promo fee is charged on the full sale price (same base as FVF), NOT on
   // grossInc. Using grossInc understated it — verified against a real eBay
@@ -24615,7 +24633,7 @@ function calcGrossProfit(i){
       }
       // Standard path: item is returned and not yet relisted — charge refund net of BPF refund
       const origSalePrice=r._salePriceAtReturn||r.refundAmount||i.salePrice||0;
-      const origBPF=calcPlatformBPF(i,origSalePrice,_s1Postage);
+      const origBPF=calcPlatformBPF(i,origSalePrice,_s1Postage,_s1Platform(i));
       const netRefund=Math.max(0,(r.refundAmount||0)-origBPF);
       return s+netRefund+(r.returnPostage||0);
     }
@@ -25869,6 +25887,19 @@ window.addEventListener('load', function(){
       if(!Array.isArray(it.returnHistory)||!it.returnHistory[ri])return;
       it.returnHistory[ri].returnPostage=_v;
     } else if(_isS2){ it.resaleListingFee=_v; } else { it.listingFee=_v; }
+    saveDB();
+    renderItemPage(m,id);
+  });
+  // v2.19.33 — Sale 1 platform picker. Change salePlatform, re-stamp the Sale-1
+  // listing fee to the new platform's insertion fee, and re-render.
+  document.addEventListener('change', function(e){
+    const el=e.target;
+    if(!el.classList||!el.classList.contains('rcpt-s1-platform-select'))return;
+    const m=el.dataset.m, id=el.dataset.id;
+    const it=(DB[m]||[]).find(function(x){return x.id===id;});
+    if(!it||!PLATFORMS[el.value])return;
+    it.salePlatform=el.value;
+    it.listingFee=_listingFeeFor(_s1Platform(it)); // re-stamp to the chosen platform
     saveDB();
     renderItemPage(m,id);
   });
