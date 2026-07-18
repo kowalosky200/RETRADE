@@ -5876,6 +5876,28 @@ function keyYear(k){
 function keyName(k){ return (MONTH_NAMES[keyCode(k)]||keyCode(k))+' '+keyYear(k); }
 
 // All DB keys that should exist: current FY + previous FY + any FY with data + next FY
+// v2.19.35 — one-time backfill: untagged partial refunds on resold items that
+// were logged on/after the resale date belong to Sale 2. Only sets saleNo where
+// it is absent, so it never overrides a deliberate tag and is safe to re-run.
+function _migrateSaleNoTags(){
+  let touched=0;
+  try{
+    (typeof allDBKeys==='function'?allDBKeys():[]).forEach(function(k){
+      (Array.isArray(DB[k])?DB[k]:[]).forEach(function(it){
+        if(!it||!it.resaleSalePrice||!Array.isArray(it.returnHistory))return;
+        const rd=it.resaleDateSold?String(it.resaleDateSold):null;
+        it.returnHistory.forEach(function(r){
+          if(!r||r.saleNo!=null)return;
+          const isPartial=(r.type==='partial_seller'||r.type==='partial_ebay');
+          if(!isPartial)return;
+          const logged=r.loggedAt?String(r.loggedAt):null;
+          if(rd&&logged&&logged>=rd){ r.saleNo=2; touched++; }
+        });
+      });
+    });
+  }catch(e){}
+  return touched;
+}
 function allDBKeys(){
   const curFY=_currentFYStart();
   const fySet=new Set([curFY-1, curFY, curFY+1]);
@@ -6659,6 +6681,43 @@ function _itemPlatform(i){
 function _s1Platform(i){
   if(i&&i.salePlatform&&PLATFORMS[i.salePlatform])return i.salePlatform;
   return _itemPlatform(i);
+}
+// v2.19.35 — the latest full-return entry, which carries Sale 1's snapshot on a
+// resold item. Mirrors calcGrossProfit's finder exactly.
+function _latestFullReturn(i){
+  return (i&&i.returnHistory||[]).slice().reverse().find(function(r){return r.type==='full_seller'||r.type==='full_ebay';})||null;
+}
+// Write Sale 1's price to wherever the calc reads it: the relist snapshot on a
+// resold item, else i.salePrice.
+function _writeS1Price(it,v){
+  const fr=_latestFullReturn(it);
+  if(it.resaleSalePrice&&fr){ fr._salePriceAtRelist=v; }
+  else { it.salePrice=v; }
+}
+// Write Sale 1's postage: the relist snapshot on a resold item, else i.postage.
+function _writeS1Postage(it,v){
+  const fr=_latestFullReturn(it);
+  if(it.resaleSalePrice&&fr){ fr._postageAtRelist=v; }
+  else { it.postage=v; }
+}
+// An inline-editable money row (label + −/£ number input). cls routes the
+// delegated change handler; sign is '' or '+'.
+function _editMoneyRow(label,cls,m,id,val,color,sign){
+  return '<div class="ip-receipt-row"><span style="flex:1;color:var(--text-secondary)">'+label+'</span>'
+    +'<span class="ip-receipt-val" style="color:'+color+';display:flex;align-items:center;gap:4px">'
+    +(sign||'')+'£<input type="number" class="'+cls+'" data-m="'+m+'" data-id="'+id+'" value="'+(+val||0)+'" min="0" step="0.01" '
+    +'style="width:66px;padding:2px 4px;background:var(--surface2);border:1px solid var(--border);border-radius:5px;color:'+color+';font-size:13px;font-weight:600;text-align:right">'
+    +'</span></div>';
+}
+// v2.19.33 — platform picker row for a sale card. cls selects which handler
+// fires (sale 1 vs sale 2); sel is the currently-resolved platform id.
+function _salePlatformPickerRow(cls,m,id,sel){
+  return '<div class="ip-receipt-row" style="padding-bottom:8px;margin-bottom:6px;border-bottom:1px solid var(--border)">'
+    +'<span style="flex:1;color:var(--text-secondary);font-weight:600">Sold on</span><span class="ip-receipt-val">'
+    +'<select class="'+cls+'" data-m="'+m+'" data-id="'+id+'" '
+    +'style="background:var(--surface2);border:1px solid var(--border);border-radius:5px;color:var(--text);font-size:12px;padding:3px 8px;font-family:inherit;font-weight:600">'
+    +Object.values(PLATFORMS).map(function(p){return '<option value="'+p.id+'"'+(p.id===sel?' selected':'')+(!p.live?' disabled':'')+'>'+(p.label||p.short)+'</option>';}).join('')
+    +'</select></span></div>';
 }
 
 // Session D1.5 — Platform-aware fee label for the BPF preview block.
@@ -7694,6 +7753,7 @@ function enablePreviewMode(){
   // Patch A — Stamp canonical state field on preview-mode items too
   try{ _migrateItemStates(); }catch(e){ console.warn('state migrate (preview):',e); }
   try{ if(typeof _migrateSupplierSettledOnce==='function')_migrateSupplierSettledOnce(); }catch(e){ console.warn('supplier settle migrate (preview):',e); }
+  try{ _migrateSaleNoTags(); }catch(e){ console.warn('saleNo migrate (preview):',e); }
   _dbSnapshot = _dbFingerprint();
 }
 
@@ -8706,6 +8766,7 @@ async function initDB(){
     // v2.09 — Pre-existing supplier items with cost + no explicit settled flag
     // default to settled (historical purchases were paid on the spot). Idempotent.
     try{if(typeof _migrateSupplierSettledOnce==='function')_migrateSupplierSettledOnce();}catch(e){console.warn('supplier settle migration failed',e);}
+    try{_migrateSaleNoTags();}catch(e){console.warn('saleNo migration failed',e);}
     // If the reconcile fixed anything, snapshot the OLD state so the next
     // saveDB pushes the corrections. Otherwise snapshot the current (unchanged)
     // state so we don't re-upload untouched rows.
@@ -9897,21 +9958,15 @@ function _renderItemPageInner(m,id){
   }
   const _isResoldItem=!!i.resaleSalePrice;
   let pb='';
-  pb+=rcp(_wasRelistedDetect||_isResoldItem?'Sale price (Sale 1)':'Sale price',fmt(_origSalePrice),'var(--green)');
+  pb+=_salePlatformPickerRow('rcpt-s1-platform-select',m,id,_plat); // v2.19.33 — picker at top
+  pb+=_editMoneyRow(_wasRelistedDetect||_isResoldItem?'Sale price (Sale 1)':'Sale price','rcpt-s1-price-input',m,id,_origSalePrice,'var(--green)','');
   if(_wasRelistedDetect)pb+=rcp('↳ Relisted at',fmt(i.salePrice||0),'var(--muted)',true);
   if(_isResoldItem)pb+=rcp('↳ Sale 2 price',fmt(i.resaleSalePrice||0),'var(--muted)',true);
+  // v2.19.35 — Sale 1 postage is now editable (writes the snapshot on a resold
+  // item). Vinted shows the buyer-covered note instead.
   if(_plat==='vinted')pb+=rcp('Buyer pays postage','(buyer covered)','var(--muted)');
-  else if(_rcptPostage>0)pb+=rcp('+ Buyer postage','+'+fmt(_rcptPostage),'var(--green)');
+  else pb+=_editMoneyRow('+ Buyer postage','rcpt-s1-postage-input',m,id,_rcptPostage,'var(--green)','+');
   if(_showFee)pb+=rcp(_feeLabel,'−'+fmt(bpf),'var(--red)');
-  // v2.19.33 — Sale 1 platform picker. Setting it re-renders the whole card
-  // (fee label, BPF, listing fee) off the chosen platform. Defaults to the
-  // resolved Sale-1 platform so it shows today's value until changed.
-  pb+='<div class="ip-receipt-row"><span style="flex:1;color:var(--text-secondary)">Sold on</span>'
-    +'<span class="ip-receipt-val">'
-    +'<select class="rcpt-s1-platform-select" data-m="'+m+'" data-id="'+id+'" '
-    +'style="background:var(--surface2);border:1px solid var(--border);border-radius:5px;color:var(--text);font-size:12px;padding:2px 6px;font-family:inherit">'
-    +Object.values(PLATFORMS).map(function(p){return '<option value="'+p.id+'"'+(p.id===_plat?' selected':'')+(!p.live?' disabled':'')+'>'+(p.label||p.short)+'</option>';}).join('')
-    +'</select></span></div>';
   // F1: Listing fee — inline editable input in receipt for eBay Biz; read-only line for others if set
   if(_plat==='ebay_biz'){
     pb+='<div class="ip-receipt-row"><span style="flex:1;color:var(--text-secondary)">Listing fee</span>'
@@ -10007,8 +10062,9 @@ function _renderItemPageInner(m,id){
     const rRev=i.resaleSalePrice+_rPostageRcpt-rBPF-(i.resaleShippingCost||0)-rPromoCost-_s2PS+_s2PsFeeCredit-_s2PE; // v2.19.31 — Sale-2 partial refunds
     const lifetimeProfit=profit;
     let s2b='';
-    s2b+=rcp('Sale price',fmt(i.resaleSalePrice),'var(--green)');
-    if((_rPostageRcpt||0)>0)s2b+=rcp('Postage paid by buyer','+'+fmt(_rPostageRcpt),'var(--green)'); // v2.19.29
+    s2b+=_salePlatformPickerRow('rcpt-s2-platform-select',m,id,(i.resalePlatform&&PLATFORMS[i.resalePlatform])?i.resalePlatform:_itemPlatform(i)); // v2.19.33
+    s2b+=_editMoneyRow('Sale price','rcpt-s2-price-input',m,id,i.resaleSalePrice,'var(--green)','');
+    s2b+=_editMoneyRow('Postage paid by buyer','rcpt-s2-postage-input',m,id,_rPostageRcpt,'var(--green)','+'); // v2.19.35 — editable
     s2b+=rcp(_showFee?_feeLabel:'Platform fee (£0)','−'+fmt(rBPF),_showFee?'var(--red)':'var(--muted)');
     if((i.resaleShippingCost||0)>0)s2b+=rcp('Shipping cost','−'+fmt(i.resaleShippingCost),'var(--red)');
     if(rPromoCost>0)s2b+=rcp((_plat==='ebay'?'Promo fee ('+((i.resalePromoPercent||0)*100).toFixed(1)+'% +VAT)':'Boost fee ('+((i.resalePromoPercent||0)*100).toFixed(1)+'%)'),'−'+fmt(rPromoCost),'var(--red)');
@@ -10245,6 +10301,8 @@ function _renderItemPageInner(m,id){
   // P&L Receipt
   const pnlOpen=!i.resaleSalePrice;
   const pnlTitle=i.resaleSalePrice?'Sale 1 P&amp;L':'P&amp;L Receipt';
+  // v2.19.35 — when there are two sales, the header shows the LAST sale; the
+  // per-sale cards below hold each sale's editable figures.
   html+=sec(pnlTitle,pb,pnlOpen,fmt(sale1Net),sale1Net>=0?'var(--green)':'var(--red)','ip-section-pnl');
 
   // E4 P2 — Sale 1 details editor. Only relevant when the item has been
@@ -25900,6 +25958,38 @@ window.addEventListener('load', function(){
     if(!it||!PLATFORMS[el.value])return;
     it.salePlatform=el.value;
     it.listingFee=_listingFeeFor(_s1Platform(it)); // re-stamp to the chosen platform
+    saveDB();
+    renderItemPage(m,id);
+  });
+  // v2.19.33 — Sale 2 platform picker.
+  document.addEventListener('change', function(e){
+    const el=e.target;
+    if(!el.classList||!el.classList.contains('rcpt-s2-platform-select'))return;
+    const m=el.dataset.m, id=el.dataset.id;
+    const it=(DB[m]||[]).find(function(x){return x.id===id;});
+    if(!it||!PLATFORMS[el.value])return;
+    it.resalePlatform=el.value;
+    it.resaleListingFee=_listingFeeFor(it.resalePlatform||_itemPlatform(it)); // re-stamp sale-2 fee
+    saveDB();
+    renderItemPage(m,id);
+  });
+  // v2.19.35 — editable per-sale price + postage. Each writes to the field the
+  // calc reads (snapshot-aware for Sale 1 on a resold item) then re-renders.
+  document.addEventListener('change', function(e){
+    const el=e.target; if(!el.classList)return;
+    const isS1P=el.classList.contains('rcpt-s1-price-input');
+    const isS1Post=el.classList.contains('rcpt-s1-postage-input');
+    const isS2P=el.classList.contains('rcpt-s2-price-input');
+    const isS2Post=el.classList.contains('rcpt-s2-postage-input');
+    if(!isS1P&&!isS1Post&&!isS2P&&!isS2Post)return;
+    const m=el.dataset.m, id=el.dataset.id;
+    const it=(DB[m]||[]).find(function(x){return x.id===id;});
+    if(!it)return;
+    const v=+(parseFloat(el.value)||0).toFixed(2);
+    if(isS1P)_writeS1Price(it,v);
+    else if(isS1Post)_writeS1Postage(it,v);
+    else if(isS2P)it.resaleSalePrice=v;
+    else if(isS2Post)it.resalePostage=v;
     saveDB();
     renderItemPage(m,id);
   });
