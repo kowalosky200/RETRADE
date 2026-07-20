@@ -8283,6 +8283,50 @@ async function _backfillDateSoldAtReturn(){
   try{ localStorage.setItem(_BACKFILL_KEY,'1'); }catch(e){}
 }
 
+// ── Missing-column resilience (v2.19.38) ────────────────────────────────────
+// A column the current app writes but the DB hasn't migrated yet (sale_platform,
+// resale_listing_fee, the *_at_relist return snapshots, sourcing_runs.ended_at_iso,
+// …) makes PostgREST reject the WHOLE upsert. Before this, that threw, _persistChanges
+// swallowed it as a quiet "schema mismatch" console.warn, and the row never reached
+// the cloud — so on reload the old row came back: sold reverted to listed, new items
+// vanished, and a return that hit a missing column was lost (double-counting the item).
+// These helpers strip the offending column(s) and retry so the row STILL saves (minus
+// the un-migrated field) and warn ONCE so the migration gets run. Generalises the
+// pre-existing account_* / trip-expenses one-off fallbacks.
+function _missingColumnFromError(err){
+  const m=(err&&err.message)||'';
+  let mm=m.match(/Could not find the '([^']+)' column/i);                            // PGRST204
+  if(mm) return mm[1];
+  mm=m.match(/column "?([a-zA-Z0-9_]+)"?(?: of relation "[^"]+")? does not exist/i);  // 42703
+  if(mm) return mm[1];
+  return null;
+}
+async function _sbWriteFallback(makeQuery, rows, label){
+  // rows: a single object (upsert) or an array of objects (insert).
+  let payload = Array.isArray(rows) ? rows.map(r=>({...r})) : {...rows};
+  const stripped = [];
+  for(let guard=0; guard<50; guard++){
+    const {error} = await _sbCall(()=>makeQuery(payload));
+    if(!error){
+      if(stripped.length && !window['_migWarn_'+label]){
+        window['_migWarn_'+label]=true;
+        toast('Saved locally. Run the Supabase migration to sync new fields: '+stripped.join(', '),'err');
+      }
+      return {error:null, stripped};
+    }
+    const col=_missingColumnFromError(error);
+    const has = Array.isArray(payload) ? (payload[0] && col!=null && col in payload[0]) : (col!=null && col in payload);
+    if(col && has){
+      if(Array.isArray(payload)) payload.forEach(r=>{ delete r[col]; });
+      else delete payload[col];
+      stripped.push(col);
+      continue;
+    }
+    return {error, stripped}; // not a missing-column error → real failure, surface it
+  }
+  return {error:new Error('Too many missing columns on '+label+' — run the Supabase migration.'), stripped};
+}
+
 // Upserts the item row, then replaces its parts and returns in full.
 
 async function saveItemToSupabase(m, i){
@@ -8302,23 +8346,13 @@ async function saveItemToSupabase(m, i){
   // missing 'sourced' after E6 rename. Boundary guard above provides defence
   // against future regression. Debug log removed — bug confirmed fixed.
 
-  // Upsert main item row — conflict on (id, user_id) so two users with the
-  // same item ID never overwrite each other
-  let {error: itemErr} = await _sbCall(()=>_sb.from('items').upsert(row, {onConflict: 'id,user_id'}));
-  // E33 graceful fallback: if Supabase doesn't have the account_* columns yet
-  // (user hasn't run the migration SQL), retry without those fields so the
-  // item itself still saves. Account tagging stays in memory locally and
-  // will sync on the next save once the columns are added — mirrors the
-  // BUG-07 trip-expenses fallback above.
-  if(itemErr && /account_(id|split_percent|settled|paid_amount|item_type)/i.test(itemErr.message||'') && /column/i.test(itemErr.message||'')){
-    if(!window._accountColumnsWarned){
-      window._accountColumnsWarned=true;
-      toast('Item saved locally. Add account columns in Supabase to sync partner tags.','err');
-    }
-    delete row.account_id; delete row.account_item_type; delete row.account_split_percent; delete row.account_settled; delete row.account_paid_amount;
-    const retry = await _sbCall(()=>_sb.from('items').upsert(row, {onConflict: 'id,user_id'}));
-    itemErr = retry.error;
-  }
+  // Upsert main item row — conflict on (id, user_id) so two users with the same
+  // item ID never overwrite each other. Any column the DB hasn't migrated yet
+  // (sale_platform, resale_listing_fee, account_*, …) is stripped-and-retried by
+  // _sbWriteFallback so the row STILL persists instead of the whole save throwing
+  // and the item silently reverting on reload (was the "sold → listed" data loss).
+  const {error: itemErr} = await _sbWriteFallback(
+    p => _sb.from('items').upsert(p, {onConflict: 'id,user_id'}), row, 'items');
   if(itemErr) throw new Error('Save item failed: ' + itemErr.message);
 
   // Replace parts: delete old, insert new
@@ -8361,7 +8395,12 @@ async function saveItemToSupabase(m, i){
       sd_rate_idx_at_relist:   r._sdRateIdxAtRelist!=null ? Number(r._sdRateIdxAtRelist) : null,
       sd_buyer_pays_at_relist: r._sdBuyerPaysAtRelist!=null ? !!r._sdBuyerPaysAtRelist : null,
     }));
-    const {error: retErr} = await _sbCall(()=>_sb.from('item_returns').insert(retRows));
+    // Column-fallback: a missing *_at_relist / sale_no column previously threw
+    // here and — because the old rows were already deleted above — the return
+    // was lost entirely, which is what double-counted the resold item. Now the
+    // return still saves (minus the un-migrated snapshot field) until migrated.
+    const {error: retErr} = await _sbWriteFallback(
+      p => _sb.from('item_returns').insert(p), retRows, 'item_returns');
     if(retErr) throw new Error('Save returns failed: ' + retErr.message);
   }
 }
@@ -8465,7 +8504,11 @@ async function saveRunToSupabase(run){
     throw new Error(msg);
   }
   const row=_runToRow(run);
-  const {error}=await _sbCall(()=>_sb.from('sourcing_runs').upsert(row,{onConflict:'id'}));
+  // Column-fallback: sourcing_runs.ended_at_iso / started_at_iso may not be
+  // migrated (E32) — without this the whole run upsert threw and the run never
+  // persisted (the "runs" data-loss episode). Now it saves minus the field.
+  const {error}=await _sbWriteFallback(
+    p => _sb.from('sourcing_runs').upsert(p,{onConflict:'id'}), row, 'sourcing_runs');
   if(error) throw new Error('Save run failed: '+error.message);
 }
 
@@ -8690,8 +8733,16 @@ async function _persistChanges(){
         return !msg||(!(msg.includes('does not exist'))&&!(msg.includes('undefined column'))&&!(msg.includes('42703'))&&!(msg.includes('column')));
       });
       if(schemaErrors.length>0){
-        // Schema error: log quietly, don't show connection toast — data saved locally
-        console.warn('[RETRADE] Supabase schema mismatch (column not yet migrated) — local save OK:', schemaErrors);
+        // The column-fallback (_sbWriteFallback) normally strips the un-migrated
+        // column and saves anyway, so reaching here means a save STILL failed and
+        // did not reach the cloud. This used to log silently, which is exactly how
+        // "sold reverted to listed" / "data disappeared" happened invisibly.
+        // Surface it once so the migration actually gets run.
+        console.warn('[RETRADE] Supabase schema mismatch (column not yet migrated):', schemaErrors);
+        if(!window._schemaMismatchWarned){
+          window._schemaMismatchWarned=true;
+          toast('⚠️ Some changes could not sync to the cloud (missing DB column). Run the Supabase migration — see handover.','err');
+        }
       }
       if(networkErrors.length>0){
         console.error('Supabase sync errors:', networkErrors);
@@ -10074,7 +10125,19 @@ function _renderItemPageInner(m,id){
     s2b+=_editMoneyRow('Postage paid by buyer','rcpt-s2-postage-input',m,id,_rPostageRcpt,'var(--green)','+'); // v2.19.35 — editable
     s2b+=rcp(_showFee?_feeLabel:'Platform fee (£0)','−'+fmt(rBPF),_showFee?'var(--red)':'var(--muted)');
     s2b+=_editMoneyRow('Shipping cost (you pay)','rcpt-s2-shipping-input',m,id,(i.resaleShippingCost||0),'var(--red)','−'); // v2.19.36 — editable per sale
-    if(rPromoCost>0)s2b+=rcp((_plat==='ebay'?'Promo fee ('+((i.resalePromoPercent||0)*100).toFixed(1)+'% +VAT)':'Boost fee ('+((i.resalePromoPercent||0)*100).toFixed(1)+'%)'),'−'+fmt(rPromoCost),'var(--red)');
+    // v2.19.39 — Sale 2 promo % is now editable and ALWAYS shown (was a static
+    // row hidden when the fee was 0, so a resold item's boost could neither be
+    // set from zero nor corrected). Writes i.resalePromoPercent; the −£ fee shows
+    // alongside when > 0. Editing the header PROMO token only moves i.promoPercent
+    // (the live/relist value), which the Sale 2 calc doesn't read — this does.
+    const _s2PromoPct=(i.resalePromoPercent||0)*100;
+    s2b+='<div class="ip-receipt-row"><span style="flex:1;color:var(--text-secondary)">'+(_plat==='ebay'?'Promo % (+VAT)':'Boost %')+'</span>'
+      +'<span class="ip-receipt-val" style="display:flex;align-items:center;gap:4px">'
+      +'<input type="number" class="rcpt-s2-promo-input" data-m="'+m+'" data-id="'+id+'" value="'+(+_s2PromoPct.toFixed(2))+'" min="0" step="0.1" '
+      +'style="width:52px;padding:2px 4px;background:var(--surface2);border:1px solid var(--border);border-radius:5px;color:var(--text);font-size:13px;font-weight:600;text-align:right">'
+      +'<span style="color:var(--muted)">%</span>'
+      +(rPromoCost>0?'<span style="margin-left:6px;color:var(--red)">−'+fmt(rPromoCost)+'</span>':'')
+      +'</span></div>';
     // v2.19.31 — Sale-2 partial refund lines, so the resale card explains its own number.
     if(_s2PS>0){
       s2b+=rcp('Partial refund — you handled','−'+fmt(_s2PS),'var(--accent)');
@@ -22496,13 +22559,19 @@ function undoReturnEntry(m,id,rtnIdx){
   const r=i.returnHistory[rtnIdx];
   if(!r)return;
   i.returnHistory.splice(rtnIdx,1);
-  // If this was a full return and there are no more full returns, restore sold status
-  const stillFullyReturned=i.returnHistory.some(function(r2){return r2.type==='full_seller'||r2.type==='full_ebay';});
+  // If this was a full return and there are no more UN-RELISTED full returns,
+  // restore sold status. v2.19.39 — a full return that already carries
+  // _relistedAt is historical (it was relisted, and on a resold item resold too),
+  // not "currently returned". Without the !_relistedAt guard, undoing the Sale-2
+  // return on a resold item left isReturned=true because Sale 1's full return
+  // still counted — so the item showed "Relist" instead of "Return".
+  const stillFullyReturned=i.returnHistory.some(function(r2){return (r2.type==='full_seller'||r2.type==='full_ebay')&&!r2._relistedAt;});
   if(!stillFullyReturned&&i.isReturned){
     i.isReturned=false;
     i.state='sold';
-    // Restore dateSold from the entry we just removed (best guess)
-    i.dateSold=r.loggedAt||null;
+    // Restore dateSold only if it was cleared — never clobber a live sale date
+    // (e.g. Sale 2's date on a resold item).
+    if(!i.dateSold)i.dateSold=r.loggedAt||null;
   }
   saveDB();
   renderItemPage(m,id);
@@ -26061,7 +26130,8 @@ window.addEventListener('load', function(){
     const isS2P=el.classList.contains('rcpt-s2-price-input');
     const isS2Post=el.classList.contains('rcpt-s2-postage-input');
     const _isShip=el.classList.contains('rcpt-s1-shipping-input')||el.classList.contains('rcpt-s2-shipping-input');
-    if(!isS1P&&!isS1Post&&!isS2P&&!isS2Post&&!_isShip)return;
+    const isS2Promo=el.classList.contains('rcpt-s2-promo-input'); // v2.19.39
+    if(!isS1P&&!isS1Post&&!isS2P&&!isS2Post&&!_isShip&&!isS2Promo)return;
     const m=el.dataset.m, id=el.dataset.id;
     const it=(DB[m]||[]).find(function(x){return x.id===id;});
     if(!it)return;
@@ -26074,6 +26144,7 @@ window.addEventListener('load', function(){
     else if(isS2P)it.resaleSalePrice=v;
     else if(isS2Post)it.resalePostage=v;
     else if(isS2Ship)it.resaleShippingCost=v;
+    else if(isS2Promo)it.resalePromoPercent=Math.max(0,parseFloat(el.value)||0)/100; // v2.19.39 — % → fraction
     saveDB();
     renderItemPage(m,id);
   });
