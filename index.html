@@ -6687,24 +6687,26 @@ function _s1Platform(i){
 function _latestFullReturn(i){
   return (i&&i.returnHistory||[]).slice().reverse().find(function(r){return r.type==='full_seller'||r.type==='full_ebay';})||null;
 }
-// Write Sale 1's price to wherever the calc reads it: the relist snapshot on a
-// resold item, else i.salePrice.
+// Write Sale 1's price to wherever the calc reads it: the relist snapshot once
+// the item has been relisted (frozen Sale 1), else i.salePrice. v2.19.40 — the
+// gate is now fr._relistedAt (relisted) OR resaleSalePrice (resold), so editing
+// Sale 1 in the relisted state writes history, not the live relist value.
 function _writeS1Price(it,v){
   const fr=_latestFullReturn(it);
-  if(it.resaleSalePrice&&fr){ fr._salePriceAtRelist=v; }
+  if(fr&&(it.resaleSalePrice||fr._relistedAt)){ fr._salePriceAtRelist=v; }
   else { it.salePrice=v; }
 }
-// Write Sale 1's postage: the relist snapshot on a resold item, else i.postage.
+// Write Sale 1's postage: the relist snapshot once relisted/resold, else i.postage.
 function _writeS1Postage(it,v){
   const fr=_latestFullReturn(it);
-  if(it.resaleSalePrice&&fr){ fr._postageAtRelist=v; }
+  if(fr&&(it.resaleSalePrice||fr._relistedAt)){ fr._postageAtRelist=v; }
   else { it.postage=v; }
 }
 // Write Sale 1's shipping cost (what YOU pay the carrier): the relist snapshot
-// on a resold item, else i.shippingCost. v2.19.36.
+// once relisted/resold, else i.shippingCost. v2.19.36 / v2.19.40.
 function _writeS1Shipping(it,v){
   const fr=_latestFullReturn(it);
-  if(it.resaleSalePrice&&fr){ fr._shippingCostAtRelist=v; }
+  if(fr&&(it.resaleSalePrice||fr._relistedAt)){ fr._shippingCostAtRelist=v; }
   else { it.shippingCost=v; }
 }
 // An inline-editable money row (label + −/£ number input). cls routes the
@@ -9803,8 +9805,19 @@ function _renderStockItemPage(m,i){
           onclick="openTokenEdit('${m}','${id}','estSalePrice')">
           <div class="ip-token-label">Est. Sale</div>
           <div class="ip-token-val">${fmt(i.estSalePrice)}</div>
-          <div class="ip-token-sub">✎ est profit ${(function(p){return (p>=0?'+':'')+fmt(p);})(i.estSalePrice-(i.costPrice||0)-partsCost)}</div>
+          <div class="ip-token-sub">✎ Tap to edit</div>
         </div>`:''}
+        ${i.estSalePrice!=null?(function(){
+          const _net=_estPotentialNet(i);
+          const _cut=_estPartnerCut(i);
+          const _margin=i.estSalePrice>0?Math.round(((_net||0)/i.estSalePrice)*100):0;
+          const _sub=_cut!=null?('\u2248 '+fmt(_cut)+' to partner'):(_margin+'% margin est');
+          return `
+        <div class="ip-token locked">
+          <div class="ip-token-label">Est. Profit</div>
+          <div class="ip-token-val" style="color:${(_net||0)>=0?'var(--green)':'var(--red)'}">${((_net||0)>=0?'+':'')+fmt(_net||0)}</div>
+          <div class="ip-token-sub">${_sub}</div>
+        </div>`;})():''}
       </div>
       ${i.notes?`<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:18px;"><div style="font-size:11px;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-secondary);font-weight:600;margin-bottom:6px;">Notes</div><div style="font-size:14px;color:var(--text);line-height:1.5;white-space:pre-wrap;">${esc(i.notes)}</div></div>`:''}
       <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:18px;">
@@ -9821,6 +9834,47 @@ function _renderStockItemPage(m,i){
       </div>
     </div>`;
   page.innerHTML=html;
+}
+
+// v2.19.40 — potential NET profit for an item that isn't sold yet (sourced).
+// Fees are computed EXACTLY via calcPlatformBPF on the est price (more accurate
+// than an average %); shipping/packaging/postage aren't known for an unsold item,
+// so estimate the typical out-of-pocket fulfilment drag as the MEDIAN of
+// (shipping + packaging − buyer postage) across completed sales. Median (not mean)
+// so a few oversized/heavy parcels don't skew it. Excludes promo/boost (unknown
+// pre-sale) — this is a rough asking-price potential, not a booked figure.
+function _medianFulfilmentDrag(){
+  const drags=[];
+  allDBKeys().forEach(function(k){
+    (DB[k]||[]).forEach(function(i){
+      if(!i.salePrice||i.salePrice<=0||i.state==='sourced')return;
+      drags.push((i.shippingCost||0)+(i.packagingCost||0)-(i.postage||0));
+    });
+  });
+  if(!drags.length)return 3.0; // no sales history yet — sensible default
+  drags.sort(function(a,b){return a-b;});
+  const mid=Math.floor(drags.length/2);
+  return drags.length%2?drags[mid]:(drags[mid-1]+drags[mid])/2;
+}
+function _estPotentialNet(i){
+  const est=i.estSalePrice||0;
+  if(est<=0)return null;
+  const bpf=calcPlatformBPF(i,est,0,_itemPlatform(i));
+  return +(est-bpf-(i.costPrice||0)-calcPartsCost(i)-_medianFulfilmentDrag()).toFixed(2);
+}
+// Estimated partner cut of the potential net, for a non-supplier account item.
+// Supplier cost is already inside costPrice, so no profit cut applies there.
+function _estPartnerCut(i){
+  if(_itemAccountType(i)==='supplier')return null;
+  const net=_estPotentialNet(i);
+  if(net==null)return null;
+  let pct=i.accountSplitPercent;
+  if(pct==null&&i.accountId){
+    const acct=(_accounts||[]).find(function(a){return a.id===i.accountId;});
+    pct=acct&&acct.defaultSplitPercent!=null?acct.defaultSplitPercent:null;
+  }
+  if(pct==null)return null;
+  return +(net*(pct/100)).toFixed(2);
 }
 
 function renderItemPage(m,id){
@@ -9885,7 +9939,11 @@ function _renderItemPageInner(m,id){
     : (i.salePrice||0);
   // For resold items, resolve sale 1 costs from snapshot so the receipt shows
   // the correct sale 1 values, not the current (sale 2) values.
-  const _s1Snap=(_hasFullReturn&&i.resaleSalePrice)
+  // v2.19.40 — resolve the Sale-1 snapshot in the RELISTED state too (not only
+  // after resale), so an item awaiting its second sale reads Sale 1's frozen
+  // economics from the return snapshot instead of the live (relist) values.
+  // Without this, editing the live shipping/postage moved Sale 1's numbers as well.
+  const _s1Snap=(_hasFullReturn&&(i.resaleSalePrice||_wasRelistedDetect))
     ?(i.returnHistory||[]).slice().reverse().find(r=>r.type==='full_seller'||r.type==='full_ebay')
     :null;
   const _rcptPostage=_s1Snap&&_s1Snap._postageAtRelist!==undefined?_s1Snap._postageAtRelist:(i.postage||0);
@@ -10179,7 +10237,7 @@ function _renderItemPageInner(m,id){
         <div class="ip-receipt-row"><span style="flex:1">Expected sale</span><span class="ip-receipt-val" style="color:var(--green)">${fmt(rlSalePrice)}</span></div>
         ${rlPostage>0?`<div class="ip-receipt-row"><span style="flex:1">+ Buyer postage</span><span class="ip-receipt-val" style="color:var(--green)">+${fmt(rlPostage)}</span></div>`:''}
         <div class="ip-receipt-row"><span style="flex:1">eBay BPF</span><span class="ip-receipt-val" style="color:var(--red)">−${fmt(rlBPF)}</span></div>
-        <div class="ip-receipt-row"><span style="flex:1">Shipping</span><span class="ip-receipt-val" style="color:var(--red)">−${fmt(rlShipping)}</span></div>
+        <div class="ip-receipt-row"><span style="flex:1">Shipping (you pay)</span><span class="ip-receipt-val" style="color:var(--red);display:flex;align-items:center;gap:4px">−£<input type="number" class="rcpt-relist-shipping-input" data-m="${m}" data-id="${id}" value="${+(rlShipping||0)}" min="0" step="0.01" style="width:60px;padding:2px 4px;background:var(--surface2);border:1px solid var(--border);border-radius:5px;color:var(--red);font-size:13px;font-weight:600;text-align:right"></span></div>
         <div class="ip-receipt-row" style="align-items:center">
           <span style="display:flex;align-items:center;gap:8px;color:var(--text-secondary)">Promo %
             <input id="rl-promo-input" type="number" min="0" max="100" step="0.1" value="${rlDefaultPromo}" style="width:56px;padding:3px 7px;border-radius:5px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-size:12px;font-weight:600;text-align:center;font-family:inherit" oninput="_recalcRelist(${profit},${rlSalePrice},${rlBPF},${rlShipping},${rlPackaging},${rlPostage})">
@@ -26131,7 +26189,8 @@ window.addEventListener('load', function(){
     const isS2Post=el.classList.contains('rcpt-s2-postage-input');
     const _isShip=el.classList.contains('rcpt-s1-shipping-input')||el.classList.contains('rcpt-s2-shipping-input');
     const isS2Promo=el.classList.contains('rcpt-s2-promo-input'); // v2.19.39
-    if(!isS1P&&!isS1Post&&!isS2P&&!isS2Post&&!_isShip&&!isS2Promo)return;
+    const isRelistShip=el.classList.contains('rcpt-relist-shipping-input'); // v2.19.40 — live relist shipping
+    if(!isS1P&&!isS1Post&&!isS2P&&!isS2Post&&!_isShip&&!isS2Promo&&!isRelistShip)return;
     const m=el.dataset.m, id=el.dataset.id;
     const it=(DB[m]||[]).find(function(x){return x.id===id;});
     if(!it)return;
@@ -26145,6 +26204,7 @@ window.addEventListener('load', function(){
     else if(isS2Post)it.resalePostage=v;
     else if(isS2Ship)it.resaleShippingCost=v;
     else if(isS2Promo)it.resalePromoPercent=Math.max(0,parseFloat(el.value)||0)/100; // v2.19.39 — % → fraction
+    else if(isRelistShip)it.shippingCost=v; // v2.19.40 — live relist shipping, independent of Sale 1 snapshot
     saveDB();
     renderItemPage(m,id);
   });
