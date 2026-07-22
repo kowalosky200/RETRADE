@@ -3041,6 +3041,18 @@ svg.cat-donut-draw circle.donut-seg-last{
   .rt #p-monthly #monthly-profitability-svg{min-height:200px;}
 }
 
+/* v2.19.44 — Sales History boot skeleton borrows #p-monthly layout classes,
+   which are ID-scoped (a skeleton root cannot match #p-monthly). Mirror the
+   layout-critical ones onto .rt-skel-monthly so the grid/detail skeletons
+   reflow exactly like the real page. */
+.rt .rt-skel-monthly .monthly-charts-row{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr);gap:16px;margin-bottom:18px;align-items:stretch;}
+.rt .rt-skel-monthly .monthly-charts-row>.card{margin-bottom:0;grid-column:auto!important;grid-row:auto!important;order:0!important;min-width:0;}
+.rt .rt-skel-monthly .monthly-profitability-card{display:flex;flex-direction:column;padding:22px;margin-bottom:18px;}
+.rt .rt-skel-monthly .money-flow-card{display:flex;flex-direction:column;padding:22px;}
+.rt .rt-skel-monthly .sales-kpis-v2{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px;margin-bottom:18px;}
+@media(max-width:980px){.rt .rt-skel-monthly .sales-kpis-v2{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;}}
+@media(max-width:860px){.rt .rt-skel-monthly .monthly-charts-row{grid-template-columns:minmax(0,1fr);}}
+@media(max-width:600px){.rt .rt-skel-monthly .monthly-profitability-card{padding:16px;border-radius:18px;}}
 .rt .summary-categories-empty{display:none;}
 .rt .summary-cat-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;gap:8px;}
 .rt .summary-cat-count{font-size:10px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.06em;}
@@ -9019,6 +9031,30 @@ function _skelSummary(){
           + '</div>'
         + '</div>'
       + '</div>'
+      // v2.19.44 — the lower half the v2.19.43 skeleton stopped short of:
+      // snapshot strip (row 3), inventory health (row 4), velocity + top flips
+      // (row 5). Same summary-panel classes, so grid placement + mobile order
+      // come for free.
+      + '<div class="card summary-panel summary-snapshot summary-snapshot-strip">'
+        + '<div class="snap-strip-head"><div class="sl">' + _sk('height:1em;width:90px;') + '</div></div>'
+        + '<div class="snap-strip-row">' + _skSnapStat() + _skSnapStat() + _skSnapStat() + '</div>'
+      + '</div>'
+      + '<div class="card summary-panel summary-inventory">'
+        + '<div class="summary-cat-head"><div class="sl">' + _sk('height:1em;width:130px;') + '</div></div>'
+        + '<div class="inv-band-grid"><div class="inv-metrics">' + _skInvStat() + _skInvStat() + _skInvStat() + '</div>'
+          + '<div class="inv-age"><div class="inv-age-title">' + _sk('height:0.8em;width:70px;') + '</div>'
+            + _sk('height:8px;width:100%;border-radius:6px;margin:4px 0 14px;')
+            + '<div style="display:flex;gap:10px;">' + _sk('height:0.8em;width:22%;') + _sk('height:0.8em;width:22%;') + _sk('height:0.8em;width:22%;') + _sk('height:0.8em;width:22%;') + '</div>'
+          + '</div>'
+        + '</div>'
+      + '</div>'
+      + '<div class="card summary-panel summary-velocity">'
+        + '<div class="sl">' + _sk('height:1em;width:80px;') + '</div>'
+        + _skMetricRow() + _skMetricRow()
+      + '</div>'
+      + '<div class="card summary-panel summary-topflips">'
+        + '<div class="summary-cat-head"><div class="sl">' + _sk('height:1em;width:80px;') + '</div></div>'
+        + _skMetricRow() + _skMetricRow() + _skMetricRow()
     + '</div>';
 }
 
@@ -9044,13 +9080,93 @@ function _skelGeneric(titleW, listy){
   return head + _skListControls() + '<div class="section-card">' + _skRows() + '</div>';
 }
 
+// v2.19.44 — helpers for the dashboard lower tiers and the two Sales History
+// layouts. Real page classes, shimmer inside, so they reflow with the page.
+function _skSnapStat(){
+  return '<div class="snap-stat"><div class="snap-stat-k">' + _sk('height:0.8em;width:70%;') + '</div>'
+    + '<div class="snap-stat-v">' + _sk('height:1em;width:55%;margin-top:9px;') + '</div></div>';
+}
+function _skInvStat(){
+  return '<div class="inv-stat"><div class="inv-stat-k">' + _sk('height:0.8em;width:72%;') + '</div>'
+    + '<div class="inv-stat-v">' + _sk('height:1em;width:52%;margin-top:9px;') + '</div>'
+    + '<div class="inv-stat-sub">' + _sk('height:0.7em;width:44%;margin-top:9px;') + '</div></div>';
+}
+function _skMetricRow(){
+  return '<div class="metric-inline"><div style="flex:1;min-width:0;">'
+    + _sk('height:0.9em;width:42%;margin-bottom:7px;') + _sk('height:0.7em;width:64%;')
+    + '</div>' + _sk('height:1.1em;width:46px;flex-shrink:0;') + '</div>';
+}
+function _skMoneyFlowRows(n){
+  let h = '<div style="display:flex;flex-direction:column;gap:11px;margin-top:6px;">';
+  for(let i = 0; i < n; i++){
+    h += '<div style="display:flex;flex-direction:column;gap:6px;">'
+      + '<div style="display:flex;align-items:baseline;justify-content:space-between;gap:10px;">'
+        + _sk('height:0.85em;width:' + (34 + (i * 11) % 34) + '%;') + _sk('height:0.85em;width:52px;')
+      + '</div>' + _sk('height:8px;width:100%;border-radius:999px;')
+    + '</div>';
+  }
+  return h + '</div>';
+}
+// One FY accordion section. expanded => a month-card grid below the header bar.
+function _skFySection(expanded){
+  const bar = '<div style="display:flex;align-items:center;justify-content:space-between;padding:12px 18px;background:var(--surface);border:1.5px solid var(--border);border-radius:10px;">'
+    + _sk('height:1em;width:90px;')
+    + '<div style="display:flex;align-items:center;gap:16px;">' + _sk('height:1em;width:56px;') + _sk('height:1em;width:70px;') + '</div>'
+  + '</div>';
+  if(!expanded) return '<div style="margin-bottom:12px;">' + bar + '</div>';
+  let cards = '';
+  for(let i = 0; i < 6; i++){
+    cards += '<div class="mcard">'
+      + '<div class="mcard-body-left">' + _sk('height:1em;width:58%;margin-bottom:7px;') + _sk('height:0.75em;width:82%;') + '</div>'
+      + '<div class="mcard-body-right">' + _sk('height:1.3em;width:52%;') + '</div>'
+    + '</div>';
+  }
+  return '<div style="margin-bottom:20px;">' + bar + '<div class="mgrid" style="margin-top:10px;">' + cards + '</div></div>';
+}
+// Sales History — grid (calendar) layout: charts row + FY accordion of months.
+function _skelMonthlyGrid(){
+  const head = '<div class="page-header"><div>'
+    + '<div class="page-title">' + _sk('height:1em;width:180px;') + '</div>'
+    + '<div class="page-subtitle">' + _sk('height:1em;width:250px;') + '</div>'
+    + '</div>' + _sk('height:34px;width:150px;border-radius:8px;flex-shrink:0;') + '</div>';
+  const charts = '<div class="monthly-charts-row">'
+    + '<div class="card summary-panel summary-chart-card monthly-profitability-card">'
+      + '<div class="summary-chart-head"><div class="sl">' + _sk('height:1em;width:150px;') + '</div>'
+        + '<div style="display:flex;gap:12px;">' + _sk('height:0.8em;width:60px;') + _sk('height:0.8em;width:66px;') + _sk('height:0.8em;width:62px;') + '</div>'
+      + '</div>' + _sk('height:300px;width:100%;border-radius:var(--r-m);')
+    + '</div>'
+    + '<div class="card summary-panel money-flow-card">'
+      + '<div class="summary-chart-head"><div class="sl">' + _sk('height:1em;width:130px;') + '</div></div>'
+      + _skMoneyFlowRows(5)
+    + '</div>'
+  + '</div>';
+  return head + charts + _skFySection(true) + _skFySection(false) + _skFySection(false);
+}
+// Sales History — single-month detail layout: KPIs + filter row + sale list.
+function _skelMonthlyDetail(){
+  const head = '<div class="page-header"><div style="display:flex;align-items:center;gap:12px;min-width:0;">'
+    + _sk('height:32px;width:104px;border-radius:8px;flex-shrink:0;') + _sk('height:1.4em;width:150px;')
+  + '</div></div>';
+  const kpis = '<div class="sales-kpis-v2">' + _skKpi() + _skKpi() + _skKpi() + _skKpi() + '</div>';
+  const filters = '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:16px;">'
+    + _sk('height:36px;width:180px;border-radius:10px;') + _sk('height:36px;width:120px;border-radius:8px;')
+  + '</div>';
+  return head + kpis + filters + '<div class="item-table">' + _skRows() + '</div>';
+}
 // tab is resolved from localStorage BEFORE the load starts (see initDB) so the
 // skeleton and the page that renders can never disagree. Unknown/absent -> summary,
 // mirroring initDB's own _safeTab fallback.
 function _bootSkeletonHTML(tab){
   let body;
   if(tab === 'stock')            body = _skelStock();
-  else if(tab === 'monthly')     body = _skelGeneric('200px');
+  else if(tab === 'monthly'){
+    // Sales History has two layouts. _loadUIState hasn't run yet at skeleton
+    // time, so read the persisted view straight from localStorage (default
+    // 'grid', matching MONTHLY_VIEW's own initialiser).
+    let _mv = 'grid';
+    try{ _mv = localStorage.getItem(_SK.monthV) || 'grid'; }catch(e){}
+    body = _mv === 'detail' ? _skelMonthlyDetail() : _skelMonthlyGrid();
+  }
   else if(tab === 'runs')        body = _skelGeneric('110px');
   else if(tab === 'expenses')    body = _skelGeneric('220px');
   else if(tab === 'tax')         body = _skelGeneric('170px', false);
