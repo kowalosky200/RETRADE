@@ -8949,7 +8949,15 @@ function _skKpi(){
     + '<div class="kpi-foot">' + _sk('height:1em;width:46%;') + '</div>'
     + '</div>';
 }
+// List rows. v2.19.43 — when no count is given, fill the viewport so the
+// skeleton spans the whole page instead of a ~1/3 stub at the top (list pages
+// continue well below the KPIs). Row ≈ 58px; subtract the header + KPI + controls
+// band already drawn above.
 function _skRows(n){
+  if(n==null){
+    const vh=(typeof window!=='undefined'&&window.innerHeight)||900;
+    n=Math.max(5,Math.ceil((vh-380)/58));
+  }
   let h = '';
   for(let i = 0; i < n; i++){
     h += '<div style="display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--border);">'
@@ -8962,6 +8970,17 @@ function _skRows(n){
       + '</div>';
   }
   return h;
+}
+// v2.19.43 — the controls band list pages carry between the KPIs and the list
+// (a segmented tab + a filter/sort row). Generic on purpose: enough to read as
+// "controls, then a long list" without per-page drift.
+function _skListControls(){
+  return '<div class="skeleton" style="height:44px;width:100%;border-radius:10px;margin-bottom:14px;"></div>'
+    + '<div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;">'
+      + _sk('height:30px;width:190px;border-radius:8px;')
+      + '<div style="flex:1"></div>'
+      + _sk('height:30px;width:120px;border-radius:8px;')
+    + '</div>';
 }
 
 // Summary. The only page worth mirroring in full — it is the default boot tab and
@@ -9007,17 +9026,22 @@ function _skelSummary(){
 function _skelStock(){
   return _skPageHead('180px', '280px')
     + '<div class="stock-kpis-v2 stock-kpis">' + _skKpi() + _skKpi() + _skKpi() + _skKpi() + '</div>'
-    + '<div class="section-card">' + _skRows(5) + '</div>';
+    + _skListControls()
+    + '<div class="section-card">' + _skRows() + '</div>';
 }
 
 // Everything else. Deliberately one shared shape rather than five bespoke ones:
 // these tabs are a rare boot, they genuinely share the header + metrics + list
 // skeleton, and five hand-maintained variants is how v2.17.0's skeleton drifted
 // in the first place. .kgrid is the real class these pages use for metric rows.
-function _skelGeneric(titleW){
-  return _skPageHead(titleW || '160px', '260px')
-    + '<div class="kgrid">' + _skKpi() + _skKpi() + _skKpi() + _skKpi() + '</div>'
-    + '<div class="section-card">' + _skRows(4) + '</div>';
+// v2.19.43 — `listy` (default true) draws the controls band + a viewport-filling
+// list for the list pages (Sales, Runs, Expenses); tax/data pass false since they
+// are forms/settings, not a long list, and shouldn't claim one.
+function _skelGeneric(titleW, listy){
+  const head = _skPageHead(titleW || '160px', '260px')
+    + '<div class="kgrid">' + _skKpi() + _skKpi() + _skKpi() + _skKpi() + '</div>';
+  if(listy === false) return head + '<div class="section-card">' + _skRows(4) + '</div>';
+  return head + _skListControls() + '<div class="section-card">' + _skRows() + '</div>';
 }
 
 // tab is resolved from localStorage BEFORE the load starts (see initDB) so the
@@ -9029,8 +9053,8 @@ function _bootSkeletonHTML(tab){
   else if(tab === 'monthly')     body = _skelGeneric('200px');
   else if(tab === 'runs')        body = _skelGeneric('110px');
   else if(tab === 'expenses')    body = _skelGeneric('220px');
-  else if(tab === 'tax')         body = _skelGeneric('170px');
-  else if(tab === 'data')        body = _skelGeneric('90px');
+  else if(tab === 'tax')         body = _skelGeneric('170px', false);
+  else if(tab === 'data')        body = _skelGeneric('90px', false);
   else                           body = _skelSummary();
   // .page (not .page.on — see the .rt-skel CSS note) so the box model is shared.
   // rt-skel-<tab> is what lets the ID-scoped page rules reach this element --
@@ -10130,7 +10154,14 @@ function _renderItemPageInner(m,id){
           +'<button class="rcpt-retag-sale-btn" data-m="'+m+'" data-id="'+id+'" data-ri="'+ri+'" data-target="'+_tgtSale+'" '
           +'style="background:var(--surface2);border:1px solid var(--border);border-radius:5px;color:var(--text-secondary);font-size:11px;padding:2px 8px;cursor:pointer">Move to Sale '+_tgtSale+'</button></div>';
       }
-      if(fullReturn&&_showFee)pb+=rcp((_plat==='ebay'?'eBay':'Platform')+' refunds fee back to you','+'+fmt(bpf),'var(--green)',true);
+      // v2.19.42 — credit each return's OWN fee, not Sale 1's. Was printing the
+      // single `bpf` (Sale 1 FVF) for every entry, so a Sale 2 return showed
+      // Sale 1's £2.89 instead of its own. Mirrors calcGrossProfit's per-return
+      // credit (uses the entry's refund amount) so the breakdown reconciles to net.
+      if(fullReturn&&_showFee){
+        const _retFvf=calcPlatformBPF(i,(r._salePriceAtReturn||r.refundAmount||_origSalePrice),_rcptPostage,_s1Platform(i));
+        pb+=rcp((_plat==='ebay'?'eBay':'Platform')+' refunds fee back to you','+'+fmt(_retFvf),'var(--green)',true);
+      }
       // v2.19.30 — Return postage is now hand-editable to reconcile against the
       // actual carrier charge on the eBay statement. Shown for every return
       // entry so a missing charge can be added, not just an existing one edited.
@@ -22220,6 +22251,11 @@ function duplicateItem(m,id,context){
   copy.state='listed';
   copy.dateSold=null;copy.grossProfit=null;copy.isReturned=false;
   copy.resaleSalePrice=null;copy.resaleDateSold=null;copy.resaleGrossProfit=null;
+  // v2.19.40 — a clone starts as a fresh Sale 1, so it must not inherit the
+  // original's per-sale platforms. soldOnPlatform (sale-time platform) and
+  // resalePlatform (sale-2 platform) were left set, so a clone of an item sold
+  // on a non-default platform was mispriced off that stale platform's fees.
+  copy.soldOnPlatform=null;copy.resalePlatform=null;
   // v2.19.26 — the clone inherits resaleListingFee, which calcGrossProfit now
   // charges unconditionally. Left uncleared the duplicate would be billed for
   // the ORIGINAL's relist. Clear it, then stamp a fresh sale-1 fee: a
