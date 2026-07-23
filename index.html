@@ -12765,9 +12765,9 @@ function renderRunsPage(){
     };
 
     metricsHTML='<div class="runs-kpis-v2 runs-kpis-stack" style="margin-bottom:18px;">'
-      +mc('Net profit','\u00a3'+totalProfit.toFixed(0),
-        overallROI!==null?overallROI.toFixed(0)+'% ROI on \u00a3'+totalCapital.toFixed(0)+' deployed':ended.length+' run'+(ended.length!==1?'s':''),
-        totalProfit>0?'var(--green)':totalProfit<0?'var(--red)':'var(--text)')
+      +mc('Return on runs',overallROI!==null?overallROI.toFixed(0)+'%':'\u2014',
+        '\u00a3'+totalProfit.toFixed(0)+' profit on \u00a3'+totalCapital.toFixed(0)+' deployed \u00b7 '+ended.length+' run'+(ended.length!==1?'s':''),
+        overallROI!==null&&overallROI>0?'var(--green)':overallROI!==null&&overallROI<0?'var(--red)':'var(--text)')
       +mc('Avg per run','\u00a3'+avgProfit.toFixed(0),
         'net after overhead \u00b7 '+ended.length+' run'+(ended.length!==1?'s':''),
         avgProfit>0?'var(--green)':avgProfit<0?'var(--red)':'var(--text)')
@@ -17244,14 +17244,14 @@ function renderSummary(){
           <div class="card kpi clickable" onclick="showMarginItems()">
             <div class="kpi-label">Avg margin</div>
             <div class="kpi-value num" data-cv="${Number(stats.grossMargin||0)}" data-cv-fmt="pct0" data-cv-key="sum-m-margin">${Math.round(stats.grossMargin||0)}%</div>
-            <div class="kpi-foot">${deltaChip(deltas&&deltas.grossMargin,{pp:true})||'Item-level margin'}</div>
+            <div class="kpi-foot">${(deltaChip(deltas&&deltas.grossMargin,{pp:true})||'Item-level margin')}${stats.avgROI!=null?' · '+Math.round(stats.avgROI)+'% ROI':''}</div>
           </div>
         </div>
         <!-- Tier 1: 4-KPI grid -->
         <div class="summary-kpis-v3">
           <div class="card kpi clickable" onclick="showFilteredItems('revenue')"><div class="kpi-label">Total revenue</div><div class="kpi-value num" data-cv="${Number(stats.totalRev||0)}" data-cv-fmt="k" data-cv-key="sum-rev">${fmtK(stats.totalRev||0)}</div><div class="kpi-foot">${deltaChip(deltas&&deltas.totalRev)||((stats.soldCount||0)+' sold in view')}</div></div>
           <div class="card kpi clickable kpi-netprofit" onclick="showFilteredItems('realised')"><div class="kpi-label">Gross profit</div><div class="kpi-value num" data-cv="${Number(stats.grossProfit||0)}" data-cv-fmt="k" data-cv-key="sum-gp">${fmtK(stats.grossProfit||0)}</div><div class="kpi-foot">${deltaChip(deltas&&deltas.grossProfit)||'After returns · before overheads'}</div></div>
-          <div class="card kpi clickable" onclick="showMarginItems()"><div class="kpi-label">Avg margin</div><div class="kpi-value num" data-cv="${Number(stats.grossMargin||0)}" data-cv-fmt="pct0" data-cv-key="sum-margin">${Math.round(stats.grossMargin||0)}%</div><div class="kpi-foot">${deltaChip(deltas&&deltas.grossMargin,{pp:true})||'Item-level margin'}</div></div>
+          <div class="card kpi clickable" onclick="showMarginItems()"><div class="kpi-label">Avg margin</div><div class="kpi-value num" data-cv="${Number(stats.grossMargin||0)}" data-cv-fmt="pct0" data-cv-key="sum-margin">${Math.round(stats.grossMargin||0)}%</div><div class="kpi-foot">${(deltaChip(deltas&&deltas.grossMargin,{pp:true})||'Item-level margin')}${stats.avgROI!=null?' · '+Math.round(stats.avgROI)+'% ROI':''}</div></div>
           <div class="card kpi clickable" onclick="showReturnedItems()"><div class="kpi-label">Refund rate</div><div class="kpi-value num" data-cv="${Number(stats.refundItemRate||0)}" data-cv-fmt="pct1" data-cv-key="sum-refund">${Number(stats.refundItemRate||0).toFixed(1)}%</div><div class="kpi-foot">${deltaChip(deltas&&deltas.refundItemRate,{pp:true,invert:true})||((stats.fullRefundCount||0)+' full · '+(stats.partialOnlyCount||0)+' partial')}</div></div>
         </div>
 
@@ -18648,7 +18648,7 @@ function renderMonth(){
       <div class="card kpi">
         <div class="kpi-label">Avg Margin</div>
         <div class="kpi-value num">${stats.avgMargin!==null&&stats.avgMargin!==undefined?stats.avgMargin.toFixed(1)+'%':'—'}</div>
-        <div class="kpi-foot">${stats.avgDays!==null?stats.avgDays+'d avg to sell':stats.soldCount===0?'No sales':'—'}</div>
+        <div class="kpi-foot">${stats.avgROI!==null&&stats.avgROI!==undefined?Math.round(stats.avgROI)+'% ROI'+(stats.avgDays!==null&&stats.avgDays!==undefined?' · '+stats.avgDays+'d to sell':''):(stats.avgDays!==null?stats.avgDays+'d avg to sell':stats.soldCount===0?'No sales':'—')}</div>
       </div>
       <div class="card kpi">
         <div class="kpi-label">Refund rate</div>
@@ -19626,6 +19626,20 @@ function renderStock(){
   const potentialProfit=pop.reduce((s,i)=>s+(calcEstProfit(i)||0),0);
   const avgAsking=allListed.length?(allListed.reduce((s,i)=>s+(i.salePrice||0),0)/allListed.length):0;
 
+  // v2.20.5 — companion numbers so each KPI card carries a second metric (cost / ROI / velocity)
+  const _capCost=function(i){return (Number(i.costPrice)||0)+(typeof calcPartsCost==='function'?(Number(calcPartsCost(i))||0):0);};
+  const listedCost=+allListed.reduce(function(s,i){return s+_capCost(i);},0).toFixed(2);
+  const sourcedCost=+allStock.reduce(function(s,i){return s+_capCost(i);},0).toFixed(2);
+  const listedMarkup=listedCost>0?Math.round((totalValue/listedCost-1)*100):0;
+  const listedROI=listedCost>0?Math.round(potentialProfit/listedCost*100):null;
+  const sourcedROI=sourcedCost>0?Math.round(estPotential/sourcedCost*100):null;
+  const _agedListed=allListed.filter(function(i){const d=_effectiveListDate(i);return d&&daysBetween(d,today)>=90;});
+  const agedCost=+_agedListed.reduce(function(s,i){return s+_capCost(i);},0).toFixed(2);
+  const agedCount=_agedListed.length;
+  let _stStats={}; try{ _stStats=calcYearlyStats('all')||{}; }catch(e){}
+  const stSellThrough=(_stStats.sellThrough!=null)?Math.round(_stStats.sellThrough):null;
+  const stAvgDays=(_stStats.avgDays!=null)?_stStats.avgDays:null;
+
   // Build 4 KPI cards based on active filter
   let kpis;
   if(isStockOnly){
@@ -19635,27 +19649,33 @@ function renderStock(){
       {cls:'', label:'Items to list',     val:allStock.length?String(allStock.length):'—',
        sub:allStock.length===1?'1 item waiting':''+allStock.length+' items waiting to be listed'},
       {cls:'g',label:'Est. potential',    val:cWithEstimate?fmt(estPotential):'—',
-       sub:cWithEstimate?cWithEstimate+' item'+(cWithEstimate===1?'':' s')+' with estimate':'No estimates set yet'},
+       sub:cWithEstimate?((sourcedROI!=null?sourcedROI+'% ROI · ':'')+cWithEstimate+' item'+(cWithEstimate===1?'':'s')+' with estimate'):'No estimates set yet'},
       {cls:'p',label:'Longest sitting',   val:longestSittingDays!==null?longestSittingDays+'d':'—',
        sub:longestSittingDays!==null?longestTrunc:'Nothing sourced yet'}
     ];
   } else if(isListedOnly){
     kpis=[
-      {cls:'b',label:'Potential<br>revenue', val:fmtK(totalValue),       sub:'Sum of asking prices'},
-      {cls:'g',label:'Estimated<br>profit',  val:fmtK(potentialProfit),  sub:'If every item sells'},
-      {cls:'', label:'Avg asking<br>price',  val:fmtK(avgAsking),        sub:'Per active listing'},
-      {cls:'p',label:'Avg listing<br>age',   val:allListed.length?avgListingAge+'d':'—',
-       sub:capitalStale>0?fmtK(capitalStale)+' stale (90d+)':allListed.length?'All moving well':'—',
-       click:cStale>0?"openDashboardStock('stale')":''}
+      {cls:'b',label:'Capital in<br>listings', val:fmtK(listedCost),
+       sub:fmtK(totalValue)+' potential'+(listedMarkup>0?' · '+listedMarkup+'% markup':'')},
+      {cls:'g',label:'Estimated<br>profit',    val:fmtK(potentialProfit),
+       sub:listedROI!=null?listedROI+'% ROI if sold':'If every item sells'},
+      {cls:'p',label:'Aged<br>capital',        val:agedCount>0?fmtK(agedCost):'£0',
+       sub:agedCount>0?agedCount+' of '+allListed.length+' stale (90d+)':(allListed.length?'None stale — all moving':'—'),
+       click:cStale>0?"openDashboardStock('stale')":''},
+      {cls:'', label:'Sell-<br>through',       val:stSellThrough!=null?stSellThrough+'%':'—',
+       sub:stAvgDays!=null?stAvgDays+'d avg to sell':'Listed that sold'}
     ];
   } else {
     kpis=[
-      {cls:'b',label:'Total inventory<br>value',val:fmtK(totalValue),      sub:'Listed asking + sourced cost'},
-      {cls:'g',label:'Estimated<br>profit',     val:fmtK(potentialProfit), sub:'If every listed item sells'},
-      {cls:'', label:'Avg asking<br>price',     val:fmtK(avgAsking),       sub:'Per listed item'},
-      {cls:'p',label:'Avg listing<br>age',      val:allListed.length?avgListingAge+'d':'—',
-       sub:capitalStale>0?fmtK(capitalStale)+' stale (90d+)':allListed.length?'All moving well':'—',
-       click:cStale>0?"openDashboardStock('stale')":''}
+      {cls:'b',label:'Capital in<br>stock',     val:fmtK(listedCost+sourcedCost),
+       sub:fmtK(totalValue)+' at asking + cost'},
+      {cls:'g',label:'Estimated<br>profit',     val:fmtK(potentialProfit),
+       sub:listedROI!=null?listedROI+'% ROI if sold':'If every listed item sells'},
+      {cls:'p',label:'Aged<br>capital',         val:agedCount>0?fmtK(agedCost):'£0',
+       sub:agedCount>0?agedCount+' of '+allListed.length+' stale (90d+)':(allListed.length?'None stale — all moving':'—'),
+       click:cStale>0?"openDashboardStock('stale')":''},
+      {cls:'', label:'Sell-<br>through',        val:stSellThrough!=null?stSellThrough+'%':'—',
+       sub:stAvgDays!=null?stAvgDays+'d avg to sell':'Listed that sold'}
     ];
   }
   const kpiHTML=kpis.map(k=>'<div class="card kpi'+(k.click?' clickable':'')+'"'+(k.click?' onclick="'+k.click+'"':'')+'>'+
