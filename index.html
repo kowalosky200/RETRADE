@@ -20023,6 +20023,24 @@ function _cashOverheadsAllTime(){
   (DB.trips||[]).forEach(function(t){(Array.isArray(t.expenses)?t.expenses:[]).forEach(function(x){o+=Number(x.amount)||0;});});
   return +o.toFixed(2);
 }
+// Cash tied up in unsold stock = COST paid (costPrice + parts) for every item
+// still on hand (sourced or listed). NOT asking price. This is cash that has
+// left the account and not yet come back, so it must be subtracted to get the
+// liquid cash position. (calcYearlyStats.stockValue is a salePrice-based figure
+// for a different purpose — do not use it here.)
+function _cashStockTied(){
+  let c=0;
+  (typeof allDBKeys==='function'?allDBKeys():[]).forEach(function(k){
+    (DB[k]||[]).forEach(function(i){
+      if(!i)return;
+      if((i.item||'').trim().toUpperCase()==='MONTH END')return;
+      if(i.state==='sourced'||i.state==='listed'){
+        c += (Number(i.costPrice)||0) + (typeof calcPartsCost==='function'?(Number(calcPartsCost(i))||0):0);
+      }
+    });
+  });
+  return +c.toFixed(2);
+}
 function calcCashSummary(){
   const s=(typeof calcYearlyStats==='function')?calcYearlyStats('all'):{realisedProfit:0,stockValue:0,netProfit:0};
   const fyS=(typeof _currentFYStart==='function')?_currentFYStart():new Date().getFullYear();
@@ -20037,7 +20055,7 @@ function calcCashSummary(){
     else if(m.type==='adjustment')adjust+=(m.direction==='out'?-amt:amt);
   });
   const tradingCashMargin=+(Number(s.realisedProfit)||0).toFixed(2); // receipts − sold COGS − fees − postage − refunds − splits (all cash)
-  const stockTied=+(Number(s.stockValue)||0).toFixed(2);             // unsold stock cost already paid out
+  const stockTied=_cashStockTied();                                  // real cost of unsold stock (sourced + listed), cash already paid out
   const cashOverheads=_cashOverheadsAllTime();
   const operatingCash=+(tradingCashMargin-stockTied-cashOverheads).toFixed(2);
   const cashAvailable=+(opening+operatingCash+contrib-draw+adjust).toFixed(2);
