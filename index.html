@@ -5154,6 +5154,10 @@ c-230 453 -565 1105 -674 1315 -63 120 -114 221 -114 225 0 4 47 19 104 34
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 2h14a1 1 0 0 1 1 1v18l-2.5-1.5L15 21l-2.5-1.5L10 21l-2.5-1.5L5 21V3a1 1 0 0 1 0-1z"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="12" y2="16"/></svg>
             <span>Expenses</span>
           </button>
+          <button data-tab="cash" onclick="goToTab('cash',this);closeNavMore()">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2.5"/><circle cx="12" cy="12" r="3"/><path d="M6 9v6M18 9v6"/></svg>
+            <span>Money</span>
+          </button>
           <button data-tab="accounts" onclick="goToTab('accounts',this);closeNavMore()">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
             <span>Accounts</span>
@@ -5339,6 +5343,10 @@ c-230 453 -565 1105 -674 1315 -63 120 -114 221 -114 225 0 4 47 19 104 34
     <button onclick="closeMoreSheet();goToTab('expenses',document.querySelector('[data-tab=\'expenses\']'))" class="more-sheet-row" data-sheet-tab="expenses">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 2h14a1 1 0 0 1 1 1v18l-2.5-1.5L15 21l-2.5-1.5L10 21l-2.5-1.5L5 21V3a1 1 0 0 1 0-1z"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="12" y2="16"/></svg>
       <span>Expenses</span>
+    </button>
+    <button onclick="closeMoreSheet();goToTab('cash',document.querySelector('[data-tab=\'cash\']'))" class="more-sheet-row" data-sheet-tab="cash">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2.5"/><circle cx="12" cy="12" r="3"/><path d="M6 9v6M18 9v6"/></svg>
+      <span>Money</span>
     </button>
     <button onclick="closeMoreSheet();goToTab('accounts',document.querySelector('[data-tab=\'accounts\']'))" class="more-sheet-row" data-sheet-tab="accounts">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
@@ -5568,6 +5576,10 @@ c-230 453 -565 1105 -674 1315 -63 120 -114 221 -114 225 0 4 47 19 104 34
       <span class="side-nav-item-ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 2h14a1 1 0 0 1 1 1v18l-2.5-1.5L15 21l-2.5-1.5L10 21l-2.5-1.5L5 21V3a1 1 0 0 1 0-1z"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="12" y2="16"/></svg></span>
       <span class="side-nav-item-label">Costs &amp; Trips</span>
     </button>
+    <button class="side-nav-item" data-tab="cash" onclick="goToTab('cash',this)">
+      <span class="side-nav-item-ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2.5"/><circle cx="12" cy="12" r="3"/><path d="M6 9v6M18 9v6"/></svg></span>
+      <span class="side-nav-item-label">Money</span>
+    </button>
     <button class="side-nav-item side-nav-item-runs" data-tab="runs" onclick="goToTab('runs',this)">
       <span class="side-nav-item-ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h3l3-8 4 16 3-8h5"/></svg></span>
       <span class="side-nav-item-label">Runs</span>
@@ -5679,6 +5691,7 @@ c-230 453 -565 1105 -674 1315 -63 120 -114 221 -114 225 0 4 47 19 104 34
 <div class="page" id="p-monthly"></div>
 <div class="page" id="p-stock"></div>
 <div class="page" id="p-expenses"></div>
+<div class="page" id="p-cash"></div>
 <div class="page" id="p-accounts"></div>
 <div class="page" id="p-tax"></div>
 <div class="page" id="p-data"></div>
@@ -7650,7 +7663,7 @@ function _buildPreviewDB(){
   }
 
   // ── Build month buckets ───────────────────────────────────────────────────
-  const DB_={_userOwned:false,trips:[],expenses:[]};
+  const DB_={_userOwned:false,trips:[],expenses:[],cashLedger:[]};
   // Ensure all month keys exist
   for(let i=0;i<5;i++){const k=mkey(i*30);if(!DB_[k])DB_[k]=[];}
   const push=function(item){const k=mkey(0); // will be re-bucketed below
@@ -8165,7 +8178,7 @@ async function loadFromSupabase(){
   // Fetch all tables in parallel — explicit .eq('user_id') on every query as
   // belt-and-braces on top of RLS. Prevents NULL-user_id orphan rows or
   // misconfigured policies from bleeding into the loaded DB.
-  const [itemsRes, partsRes, returnsRes, tripsRes, expensesRes, runsRes, accountsRes] = await Promise.all([
+  const [itemsRes, partsRes, returnsRes, tripsRes, expensesRes, runsRes, accountsRes, cashRes] = await Promise.all([
     _sb.from('items').select('*').eq('user_id', uid).order('date_listed', {ascending: true}),
     _sb.from('item_parts').select('*').eq('user_id', uid),
     _sb.from('item_returns').select('*').eq('user_id', uid).order('logged_at', {ascending: true}),
@@ -8173,6 +8186,7 @@ async function loadFromSupabase(){
     _sb.from('expenses').select('*').eq('user_id', uid).order('date', {ascending: true}),
     _sb.from('sourcing_runs').select('*').eq('user_id', uid).order('date_started', {ascending: false}),
     _sb.from('accounts').select('*').eq('user_id', uid).order('name', {ascending: true}),
+    _sb.from('cash_ledger').select('*').eq('user_id', uid).order('date', {ascending: true}),
   ]);
 
   if(itemsRes.error) throw new Error('Items load failed: ' + itemsRes.error.message);
@@ -8217,6 +8231,22 @@ async function loadFromSupabase(){
     category:      e.category || null,
     sourcingRunId: e.sourcing_run_id || null,
   }));
+  // v2.20.0 — cash & owner ledger (graceful: skip cleanly if table not yet created)
+  if(cashRes && !cashRes.error){
+    DB.cashLedger = (cashRes.data || []).map(m => ({
+      id:          m.id,
+      date:        m.date,
+      type:        m.type || 'adjustment',
+      category:    m.category || m.type || null,
+      amount:      Number(m.amount) || 0,
+      direction:   m.direction || 'in',
+      description: m.description || '',
+      createdAt:   m.created_at || null,
+    }));
+  } else {
+    DB.cashLedger = DB.cashLedger || [];
+    if(cashRes && cashRes.error) console.warn('cash_ledger load skipped (table may not exist yet):', cashRes.error.message);
+  }
   // Patch C — load sourcing runs (graceful: if table doesn't exist yet, skip)
   if(!runsRes.error){
     _sourcingRuns = (runsRes.data||[]).map(_rowToRun);
@@ -8470,6 +8500,31 @@ async function deleteExpenseFromSupabase(id){
   if(error) throw new Error('Delete expense failed: ' + error.message);
 }
 
+// v2.20.0 — cash ledger persistence. Deliberately does NOT throw: if the
+// cash_ledger table hasn't been created in Supabase yet, the entry stays saved
+// on-device (localStorage mirror) and syncs once the table exists — a missing
+// table must never cascade into the schema-error alarm path in _persistChanges.
+async function saveCashMoveToSupabase(m){
+  const row = {
+    id:m.id, user_id:_currentUserId||null, date:m.date,
+    type:m.type||'adjustment', category:m.category||m.type||null,
+    amount:m.amount||0, direction:m.direction||'in',
+    description:m.description||'', created_at:m.createdAt||new Date().toISOString()
+  };
+  const {error} = await _sbCall(()=>_sb.from('cash_ledger').upsert(row, {onConflict:'id,user_id'}));
+  if(error){
+    if(!window._cashTableWarned){
+      window._cashTableWarned=true;
+      toast('Cash entry saved on this device. Add the cash_ledger table in Supabase to sync.','err');
+    }
+    console.warn('cash_ledger save skipped:', error.message);
+  }
+}
+async function deleteCashMoveFromSupabase(id){
+  const {error} = await _sbCall(()=>_sb.from('cash_ledger').delete().eq('id', id).eq('user_id', _currentUserId));
+  if(error) console.warn('cash_ledger delete skipped:', error.message);
+}
+
 // E6 lesson: both mappers must round-trip every field. Adding a field to one
 // without the other = silent data loss on save or load. Audit before shipping.
 
@@ -8654,6 +8709,7 @@ function _dbFingerprint(){
   });
   (DB.trips||[]).forEach(t => { fp['trip:'+t.id] = JSON.stringify(t); });
   (DB.expenses||[]).forEach(e => { fp['exp:'+e.id] = JSON.stringify(e); });
+  (DB.cashLedger||[]).forEach(m => { fp['cash:'+m.id] = JSON.stringify(m); });
   (_sourcingRuns||[]).forEach(r => { fp['run:'+r.id] = JSON.stringify(r); });
   (_accounts||[]).forEach(a => { fp['acct:'+a.id] = JSON.stringify(a); });
   return fp;
@@ -8701,6 +8757,10 @@ async function _persistChanges(){
           const id = key.slice(4);
           const exp = (DB.expenses||[]).find(e => e.id === id);
           if(exp) await saveExpenseToSupabase(exp);
+        } else if(key.startsWith('cash:')){
+          const id = key.slice(5);
+          const m = (DB.cashLedger||[]).find(x => x.id === id);
+          if(m) await saveCashMoveToSupabase(m);
         } else if(key.startsWith('run:')){
           const id = key.slice(4);
           const run = (_sourcingRuns||[]).find(r => r.id === id);
@@ -8727,6 +8787,9 @@ async function _persistChanges(){
         } else if(key.startsWith('exp:')){
           const id = key.slice(4);
           await deleteExpenseFromSupabase(id);
+        } else if(key.startsWith('cash:')){
+          const id = key.slice(5);
+          await deleteCashMoveFromSupabase(id);
         } else if(key.startsWith('run:')){
           const id = key.slice(4);
           await deleteRunFromSupabase(id);
@@ -8819,7 +8882,7 @@ async function initDB(){
     const _freshSession = !_isSameSession();
     const _lastTab = (() => { if(_freshSession) return 'summary';
       try{ return localStorage.getItem(_SK.tab) || 'summary'; }catch(e){ return 'summary'; } })();
-    const _safeTab = ['summary','monthly','stock','expenses','tax','data','runs'].includes(_lastTab) ? _lastTab : 'summary';
+    const _safeTab = ['summary','monthly','stock','expenses','cash','tax','data','runs'].includes(_lastTab) ? _lastTab : 'summary';
     showLoadingScreen('Loading your data…', _safeTab);
     await Promise.race([
       loadFromSupabase(),
@@ -9171,12 +9234,13 @@ function _bootSkeletonHTML(tab){
   else if(tab === 'expenses')    body = _skelGeneric('220px');
   else if(tab === 'tax')         body = _skelGeneric('170px', false);
   else if(tab === 'data')        body = _skelGeneric('90px', false);
+  else if(tab === 'cash')        body = _skelGeneric('120px', false);
   else                           body = _skelSummary();
   // .page (not .page.on — see the .rt-skel CSS note) so the box model is shared.
   // rt-skel-<tab> is what lets the ID-scoped page rules reach this element --
   // see the .rt-skel-summary note in the CSS. Emitted for every tab so a future
   // ID rule on any page has a selector waiting for it.
-  const _t = ['summary','monthly','stock','expenses','tax','data','runs'].includes(tab) ? tab : 'summary';
+  const _t = ['summary','monthly','stock','expenses','cash','tax','data','runs'].includes(tab) ? tab : 'summary';
   return '<div class="page rt-skel rt-skel-' + _t + '">' + body
     + '<div style="text-align:center;margin-top:20px;font-size:13px;color:var(--text-secondary);" id="app-loading-msg"></div>'
     + '</div>';
@@ -9259,6 +9323,7 @@ function refreshActivePage(){
   else if(id==='p-monthly')renderMonth();
   else if(id==='p-stock')renderStock();
   else if(id==='p-expenses')renderExpenses();
+  else if(id==='p-cash'&&typeof renderCash==='function')renderCash();
   else if(id==='p-accounts'&&typeof renderAccountsPage==='function')renderAccountsPage();
   else if(id==='p-tax'&&typeof renderTax==='function')renderTax();
   else if(id==='p-active-run'&&typeof renderActiveRunPage==='function')renderActiveRunPage();
@@ -9508,6 +9573,7 @@ function goToTab(name,sourceEl){
   else if(name==='monthly'){SELECTED_MONTH=currentMonthKey();MONTHLY_VIEW='detail';MONTH_FILTER='all';MONTH_SORT='date-sold';renderMonthlyPage();}
   else if(name==='stock'){_stockFromSummary=false;renderStock();}
   else if(name==='expenses')renderExpenses();
+  else if(name==='cash')renderCash();
   else if(name==='accounts')renderAccountsPage();
   else if(name==='tax')renderTax();
   else if(name==='data')renderData();
@@ -9591,7 +9657,7 @@ function exitItemPage(){
     // Restore the page the panel was on top of
     const pageId=_savedPanelState.pageId||'p-summary';
     document.getElementById(pageId).classList.add('on');
-    const tabMap={'p-summary':'summary','p-monthly':'monthly','p-stock':'stock','p-expenses':'expenses','p-tax':'tax','p-data':'data','p-runs':'runs','p-accounts':'accounts'};
+    const tabMap={'p-summary':'summary','p-monthly':'monthly','p-stock':'stock','p-expenses':'expenses','p-cash':'cash','p-tax':'tax','p-data':'data','p-runs':'runs','p-accounts':'accounts'};
     const tabName=tabMap[pageId];
     if(tabName){const tab=document.querySelector('[data-tab="'+tabName+'"]');if(tab)tab.classList.add('on');}
     handleNavResize();
@@ -9618,7 +9684,7 @@ function exitItemPage(){
     return;
   }
   document.getElementById(origin).classList.add('on');
-  const tabMap={'p-summary':'summary','p-monthly':'monthly','p-stock':'stock','p-expenses':'expenses','p-tax':'tax','p-data':'data','p-runs':'runs','p-accounts':'accounts'};
+  const tabMap={'p-summary':'summary','p-monthly':'monthly','p-stock':'stock','p-expenses':'expenses','p-cash':'cash','p-tax':'tax','p-data':'data','p-runs':'runs','p-accounts':'accounts'};
   const tabName=tabMap[origin];
   if(tabName){const tab=document.querySelector('[data-tab="'+tabName+'"]');if(tab)tab.classList.add('on');}
   handleNavResize();
@@ -9664,6 +9730,7 @@ function exitItemPage(){
   // v2.12.6: Costs & Trips / Tax / Data had no scroll restore, so returning from
   // an item snapped them to the top (openItemDetail does scrollTo(0,0)).
   else if(origin==='p-expenses'&&typeof renderExpenses==='function'){renderExpenses();_restoreTabScroll('expenses');}
+  else if(origin==='p-cash'&&typeof renderCash==='function'){renderCash();_restoreTabScroll('cash');}
   else if(origin==='p-tax'&&typeof renderTax==='function'){renderTax();_restoreTabScroll('tax');}
   else if(origin==='p-data'&&typeof renderData==='function'){renderData();_restoreTabScroll('data');}
 }
@@ -11368,7 +11435,7 @@ const _FAB_PAGE_OPTIONS = {
   'p-runs':        _FAB_ALL_OPTIONS,
   // p-item, p-search, p-tax, p-data → no FAB, see _FAB_HIDDEN_PAGES
 };
-const _FAB_HIDDEN_PAGES = new Set(['p-search','p-tax','p-data','p-accounts']); // p-item removed: FAB visible on item page for quick adds
+const _FAB_HIDDEN_PAGES = new Set(['p-search','p-tax','p-data','p-accounts','p-cash']); // p-item removed: FAB visible on item page for quick adds
 
 // Patch C-2: per-page FAB single-tap override. Returns 'speed-dial' or a specific action.
 function getFabTapAction(pageId){
@@ -11722,7 +11789,7 @@ function renderActiveRunPage(){
   const itemCount=runItems.length;
   const spent=runItems.reduce(function(s,i){return s+(i.costPrice||0)+calcPartsCost(i);},0);
   const estItems=runItems.filter(function(i){return i.estSalePrice!=null;});
-  const estProfit=estItems.reduce(function(s,i){return s+(i.estSalePrice-(i.costPrice||0)-calcPartsCost(i));},0);
+  const estProfit=estItems.reduce(function(s,i){return s+(_estPotentialNet(i)||0);},0);
   // Seed session start time — use stored startedAtIso if available (survives reload)
   if(!window._runSessionStartMs||window._runActiveId!==run.id){
     window._runSessionStartMs=run.startedAtIso?new Date(run.startedAtIso).getTime():Date.now();
@@ -11748,7 +11815,7 @@ function renderActiveRunPage(){
     +kc('EST. PROFIT',estItems.length?fmt(estProfit):'\u2014',estItems.length?estItems.length+' with estimate':(itemCount>0?'Tap items to add estimates':'No estimates yet'),estItems.length&&estProfit>=0?'g':estItems.length?'r':'')
     +'</div>';
   const _arRow=function(i){
-    const _ep=i.estSalePrice!=null?(i.estSalePrice-(i.costPrice||0)-calcPartsCost(i)):null;
+    const _ep=_estPotentialNet(i); // real net (fee + median fulfilment drag), matches detail page
     const _estStr=i.estSalePrice!=null?' \u00b7 est '+fmt(i.estSalePrice):'';
     const _profStr=_ep!=null?' \u00b7 <span style="color:'+(_ep>=0?'var(--green)':'var(--red)')+';">'+(_ep>=0?'+':'')+fmt(_ep)+'</span>':'';
     const bdr=runItems.indexOf(i)>0?'border-top:1px solid var(--border)':'';
@@ -18802,7 +18869,7 @@ function renderItemRow(m,i){
     const _tc=(i.costPrice||0)+calcPartsCost(i);
     const _hasParts=calcPartsCost(i)>0;
     const _costStr='<div class="item-row-price">'+fmt(_tc)+(_hasParts?' <span style="font-size:10px;opacity:0.6">all-in</span>':'')+'</div>';
-    const _ep=i.estSalePrice!=null?i.estSalePrice-_tc:null;
+    const _ep=_estPotentialNet(i); // real net: est − fee − cost − parts − median fulfilment drag (matches detail page)
     const _profitEl=_ep!=null?'<div class="item-row-profit est" style="color:'+(_ep>=0?'var(--green)':'var(--red)')+'">est '+(_ep>=0?'+':'')+fmt(_ep)+'</div>':'<div class="item-row-roi">cost</div>';
     return '<div class="item-row sourced-row'+(selected?' selected':'')+'" '+stockRowClick+'>'+
       '<div class="item-main">'+
@@ -19548,10 +19615,10 @@ function renderStock(){
   });
   const cMaturing=ageBuckets.maturing,cSlow=ageBuckets.slow;
 
-  // Est. potential (Patch C-2) — sum of (estSalePrice-cost-parts) for sourced items with estimate
+  // Est. potential — sum of real net (est − fee − cost − parts − median fulfilment drag) for sourced items with an estimate
   let estPotential=0;
   let cWithEstimate=0;
-  allStock.forEach(function(i){ if(i.estSalePrice!=null){estPotential+=(i.estSalePrice-(i.costPrice||0)-calcPartsCost(i));cWithEstimate++;} });
+  allStock.forEach(function(i){ const _n=_estPotentialNet(i); if(_n!=null){estPotential+=_n;cWithEstimate++;} });
 
   // Value KPI: sourced items contribute cost; listed items contribute asking price
   let totalValue=0;
@@ -19928,6 +19995,181 @@ function _costCategoryBreakdown(trips,expenses,tieredById,from,to){
 // Set period scope / category filter and re-render (Costs & Trips page).
 function setCostPeriod(kind){COST_PERIOD=kind;COST_CAT_FILTER='all';renderExpenses();}
 function setCostCatFilter(label){COST_CAT_FILTER=(COST_CAT_FILTER===label?'all':label);renderExpenses();}
+
+// ===== CASH & OWNER LEDGER (v2.20.0) ==========================================
+// The item/sale/return/fee engine (calc*) owns PROFIT; the expenses table owns
+// overheads. Neither can see the things that move CASH without moving profit:
+// owner drawings, owner contributions, opening balances, manual corrections.
+// This layer is that missing piece — profit-neutral BY DESIGN, so it can never
+// shift a taxable figure. Business cash is DERIVED (never re-keyed) from the
+// verified engine + this ledger, so nothing double-counts.
+//   Deferred (Phase 2+): internal transfers (needs a multi-account model),
+//   per-account balances, reconciliation, marketplace/bank import, and listing
+//   every sale as its own derived cash leg. v1 keeps the ledger to the four
+//   non-trading legs below and DERIVES trading cash from the engine.
+const CASH_TYPES={
+  owner_draw:        {label:'Owner withdrawal', dir:'out', short:'Withdrawal'},
+  owner_contribution:{label:'Money you added',  dir:'in',  short:'Added'},
+  opening_balance:   {label:'Opening balance',  dir:'in',  short:'Opening'},
+  adjustment:        {label:'Adjustment',       dir:'in',  short:'Adjustment'},
+};
+function _cashLedger(){return Array.isArray(DB.cashLedger)?DB.cashLedger:(DB.cashLedger=[]);}
+// Real cash overheads only. Standalone expenses + trip cash extras (parking,
+// entry). Tiered MILEAGE is deliberately excluded — it is a tax allowance, not
+// money that left the account, so it must not touch a cash balance.
+function _cashOverheadsAllTime(){
+  let o=0;
+  (DB.expenses||[]).forEach(function(e){o+=Number(e.amount)||0;});
+  (DB.trips||[]).forEach(function(t){(Array.isArray(t.expenses)?t.expenses:[]).forEach(function(x){o+=Number(x.amount)||0;});});
+  return +o.toFixed(2);
+}
+function calcCashSummary(){
+  const s=(typeof calcYearlyStats==='function')?calcYearlyStats('all'):{realisedProfit:0,stockValue:0,netProfit:0};
+  const fyS=(typeof _currentFYStart==='function')?_currentFYStart():new Date().getFullYear();
+  const fyFrom=fyS+'-04-01',fyTo=(fyS+1)+'-03-31';
+  const inFY=function(d){return d&&d>=fyFrom&&d<=fyTo;};
+  let opening=0,contrib=0,draw=0,adjust=0,contribFY=0,drawFY=0;
+  _cashLedger().forEach(function(m){
+    const amt=Number(m.amount)||0;
+    if(m.type==='opening_balance')opening+=amt;
+    else if(m.type==='owner_contribution'){contrib+=amt;if(inFY(m.date))contribFY+=amt;}
+    else if(m.type==='owner_draw'){draw+=amt;if(inFY(m.date))drawFY+=amt;}
+    else if(m.type==='adjustment')adjust+=(m.direction==='out'?-amt:amt);
+  });
+  const tradingCashMargin=+(Number(s.realisedProfit)||0).toFixed(2); // receipts − sold COGS − fees − postage − refunds − splits (all cash)
+  const stockTied=+(Number(s.stockValue)||0).toFixed(2);             // unsold stock cost already paid out
+  const cashOverheads=_cashOverheadsAllTime();
+  const operatingCash=+(tradingCashMargin-stockTied-cashOverheads).toFixed(2);
+  const cashAvailable=+(opening+operatingCash+contrib-draw+adjust).toFixed(2);
+  const netProfit=+(Number(s.netProfit)||0).toFixed(2);
+  return {
+    opening:+opening.toFixed(2),contrib:+contrib.toFixed(2),draw:+draw.toFixed(2),adjust:+adjust.toFixed(2),
+    contribFY:+contribFY.toFixed(2),drawFY:+drawFY.toFixed(2),
+    tradingCashMargin,stockTied,cashOverheads,operatingCash,cashAvailable,
+    netProfit,grossProfit:tradingCashMargin,
+    netOwner:+(draw-contrib).toFixed(2),
+    profitRetained:+(netProfit-draw+contrib).toFixed(2),
+  };
+}
+function renderCash(){
+  const el=document.getElementById('p-cash');if(!el)return;
+  const c=calcCashSummary();
+  const led=_cashLedger().slice().sort(function(a,b){
+    return (b.date||'').localeCompare(a.date||'')||(b.createdAt||'').localeCompare(a.createdAt||'');
+  });
+  const kpi=function(label,val,foot,col){
+    return '<div class="card kpi">'
+      +'<div class="kpi-label">'+esc(label)+'</div>'
+      +'<div class="kpi-value num"'+(col?' style="color:'+col+'"':'')+'>'+fmt(val)+'</div>'
+      +(foot?'<div class="kpi-foot">'+foot+'</div>':'')
+      +'</div>';
+  };
+  let html=''
+    +'<div class="page-header"><div>'
+      +'<div class="page-title">Money</div>'
+      +'<div class="page-subtitle">Cash, owner drawings &amp; contributions — profit is not the same as cash</div>'
+    +'</div>'
+    +'<button class="btn btn-primary" style="flex-shrink:0" onclick="addCashMove()">'+icon('expense',15)+' Add</button>'
+    +'</div>';
+  // Headline — business cash available
+  html+='<div class="card" style="padding:20px 22px;margin-bottom:18px;">'
+    +'<div class="kpi-label">Business cash available</div>'
+    +'<div class="num" style="font-size:clamp(28px,7vw,40px);font-weight:800;line-height:1.05;margin-top:4px;'+(c.cashAvailable<0?'color:var(--red);':'')+'">'+fmt(c.cashAvailable)+'</div>'
+    +'<div class="kpi-foot" style="margin-top:8px;line-height:1.5;">Opening '+fmt(c.opening)+' + operating cash '+fmt(c.operatingCash)+' + you added '+fmt(c.contrib)+' − you took '+fmt(c.draw)+(c.adjust?' '+(c.adjust<0?'−':'+')+' adj '+fmt(Math.abs(c.adjust)):'')+'. Not the same as profit — '+fmt(c.stockTied)+' is still tied up in unsold stock.</div>'
+  +'</div>';
+  // CASH group
+  html+='<div class="sl" style="margin:20px 0 10px;">Cash</div>'
+    +'<div class="kgrid">'
+      +kpi('Operating cash',c.operatingCash,'Profit '+fmt(c.grossProfit)+' less stock &amp; overheads')
+      +kpi('Cash tied up in stock',c.stockTied,'Cost of unsold stock')
+      +kpi('Gross profit (all-time)',c.grossProfit,'Realised, before overheads')
+      +kpi('Opening balance',c.opening,'Starting cash')
+    +'</div>';
+  // OWNER group
+  html+='<div class="sl" style="margin:22px 0 10px;">Owner</div>'
+    +'<div class="kgrid">'
+      +kpi('You took out',c.draw,'This tax year '+fmt(c.drawFY),c.draw>0?'var(--warn)':'')
+      +kpi('You added',c.contrib,'This tax year '+fmt(c.contribFY),c.contrib>0?'#3b82f6':'')
+      +kpi('Net taken by you',c.netOwner,c.netOwner>=0?'More out than in':'More in than out')
+      +kpi('Profit kept in business',c.profitRetained,'Net profit − drawings + added')
+    +'</div>';
+  // Ledger
+  html+='<div class="sl" style="margin:24px 0 10px;">Ledger</div>';
+  if(!led.length){
+    html+='<div class="card" style="padding:18px;text-align:center;color:var(--text-secondary);line-height:1.5;">No entries yet. Use <b>Add</b> to set an opening balance, or record money you take out or put in. Sales, fees and overheads are counted automatically.</div>';
+  }else{
+    html+='<div class="section-card" style="padding:0;overflow:hidden;">';
+    led.forEach(function(m){
+      const t=CASH_TYPES[m.type]||{label:m.type,dir:'in'};
+      const isOut=(m.type==='adjustment')?(m.direction==='out'):(t.dir==='out');
+      html+='<div style="display:flex;align-items:center;gap:12px;padding:12px 14px;border-bottom:1px solid var(--border);cursor:pointer;" onclick="editCashMove(\''+m.id+'\')">'
+        +'<div style="flex:1;min-width:0;">'
+          +'<div style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(m.description||t.label)+'</div>'
+          +'<div style="font-size:12px;color:var(--text-secondary);">'+esc(t.label)+' · '+esc(m.date||'')+'</div>'
+        +'</div>'
+        +'<div class="num" style="font-weight:700;flex-shrink:0;color:'+(isOut?'var(--warn)':'#3b82f6')+';">'+(isOut?'−':'+')+fmt(Number(m.amount)||0)+'</div>'
+      +'</div>';
+    });
+    html+='</div>';
+  }
+  el.innerHTML=html;
+}
+function _cashMoveForm(m,type){
+  const cur=m?m.type:(type||'owner_draw');
+  const opt=function(v,l){return '<option value="'+v+'"'+(v===cur?' selected':'')+'>'+l+'</option>';};
+  return ''
+    +'<div class="fg"><label>Type</label><select id="cash-type" onchange="_cashTypeChanged()">'
+      +opt('owner_draw','Owner withdrawal — money out to you')
+      +opt('owner_contribution','Money you added to the business')
+      +opt('opening_balance','Opening balance — starting cash')
+      +opt('adjustment','Adjustment — manual correction')
+    +'</select></div>'
+    +'<div class="fg" id="cash-adj-dir-wrap" style="display:none;"><label>Direction</label><select id="cash-adj-dir">'
+      +'<option value="in"'+((m&&m.direction==='in')?' selected':'')+'>Increase cash (+)</option>'
+      +'<option value="out"'+((m&&m.direction==='out')?' selected':'')+'>Decrease cash (−)</option>'
+    +'</select></div>'
+    +'<div class="fg"><label>Date</label><input type="date" id="cash-date" value="'+((m&&m.date)||new Date().toISOString().split('T')[0])+'"></div>'
+    +'<div class="fg"><label>Amount (£)</label><input type="number" id="cash-amt" step="0.01" min="0" inputmode="decimal" placeholder="0.00" value="'+((m&&m.amount)||'')+'"></div>'
+    +'<div class="fg"><label>Description <span style="color:var(--text-secondary);font-weight:400;">(optional)</span></label><input type="text" id="cash-desc" placeholder="e.g. Transfer to personal account" value="'+(m?esc(m.description||''):'')+'"></div>'
+    +'<button class="btn btn-primary" style="width:100%;margin-top:16px" onclick="saveCashMove('+(m?'\''+m.id+'\'':'')+')">'+(m?'Update':'Save')+'</button>'
+    +(m?'<button class="btn btn-secondary danger" style="width:100%;margin-top:8px" onclick="deleteCashMove(\''+m.id+'\')">Delete</button>':'');
+}
+function _cashTypeChanged(){
+  const t=document.getElementById('cash-type');const w=document.getElementById('cash-adj-dir-wrap');
+  if(t&&w)w.style.display=(t.value==='adjustment')?'':'none';
+}
+function addCashMove(preType){
+  openPanel('Add money entry',_cashMoveForm(null,preType||'owner_draw'));
+  _cashTypeChanged();
+  const a=document.getElementById('cash-amt');if(a)a.focus();
+}
+function editCashMove(id){
+  const m=_cashLedger().find(function(x){return x.id===id;});if(!m)return;
+  openPanel('Edit entry',_cashMoveForm(m,m.type));
+  _cashTypeChanged();
+}
+function saveCashMove(id){
+  const type=document.getElementById('cash-type').value;
+  const amt=parseFloat(document.getElementById('cash-amt').value);
+  if(!isFinite(amt)||amt<=0){toast('Amount must be a positive number','error');try{document.getElementById('cash-amt').focus();}catch(e){}return;}
+  const date=document.getElementById('cash-date').value||new Date().toISOString().split('T')[0];
+  const desc=(document.getElementById('cash-desc').value||'').trim();
+  const dir=(type==='adjustment')?((document.getElementById('cash-adj-dir')||{}).value||'in'):((CASH_TYPES[type]||{}).dir||'in');
+  const led=_cashLedger();
+  if(id){
+    const ex=led.find(function(x){return x.id===id;});
+    if(ex){ex.type=type;ex.category=type;ex.amount=amt;ex.date=date;ex.description=desc;ex.direction=dir;}
+  }else{
+    led.push({id:'cash_'+Date.now(),type:type,category:type,amount:amt,date:date,description:desc,direction:dir,createdAt:new Date().toISOString()});
+  }
+  DB.cashLedger=led;
+  saveDB();closePanel();toast(id?'Entry updated':'Entry saved');renderCash();
+}
+function deleteCashMove(id){
+  DB.cashLedger=_cashLedger().filter(function(x){return x.id!==id;});
+  saveDB();closePanel();toast('Entry deleted');renderCash();
+}
+// ===== END CASH & OWNER LEDGER ================================================
 
 function renderExpenses(){
   const trips=DB.trips||[];
@@ -25495,6 +25737,7 @@ window.addEventListener('load',function(){
         if(id==='p-summary'&&typeof renderSummary==='function')renderSummary();
         else if(id==='p-monthly'&&typeof renderMonthlyPage==='function')renderMonthlyPage();
         else if(id==='p-expenses'&&typeof renderExpenses==='function')renderExpenses();
+        else if(id==='p-cash'&&typeof renderCash==='function')renderCash();
         else if(id==='p-runs'&&typeof renderRunsPage==='function')renderRunsPage();
       },150);
     }
