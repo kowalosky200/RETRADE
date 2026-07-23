@@ -20023,28 +20023,25 @@ function _cashOverheadsAllTime(){
   (DB.trips||[]).forEach(function(t){(Array.isArray(t.expenses)?t.expenses:[]).forEach(function(x){o+=Number(x.amount)||0;});});
   return +o.toFixed(2);
 }
-// Cash tied up in unsold stock = what Oskar has actually PAID toward stock still
-// on hand. Parts always count (his cash). The item COST counts only if he's paid
-// it — which is true when EITHER the terms are pay-upfront (own car-boot stock
-// with no account, or a supplier account on 'upfront' terms), OR he's settled
-// the partner early (accountSettled) even though the item is still listed — e.g.
-// paying Matt for the last 1-2 items in one go before they sell. Consignment/
-// on-sale items he hasn't settled yet tie up no cash (cost settles at sale, which
-// the engine already handles). Amount paid = accountPaidAmount if recorded, else
-// costPrice.
+// Cash tied up in unsold stock = what Oskar has actually PAID for stock STILL ON
+// HAND. Two rules:
+//  1) On-hand only — mirror the Stock Room exactly: sourced, or not-yet
+//     sold/returned/resold. A sold item's cost is already inside realised profit,
+//     so counting it here too would double-count it (this was inflating the figure).
+//  2) Cost counts only if PAID: own stock (no partner account) is paid at
+//     purchase; partner stock counts only once actually settled (accountSettled),
+//     regardless of the account's payment terms. Unsettled partner stock ties up
+//     no cash. Parts always count (his cash). Amount = accountPaidAmount ?? costPrice.
 function _cashStockTied(){
   let c=0;
   (typeof allDBKeys==='function'?allDBKeys():[]).forEach(function(k){
     (DB[k]||[]).forEach(function(i){
       if(!i)return;
       if((i.item||'').trim().toUpperCase()==='MONTH END')return;
-      if(i.state!=='sourced'&&i.state!=='listed')return;
-      c += (typeof calcPartsCost==='function'?(Number(calcPartsCost(i))||0):0); // parts always his cash
-      let acct=null;
-      try{ if(i.accountId && Array.isArray(_accounts)) acct=_accounts.find(function(a){return a.id===i.accountId;})||null; }catch(e){}
-      let paysOnSale=false;
-      try{ if(typeof _accountPaysOnSale==='function') paysOnSale=_accountPaysOnSale(acct); }catch(e){}
-      const paid = (!paysOnSale) || (i.accountSettled===true); // upfront terms, or settled early
+      const onHand = (i.state==='sourced') || (!i.dateSold && !i.isReturned && !i.resaleSalePrice);
+      if(!onHand)return;
+      c += (typeof calcPartsCost==='function'?(Number(calcPartsCost(i))||0):0); // parts: his cash regardless
+      const paid = (!i.accountId) || (i.accountSettled===true);
       if(paid){
         c += (i.accountPaidAmount!=null) ? (Number(i.accountPaidAmount)||0) : (Number(i.costPrice)||0);
       }
