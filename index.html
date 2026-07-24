@@ -12864,7 +12864,7 @@ function _refreshSideNavStockCount(){
         (DB[k]||[]).forEach(function(i){
           if(!i)return;
           const isActiveSourced=(i.state==='sourced');
-          const isActiveListed =(i.state==='listed' && !i.dateSold && !i.resaleSalePrice);
+          const isActiveListed =(i.state==='listed' && !i.dateSold && !i.isReturned && !i.resaleSalePrice);
           if(isActiveSourced||isActiveListed)count++;
         });
       });
@@ -20072,7 +20072,7 @@ function _cashStockTied(){
 function calcCashSummary(){
   const s=(typeof calcYearlyStats==='function')?calcYearlyStats('all'):{realisedProfit:0,stockValue:0,netProfit:0};
   const fyS=(typeof _currentFYStart==='function')?_currentFYStart():new Date().getFullYear();
-  const fyFrom=fyS+'-04-01',fyTo=(fyS+1)+'-03-31';
+  const fyFrom=fyS+'-04-06',fyTo=(fyS+1)+'-04-05'; // UK tax year 6 Apr–5 Apr (matches Tax Return / _periodDateRange)
   const inFY=function(d){return d&&d>=fyFrom&&d<=fyTo;};
   let opening=0,contrib=0,draw=0,adjust=0,contribFY=0,drawFY=0;
   _cashLedger().forEach(function(m){
@@ -20896,7 +20896,8 @@ function renderData(){
   const fyYears=Array.from(fySet).sort((a,b)=>b-a);
   const _curFY=_currentFYStart();
   const fyOpts=fyYears.map(function(fy){
-    return '<option value="'+fy+'"'+(fy===_curFY?' selected':'')+'>FY '+_getFYLabel(fy)+(fy===_curFY?' (current)':'')+'</option>';
+    // <option> renders plain text only — CSS-toggled dual-span _getFYLabel would print both forms ("2026–202726–27"); use a plain label.
+    return '<option value="'+fy+'"'+(fy===_curFY?' selected':'')+'>FY '+fy+'–'+String(fy+1).slice(-2)+(fy===_curFY?' (current)':'')+'</option>';
   }).join('');
 
   // Build month list for monthly export selector
@@ -21325,6 +21326,17 @@ function _runIntegrityScanner(){
         if(!hasPostageSnap)
           itemFindings.push({severity:'warning',code:'relist-no-snap',label:'Resold — missing postage snapshot',desc:'This item was relisted and sold twice, but the original sale 1 postage was not captured at relist time. Lifetime P&L may be slightly inaccurate. Open the item and check the Sale 1 details section to fill in the missing values.'});
       }
+
+      // Multi-cycle returns: the return model supports ONE resale cycle
+      // (sale 1 → full return → relist → sale 2). An item with two or more FULL
+      // returns has been through the loop twice (sold, refunded, relisted,
+      // re-sold, refunded again) and cannot be represented by the single
+      // resaleSalePrice slot — both refunds pile onto Sale 1, so its Sale 1 P&L
+      // and Lifetime P&L are not trustworthy. Flag it so the figures aren't
+      // taken at face value until the multi-cycle rework lands.
+      const _fullReturnCount=(i.returnHistory||[]).filter(function(r){return r.type==='full_seller'||r.type==='full_ebay';}).length;
+      if(_fullReturnCount>1)
+        itemFindings.push({severity:'warning',code:'multi-cycle-return',label:'Multiple return cycles — P&L unreliable',desc:'This item has '+_fullReturnCount+' full returns, meaning it was sold and fully refunded more than once. The app currently models a single resale cycle, so both refunds are charged against Sale 1 — its Sale 1 P&L and Lifetime P&L are overstated as losses. Treat this item\u2019s figures as unreliable until the multi-cycle return fix is applied. Its SA103 tax lines use a separate calculation and are not affected by this.'});
 
       if(itemFindings.length){
         itemFindings.forEach(function(f){findings.push(Object.assign({m:m,id:i.id,name:name},f));});
@@ -23479,7 +23491,7 @@ function renderTax(){
     +'<div style="display:flex;justify-content:space-between;align-items:center;padding:12px 16px;font-size:14px;font-weight:700;background:var(--surface2)">'
     +'<span>Total deduction</span><span style="color:var(--red)">\u2212'+fmt(box16)+'</span>'
     +'</div></div>'
-    +(!usingTA&&pnl.motorDoubleClaim?'<div style="background:var(--red-dim);border:1px solid rgba(192,57,43,0.3);border-radius:10px;padding:12px 14px;margin:-8px 0 20px;font-size:12px;color:var(--text-secondary);line-height:1.5;display:flex;gap:10px;align-items:flex-start"><span style="flex-shrink:0">\u26a0\ufe0f</span><span><strong style="color:var(--text)">Check motor costs.</strong> This year has both mileage and actual vehicle costs. HMRC simplified mileage already covers fuel, insurance, servicing &amp; repairs \u2014 claim one method per vehicle, not both.</span></div>':'')
+    +(!usingTA&&pnl.motorDoubleClaim?'<div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin:-8px 0 20px;font-size:12px;color:var(--text-secondary);line-height:1.5;display:flex;gap:10px;align-items:flex-start"><span style="flex-shrink:0">\uD83D\uDE97</span><span><strong style="color:var(--text)">Motor: '+(pnl.motorMethod==='actual'?'actual costs':'simplified mileage')+' applied.</strong> '+fmt(pnl.motorMethod==='actual'?pnl.motorActual:pnl.motorMileage)+' claimed; '+esc(pnl.motorExcludedLabel)+' ('+fmt(pnl.motorExcluded)+') excluded from taxable expenses \u2014 one method per vehicle. <a onclick="DB._motorMethod=\''+(pnl.motorMethod==='actual'?'mileage':'actual')+'\';saveDB();renderTax()" style="color:var(--accent);cursor:pointer;text-decoration:underline;white-space:nowrap">Use '+(pnl.motorMethod==='actual'?'mileage':'actual costs')+' instead</a></span></div>':'')
 
     // SA103 boxes — values driven by chosen method
     +'<div class="sl">SA103 Box References</div>'
@@ -23734,11 +23746,11 @@ function _periodDateRange(period){
   if(period==='90d') return{from:daysAgo(89), to:todayStr};
   if(period==='current_fy'||!period){
     const fy=_currentFYStart();
-    return{from:fy+'-04-01',to:(fy+1)+'-03-31'};
+    return{from:fy+'-04-06',to:(fy+1)+'-04-05'}; // UK tax year 6 Apr–5 Apr (matches Tax Return / _buildPnLSummary)
   }
   if(period==='prev_fy'){
     const fy=_currentFYStart()-1;
-    return{from:fy+'-04-01',to:(fy+1)+'-03-31'};
+    return{from:fy+'-04-06',to:(fy+1)+'-04-05'}; // UK tax year 6 Apr–5 Apr
   }
   return{from:null,to:null}; // all time
 }
@@ -24478,7 +24490,7 @@ function _expandedExpenseRowsCSV(pnl){
 // Multi-tier P&L for any date range, built the way an accountant would lay out
 // a sole-trader profit & loss account:
 //
-//   Turnover (net of returns)
+//   Turnover (gross receipts)
 //     − Cost of goods sold  (Box 17: item cost + parts only)      ← calcCOGSOnly basis
 //   = GROSS PROFIT
 //     − Selling costs       (platform fees, promo, postage,
@@ -24558,6 +24570,32 @@ function _buildPnLSummary(from,to,label){
   if(returnsSell>0)byBox[30]=+(((byBox[30]||0)+returnsSell)).toFixed(2);
   const box17=+(cogs+partnerSell).toFixed(2);
 
+  // ── Motor expense method (F7): mileage OR actual, never both per vehicle ──
+  // HMRC simplified mileage (45p/25p) already covers fuel, insurance, servicing,
+  // repairs & depreciation — you can't ALSO deduct actual motor running costs
+  // for the same vehicle. When both are present, honour the chosen method
+  // (DB._motorMethod, default 'mileage') and drop the OTHER from the TAXABLE
+  // total (overheads → net profit → Box 20 → every export, in lockstep). This
+  // touches taxable profit only; the Money/cash model counts real motor spend
+  // separately as genuine cash out, so it is unaffected by this choice.
+  const motorActual=+(((byCategory['Motor, van & travel']||{}).amount)||0).toFixed(2);
+  const motorMethod=(typeof DB!=='undefined'&&DB._motorMethod==='actual')?'actual':'mileage';
+  const motorDoubleClaim=(mileageCost>0&&motorActual>0);
+  let motorExcluded=0, motorExcludedLabel='';
+  if(motorDoubleClaim){
+    if(motorMethod==='actual'){
+      byBox[20]=+(((byBox[20]||0)-mileageCost)).toFixed(2);
+      manualOverhead-=mileageCost;
+      if(byCategory['Mileage allowance'])byCategory['Mileage allowance'].excluded=true;
+      motorExcluded=+mileageCost.toFixed(2); motorExcludedLabel='mileage allowance';
+    } else {
+      byBox[20]=+(((byBox[20]||0)-motorActual)).toFixed(2);
+      manualOverhead-=motorActual;
+      if(byCategory['Motor, van & travel'])byCategory['Motor, van & travel'].excluded=true;
+      motorExcluded=motorActual; motorExcludedLabel='actual motor costs';
+    }
+  }
+
   // ── Tiers ──
   const grossProfit=+(revenue-cogs).toFixed(2);
   const sellingCosts=+(feesSell+postPkgSell+returnsSell+partnerSell+manualSelling).toFixed(2);
@@ -24571,20 +24609,13 @@ function _buildPnLSummary(from,to,label){
   const om=revenue>0?+((operatingProfit/revenue)*100).toFixed(1):0;
   const nm=revenue>0?+((netProfit/revenue)*100).toFixed(1):0;
 
-  // Compliance flag: mileage claimed AND actual motor costs in the same period.
-  // HMRC simplified mileage (45p/25p) already covers fuel, insurance, MOT,
-  // servicing, repairs & depreciation — you can't also claim actual motor
-  // costs for the same vehicle. Actual motor = manual Box-20 expenses.
-  const actualMotor=+(((byCategory['Motor, van & travel']||{}).amount)||0).toFixed(2);
-  const motorDoubleClaim=(mileageCost>0&&actualMotor>0);
-
   const money=function(n){return (+n).toFixed(2);};
   const rows=[
     ['PROFIT & LOSS'+(label?' — '+label:'')],
     ['Period',from+' → '+to],
     ['Basis','Cash basis'],
     [],
-    ['Turnover — gross receipts, net of returns (£)',money(revenue)],
+    ['Turnover — gross receipts (£)',money(revenue)],
     ['  of which: goods (£)',money(goodsRev)],
     ['  of which: postage recharged to buyers (£)',money(postageIn)],
     ['Less: Cost of goods sold — Box 17 (£)',money(cogs)],
@@ -24623,7 +24654,7 @@ function _buildPnLSummary(from,to,label){
   ];
   if(motorDoubleClaim){
     rows.push([]);
-    rows.push(['⚠ CHECK','Both mileage ('+money(mileageCost)+') and actual motor costs ('+money(actualMotor)+') claimed. HMRC simplified mileage already covers fuel, insurance, servicing & repairs — claim one method per vehicle, not both.']);
+    rows.push(['Motor method',(motorMethod==='actual'?'Actual motor costs':'Simplified mileage')+' applied — '+money(motorMethod==='actual'?motorActual:mileageCost)+' claimed; '+motorExcludedLabel+' ('+money(motorExcluded)+') excluded (one method per vehicle).']);
   }
 
   return{
@@ -24639,7 +24670,7 @@ function _buildPnLSummary(from,to,label){
     grossMargin:gm, operatingMargin:om, netMargin:nm,
     mileage:{cost:+mileageCost.toFixed(2),miles:totalMiles},
     byBox:byBox, byCategory:byCategory, box17:box17,
-    motorDoubleClaim:motorDoubleClaim,
+    motorDoubleClaim:motorDoubleClaim, motorMethod:motorMethod, motorMileage:+mileageCost.toFixed(2), motorActual:motorActual, motorExcluded:motorExcluded, motorExcludedLabel:motorExcludedLabel,
     from:from, to:to, label:label
   };
 }
@@ -24680,7 +24711,7 @@ function _buildSA103Rows(pnl){
   }
   if(pnl.motorDoubleClaim){
     rows.push([]);
-    rows.push(['⚠ CHECK','Mileage AND actual motor costs both present — claim one method per vehicle, not both (HMRC simplified expenses).','']);
+    rows.push(['Motor method',(pnl.motorMethod==='actual'?'Actual motor costs':'Simplified mileage')+' applied \u2014 '+pnl.motorExcludedLabel+' ('+pnl.motorExcluded.toFixed(2)+') excluded (one method per vehicle).','']);
   }
   rows.push([]);
   rows.push(['Disclaimer','Prepared on a cash basis as a record-keeping aid. Figures should be reviewed before filing. This is not tax advice.','']);
@@ -24717,7 +24748,7 @@ function _pnlSummarySheetRows(pnl,title){
     [title],
     ['Basis: cash basis'],[],
     ['Line','Value (£)'],
-    ['Turnover — gross receipts, net of returns',pnl.revenue],
+    ['Turnover — gross receipts',pnl.revenue],
     ['  of which: goods',pnl.goodsRev],
     ['  of which: postage recharged to buyers',pnl.postageIn],
     ['Less: Cost of goods sold (Box 17)',pnl.cogs],
@@ -24755,7 +24786,7 @@ function _pnlSummarySheetRows(pnl,title){
   ];
   if(pnl.motorDoubleClaim){
     rows.push([]);
-    rows.push(['⚠ CHECK: mileage AND actual motor costs both claimed — pick one method per vehicle (HMRC simplified expenses).','']);
+    rows.push(['Motor method: '+(pnl.motorMethod==='actual'?'Actual motor costs':'Simplified mileage')+' applied; '+pnl.motorExcludedLabel+' ('+pnl.motorExcluded.toFixed(2)+') excluded (one method per vehicle).','']);
   }
   return rows;
 }
@@ -25285,6 +25316,36 @@ function calcItemRevenue(i){
 }
 function calcGrossProfit(i){
   if(!i.salePrice)return null;
+  // F4 — a sale marked fully returned with NO return record (empty returnHistory)
+  // and no resale has zero revenue; without an entry to reverse it the code below
+  // reports phantom profit. Force 0 to match calcItemRevenue's isReturned rule.
+  if(i.isReturned && !i.resaleSalePrice && !(i.returnHistory||[]).length)return 0;
+  // ── Multi-cycle full returns (>1) ──────────────────────────────────────────
+  // The model has a single resale slot, so an item sold-and-fully-refunded more
+  // than once can't be represented and the code below charges BOTH refunds
+  // against Sale 1 (the -£77.46 bug). Compute from first principles under the
+  // agreed convention: on a FULL refund eBay credits the FVF AND the promoted-
+  // listing boost, and the refund principal reverses the sale — all net to zero.
+  // The only real loss is the sunk fulfilment: item cost + parts + each sale's
+  // outbound shipping/packaging (when the seller pays postage) + every return
+  // postage + listing/relist fees. Guarded on >1 full return so all single-/no-
+  // return items are byte-identical. NB: calcGrossProfit does NOT feed SA103
+  // (that path is _buildPnLSummary/_saleBreakdown), so this is tax-safe.
+  const _fullRets=(i.returnHistory||[]).filter(function(r){return r.type==='full_seller'||r.type==='full_ebay';});
+  if(_fullRets.length>1){
+    const _plat=_itemPlatform(i);
+    const _sellerShips=(_plat!=='vinted'&&_plat!=='fb');
+    const _fr1=_fullRets[0]||{};
+    const _s1Ship=(_fr1._shippingCostAtRelist!==undefined)?_fr1._shippingCostAtRelist:(i.shippingCost||0);
+    const _s1Pkg =(_fr1._packagingCostAtRelist!==undefined)?_fr1._packagingCostAtRelist:(i.packagingCost||0);
+    const _s2Ship=i.resaleSalePrice?(i.resaleShippingCost||0):0;
+    const _s2Pkg =i.resaleSalePrice?(i.resalePackagingCost||0):0;
+    const _outbound=_sellerShips?(_s1Ship+_s1Pkg+_s2Ship+_s2Pkg):0;
+    const _retPost=_fullRets.reduce(function(s,r){return s+(r.returnPostage||0);},0);
+    const _listing=(i.listingFee||0)+(i.resaleListingFee||0);
+    const _sunk=(i.costPrice||0)+calcPartsCost(i)+_outbound+_retPost+_listing;
+    return +(-_sunk).toFixed(2);
+  }
   // Partial refund handling for fees:
   //   partial_seller (seller agreed): eBay refunds the fee difference — recalc BPF/promo on net sale price
   //   partial_ebay (eBay stepped in): eBay keeps the original fee — BPF/promo stay on full sale price
@@ -25314,7 +25375,10 @@ function calcGrossProfit(i){
   // Ad/promo fee is charged on the full sale price (same base as FVF), NOT on
   // grossInc. Using grossInc understated it — verified against a real eBay
   // invoice: £155 sale × 3% × 1.20 VAT = £5.58 (eBay actual), not £4.65.
-  const promoCost=effectiveSaleForFees*_s1Promo*1.20;
+  // On a FULL refund eBay credits the promoted-listing fee back, so a fully-
+  // returned Sale 1 carries no boost cost (_fullReturnEntry present ⇒ Sale 1 was
+  // fully refunded — true for both returned-not-resold and returned-then-resold).
+  const promoCost=_fullReturnEntry?0:effectiveSaleForFees*_s1Promo*1.20;
   // Determine if this item has been relisted after a full return
   // (isReturned=false but returnHistory has a full return entry, and no dateSold / resaleSalePrice)
   // Full returns only: eBay refunds BPF back to seller (transaction fully reversed)
