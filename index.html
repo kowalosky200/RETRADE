@@ -9459,6 +9459,7 @@ async function setItemPlatform(m,id,platId){
     if(i.defaultPlatform===platId)return; // no change
     i.defaultPlatform=platId;
   }
+  _stampListingFee(i); // re-stamp Sale-1 insertion fee to the new platform (biz 0.36 / private 0)
   // F2: eBay Biz doesn't use Simple Delivery — force custom postage mode on switch
   if(platId==='ebay_biz'){
     i._postageMode='custom';
@@ -19467,6 +19468,7 @@ async function bulkChangePlatform(platId, source){
       const item=(DB[k]||[]).find(i=>i.id===id);
       if(item){
         item.defaultPlatform=platId;
+        _stampListingFee(item); // re-stamp Sale-1 insertion fee to the new platform
         // If eBay Biz, ensure postage mode is custom; if eBay private, set simple
         if(platId==='ebay_biz') item._postageMode='custom';
         else if(platId==='ebay') item._postageMode='simple';
@@ -22332,7 +22334,7 @@ function saveEdit(m,id){
   item.item=document.getElementById('edit-item').value;
   // Platform
   const editPlat=document.getElementById('edit-platform-hidden')?.value;
-  if(editPlat&&PLATFORMS[editPlat])item.defaultPlatform=editPlat;
+  if(editPlat&&PLATFORMS[editPlat]){item.defaultPlatform=editPlat;_stampListingFee(item);} // re-stamp so a biz→private switch clears the insertion fee
   item.source=document.getElementById('edit-source').value;
   item.category=document.getElementById('edit-category').value;
   item.location=document.getElementById('edit-location').value;
