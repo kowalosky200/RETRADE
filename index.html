@@ -392,6 +392,10 @@ nav:not(#bottom-nav){position:sticky;top:env(safe-area-inset-top,0px);z-index:20
 
 /* CARDS */
 .kgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px;margin-bottom:14px;}
+.rtn-segbar{display:inline-flex;background:var(--surface2);border:1px solid var(--border);border-radius:9px;padding:3px;gap:2px;}
+.rtn-seg{border:none;background:transparent;color:var(--text-secondary);font-size:13px;font-weight:600;padding:6px 12px;border-radius:6px;cursor:pointer;transition:background .15s,color .15s;}
+.rtn-seg:hover{color:var(--text);}
+.rtn-seg.on{background:var(--surface);color:var(--text);box-shadow:0 1px 2px var(--shadow);}
 .kgrid-2{grid-template-columns:repeat(2,1fr)!important;}
 .kgrid-3{grid-template-columns:repeat(3,1fr);}
 .kgrid-4{grid-template-columns:repeat(4,minmax(0,1fr));}
@@ -5162,6 +5166,10 @@ c-230 453 -565 1105 -674 1315 -63 120 -114 221 -114 225 0 4 47 19 104 34
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
             <span>Accounts</span>
           </button>
+          <button data-tab="returns" onclick="goToTab('returns',this);closeNavMore()">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/></svg>
+            <span>Returns</span>
+          </button>
           <button data-tab="tax" onclick="goToTab('tax',this);closeNavMore()">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="15" x2="15" y2="9"/><circle cx="9.5" cy="9.5" r="1" fill="currentColor" stroke="none"/><circle cx="14.5" cy="14.5" r="1" fill="currentColor" stroke="none"/></svg>
             <span>Tax / SA103</span>
@@ -5351,6 +5359,10 @@ c-230 453 -565 1105 -674 1315 -63 120 -114 221 -114 225 0 4 47 19 104 34
     <button onclick="closeMoreSheet();goToTab('accounts',document.querySelector('[data-tab=\'accounts\']'))" class="more-sheet-row" data-sheet-tab="accounts">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
       <span>Accounts</span>
+    </button>
+    <button onclick="closeMoreSheet();goToTab('returns',document.querySelector('[data-tab=\'returns\']'))" class="more-sheet-row" data-sheet-tab="returns">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/></svg>
+      <span>Returns</span>
     </button>
     <button onclick="closeMoreSheet();goToTab('tax',document.querySelector('[data-tab=\'tax\']'))" class="more-sheet-row" data-sheet-tab="tax">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="15" x2="15" y2="9"/><circle cx="9.5" cy="9.5" r="1" fill="currentColor" stroke="none"/><circle cx="14.5" cy="14.5" r="1" fill="currentColor" stroke="none"/></svg>
@@ -5596,6 +5608,10 @@ c-230 453 -565 1105 -674 1315 -63 120 -114 221 -114 225 0 4 47 19 104 34
       <span class="side-nav-item-ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>
       <span class="side-nav-item-label">Accounts</span>
     </button>
+    <button class="side-nav-item" data-tab="returns" onclick="goToTab('returns',this)">
+      <span class="side-nav-item-ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/></svg></span>
+      <span class="side-nav-item-label">Returns</span>
+    </button>
     <button class="side-nav-item" data-tab="data" onclick="goToTab('data',this)">
       <span class="side-nav-item-ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v4c0 1.66 4 3 9 3s9-1.34 9-3V5"/><path d="M3 9v5c0 1.66 4 3 9 3s9-1.34 9-3V9"/><path d="M3 14v5c0 1.66 4 3 9 3s9-1.34 9-3v-5"/></svg></span>
       <span class="side-nav-item-label">Data</span>
@@ -5692,6 +5708,7 @@ c-230 453 -565 1105 -674 1315 -63 120 -114 221 -114 225 0 4 47 19 104 34
 <div class="page" id="p-stock"></div>
 <div class="page" id="p-expenses"></div>
 <div class="page" id="p-cash"></div>
+<div class="page" id="p-returns"></div>
 <div class="page" id="p-accounts"></div>
 <div class="page" id="p-tax"></div>
 <div class="page" id="p-data"></div>
@@ -8882,7 +8899,7 @@ async function initDB(){
     const _freshSession = !_isSameSession();
     const _lastTab = (() => { if(_freshSession) return 'summary';
       try{ return localStorage.getItem(_SK.tab) || 'summary'; }catch(e){ return 'summary'; } })();
-    const _safeTab = ['summary','monthly','stock','expenses','cash','tax','data','runs'].includes(_lastTab) ? _lastTab : 'summary';
+    const _safeTab = ['summary','monthly','stock','expenses','cash','returns','tax','data','runs'].includes(_lastTab) ? _lastTab : 'summary';
     showLoadingScreen('Loading your data…', _safeTab);
     await Promise.race([
       loadFromSupabase(),
@@ -9235,12 +9252,13 @@ function _bootSkeletonHTML(tab){
   else if(tab === 'tax')         body = _skelGeneric('170px', false);
   else if(tab === 'data')        body = _skelGeneric('90px', false);
   else if(tab === 'cash')        body = _skelGeneric('120px', false);
+  else if(tab === 'returns')     body = _skelGeneric('120px', false);
   else                           body = _skelSummary();
   // .page (not .page.on — see the .rt-skel CSS note) so the box model is shared.
   // rt-skel-<tab> is what lets the ID-scoped page rules reach this element --
   // see the .rt-skel-summary note in the CSS. Emitted for every tab so a future
   // ID rule on any page has a selector waiting for it.
-  const _t = ['summary','monthly','stock','expenses','cash','tax','data','runs'].includes(tab) ? tab : 'summary';
+  const _t = ['summary','monthly','stock','expenses','cash','returns','tax','data','runs'].includes(tab) ? tab : 'summary';
   return '<div class="page rt-skel rt-skel-' + _t + '">' + body
     + '<div style="text-align:center;margin-top:20px;font-size:13px;color:var(--text-secondary);" id="app-loading-msg"></div>'
     + '</div>';
@@ -9324,6 +9342,7 @@ function refreshActivePage(){
   else if(id==='p-stock')renderStock();
   else if(id==='p-expenses')renderExpenses();
   else if(id==='p-cash'&&typeof renderCash==='function')renderCash();
+  else if(id==='p-returns'&&typeof renderReturns==='function')renderReturns();
   else if(id==='p-accounts'&&typeof renderAccountsPage==='function')renderAccountsPage();
   else if(id==='p-tax'&&typeof renderTax==='function')renderTax();
   else if(id==='p-active-run'&&typeof renderActiveRunPage==='function')renderActiveRunPage();
@@ -9574,6 +9593,7 @@ function goToTab(name,sourceEl){
   else if(name==='stock'){_stockFromSummary=false;renderStock();}
   else if(name==='expenses')renderExpenses();
   else if(name==='cash')renderCash();
+  else if(name==='returns')renderReturns();
   else if(name==='accounts')renderAccountsPage();
   else if(name==='tax')renderTax();
   else if(name==='data')renderData();
@@ -9657,7 +9677,7 @@ function exitItemPage(){
     // Restore the page the panel was on top of
     const pageId=_savedPanelState.pageId||'p-summary';
     document.getElementById(pageId).classList.add('on');
-    const tabMap={'p-summary':'summary','p-monthly':'monthly','p-stock':'stock','p-expenses':'expenses','p-cash':'cash','p-tax':'tax','p-data':'data','p-runs':'runs','p-accounts':'accounts'};
+    const tabMap={'p-summary':'summary','p-monthly':'monthly','p-stock':'stock','p-expenses':'expenses','p-cash':'cash','p-tax':'tax','p-data':'data','p-runs':'runs','p-accounts':'accounts','p-returns':'returns'};
     const tabName=tabMap[pageId];
     if(tabName){const tab=document.querySelector('[data-tab="'+tabName+'"]');if(tab)tab.classList.add('on');}
     handleNavResize();
@@ -9684,7 +9704,7 @@ function exitItemPage(){
     return;
   }
   document.getElementById(origin).classList.add('on');
-  const tabMap={'p-summary':'summary','p-monthly':'monthly','p-stock':'stock','p-expenses':'expenses','p-cash':'cash','p-tax':'tax','p-data':'data','p-runs':'runs','p-accounts':'accounts'};
+  const tabMap={'p-summary':'summary','p-monthly':'monthly','p-stock':'stock','p-expenses':'expenses','p-cash':'cash','p-tax':'tax','p-data':'data','p-runs':'runs','p-accounts':'accounts','p-returns':'returns'};
   const tabName=tabMap[origin];
   if(tabName){const tab=document.querySelector('[data-tab="'+tabName+'"]');if(tab)tab.classList.add('on');}
   handleNavResize();
@@ -9731,6 +9751,7 @@ function exitItemPage(){
   // an item snapped them to the top (openItemDetail does scrollTo(0,0)).
   else if(origin==='p-expenses'&&typeof renderExpenses==='function'){renderExpenses();_restoreTabScroll('expenses');}
   else if(origin==='p-cash'&&typeof renderCash==='function'){renderCash();_restoreTabScroll('cash');}
+  else if(origin==='p-returns'&&typeof renderReturns==='function'){renderReturns();_restoreTabScroll('returns');}
   else if(origin==='p-tax'&&typeof renderTax==='function'){renderTax();_restoreTabScroll('tax');}
   else if(origin==='p-data'&&typeof renderData==='function'){renderData();_restoreTabScroll('data');}
 }
@@ -11435,7 +11456,7 @@ const _FAB_PAGE_OPTIONS = {
   'p-runs':        _FAB_ALL_OPTIONS,
   // p-item, p-search, p-tax, p-data → no FAB, see _FAB_HIDDEN_PAGES
 };
-const _FAB_HIDDEN_PAGES = new Set(['p-search','p-tax','p-data','p-accounts','p-cash']); // p-item removed: FAB visible on item page for quick adds
+const _FAB_HIDDEN_PAGES = new Set(['p-search','p-tax','p-data','p-accounts','p-cash','p-returns']); // p-item removed: FAB visible on item page for quick adds
 
 // Patch C-2: per-page FAB single-tap override. Returns 'speed-dial' or a specific action.
 function getFabTapAction(pageId){
@@ -20217,6 +20238,118 @@ function deleteCashMove(id){
 }
 // ===== END CASH & OWNER LEDGER ================================================
 
+// ===== RETURNS PAGE ==========================================================
+// Read-only view over every return logged across all items (returnHistory).
+// No calc-engine changes — flattens existing data into a list + KPI strip.
+let _returnsType='all';   // all | full | partial
+let _returnsPeriod='all'; // all | fy
+function _setReturnsFilter(kind,val){
+  if(kind==='type')_returnsType=val; else _returnsPeriod=val;
+  renderReturns();
+}
+function _returnTypeMeta(t){
+  if(t==='full_seller') return{label:'Full refund',cls:'full'};
+  if(t==='full_ebay')   return{label:'Full refund · eBay',cls:'full'};
+  if(t==='partial_seller')return{label:'Partial refund',cls:'partial'};
+  if(t==='partial_ebay')  return{label:'Partial refund · eBay',cls:'partial'};
+  return{label:t||'Return',cls:'partial'};
+}
+function renderReturns(){
+  const el=document.getElementById('p-returns');if(!el)return;
+  // Flatten every return entry across all items
+  const rows=[];
+  const seenMulti={}; let multiCycle=0;
+  (typeof allDBKeys==='function'?allDBKeys():[]).forEach(function(k){
+    (DB[k]||[]).forEach(function(i){
+      const rh=(i.returnHistory||[]);
+      if(!rh.length)return;
+      const fullN=rh.filter(function(r){return r.type==='full_seller'||r.type==='full_ebay';}).length;
+      if(fullN>1 && !seenMulti[i.id]){seenMulti[i.id]=1;multiCycle++;}
+      rh.forEach(function(r){
+        const isFull=(r.type==='full_seller'||r.type==='full_ebay');
+        rows.push({m:k,id:i.id,name:i.item||'Untitled',date:_returnEventDate(r)||'',
+          type:r.type,isFull:isFull,refund:Number(r.refundAmount)||0,
+          postage:Number(r.returnPostage)||0,saleNo:r.saleNo||1,item:i,fullN:fullN});
+      });
+    });
+  });
+  const fyR=_periodDateRange('current_fy');
+  const inPeriod=function(d){return _returnsPeriod==='all'||(d&&d>=fyR.from&&d<=fyR.to);};
+  // KPI stats scoped to the selected PERIOD (type filter doesn't move the headline)
+  const periodRows=rows.filter(function(x){return inPeriod(x.date);});
+  let fullCount=0,partialCount=0,totalRefund=0,totalRetPost=0;
+  periodRows.forEach(function(x){
+    if(x.isFull)fullCount++; else partialCount++;
+    totalRefund+=x.refund; totalRetPost+=x.postage;
+  });
+  const stats=(typeof calcYearlyStats==='function')?calcYearlyStats(_returnsPeriod==='all'?'all':'current_fy'):{};
+  const soldCount=stats.soldCount||0, retItems=stats.returnCount||0;
+  const rate=soldCount>0?(retItems/soldCount*100):0;
+  // Rows to list — period + type filter, newest first
+  const filtered=periodRows.filter(function(x){
+    if(_returnsType==='full')return x.isFull;
+    if(_returnsType==='partial')return !x.isFull;
+    return true;
+  }).sort(function(a,b){return (b.date||'').localeCompare(a.date||'');});
+
+  const kpi=function(label,val,foot,col){
+    return '<div class="card kpi"><div class="kpi-label">'+esc(label)+'</div>'
+      +'<div class="kpi-value num"'+(col?' style="color:'+col+'"':'')+'>'+val+'</div>'
+      +(foot?'<div class="kpi-foot">'+foot+'</div>':'')+'</div>';
+  };
+  const seg=function(kind,val,label,active){
+    return '<button class="rtn-seg'+(active?' on':'')+'" onclick="_setReturnsFilter(\''+kind+'\',\''+val+'\')">'+esc(label)+'</button>';
+  };
+  let html=''
+    +'<div class="page-header"><div>'
+      +'<div class="page-title">Returns</div>'
+      +'<div class="page-subtitle">Every refund logged across your stock — the postage and fees you can\u2019t always get back</div>'
+    +'</div></div>';
+  html+='<div class="kgrid" style="margin-bottom:16px;">'
+    +kpi('Returns logged',String(periodRows.length),fullCount+' full · '+partialCount+' partial')
+    +kpi('Return rate',rate.toFixed(1)+'%',retItems+' of '+soldCount+' sold')
+    +kpi('Total refunded',fmt(totalRefund),'Money sent back to buyers')
+    +kpi('Return postage',fmt(totalRetPost),'Sunk cost — rarely recoverable',totalRetPost>0?'var(--warn)':'')
+  +'</div>';
+  if(multiCycle>0 && _returnsPeriod==='all'){
+    html+='<div class="card" style="padding:12px 14px;margin-bottom:16px;border-left:3px solid var(--warn);font-size:13px;color:var(--text-secondary);line-height:1.5;">'
+      +'<strong style="color:var(--text)">'+multiCycle+' item'+(multiCycle>1?'s':'')+' returned more than once.</strong> '
+      +'These went through multiple sale\u2192refund cycles. Lifetime P&amp;L is now correct; the per-sale receipt breakdown still needs the multi-cycle rework.</div>';
+  }
+  html+='<div class="rtn-filters" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;">'
+    +'<div class="rtn-segbar">'+seg('period','all','All time',_returnsPeriod==='all')+seg('period','fy','This tax year',_returnsPeriod==='fy')+'</div>'
+    +'<div class="rtn-segbar">'+seg('type','all','All',_returnsType==='all')+seg('type','full','Full',_returnsType==='full')+seg('type','partial','Partial',_returnsType==='partial')+'</div>'
+  +'</div>';
+  if(!filtered.length){
+    html+='<div class="card" style="padding:20px;text-align:center;color:var(--text-secondary);line-height:1.5;">No returns'+(_returnsPeriod==='fy'?' this tax year':'')+(_returnsType!=='all'?' of that type':'')+'. '+(rows.length?'Try widening the filters.':'When you log a return on an item it\u2019ll show here.')+'</div>';
+  }else{
+    html+='<div class="section-card" style="padding:0;overflow:hidden;">';
+    filtered.forEach(function(x){
+      const meta=_returnTypeMeta(x.type);
+      const badgeCol=x.isFull?'var(--red)':'var(--accent)';
+      let disp = x.item.isReturned?'In stock (returned)':(x.item.resaleSalePrice?'Resold':'Relisted');
+      html+='<div style="display:flex;align-items:center;gap:12px;padding:12px 14px;border-bottom:1px solid var(--border);cursor:pointer;" onclick="openItemPage(\''+x.m+'\',\''+x.id+'\',\'p-returns\')">'
+        +'<div style="flex:1;min-width:0;">'
+          +'<div style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(x.name)+'</div>'
+          +'<div style="font-size:12px;color:var(--text-secondary);margin-top:2px;">'
+            +'<span style="color:'+badgeCol+';font-weight:600;">'+esc(meta.label)+'</span>'
+            +' · '+esc(x.date||'—')
+            +(x.fullN>1?' · Sale '+x.saleNo:'')
+            +' · '+disp
+          +'</div>'
+        +'</div>'
+        +'<div style="text-align:right;flex-shrink:0;">'
+          +'<div class="num" style="font-weight:700;color:'+badgeCol+';">\u2212'+fmt(x.refund)+'</div>'
+          +(x.postage>0?'<div style="font-size:11px;color:var(--text-secondary);">+ '+fmt(x.postage)+' postage</div>':'')
+        +'</div>'
+      +'</div>';
+    });
+    html+='</div>';
+  }
+  el.innerHTML=html;
+}
+// ===== END RETURNS PAGE ======================================================
+
 function renderExpenses(){
   const trips=DB.trips||[];
   const expenses=DB.expenses||[];
@@ -25848,6 +25981,7 @@ window.addEventListener('load',function(){
         else if(id==='p-monthly'&&typeof renderMonthlyPage==='function')renderMonthlyPage();
         else if(id==='p-expenses'&&typeof renderExpenses==='function')renderExpenses();
         else if(id==='p-cash'&&typeof renderCash==='function')renderCash();
+        else if(id==='p-returns'&&typeof renderReturns==='function')renderReturns();
         else if(id==='p-runs'&&typeof renderRunsPage==='function')renderRunsPage();
       },150);
     }
