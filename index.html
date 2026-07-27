@@ -24299,6 +24299,39 @@ function _returnEventImpact(i,r){
   const profitImpact=-(Math.max(0,refund-recoveredBpf)+postage);
   return {refund:+refund.toFixed(2),postage:+postage.toFixed(2),profit:+profitImpact.toFixed(2)};
 }
+// ── F2/F3 event-profit reconciliation ──────────────────────────────────────
+// The sale-1, return and sale-2 events for one item must sum to
+// calcGrossProfit(i) — the canonical per-item all-time gross that feeds the
+// Dashboard, Money and cash. Historically the sale-2 event carried the WHOLE
+// item's gross (which already includes the sale-1 leg + the returns), so a
+// resold-after-return item double-counted; separately a fully-returned or
+// partially-refunded item's events missed the promoted-listing boost credit
+// and the partial-refund fee credit that calcGrossProfit applies. Fix: give
+// each event a BASE contribution (sale-1 = clean snapshot gross, return = its
+// own cash impact, sale-2 = 0) and route the whole residual onto the item's
+// TERMINAL event (sale-2 if resold, else the latest-dated return, else sale-1).
+// The set then sums to calcGrossProfit(i) by construction, for every shape.
+// DISPLAY-ONLY: the SA103/tax path (_buildPnLSummary → _saleBreakdown) reads
+// per-leg breakdowns and never reads these .profit fields.
+function _reconciledItemEventProfits(i){
+  const gpFull=calcGrossProfit(i);
+  const p1=calcGrossProfit(_sale1EventSnapshot(i).item)||0;
+  const rets=(i.returnHistory||[]);
+  const retProfits=rets.map(function(r){return _returnEventImpact(i,r).profit;});
+  if(typeof gpFull!=='number'){
+    return {s1:+p1.toFixed(2),s2:0,returns:retProfits.map(function(x){return +x.toFixed(2);})};
+  }
+  const retSum=retProfits.reduce(function(a,x){return a+x;},0);
+  const residual=+(gpFull-p1-retSum).toFixed(2);
+  let term='1',termRet=-1;
+  if(i.resaleSalePrice&&i.resaleDateSold){term='2';}
+  else if(rets.length){term='R';let ld=null;rets.forEach(function(r,idx){const d=_returnEventDate(r);if(d&&(!ld||d>=ld)){ld=d;termRet=idx;}});if(termRet<0)termRet=rets.length-1;}
+  return {
+    s1:+(p1+(term==='1'?residual:0)).toFixed(2),
+    s2:+((term==='2'?residual:0)).toFixed(2),
+    returns:retProfits.map(function(x,idx){return +(x+((term==='R'&&idx===termRet)?residual:0)).toFixed(2);})
+  };
+}
 function _returnEventsForItem(i,k,predicate){
   const out=[];
   (i.returnHistory||[]).forEach(function(r,idx){
@@ -24306,7 +24339,7 @@ function _returnEventsForItem(i,k,predicate){
     if(!d||!predicate(d))return;
     const impact=_returnEventImpact(i,r);
     out.push({item:i,month:k,sale:'R',saleDate:d,salePrice:-impact.refund,
-      profit:impact.profit,roi:null,margin:null,daysToSell:null,isReturned:true,
+      profit:_reconciledItemEventProfits(i).returns[idx],roi:null,margin:null,daysToSell:null,isReturned:true,
       isReturnAdjustment:true,returnEntry:r,returnIndex:idx});
   });
   return out;
@@ -24343,7 +24376,7 @@ function getSaleEventsInMonth(m){
       if(s1.date&&_monthKeyFromDate(s1.date)===m){
         out.push({
           item:i,month:k,sale:'1',saleDate:s1.date,salePrice:s1.price,
-          profit:calcGrossProfit(s1.item),roi:calcROI(s1.item),margin:calcMargin(s1.item),
+          profit:_reconciledItemEventProfits(i).s1,roi:calcROI(s1.item),margin:calcMargin(s1.item),
           daysToSell:i.dateListed?daysBetween(i.dateListed,s1.date):null,
           isReturned:false,isReturnAdjustment:false
         });
@@ -24351,7 +24384,7 @@ function getSaleEventsInMonth(m){
       if(i.resaleSalePrice&&i.resaleDateSold&&_monthKeyFromDate(i.resaleDateSold)===m){
         out.push({
           item:i,month:k,sale:'2',saleDate:i.resaleDateSold,salePrice:i.resaleSalePrice||0,
-          profit:calcGrossProfit(i),roi:calcROI(i),margin:calcMargin(i),
+          profit:_reconciledItemEventProfits(i).s2,roi:calcROI(i),margin:calcMargin(i),
           daysToSell:calcDaysToSell(i),isReturned:false,isReturnAdjustment:false
         });
       }
@@ -24380,13 +24413,13 @@ function getSaleEventsInRange(from,to){
       const s1=_sale1EventSnapshot(i);
       if(inR(s1.date)){
         out.push({item:i,month:k,sale:'1',saleDate:s1.date,salePrice:s1.price,
-          profit:calcGrossProfit(s1.item),roi:calcROI(s1.item),margin:calcMargin(s1.item),
+          profit:_reconciledItemEventProfits(i).s1,roi:calcROI(s1.item),margin:calcMargin(s1.item),
           daysToSell:i.dateListed?daysBetween(i.dateListed,s1.date):null,
           isReturned:false,isReturnAdjustment:false});
       }
       if(i.resaleSalePrice&&inR(i.resaleDateSold)){
         out.push({item:i,month:k,sale:'2',saleDate:i.resaleDateSold,salePrice:i.resaleSalePrice||0,
-          profit:calcGrossProfit(i),roi:calcROI(i),margin:calcMargin(i),
+          profit:_reconciledItemEventProfits(i).s2,roi:calcROI(i),margin:calcMargin(i),
           daysToSell:calcDaysToSell(i),isReturned:false,isReturnAdjustment:false});
       }
     });
