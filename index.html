@@ -20067,7 +20067,17 @@ function _cashLedger(){return Array.isArray(DB.cashLedger)?DB.cashLedger:(DB.cas
 function _cashOverheadsAllTime(){
   let o=0;
   (DB.expenses||[]).forEach(function(e){o+=Number(e.amount)||0;});
-  (DB.trips||[]).forEach(function(t){(Array.isArray(t.expenses)?t.expenses:[]).forEach(function(x){o+=Number(x.amount)||0;});});
+  // Trip mileage @ the per-mile rate is real vehicle running cost (fuel/wear).
+  // Under the simplified mileage method it IS Oskar's motor cost, so it's cash
+  // out and must reduce available cash — the previous version summed only a
+  // trip's attached expenses and silently dropped the mileage, overstating cash
+  // by the whole mileage total. When motorMethod==='actual' he logs real motor
+  // receipts as expenses instead, so mileage is skipped to avoid double-counting.
+  const _mileageIsCash=(DB._motorMethod||'mileage')!=='actual';
+  (DB.trips||[]).forEach(function(t){
+    if(_mileageIsCash)o+=(Number(t.mileage)||0)*(Number(t.ratePerMile)||0.45);
+    (Array.isArray(t.expenses)?t.expenses:[]).forEach(function(x){o+=Number(x.amount)||0;});
+  });
   return +o.toFixed(2);
 }
 // Cash tied up in unsold stock = what Oskar has actually PAID for stock STILL ON
