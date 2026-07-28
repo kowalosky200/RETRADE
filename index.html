@@ -16207,7 +16207,7 @@ function showFilteredItems(filter){
     summaryVal=fmt(stats.grossProfit);
     const extras=[];
     if(resoldEntryCount>0)extras.push(`${resoldEntryCount} resold`);
-    summaryLabel=`${items.length} sold items · after returns · before overheads`;
+    summaryLabel=`${uniqueItemCount} sold item${uniqueItemCount===1?'':'s'}${resoldEntryCount>0?' · '+resoldEntryCount+' resold':''} · after returns · before overheads`;
     summaryColor=stats.grossProfit>=0?'var(--green)':'var(--red)';
   } else if(filter==='unrealised'){
     summaryVal=fmt(items.reduce((s,i)=>s+(calcGrossProfit(i)||0),0));
@@ -20155,7 +20155,7 @@ function renderCash(){
     +'<div class="kgrid">'
       +kpi('Operating cash',c.operatingCash,'Profit '+fmt(c.grossProfit)+' less stock &amp; overheads')
       +kpi('Cash tied up in stock',c.stockTied,'Cost of unsold stock')
-      +kpi('Gross profit (all-time)',c.grossProfit,'Realised, before overheads')
+      +kpi('Gross profit (all-time)',c.grossProfit,'Realised · after returns · before overheads')
       +kpi('Opening balance',c.opening,'Starting cash')
     +'</div>';
   // OWNER group
