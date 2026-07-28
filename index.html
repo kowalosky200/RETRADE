@@ -20152,7 +20152,10 @@ function renderCash(){
       +'<div class="page-title">Money</div>'
       +'<div class="page-subtitle">Cash, owner drawings &amp; contributions — profit is not the same as cash</div>'
     +'</div>'
-    +'<button class="btn btn-primary" style="flex-shrink:0" onclick="addCashMove()">'+icon('expense',15)+' Add</button>'
+    +'<div style="display:flex;gap:8px;flex-shrink:0;">'
+      +'<button class="btn btn-secondary" onclick="openReconcile()">Reconcile</button>'
+      +'<button class="btn btn-primary" onclick="addCashMove()">'+icon('expense',15)+' Add</button>'
+    +'</div>'
     +'</div>';
   // Headline — business cash available
   html+='<div class="card" style="padding:20px 22px;margin-bottom:18px;">'
@@ -20251,6 +20254,64 @@ function saveCashMove(id){
 function deleteCashMove(id){
   DB.cashLedger=_cashLedger().filter(function(x){return x.id!==id;});
   saveDB();closePanel();toast('Entry deleted');renderCash();
+}
+// ---- Reconcile to real balances -------------------------------------------
+// Snaps "Business cash available" to Oskar's actual pots (bank + cash + eBay)
+// by logging ONE profit-neutral adjustment. Never touches tax/SA103 (that comes
+// from the item/expense engine). Keeps a single reconcile anchor: re-reconciling
+// removes the previous one and re-targets the current real total, so the ledger
+// never accumulates stale true-ups and the headline always lands on the number
+// entered — regardless of sales/costs logged since the last reconcile.
+function _reconcileAnchorSigned(){
+  return _cashLedger().reduce(function(sum,x){
+    if(!x||!x.reconcileAnchor)return sum;
+    return sum+((x.direction==='out'?-1:1)*(Number(x.amount)||0));
+  },0);
+}
+function _recInputs(){
+  const g=function(id){const v=parseFloat((document.getElementById(id)||{}).value);return isFinite(v)?v:0;};
+  return {bank:g('rec-bank'),cash:g('rec-cash'),ebay:g('rec-ebay')};
+}
+function _reconcilePreview(){
+  const el=document.getElementById('rec-preview');if(!el)return;
+  const c=calcCashSummary();
+  const v=_recInputs();const tot=+(v.bank+v.cash+v.ebay).toFixed(2);
+  const base=+(c.cashAvailable-_reconcileAnchorSigned()).toFixed(2);
+  const diff=+(tot-base).toFixed(2);
+  const col=Math.abs(diff)<0.005?'var(--text-secondary)':(diff<0?'var(--warn)':'#3b82f6');
+  el.innerHTML='Real total <strong style="color:var(--text)">'+fmt(tot)+'</strong> vs app <strong style="color:var(--text)">'+fmt(base)+'</strong> \u2192 adjustment '
+    +'<strong style="color:'+col+'">'+(diff<0?'\u2212':'+')+fmt(Math.abs(diff))+'</strong>'
+    +(Math.abs(diff)<0.005?' (already reconciled)':'')+'.';
+}
+function openReconcile(){
+  const c=calcCashSummary();
+  openPanel('Reconcile to real balances',''
+    +'<div style="font-size:13px;color:var(--text-secondary);line-height:1.55;margin-bottom:14px;">'
+      +'Enter what you actually hold right now in each pot. RETRADE logs one dated adjustment so the headline matches your real cash. Profit and tax figures are untouched.</div>'
+    +'<div class="fg"><label>Bank (\u00a3)</label><input type="number" id="rec-bank" step="0.01" min="0" inputmode="decimal" placeholder="0.00"></div>'
+    +'<div class="fg"><label>Cash (\u00a3)</label><input type="number" id="rec-cash" step="0.01" min="0" inputmode="decimal" placeholder="0.00"></div>'
+    +'<div class="fg"><label>eBay / platform balance (\u00a3)</label><input type="number" id="rec-ebay" step="0.01" min="0" inputmode="decimal" placeholder="0.00"></div>'
+    +'<div class="fg"><label>Date</label><input type="date" id="rec-date" value="'+new Date().toISOString().split('T')[0]+'"></div>'
+    +'<div id="rec-preview" style="font-size:13px;color:var(--text-secondary);line-height:1.6;margin:8px 0 2px;">App currently shows <strong style="color:var(--text)">'+fmt(+(c.cashAvailable-_reconcileAnchorSigned()).toFixed(2))+'</strong> before any reconcile.</div>'
+    +'<button class="btn btn-primary" style="width:100%;margin-top:14px" onclick="applyReconcile()">Reconcile</button>');
+  ['rec-bank','rec-cash','rec-ebay'].forEach(function(id){const e=document.getElementById(id);if(e)e.addEventListener('input',_reconcilePreview);});
+  const b=document.getElementById('rec-bank');if(b)b.focus();
+}
+function applyReconcile(){
+  const v=_recInputs();const tot=+(v.bank+v.cash+v.ebay).toFixed(2);
+  if(tot<=0){toast('Enter at least one balance','error');return;}
+  const date=(document.getElementById('rec-date')||{}).value||new Date().toISOString().split('T')[0];
+  const c=calcCashSummary();
+  const base=+(c.cashAvailable-_reconcileAnchorSigned()).toFixed(2); // cash with prior anchors removed
+  const diff=+(tot-base).toFixed(2);
+  let led=_cashLedger().filter(function(x){return !(x&&x.reconcileAnchor);}); // drop old anchor(s)
+  if(Math.abs(diff)>=0.005){
+    led.push({id:'cash_'+Date.now(),type:'adjustment',category:'adjustment',amount:+Math.abs(diff).toFixed(2),date:date,
+      description:'Reconcile to real balances (bank '+fmt(v.bank)+' \u00b7 cash '+fmt(v.cash)+' \u00b7 eBay '+fmt(v.ebay)+')',
+      direction:diff<0?'out':'in',reconcileAnchor:true,createdAt:new Date().toISOString()});
+  }
+  DB.cashLedger=led;
+  saveDB();closePanel();toast('Reconciled to '+fmt(tot));renderCash();
 }
 // ===== END CASH & OWNER LEDGER ================================================
 
