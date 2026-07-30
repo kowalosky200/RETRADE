@@ -24797,12 +24797,13 @@ function _buildPnLSummary(from,to,label){
   // full amount the buyer paid). Shipping paid out to couriers is then a
   // deductible selling cost. This is the correct HMRC "turnover" figure and
   // makes net profit reconcile exactly to the sum of per-sale net profits.
-  let goodsRev=0, postageIn=0, cogs=0, feesSell=0, postPkgSell=0, returnsSell=0, partnerSell=0;
+  let goodsRev=0, postageIn=0, cogs=0, feesSell=0, listingFeeSell=0, postPkgSell=0, returnsSell=0, partnerSell=0;
   events.forEach(function(ev){
     const b=_saleBreakdown(ev);
     if(!ev.isReturned){goodsRev+=b.salePrice; postageIn+=b.postage;}
     cogs+=b.itemCost+b.parts;                       // Box 17
     feesSell+=b.bpf+b.promoFee+b.listingFee;         // Box 26 (platform/payment)
+    listingFeeSell+=b.listingFee;                    // display split only (subset of the Box-26 total)
     postPkgSell+=b.shipping+b.packaging;             // Box 23 (postage/packaging on sale)
     returnsSell+=b.returnRefund+b.returnPostage+b.partialRefund;
     partnerSell+=b.partnerSplit;
@@ -24901,7 +24902,8 @@ function _buildPnLSummary(from,to,label){
     ['Gross margin %',gm.toFixed(1)+'%'],
     [],
     ['Selling costs',''],
-    ['  Platform & payment fees — Box 26 (£)',money(feesSell)],
+    ['  Platform & payment fees — Box 26 (£)',money(+(feesSell-listingFeeSell).toFixed(2))],
+    ['  Listing fees — Box 26 (£)',money(listingFeeSell)],
     ['  Postage & packaging on sales — Box 23 (£)',money(postPkgSell)],
     ['  Advertising & marketing — Box 24 (£)',money((byCategory['Advertising & marketing']||{}).amount||0)],
     ['  Returns & refunds (£)',money(returnsSell)],
@@ -24917,7 +24919,7 @@ function _buildPnLSummary(from,to,label){
     ['  Repairs & equipment — Box 22 (£)',money((byBox[22]||0))],
     ['  Phone, office & stationery — Box 23 (£)',money(((byCategory['Phone, office & stationery']||{}).amount)||0)],
     ['  Accountancy, legal & professional — Box 28 (£)',money((byBox[28]||0))],
-    ['  Software, subscriptions & other — Box 30 (£)',money((byBox[30]||0))],
+    ['  Software, subscriptions & other — Box 30 (£)',money(Math.max(0,(byBox[30]||0)-returnsSell))],
     ['  Total overheads (£)',money(overheads)],
     ['NET PROFIT BEFORE TAX (£)',money(netProfit)],
     ['Net margin %',nm.toFixed(1)+'%'],
@@ -24942,7 +24944,7 @@ function _buildPnLSummary(from,to,label){
     netProfit:netProfit, cashPosition:cashPosition, soldCount:soldCount, returnCount:retCount,
     // new: tiers, margins, categorisation, compliance
     postageIn:postageIn, goodsRev:goodsRev,
-    selling:{fees:+feesSell.toFixed(2),postPkg:+postPkgSell.toFixed(2),returns:+returnsSell.toFixed(2),partner:+partnerSell.toFixed(2),manual:+manualSelling.toFixed(2),total:sellingCosts},
+    selling:{fees:+feesSell.toFixed(2),platformFees:+(feesSell-listingFeeSell).toFixed(2),listingFees:+listingFeeSell.toFixed(2),postPkg:+postPkgSell.toFixed(2),returns:+returnsSell.toFixed(2),partner:+partnerSell.toFixed(2),manual:+manualSelling.toFixed(2),total:sellingCosts},
     overheads:{total:overheads},
     operatingProfit:operatingProfit,
     grossMargin:gm, operatingMargin:om, netMargin:nm,
@@ -25034,9 +25036,11 @@ function _pnlSummarySheetRows(pnl,title){
     ['Gross margin %',pnl.grossMargin],
     [],
     ['Selling costs',''],
-    ['  Platform & payment fees (Box 26)',pnl.selling.fees],
+    ['  Platform & payment fees (Box 26)',(pnl.selling.platformFees!=null?pnl.selling.platformFees:pnl.selling.fees)],
+    ['  Listing fees (Box 26)',pnl.selling.listingFees||0],
     ['  Postage & packaging on sales (Box 23)',pnl.selling.postPkg],
     ['  Advertising & marketing (Box 24)',(pnl.byCategory['Advertising & marketing']||{}).amount||0],
+    ['  Other selling costs',+Math.max(0,(pnl.selling.manual||0)-(((pnl.byCategory['Advertising & marketing']||{}).amount)||0)).toFixed(2)],
     ['  Returns & refunds',pnl.selling.returns],
     ['  Partner / consignment splits',pnl.selling.partner],
     ['  Total selling costs',pnl.selling.total],
@@ -25049,7 +25053,7 @@ function _pnlSummarySheetRows(pnl,title){
     ['  Repairs & equipment (Box 22)',pnl.byBox[22]||0],
     ['  Phone, office & stationery (Box 23)',(pnl.byCategory['Phone, office & stationery']||{}).amount||0],
     ['  Accountancy, legal & professional (Box 28)',pnl.byBox[28]||0],
-    ['  Software, subscriptions & other (Box 30)',pnl.byBox[30]||0],
+    ['  Software, subscriptions & other (Box 30)',+Math.max(0,(pnl.byBox[30]||0)-(pnl.selling.returns||0)).toFixed(2)],
     ['  Total overheads',pnl.overheads.total],
     ['NET PROFIT BEFORE TAX',pnl.netProfit],
     ['Net margin %',pnl.netMargin],
