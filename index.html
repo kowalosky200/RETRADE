@@ -17671,8 +17671,13 @@ function _monthlyPeriodResolve(v){
     const y=parseInt(v.slice(3),10);
     return {keys:_fyKeys(y),from:y+'-04-01',to:(y+1)+'-03-31',label:'FY '+y+'–'+String(y+1).slice(-2)};
   }
-  // All time — span every month that holds data.
-  const withData=allDBKeys().filter(function(k){return (DB[k]||[]).length&&MONTHS.indexOf(keyCode(k))>=0;});
+  // All time — span every month that holds data OR a sale/return event.
+  // Fix B (B1): union purchase-month keys with event-month keys so a sale/
+  // resale/return dated past the last purchase month (or before the first) is
+  // still inside the rendered span and counted in the all-time gross.
+  const _withDataKeys=allDBKeys().filter(function(k){return (DB[k]||[]).length&&MONTHS.indexOf(keyCode(k))>=0;});
+  const withData=_withDataKeys.concat(Array.from(_saleEventMonthKeys()))
+    .filter(function(k){return MONTHS.indexOf(keyCode(k))>=0;});
   if(!withData.length){
     const y=_currentFYStart();
     return {keys:_fyKeys(y),from:y+'-04-01',to:(y+1)+'-03-31',label:'FY '+y+'–'+String(y+1).slice(-2)};
@@ -17841,6 +17846,12 @@ function renderMonthlyGrid(){
     if(mo<0)return;
     const fy=mo>=3?yr:yr-1;
     fySet.add(fy);
+  });
+  // Fix B (B1): also cover the FY of every SALE/RETURN event month, so a sale
+  // dated in an FY no purchase touched is not dropped from the rollups.
+  _saleEventMonthKeys().forEach(function(mk){
+    const mo=MONTHS.indexOf(keyCode(mk)); if(mo<0)return;
+    const yr=keyYear(mk); fySet.add(mo>=3?yr:yr-1);
   });
   const fyYears=Array.from(fySet).sort(function(a,b){return b-a;}); // newest first
 
@@ -24001,7 +24012,13 @@ function calcYearlyStats(period){
         return (fe&&fe._dateSoldAtReturn)||(fe&&fe.loggedAt?fe.loggedAt.slice(0,10):null)||null;
       })():null;
       const saleDate=i.resaleSalePrice?i.resaleDateSold:(i.dateSold||_retSaleDate);
-      const soldInRange=inRange(saleDate);
+      // Fix B (B3): an item with no resolvable sale date is NOT realised. For a
+      // date-bounded period inRange(null) is already false; but for all-time
+      // (range.from=null) inRange(null) returned true, wrongly folding unsold
+      // listed stock's PROJECTED profit into realisedProfit (and thus into cash
+      // via calcCashSummary). Require a real sale date so unsold items fall to
+      // the unrealised branch below, matching every bounded period.
+      const soldInRange=saleDate?inRange(saleDate):false;
       totalItems++;
       if(soldInRange&&(i.dateSold||i.resaleSalePrice)&&!i.isReturned&&i.condition!=='spares')saleTransactions.push(i.salePrice||0);
       if(soldInRange&&i.resaleSalePrice&&i.condition!=='spares')saleTransactions.push(i.resaleSalePrice||0);
@@ -24436,6 +24453,25 @@ function _sale1EventSnapshot(i){
     resalePackagingCost:null
   });
   return {item:snap,date:saleDate,price:salePrice};
+}
+
+// Fix B (B1): the Sales-History screen derives its month universe from item
+// STORAGE keys (purchase months). But events are attributed by SALE/RETURN
+// date, so any sale, resale or return dated in a month no purchase touches was
+// dropped from the all-time sum. This returns the set of 'MMM-YY' keys that
+// actually hold an event, so callers can widen their universe to cover them.
+function _saleEventMonthKeys(){
+  const set=new Set();
+  allDBKeys().forEach(function(k){
+    (DB[k]||[]).forEach(function(i){
+      if((i.item||'').trim().toUpperCase()==='MONTH END')return;
+      const s1=_sale1EventSnapshot(i);
+      if(s1.date){const mk=_monthKeyFromDate(s1.date);if(mk)set.add(mk);}
+      if(i.resaleSalePrice&&i.resaleDateSold){const mk=_monthKeyFromDate(i.resaleDateSold);if(mk)set.add(mk);}
+      (i.returnHistory||[]).forEach(function(r){const d=_returnEventDate(r);const mk=d?_monthKeyFromDate(d):null;if(mk)set.add(mk);});
+    });
+  });
+  return set;
 }
 
 function getSaleEventsInMonth(m){
