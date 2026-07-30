@@ -20078,15 +20078,14 @@ function _cashLedger(){return Array.isArray(DB.cashLedger)?DB.cashLedger:(DB.cas
 function _cashOverheadsAllTime(){
   let o=0;
   (DB.expenses||[]).forEach(function(e){o+=Number(e.amount)||0;});
-  // Trip mileage @ the per-mile rate is real vehicle running cost (fuel/wear).
-  // Under the simplified mileage method it IS Oskar's motor cost, so it's cash
-  // out and must reduce available cash — the previous version summed only a
-  // trip's attached expenses and silently dropped the mileage, overstating cash
-  // by the whole mileage total. When motorMethod==='actual' he logs real motor
-  // receipts as expenses instead, so mileage is skipped to avoid double-counting.
-  const _mileageIsCash=(DB._motorMethod||'mileage')!=='actual';
+  // v2.21.9: the flat per-mile mileage allowance is a TAX deduction, NOT a cash
+  // outflow. Fuel is paid from personal funds and reclaimed via the 45p rate, so
+  // no business cash ever leaves the pot for it — it stays in the tax path
+  // (_buildPnLSummary byBox[20]) but must not reduce available cash here. Real
+  // motor spend actually paid FROM the business is logged as a trip/DB expense
+  // and IS counted (both below). (Reverses v2.21.6, which wrongly booked the
+  // mileage allowance as cash and only reconciled by masking another overage.)
   (DB.trips||[]).forEach(function(t){
-    if(_mileageIsCash)o+=(Number(t.mileage)||0)*(Number(t.ratePerMile)||0.45);
     (Array.isArray(t.expenses)?t.expenses:[]).forEach(function(x){o+=Number(x.amount)||0;});
   });
   return +o.toFixed(2);
