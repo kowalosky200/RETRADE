@@ -17153,6 +17153,14 @@ function renderSummary(){
     const addDays=function(ds,n){const d=new Date(ds);d.setDate(d.getDate()+n);return d.toISOString().split('T')[0];}
     const fmtShort=function(ds){const d=new Date(ds);return (d.getMonth()+1)+'/'+d.getDate();}
     const isDaily=SUMMARY_PERIOD==='7d';
+    // v2.21.11 — Trend chart ends at the last COMPLETE day. Today is an
+    // in-progress period: plotting it full-weight makes a day with no sales
+    // yet read as a dip/crash. KPIs above are unchanged (range still includes
+    // today); only the chart series is trimmed. FY/monthly views keep the
+    // current month by design (a partial month is progress, not a same-day
+    // dip). Guard: fall back to range.to if yesterday precedes the window.
+    const _yesterday=addDays(_todayStr,-1);
+    const chartTo=(range.to>_yesterday && _yesterday>=range.from)?_yesterday:range.to;
     let chartLabels=[], chartRev=[], chartProfit=[], chartClickHandlers=[];
     if(isFY){
       const keys=_fyKeys(SUMMARY_PERIOD==='current_fy'?_currentFYStart():_currentFYStart()-1);
@@ -17167,7 +17175,7 @@ function renderSummary(){
     } else {
       const buckets=[]; let cur=range.from;
       if(isDaily){
-        while(cur<=range.to){buckets.push({from:cur,to:cur,label:fmtShort(cur)});cur=addDays(cur,1);}
+        while(cur<=chartTo){buckets.push({from:cur,to:cur,label:fmtShort(cur)});cur=addDays(cur,1);}
       } else {
         // Bucket size per period. 30d gets daily buckets (30 pts) — with
         // the label auto-skip logic below (Math.ceil(n/10)) that renders
@@ -17176,8 +17184,8 @@ function renderSummary(){
         // was better than the original 7-day rollup). 60d + 90d stay weekly
         // to avoid X-axis crowding.
         const bucketDays = SUMMARY_PERIOD==='30d' ? 1 : 7;
-        while(cur<=range.to){
-          const end = addDays(cur,bucketDays-1)<=range.to ? addDays(cur,bucketDays-1) : range.to;
+        while(cur<=chartTo){
+          const end = addDays(cur,bucketDays-1)<=chartTo ? addDays(cur,bucketDays-1) : chartTo;
           buckets.push({from:cur,to:end,label:fmtShort(cur)});
           cur=addDays(cur,bucketDays);
         }
@@ -17185,7 +17193,7 @@ function renderSummary(){
       // Canonical dated accounting events: sales land on their sale date and
       // returns/refunds land on their logged date. This makes every chart bucket
       // reconcile exactly with the dashboard Gross Profit KPI.
-      const chartEvents=getSaleEventsInRange(range.from,range.to);
+      const chartEvents=getSaleEventsInRange(range.from,chartTo);
       const bData=buckets.map(function(b){
         const inB=chartEvents.filter(function(x){return x.saleDate>=b.from&&x.saleDate<=b.to;});
         return {...b,
