@@ -16616,7 +16616,7 @@ function closeAllCategoriesModal(){
 // window.__chartClickHandlers array, dispatched through one delegated
 // listener on the <svg>. Chart.js CDN and _summaryChart global removed.
 // ============================================================================
-function renderSummaryChart(labels,revData,profitData){
+function renderSummaryChart(labels,revData,profitData,partialLast){
   const handlers=window.__chartClickHandlers||[];
   const n=labels.length;
 
@@ -16634,7 +16634,8 @@ function renderSummaryChart(labels,revData,profitData){
         profitDotR:2.5,revDotR:3,
         profitStroke:1.8,revStroke:2,scrubDotR:4.5,
         drawKey:SUMMARY_PERIOD,
-        gradientId:'rt-profit-fill'
+        gradientId:'rt-profit-fill',
+        partialLast:!!partialLast
       });
     }
   }
@@ -16661,7 +16662,8 @@ function renderSummaryChart(labels,revData,profitData){
         profitDotR:3,revDotR:3.5,
         profitStroke:2.2,revStroke:2.6,scrubDotR:5,
         drawKey:SUMMARY_PERIOD,
-        gradientId:'rt-profit-fill-m'
+        gradientId:'rt-profit-fill-m',
+        partialLast:!!partialLast
       });
     }
   }
@@ -16852,19 +16854,26 @@ function _renderChartInto(svgEl,labels,revData,profitData,handlers,opts){
   for(let i=0;i<n;i++)area+=' L '+sx(i).toFixed(1)+' '+sy(fillData[i]||0).toFixed(1);
   area+=' L '+sx(n-1).toFixed(1)+' '+sy(0).toFixed(1)+' Z';
 
+  // v2.21.13 — "so far today" marking. When the caller flags the final point as
+  // an incomplete current period, solid lines stop at the last COMPLETE point and
+  // a separate DASHED segment carries to today, so an in-progress day reads as
+  // provisional rather than a real dip. Non-partial charts are unchanged (solid
+  // runs full width, dash strings are empty).
+  const _partial=opts.partialLast===true && n>1;
+  const _solidTo=_partial?n-1:n; // solid covers indices 0.._solidTo-1
+  const _mkLine=function(data,from,to){let d='';for(let i=from;i<to;i++)d+=(i===from?'M ':' L ')+sx(i).toFixed(1)+' '+sy(data[i]||0).toFixed(1);return d;};
+  const _mkDash=function(data){return _partial?_mkLine(data,n-2,n):'';};
+
   // Profit line (soft green stroke above the area fill, below revenue line)
-  let profitLine='';
-  for(let i=0;i<n;i++)profitLine+=(i===0?'M ':' L ')+sx(i).toFixed(1)+' '+sy(profitData[i]||0).toFixed(1);
+  const profitLine=_mkLine(profitData,0,_solidTo); const profitDash=_mkDash(profitData);
 
   // Tertiary line (e.g. Net Profit) — drawn above the area, below revenue.
-  let tertLine='';
-  if(tertiaryData){
-    for(let i=0;i<n;i++)tertLine+=(i===0?'M ':' L ')+sx(i).toFixed(1)+' '+sy(tertiaryData[i]||0).toFixed(1);
-  }
+  let tertLine='', tertDash='';
+  if(tertiaryData){ tertLine=_mkLine(tertiaryData,0,_solidTo); tertDash=_mkDash(tertiaryData); }
 
   // Revenue line (primary visual)
-  let line='';
-  for(let i=0;i<n;i++)line+=(i===0?'M ':' L ')+sx(i).toFixed(1)+' '+sy(revData[i]||0).toFixed(1);
+  const line=_mkLine(revData,0,_solidTo); const revDash=_mkDash(revData);
+  const _soFar=_partial?('<text x="'+sx(n-1).toFixed(1)+'" y="'+(pad.t+fontSize+1).toFixed(1)+'" font-size="'+Math.round(fontSize*0.92)+'" fill="var(--text-tertiary)" text-anchor="end" font-family="var(--font-body)" opacity="0.85">so far</text>'):'';
 
   // Interactive columns — full-height hit zones + persistent dots on both
   // series. Profit dot slightly smaller so revenue reads as primary.
@@ -16887,11 +16896,17 @@ function _renderChartInto(svgEl,labels,revData,profitData,handlers,opts){
     const hasP=p!==0;
     const t=tertiaryData?(tertiaryData[i]||0):0;
     const hasT=tertiaryData&&t!==0;
+    // v2.21.13 — today (the incomplete last point) shows as a HOLLOW ring so it
+    // reads as provisional; force the revenue dot even when dots are otherwise
+    // hidden so today is always marked.
+    const _isLast=_partial&&i===n-1;
+    const _df=function(c){return _isLast?'var(--surface-1)':c;};
+    const _ds=function(c){return _isLast?c:'var(--surface-1)';};
     return '<g class="rt-chart-col'+(has?' clickable':'')+'" data-idx="'+i+'">'
       +'<rect x="'+(cx-colW/2).toFixed(1)+'" y="'+pad.t+'" width="'+colW.toFixed(1)+'" height="'+innerH+'" fill="transparent"/>'
-      +(hasT&&showDots?'<circle cx="'+cx.toFixed(1)+'" cy="'+sy(t).toFixed(1)+'" r="'+tertiaryDotR+'" fill="'+tertiaryColor+'" stroke="var(--surface-1)" stroke-width="1.2"/>':'')
-      +(hasP&&showDots?'<circle cx="'+cx.toFixed(1)+'" cy="'+sy(p).toFixed(1)+'" r="'+profitDotR+'" fill="'+secondaryColor+'" stroke="var(--surface-1)" stroke-width="1.2"/>':'')
-      +(has&&showDots?'<circle cx="'+cx.toFixed(1)+'" cy="'+sy(r).toFixed(1)+'" r="'+revDotR+'" fill="'+primaryColor+'" stroke="var(--surface-1)" stroke-width="1.5"/>':'')
+      +(hasT&&showDots?'<circle cx="'+cx.toFixed(1)+'" cy="'+sy(t).toFixed(1)+'" r="'+tertiaryDotR+'" fill="'+_df(tertiaryColor)+'" stroke="'+_ds(tertiaryColor)+'" stroke-width="1.2"/>':'')
+      +(hasP&&showDots?'<circle cx="'+cx.toFixed(1)+'" cy="'+sy(p).toFixed(1)+'" r="'+profitDotR+'" fill="'+_df(secondaryColor)+'" stroke="'+_ds(secondaryColor)+'" stroke-width="1.2"/>':'')
+      +((has&&(showDots||_isLast))?'<circle cx="'+cx.toFixed(1)+'" cy="'+sy(r).toFixed(1)+'" r="'+revDotR+'" fill="'+_df(primaryColor)+'" stroke="'+_ds(primaryColor)+'" stroke-width="1.5"/>':'')
       +'<title>'+esc(l)+' · '+primaryLabel+' '+fmtMoney(r)+' · '+secondaryLabel+' '+fmtMoney(p)+(tertiaryData?' · '+tertiaryLabel+' '+fmtMoney(t):'')+'</title>'
       +'</g>';
   }).join('');
@@ -16908,8 +16923,12 @@ function _renderChartInto(svgEl,labels,revData,profitData,handlers,opts){
     +grid+yLab+xLab
     +'<path class="rt-chart-area" d="'+area+'" fill="url(#'+gradientId+')" stroke="none"/>'
     +'<path class="rt-chart-line" d="'+profitLine+'" fill="none" stroke="'+secondaryColor+'" stroke-width="'+profitStroke+'" stroke-linejoin="round" stroke-linecap="round" opacity="0.95"/>'
+    +(profitDash?'<path class="rt-chart-partial" d="'+profitDash+'" fill="none" stroke="'+secondaryColor+'" stroke-width="'+profitStroke+'" stroke-dasharray="4 3" stroke-linecap="round" opacity="0.55"/>':'')
     +(tertiaryData?'<path class="rt-chart-line" d="'+tertLine+'" fill="none" stroke="'+tertiaryColor+'" stroke-width="'+tertiaryStroke+'" stroke-linejoin="round" stroke-linecap="round" opacity="0.95"/>':'')
+    +(tertDash?'<path class="rt-chart-partial" d="'+tertDash+'" fill="none" stroke="'+tertiaryColor+'" stroke-width="'+tertiaryStroke+'" stroke-dasharray="4 3" stroke-linecap="round" opacity="0.55"/>':'')
     +'<path class="rt-chart-line" d="'+line+'" fill="none" stroke="'+primaryColor+'" stroke-width="'+revStroke+'" stroke-linejoin="round" stroke-linecap="round"/>'
+    +(revDash?'<path class="rt-chart-partial" d="'+revDash+'" fill="none" stroke="'+primaryColor+'" stroke-width="'+revStroke+'" stroke-dasharray="4 3" stroke-linecap="round" opacity="0.6"/>':'')
+    +_soFar
     +hits
     // Scrub indicator — hidden by default, positioned via JS during
     // press-and-drag interaction. Drawn last so it overlays the lines.
@@ -17179,14 +17198,13 @@ function renderSummary(){
     const addDays=function(ds,n){const d=new Date(ds);d.setDate(d.getDate()+n);return d.toISOString().split('T')[0];}
     const fmtShort=function(ds){const d=new Date(ds);return (d.getMonth()+1)+'/'+d.getDate();}
     const isDaily=SUMMARY_PERIOD==='7d';
-    // v2.21.11 — Trend chart ends at the last COMPLETE day. Today is an
-    // in-progress period: plotting it full-weight makes a day with no sales
-    // yet read as a dip/crash. KPIs above are unchanged (range still includes
-    // today); only the chart series is trimmed. FY/monthly views keep the
-    // current month by design (a partial month is progress, not a same-day
-    // dip). Guard: fall back to range.to if yesterday precedes the window.
-    const _yesterday=addDays(_todayStr,-1);
-    const chartTo=(range.to>_yesterday && _yesterday>=range.from)?_yesterday:range.to;
+    // v2.21.13 — the trend INCLUDES today again so it agrees with the KPI
+    // totals (which count today); the current incomplete day/period is rendered
+    // as a distinct "so far" point (dashed final segment + hollow dot + label)
+    // so it reads as in-progress rather than a same-day dip. Rolling periods end
+    // today, so their last bucket is the partial one; FY (monthly) ends on the FY
+    // date, so _chartPartialLast is false there (its current-month bar is unchanged).
+    const _chartPartialLast=(range.to===_todayStr);
     let chartLabels=[], chartRev=[], chartProfit=[], chartClickHandlers=[];
     if(isFY){
       const keys=_fyKeys(SUMMARY_PERIOD==='current_fy'?_currentFYStart():_currentFYStart()-1);
@@ -17201,7 +17219,7 @@ function renderSummary(){
     } else {
       const buckets=[]; let cur=range.from;
       if(isDaily){
-        while(cur<=chartTo){buckets.push({from:cur,to:cur,label:fmtShort(cur)});cur=addDays(cur,1);}
+        while(cur<=range.to){buckets.push({from:cur,to:cur,label:fmtShort(cur)});cur=addDays(cur,1);}
       } else {
         // Bucket size per period. 30d gets daily buckets (30 pts) — with
         // the label auto-skip logic below (Math.ceil(n/10)) that renders
@@ -17210,8 +17228,8 @@ function renderSummary(){
         // was better than the original 7-day rollup). 60d + 90d stay weekly
         // to avoid X-axis crowding.
         const bucketDays = SUMMARY_PERIOD==='30d' ? 1 : 7;
-        while(cur<=chartTo){
-          const end = addDays(cur,bucketDays-1)<=chartTo ? addDays(cur,bucketDays-1) : chartTo;
+        while(cur<=range.to){
+          const end = addDays(cur,bucketDays-1)<=range.to ? addDays(cur,bucketDays-1) : range.to;
           buckets.push({from:cur,to:end,label:fmtShort(cur)});
           cur=addDays(cur,bucketDays);
         }
@@ -17219,7 +17237,7 @@ function renderSummary(){
       // Canonical dated accounting events: sales land on their sale date and
       // returns/refunds land on their logged date. This makes every chart bucket
       // reconcile exactly with the dashboard Gross Profit KPI.
-      const chartEvents=getSaleEventsInRange(range.from,chartTo);
+      const chartEvents=getSaleEventsInRange(range.from,range.to);
       const bData=buckets.map(function(b){
         const inB=chartEvents.filter(function(x){return x.saleDate>=b.from&&x.saleDate<=b.to;});
         return {...b,
@@ -17434,7 +17452,7 @@ function renderSummary(){
     _animateKPIs(el);   // v2.18.0 — reveal counts from 0, later renders tween from current
     _animateDonut(el, SUMMARY_PERIOD);  // v2.19.15 — sweep on reveal/period, enter-anim new categories
     window.__summaryByCat=stats.byCat||[];
-    renderSummaryChart(chartLabels,chartRev,chartProfit);
+    renderSummaryChart(chartLabels,chartRev,chartProfit,_chartPartialLast);
     // V3 layout: the old 2-column main/side height-matching no longer applies
     // (dashboard is now a tiered grid). Left intentionally as a no-op.
     // Mobile chart summary
