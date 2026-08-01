@@ -10085,11 +10085,37 @@ function _medianFulfilmentDrag(){
   const mid=Math.floor(drags.length/2);
   return drags.length%2?drags[mid]:(drags[mid-1]+drags[mid])/2;
 }
+// v2.21.12 — blended average promoted-listing rate across COMPLETED sales
+// (non-promoted sales count as 0), returned as a decimal. So unsold estimates
+// carry a realistic promo drag instead of assuming no boost. Modest 2% fallback
+// when there's no sales history yet.
+function _avgPromoRate(){
+  const rates=[];
+  allDBKeys().forEach(function(k){
+    (DB[k]||[]).forEach(function(i){
+      if(!i.salePrice||i.salePrice<=0||i.state==='sourced')return;
+      rates.push(i.promoPercent||0);
+    });
+  });
+  if(!rates.length)return 0.02;
+  return rates.reduce(function(s,r){return s+r;},0)/rates.length;
+}
+// v2.21.12 — unsold-item net estimate. LISTED items (real asking price already
+// set + real postage/shipping/packaging known) use the realistic estimate with
+// their actual charges (calcEstProfit). SOURCED items (only a guess) use a
+// conservative estimate: real fee model on the est price + estimated promo drag
+// + MEDIAN fulfilment drag. Always modest — never assumes zero fees/postage/promo.
 function _estPotentialNet(i){
+  // Listed with a real asking price -> realistic, real-charge estimate.
+  if(i.salePrice&&!i.dateSold&&!i.isReturned){
+    const e=calcEstProfit(i);
+    if(e!=null)return e;
+  }
   const est=i.estSalePrice||0;
   if(est<=0)return null;
   const bpf=calcPlatformBPF(i,est,0,_itemPlatform(i));
-  return +(est-bpf-(i.costPrice||0)-calcPartsCost(i)-_medianFulfilmentDrag()).toFixed(2);
+  const promo=est*_avgPromoRate()*1.20; // estimated ad/boost drag (VAT-inc), modest
+  return +(est-bpf-promo-(i.costPrice||0)-calcPartsCost(i)-_medianFulfilmentDrag()).toFixed(2);
 }
 // Estimated partner cut of the potential net, for a non-supplier account item.
 // Supplier cost is already inside costPrice, so no profit cut applies there.
@@ -25780,21 +25806,15 @@ function calcEstProfit(i){
   // the hypothetical sale-2 NET profit (revenue minus those same costs) and
   // add it on. The relist costs cancel out, leaving:
   //   est = costPrice-sunk + returnPostages + (relistRev - relistFees)
-  const rlBPF=calcPlatformBPF(i,i.salePrice||0,i.postage||0);
-  const rlGrossInc=(i.salePrice||0)-rlBPF;
-  const rlPromoCost=(i.salePrice||0)*(i.promoPercent||0)*1.20; // ad fee on full sale price
-  const rlRev=(i.salePrice||0)+(i.postage||0)-rlBPF;
-  const rlCost=(i.shippingCost||0)+(i.packagingCost||0)+rlPromoCost;
-  const rlProfit=rlRev-rlCost;
-  // base already deducted (rlShipping+rlPackaging+rlPromoCost) from cost, so to
-  // arrive at lifetime we add (rlRev - rlBPF + rlShipping + rlPackaging + rlPromo)
-  // — which equals (rlSalePrice + rlPostage). But conceptually clearer:
-  // base = -(sunkCost + relistCosts + returnPostage)
-  // lifetime = -(sunkCost + returnPostage) + (rlSalePrice + rlPostage - rlBPF - rlShipping - rlPackaging - rlPromo)
-  //         = base + relistCosts + (rlSalePrice + rlPostage - rlBPF - rlShipping - rlPackaging - rlPromo)
-  //         = base + (rlSalePrice + rlPostage - rlBPF) — the relistCosts cancel
-  // So:
-  return +(base+(i.salePrice||0)+(i.postage||0)-rlBPF).toFixed(2);
+  // v2.21.12 — MODEST relist projection. Value the resale at the user's
+  // estSalePrice when they've set one, else a 90% haircut of the original price
+  // (returned stock rarely resells at the full original figure), and recompute
+  // fees at that price. base = -(sunk cost + return postage) with the relist
+  // ship/pkg/promo already netted, so adding (resaleP + postage - fees) gives
+  // the lifetime-if-resold estimate without over-stating the resale.
+  const _resaleP=(i.estSalePrice&&i.estSalePrice>0)?i.estSalePrice:+(((i.salePrice||0)*0.90).toFixed(2));
+  const rlBPF=calcPlatformBPF(i,_resaleP,i.postage||0);
+  return +(base+_resaleP+(i.postage||0)-rlBPF).toFixed(2);
 }
 
 function calcROI(i){
