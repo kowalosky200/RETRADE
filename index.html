@@ -10312,7 +10312,7 @@ function _renderItemPageInner(m,id){
   // (including partial_seller fee-base reduction), so line items reconcile to the total.
   let sale1Net;
   if(i.resaleSalePrice){
-    const _sale1Clone=Object.assign({},i,{resaleSalePrice:null,resaleDateSold:null,resalePromoPercent:null,resaleShippingCost:null,resalePackagingCost:null});
+    const _sale1Clone=Object.assign({},i,{costPrice:0,parts:[],resaleSalePrice:null,resaleDateSold:null,resalePromoPercent:null,resaleShippingCost:null,resalePackagingCost:null});
     sale1Net=calcGrossProfit(_sale1Clone);
   }else{
     sale1Net=profit;
@@ -10361,8 +10361,9 @@ function _renderItemPageInner(m,id){
   if(_showPostage)pb+=_editMoneyRow('Shipping cost (you pay)','rcpt-s1-shipping-input',m,id,_rcptShipping,'var(--red)','−'); // v2.19.36 — editable per sale
   if(_showPostage&&_rcptPackaging>0)pb+=rcp('Packaging','−'+fmt(_rcptPackaging),'var(--red)');
   if(_rcptPromo)pb+=rcp((_plat==='ebay'?'Promo fee ('+((_rcptPromo*100).toFixed(0))+'% +VAT)':'Boost fee ('+((_rcptPromo*100).toFixed(0))+'%)'),'−'+fmt(promoCost),'var(--red)');
-  pb+=rcp('Item cost','−'+fmt(i.costPrice||0),'var(--red)');
-  if(partsCost>0){
+  if(_isResoldItem)pb+=rcp('Item cost','— (charged on resale)','var(--muted)');
+  else pb+=rcp('Item cost','−'+fmt(i.costPrice||0),'var(--red)');
+  if(partsCost>0&&!_isResoldItem){
     const pts=i.parts||[];
     if(pts.length===1){pb+=rcp(esc(pts[0].description),'−'+fmt(partsCost),'var(--red)');}
     else{
@@ -10437,7 +10438,7 @@ function _renderItemPageInner(m,id){
     const _s2BaseAfterPS=Math.max(0,i.resaleSalePrice-_s2PS);
     const _s2BPFAfterPS=calcPlatformBPF(i,_s2BaseAfterPS,_rPostageRcpt,i.resalePlatform);
     const _s2PsFeeCredit=Math.max(0,rBPF-_s2BPFAfterPS);
-    const rRev=i.resaleSalePrice+_rPostageRcpt-rBPF-(i.resaleShippingCost||0)-rPromoCost-_s2PS+_s2PsFeeCredit-_s2PE; // v2.19.31 — Sale-2 partial refunds
+    const rRev=i.resaleSalePrice+_rPostageRcpt-rBPF-(i.resaleShippingCost||0)-rPromoCost-_s2PS+_s2PsFeeCredit-_s2PE-(i.costPrice||0)-partsCost; // v2.19.31 + v2.21.16 cost-of-goods on resale
     const lifetimeProfit=profit;
     let s2b='';
     s2b+=_salePlatformPickerRow('rcpt-s2-platform-select',m,id,(i.resalePlatform&&PLATFORMS[i.resalePlatform])?i.resalePlatform:_itemPlatform(i)); // v2.19.33
@@ -10464,7 +10465,12 @@ function _renderItemPageInner(m,id){
       if(_s2PsFeeCredit>0&&_showFee)s2b+=rcp((_plat==='ebay'?'eBay':'Platform')+' refunds fee difference','+'+fmt(_s2PsFeeCredit),'var(--green)',true);
     }
     if(_s2PE>0)s2b+=rcp('Partial refund — eBay decided','−'+fmt(_s2PE),'var(--accent)');
-    s2b+=rcp('Item cost (sunk)','—','var(--muted)');
+    s2b+=rcp('Item cost','−'+fmt(i.costPrice||0),'var(--red)');
+    if(partsCost>0){
+      const pts2=i.parts||[];
+      if(pts2.length===1){s2b+=rcp(esc(pts2[0].description),'−'+fmt(partsCost),'var(--red)');}
+      else{s2b+=rcp('Parts & expenses ('+pts2.length+')','−'+fmt(partsCost),'var(--red)');pts2.forEach(function(p){s2b+=rcp(esc(p.description),'−'+fmt(p.cost),'var(--red)',true);});}
+    }
     s2b+='<div class="ip-receipt-row total"><span style="flex:1">Sale 2 net</span><span class="ip-receipt-val" style="color:'+(rRev>=0?'var(--green)':'var(--red)')+'">'+fmt(rRev)+'</span></div>';
     s2b+='<div class="ip-receipt-row" style="margin-top:6px;padding:10px 0 2px;border-top:2px solid var(--border)"><span style="flex:1;font-weight:700;font-size:13px">Lifetime P&amp;L</span><span class="ip-receipt-val" style="font-size:16px;color:'+(lifetimeProfit>=0?'var(--green)':'var(--red)')+'">'+fmt(lifetimeProfit)+'</span></div>';
     if(roiDisplay)s2b+=rcp('Overall ROI',roiDisplay,'var(--muted)');
@@ -24506,6 +24512,11 @@ function _sale1EventSnapshot(i){
     isReturned:false,
     state:'sold',
     returnHistory:[],
+    // v2.21.16 — for a RESOLD item the cost of goods (item cost + parts) follows
+    // the item to the resale (sale 2); the failed first sale shows only its
+    // wasted fees. Non-resold items keep their cost on the single sale.
+    costPrice:((i.resaleSalePrice&&i.resaleDateSold)?0:(i.costPrice||0)),
+    parts:((i.resaleSalePrice&&i.resaleDateSold)?[]:(i.parts||[])),
     resaleSalePrice:null,
     resaleDateSold:null,
     resalePromoPercent:null,
@@ -24527,7 +24538,7 @@ function _sale2EventSnapshot(i){
     packagingCost:(i.resalePackagingCost!=null?i.resalePackagingCost:i.packagingCost)||0,
     promoPercent:(i.resalePromoPercent!=null?i.resalePromoPercent:i.promoPercent)||0,
     postage:Number(i.postage)||0,
-    costPrice:0,          // sunk in cycle 1
+    costPrice:(i.costPrice||0), // v2.21.16 — cost of goods charged on the resale
     isReturned:false,
     state:'sold',
     returnHistory:[],
