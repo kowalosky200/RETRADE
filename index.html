@@ -22760,7 +22760,11 @@ function closeModal(){
 function confirmResale(){
   const date=document.getElementById('resale-date').value;
   const price=parseFloat(document.getElementById('resale-price').value)||0;
-  if(date&&MODAL_CALLBACK){MODAL_CALLBACK(date,price);}
+  // v2.21.14 — require a date with explicit feedback. Previously an empty date
+  // silently closed the modal with NO save and NO error, dropping the re-sale.
+  // Mirrors confirmSold's date guard.
+  if(!date){toast('Please pick a re-sale date','err');return;}
+  if(MODAL_CALLBACK){MODAL_CALLBACK(date,price);}
   closeResaleModal();
 }
 
@@ -24461,14 +24465,19 @@ function _reconciledItemEventProfits(i){
     return {s1:+p1.toFixed(2),s2:0,returns:retProfits.map(function(x){return +x.toFixed(2);})};
   }
   const retSum=retProfits.reduce(function(a,x){return a+x;},0);
-  const residual=+(gpFull-p1-retSum).toFixed(2);
-  let term='1',termRet=-1;
-  if(i.resaleSalePrice&&i.resaleDateSold){term='2';}
-  else if(rets.length){term='R';let ld=null;rets.forEach(function(r,idx){const d=_returnEventDate(r);if(d&&(!ld||d>=ld)){ld=d;termRet=idx;}});if(termRet<0)termRet=rets.length-1;}
+  // v2.21.15 — resale event carries its TRUE leg net (cost sunk), matching the
+  // item page. The residual reconciling the set to calcGrossProfit(i) is routed
+  // onto the terminal RETURN (or sale-1 if there are none) — NEVER the resale.
+  const resold=!!(i.resaleSalePrice&&i.resaleDateSold);
+  const s2base=resold?(calcGrossProfit(_sale2EventSnapshot(i).item)||0):0;
+  const residual=+(gpFull-p1-retSum-s2base).toFixed(2);
+  let termRet=-1;
+  if(rets.length){let ld=null;rets.forEach(function(r,idx){const d=_returnEventDate(r);if(d&&(!ld||d>=ld)){ld=d;termRet=idx;}});if(termRet<0)termRet=rets.length-1;}
+  const onS1=!rets.length; // residual to sale-1 only when there are no return events
   return {
-    s1:+(p1+(term==='1'?residual:0)).toFixed(2),
-    s2:+((term==='2'?residual:0)).toFixed(2),
-    returns:retProfits.map(function(x,idx){return +(x+((term==='R'&&idx===termRet)?residual:0)).toFixed(2);})
+    s1:+(p1+(onS1?residual:0)).toFixed(2),
+    s2:+s2base.toFixed(2),
+    returns:retProfits.map(function(x,idx){return +(x+((!onS1&&idx===termRet)?residual:0)).toFixed(2);})
   };
 }
 function _returnEventsForItem(i,k,predicate){
@@ -24504,6 +24513,31 @@ function _sale1EventSnapshot(i){
     resalePackagingCost:null
   });
   return {item:snap,date:saleDate,price:salePrice};
+}
+
+// v2.21.15 — The resale (sale 2) valued on its OWN leg: resale price with the
+// resale's shipping/packaging/promo and the item cost SUNK (0, paid in cycle 1).
+// Mirrors _sale1EventSnapshot. calcGrossProfit(this) == the item page's Sale 2
+// net, so the resale month shows honest resale economics.
+function _sale2EventSnapshot(i){
+  const snap=Object.assign({},i,{
+    salePrice:Number(i.resaleSalePrice||0),
+    dateSold:i.resaleDateSold||null,
+    shippingCost:(i.resaleShippingCost!=null?i.resaleShippingCost:i.shippingCost)||0,
+    packagingCost:(i.resalePackagingCost!=null?i.resalePackagingCost:i.packagingCost)||0,
+    promoPercent:(i.resalePromoPercent!=null?i.resalePromoPercent:i.promoPercent)||0,
+    postage:Number(i.postage)||0,
+    costPrice:0,          // sunk in cycle 1
+    isReturned:false,
+    state:'sold',
+    returnHistory:[],
+    resaleSalePrice:null,
+    resaleDateSold:null,
+    resalePromoPercent:null,
+    resaleShippingCost:null,
+    resalePackagingCost:null
+  });
+  return {item:snap,date:i.resaleDateSold||null,price:Number(i.resaleSalePrice||0)};
 }
 
 // Fix B (B1): the Sales-History screen derives its month universe from item
@@ -24542,7 +24576,7 @@ function getSaleEventsInMonth(m){
       if(i.resaleSalePrice&&i.resaleDateSold&&_monthKeyFromDate(i.resaleDateSold)===m){
         out.push({
           item:i,month:k,sale:'2',saleDate:i.resaleDateSold,salePrice:i.resaleSalePrice||0,
-          profit:_reconciledItemEventProfits(i).s2,roi:calcROI(i),margin:calcMargin(i),
+          profit:_reconciledItemEventProfits(i).s2,roi:calcROI(i),margin:calcMargin(_sale2EventSnapshot(i).item),
           daysToSell:calcDaysToSell(i),isReturned:false,isReturnAdjustment:false
         });
       }
@@ -24577,7 +24611,7 @@ function getSaleEventsInRange(from,to){
       }
       if(i.resaleSalePrice&&inR(i.resaleDateSold)){
         out.push({item:i,month:k,sale:'2',saleDate:i.resaleDateSold,salePrice:i.resaleSalePrice||0,
-          profit:_reconciledItemEventProfits(i).s2,roi:calcROI(i),margin:calcMargin(i),
+          profit:_reconciledItemEventProfits(i).s2,roi:calcROI(i),margin:calcMargin(_sale2EventSnapshot(i).item),
           daysToSell:calcDaysToSell(i),isReturned:false,isReturnAdjustment:false});
       }
     });
@@ -26790,6 +26824,26 @@ function _restoreAuthInputs(){
       console.warn('Visibility session check failed:', e.message);
     }
   });
+
+  // v2.21.14 — Flush the debounced save when the page is hidden or unloading.
+  // saveDB() waits 400ms before persisting; if the user backgrounds the app or
+  // closes the tab within that window (common on mobile, where hidden pages are
+  // frozen/evicted and pending setTimeout timers may never fire) the in-memory
+  // sale/edit is shown but never reaches Supabase. Forcing the pending write out
+  // on hide/unload closes that loss window. Best-effort on mobile suspend, but
+  // it fires synchronously before the browser can freeze the page in the common
+  // background/close case.
+  function _flushPendingSave(){
+    if(_previewMode || !_currentUserId) return;
+    if(!_saveTimer) return;              // nothing pending
+    clearTimeout(_saveTimer);
+    _saveTimer = null;
+    try{ _persistChanges(); }catch(e){ console.warn('flush save failed:', e && e.message); }
+  }
+  document.addEventListener('visibilitychange', function(){
+    if(document.visibilityState === 'hidden') _flushPendingSave();
+  });
+  window.addEventListener('pagehide', _flushPendingSave);
 })();
 
 // SUPABASE MIGRATION PREP
