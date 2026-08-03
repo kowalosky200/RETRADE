@@ -11530,7 +11530,7 @@ const _FAB_PAGE_OPTIONS = {
   'p-runs':        _FAB_ALL_OPTIONS,
   // p-item, p-search, p-tax, p-data → no FAB, see _FAB_HIDDEN_PAGES
 };
-const _FAB_HIDDEN_PAGES = new Set(['p-search','p-tax','p-data','p-accounts','p-cash','p-returns']); // p-item removed: FAB visible on item page for quick adds
+const _FAB_HIDDEN_PAGES = new Set(['p-search']); // v2.21.19 — FAB is uniform across the whole app; only the transient search overlay (which has its own search-fab) stays FAB-less
 
 // Patch C-2: per-page FAB single-tap override. Returns 'speed-dial' or a specific action.
 function getFabTapAction(pageId){
@@ -11589,7 +11589,7 @@ function buildFabOptions(){
   if(!wrap)return;
   const activePage=(document.querySelector('.page.on')||{id:''}).id;
   if(_FAB_HIDDEN_PAGES.has(activePage)){ wrap.innerHTML=''; return; }
-  let ids=(_FAB_PAGE_OPTIONS[activePage]||['list']).slice();
+  let ids=(_FAB_PAGE_OPTIONS[activePage]||_FAB_ALL_OPTIONS).slice();
   // Patch C: swap sourcerun↔endrun depending on whether a run is active
   if(_activeSourcingRun){
     ids=ids.map(function(id){return id==='sourcerun'?'endrun':id;});
@@ -11623,7 +11623,7 @@ function onFabClick(){
   // Patch C-2: per-page single-tap override
   const _fabAction=getFabTapAction(activePage);
   if(_fabAction==='stock-quick-add'){ closeFabDial(); openStockQuickAdd(); return; }
-  const ids=_FAB_PAGE_OPTIONS[activePage]||[];
+  const ids=_FAB_PAGE_OPTIONS[activePage]||_FAB_ALL_OPTIONS;
   // If only one option, fire it directly — no dial needed for single actions.
   if(ids.length<=1){
     const onlyId=ids[0]||'list';
@@ -19822,11 +19822,13 @@ function _paintSelBar(ctx){
     if(SELECTION_MODE&&SELECTED_ITEMS.size>0){entries=all.filter(function(e){return e.item&&SELECTED_ITEMS.has(e.item.id);});mode='selected';}
     else if(MONTH_SEARCH){entries=all;mode='filtered';}
   }
-  const page=document.getElementById(pageId);
-  let bar=page?page.querySelector('#sel-totals-bar'):null;
+  // v2.21.19 — append to <body>, NOT the page: .page.on runs a transform
+  // animation (pageFade), which makes it the containing block for this
+  // position:fixed bar and clips it below the fold / misaligns it on desktop.
+  let bar=document.getElementById('sel-totals-bar');
   if(!entries||!entries.length){ if(bar)bar.remove(); document.body.classList.remove('rt-selbar-on'); return; }
   const html=_selTotalsBarInner(_selectionTotals(entries),ctx,mode);
-  if(!bar){ bar=document.createElement('div'); bar.id='sel-totals-bar'; bar.className='sel-totals-bar'; if(page)page.appendChild(bar); }
+  if(!bar){ bar=document.createElement('div'); bar.id='sel-totals-bar'; bar.className='sel-totals-bar'; document.body.appendChild(bar); }
   bar.innerHTML=html;
   document.body.classList.add('rt-selbar-on');
 }
