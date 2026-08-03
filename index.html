@@ -949,6 +949,34 @@ select[id^="edit-shipping-policy"]{text-align:center;text-align-last:center;}
 
 /* LIST TOOLBAR */
 .list-toolbar{display:flex;align-items:center;gap:8px;margin-bottom:10px;padding:0 2px;flex-wrap:wrap;}
+/* ── v2.21.18 In-list search + selection/filter totals bar ────────────── */
+.inlist-search{position:relative;display:flex;align-items:center;gap:8px;margin:0 2px 12px;padding:8px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;}
+.inlist-search-ic{display:flex;align-items:center;color:var(--text-secondary);flex-shrink:0;}
+.inlist-search-input{flex:1;min-width:0;border:none;background:transparent;color:var(--text);font-size:14px;font-family:inherit;outline:none;padding:2px 0;}
+.inlist-search-input::placeholder{color:var(--text-secondary);opacity:0.8;}
+.inlist-search-clear{flex-shrink:0;border:none;background:var(--surface);color:var(--text-secondary);width:22px;height:22px;border-radius:50%;font-size:12px;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;}
+.inlist-search-clear:hover{color:var(--text);}
+.inlist-search-count{flex-shrink:0;font-size:11px;font-weight:700;color:var(--text-secondary);font-variant-numeric:tabular-nums;white-space:nowrap;}
+.inlist-empty{padding:26px 16px;text-align:center;color:var(--text-secondary);font-size:13px;}
+.sel-totals-bar{position:fixed;left:0;right:0;bottom:0;z-index:305;display:flex;align-items:center;gap:14px;padding:9px 16px calc(9px + env(safe-area-inset-bottom,0px));background:var(--surface);border-top:1px solid var(--border);box-shadow:0 -4px 22px var(--shadow-md);animation:selBarIn .22s cubic-bezier(0.34,1.3,0.64,1) both;}
+@keyframes selBarIn{from{transform:translateY(100%);opacity:0}to{transform:translateY(0);opacity:1}}
+.sel-totals-bar .stb-tag{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:800;letter-spacing:0.02em;color:var(--text-secondary);text-transform:uppercase;flex-shrink:0;}
+.sel-totals-bar .stb-hero{display:flex;flex-direction:column;gap:1px;flex-shrink:0;border-left:1px solid var(--border);padding-left:12px;}
+.sel-totals-bar .stb-hero-label{font-size:10px;font-weight:700;letter-spacing:0.05em;text-transform:uppercase;color:var(--text-secondary);}
+.sel-totals-bar .stb-hero-val{font-size:19px;font-weight:800;line-height:1;color:var(--accent);font-variant-numeric:tabular-nums;}
+.sel-totals-bar .stb-hero-val.neg{color:var(--red);}
+.sel-totals-bar .stb-foot{display:flex;gap:12px;flex-wrap:wrap;align-items:baseline;min-width:0;font-size:12px;color:var(--text-secondary);font-variant-numeric:tabular-nums;overflow-x:auto;}
+.sel-totals-bar .stb-foot span{white-space:nowrap;}
+.sel-totals-bar .stb-foot b{color:var(--text);font-weight:700;}
+body.rt-selbar-on .fab,body.rt-selbar-on .fab-dial{bottom:86px!important;}
+body.rt-selbar-on #p-stock.page,body.rt-selbar-on #p-monthly.page{padding-bottom:180px;}
+@media(min-width:1000px){.sel-totals-bar{left:var(--sidebar-w,240px);}}
+@media(max-width:600px){
+  .sel-totals-bar{bottom:calc(62px + env(safe-area-inset-bottom,0px));padding-bottom:9px;}
+  body.rt-selbar-on .fab,body.rt-selbar-on .fab-dial{bottom:calc(62px + env(safe-area-inset-bottom,0px) + 76px)!important;}
+  body.rt-selbar-on #p-stock.page,body.rt-selbar-on #p-monthly.page{padding-bottom:calc(150px + env(safe-area-inset-bottom,0px));}
+}
+
 .list-count{font-size:13px;color:var(--text-secondary);font-weight:500;}
 .select-toggle{background:none;border:none;color:var(--text-secondary);font-size:13px;font-weight:600;cursor:pointer;padding:4px 8px;border-radius:6px;transition:all 0.15s;}
 .select-toggle:hover{color:var(--text);background:var(--surface2);}
@@ -6870,6 +6898,8 @@ let STOCK_SOURCED_FILTER='all';   // Patch A — sourced-age filter: all | new |
 let STOCK_GROUPED=false;          // Session B: false=flat list, true=group by listing month
 let STOCK_SELECTION_MODE=false;   // stock page checkbox mode
 let STOCK_SELECTED=new Set();     // stock page selection
+let STOCK_SEARCH='';              // stock in-list search query (v2.21.18)
+let MONTH_SEARCH='';              // sales-history in-list search query (v2.21.18)
 let RUN_SELECTION_MODE=false;     // active-run page checkbox mode
 let RUN_SELECTED=new Set();       // active-run page selection
 // Patch C — Sourcing Runs
@@ -9528,6 +9558,10 @@ function _deactivatePages(){
   document.querySelectorAll('.page').forEach(function(p){
     p.classList.remove('on','rt-boot-noanim');
   });
+  // v2.21.18 — leaving a page clears its in-list search + removes the totals bar.
+  STOCK_SEARCH=''; MONTH_SEARCH='';
+  var _stb=document.getElementById('sel-totals-bar'); if(_stb)_stb.remove();
+  document.body.classList.remove('rt-selbar-on');
 }
 
 function goToTab(name,sourceEl){
@@ -18660,6 +18694,9 @@ function renderMonth(){
     return db<da?-1:db>da?1:0;
   });
 
+  window.__monthAll=visible;                                 // pre-search (v2.21.18)
+  if(MONTH_SEARCH){visible=visible.filter(function(e){return _selItemMatchesSearch(e.item,MONTH_SEARCH);});}
+  window.__monthItems=visible;
   const backLabel=_monthOrigin==='grid'?'← Calendar':_monthOrigin==='p-summary'?'← Dashboard':'← Back';
   const backAction=_monthOrigin==='grid'
     ?`backToMonthlyGrid()`
@@ -18787,6 +18824,7 @@ function renderMonth(){
         <option value="price" ${MONTH_SORT==='price'?'selected':''}>Price</option>
         <option value="margin" ${MONTH_SORT==='margin'?'selected':''}>Margin</option>
       </select>
+      ${cAll>0?_inlistSearchHTML('month'):''}
     </div>
 
     ${cAll===0?`
@@ -18795,7 +18833,7 @@ function renderMonth(){
         <div class="empty-state-text">No sales in ${keyName(m)}</div>
         <div class="empty-state-sub">${stats.listedCount>0?stats.listedCount+' item'+(stats.listedCount!==1?'s':'')+' listed in this month — view in <span style="color:var(--accent);cursor:pointer;font-weight:600" onclick="goToTab(\'stock\',document.querySelector(\'[data-tab=stock]\'))">Stock</span>':'Switch month or add new sales'}</div>
       </div>
-    `:visible.length===0?`
+    `:(visible.length===0&&!MONTH_SEARCH)?`
       <div class="empty-state">
         <div class="empty-state-icon"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></div>
         <div class="empty-state-text">No ${MONTH_FILTER} sales</div>
@@ -18819,12 +18857,13 @@ function renderMonth(){
           <button class="select-toggle" onclick="toggleSelectionMode()">Select</button>
         `}
       </div>
-      <div class="item-table">
-        ${visible.map(e=>renderSaleEventRow(e)).join('')}
+      <div class="item-table" id="month-list">
+        ${(()=>{window.__monthItems=visible;return visible.length?visible.map(e=>renderSaleEventRow(e)).join(''):(MONTH_SEARCH?'<div class="inlist-empty">No sales match \u201c'+esc(MONTH_SEARCH)+'\u201d</div>':'');})()}
       </div>
     `}
   `;
   document.getElementById('p-monthly').innerHTML=html;
+  _paintSelBar('month');
 }
 
 // Render a single sale-event row for the Monthly sale-history list.
@@ -19678,6 +19717,156 @@ function renderStockRow(m,i){
   return html;
 }
 
+// ─── SELECTION / IN-LIST SEARCH TOTALS (v2.21.18) ─────────────────────────
+// ONE pure engine powers two features: (1) a live totals bar over the SELECTED
+// rows, (2) a live totals bar over the SEARCH-FILTERED rows. It accepts either
+// raw items (Stock Room) or sale-events (Sales History month view) and derives
+// every figure LIVE through the canonical calculators — nothing computed is
+// ever stored on the item (the never-store-financials invariant).
+function _selEntryIsEvent(e){
+  // Sale-events (from getSaleEventsInMonth) always carry a resolved .saleDate +
+  // an .item + a .sale/.isReturnAdjustment marker. Raw items never do.
+  return !!(e && e.item && e.saleDate!==undefined &&
+            (e.sale!==undefined || e.isReturnAdjustment!==undefined));
+}
+function _selectionTotals(entries){
+  let count=0,soldCount=0,unsoldCount=0,returnedCount=0;
+  let cost=0,revenue=0,realisedProfit=0,potentialProfit=0,estValue=0;
+  let soldRev=0,soldProfit=0,daysSum=0,daysCount=0;
+  (entries||[]).forEach(function(e){
+    if(!e)return;
+    count++;
+    if(_selEntryIsEvent(e)){
+      // Month sale-event: use the event's OWN leg figures so a selection/filter
+      // total reconciles exactly to calcMonthStatsBySale (event .profit already
+      // routes through _reconciledItemEventProfits).
+      const rev=(e.salePrice||0);
+      revenue+=rev; realisedProfit+=(e.profit||0);
+      if(e.isReturnAdjustment||e.isReturned){
+        returnedCount++;
+      } else {
+        soldCount++; soldRev+=rev; soldProfit+=(e.profit||0);
+        if(e.daysToSell!=null){daysSum+=e.daysToSell;daysCount++;}
+      }
+    } else {
+      // Raw item.
+      const it=e;
+      const c=(it.costPrice||0)+calcPartsCost(it); cost+=c;
+      const isSold=!!(it.dateSold||it.resaleSalePrice)&&!it.isReturned;
+      if(isSold){
+        soldCount++;
+        const rev=calcItemRevenue(it), gp=calcGrossProfit(it);
+        revenue+=rev; realisedProfit+=(gp||0); soldRev+=rev; soldProfit+=(gp||0);
+        const d=calcDaysToSell(it); if(d!=null){daysSum+=d;daysCount++;}
+      } else if(it.isReturned){
+        returnedCount++;
+      } else {
+        unsoldCount++;
+        const pn=_estPotentialNet(it); if(pn!=null)potentialProfit+=pn;
+        estValue+=(it.salePrice||it.estSalePrice||0);
+      }
+    }
+  });
+  // Blended margin over the SOLD legs only (Σprofit / Σrevenue — never an avg of
+  // per-item margins). Headline realisedProfit nets returns; margin does not.
+  const margin = soldRev>0 ? +(soldProfit/soldRev*100).toFixed(1) : null;
+  const avgDays = daysCount>0 ? Math.round(daysSum/daysCount) : null;
+  return {count:count,soldCount:soldCount,unsoldCount:unsoldCount,returnedCount:returnedCount,
+          cost:+cost.toFixed(2),revenue:+revenue.toFixed(2),realisedProfit:+realisedProfit.toFixed(2),
+          potentialProfit:+potentialProfit.toFixed(2),estValue:+estValue.toFixed(2),
+          margin:margin,avgDays:avgDays};
+}
+function _selItemMatchesSearch(i,q){
+  if(!q)return true;
+  q=String(q).trim().toLowerCase(); if(!q)return true;
+  const hay=(((i&&i.item)||'')+' '+((i&&i.category)||'')+' '+((i&&i.gid)||'')).toLowerCase();
+  return hay.indexOf(q)!==-1;
+}
+// A slim magnifier (no 'search' key in the app icon set).
+function _selSearchIco(sz){var s=sz||15;return'<svg width="'+s+'" height="'+s+'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;vertical-align:middle" aria-hidden="true"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.5" y2="16.5"/></svg>';}
+function _selTotalsBarInner(t,ctx,mode){
+  const tag = mode==='selected'
+    ? '<span class="stb-tag">'+icon('check',13)+' Selected</span>'
+    : '<span class="stb-tag">'+_selSearchIco(13)+' Filtered</span>';
+  if(ctx==='stock'){
+    const pp=t.potentialProfit;
+    return tag
+      +'<div class="stb-hero"><div class="stb-hero-label">Est. profit</div>'
+      +'<div class="stb-hero-val'+(pp<0?' neg':'')+'">'+fmt(pp)+'</div></div>'
+      +'<div class="stb-foot">'
+      +'<span><b>'+t.count+'</b> item'+(t.count!==1?'s':'')+'</span>'
+      +'<span><b>'+fmt(t.cost)+'</b> in</span>'
+      +'<span><b>'+fmt(t.estValue)+'</b> est. value</span>'
+      +'</div>';
+  }
+  const rp=t.realisedProfit;
+  return tag
+    +'<div class="stb-hero"><div class="stb-hero-label">Profit</div>'
+    +'<div class="stb-hero-val'+(rp<0?' neg':'')+'">'+fmt(rp)+'</div></div>'
+    +'<div class="stb-foot">'
+    +'<span><b>'+t.soldCount+'</b> sale'+(t.soldCount!==1?'s':'')+'</span>'
+    +'<span><b>'+fmt(t.revenue)+'</b> rev</span>'
+    +(t.margin!=null?'<span><b>'+t.margin.toFixed(1)+'%</b> margin</span>':'')
+    +(t.avgDays!=null?'<span><b>'+t.avgDays+'</b>d avg</span>':'')
+    +(t.returnedCount>0?'<span><b>'+t.returnedCount+'</b> returned</span>':'')
+    +'</div>';
+}
+function _paintSelBar(ctx){
+  let entries=null,mode=null,pageId;
+  if(ctx==='stock'){ pageId='p-stock';
+    const all=window.__stockItems||[];
+    if(STOCK_SELECTION_MODE&&STOCK_SELECTED.size>0){entries=all.filter(function(i){return STOCK_SELECTED.has(i.id);});mode='selected';}
+    else if(STOCK_SEARCH){entries=all;mode='filtered';}
+  } else { pageId='p-monthly';
+    const all=window.__monthItems||[];
+    if(SELECTION_MODE&&SELECTED_ITEMS.size>0){entries=all.filter(function(e){return e.item&&SELECTED_ITEMS.has(e.item.id);});mode='selected';}
+    else if(MONTH_SEARCH){entries=all;mode='filtered';}
+  }
+  const page=document.getElementById(pageId);
+  let bar=page?page.querySelector('#sel-totals-bar'):null;
+  if(!entries||!entries.length){ if(bar)bar.remove(); document.body.classList.remove('rt-selbar-on'); return; }
+  const html=_selTotalsBarInner(_selectionTotals(entries),ctx,mode);
+  if(!bar){ bar=document.createElement('div'); bar.id='sel-totals-bar'; bar.className='sel-totals-bar'; if(page)page.appendChild(bar); }
+  bar.innerHTML=html;
+  document.body.classList.add('rt-selbar-on');
+}
+function _selRefocus(id){requestAnimationFrame(function(){const el=document.getElementById(id);if(el){el.focus();try{const n=el.value.length;el.setSelectionRange(n,n);}catch(e){}}});}
+function _liveStockSearch(q){
+  STOCK_SEARCH=q;
+  const el=document.getElementById('stock-list');
+  if(!el){ renderStock(); _selRefocus('stock-search-input'); return; } // grouped→flat transition
+  const base=window.__stockAll||[];
+  const shown=q?base.filter(function(i){return _selItemMatchesSearch(i,q);}):base;
+  window.__stockItems=shown;
+  el.innerHTML=shown.length?shown.map(function(i){return renderStockRow(i.month,i);}).join(''):('<div class="inlist-empty">No stock matches \u201c'+esc(q)+'\u201d</div>');
+  const cnt=document.getElementById('stock-search-count'); if(cnt)cnt.textContent=q?(shown.length+' of '+base.length):'';
+  _paintSelBar('stock');
+}
+function _liveMonthSearch(q){
+  MONTH_SEARCH=q;
+  const el=document.getElementById('month-list');
+  const base=window.__monthAll||[];
+  const shown=q?base.filter(function(e){return _selItemMatchesSearch(e.item,q);}):base;
+  window.__monthItems=shown;
+  if(el)el.innerHTML=shown.length?shown.map(function(e){return renderSaleEventRow(e);}).join(''):('<div class="inlist-empty">No sales match \u201c'+esc(q)+'\u201d</div>');
+  const cnt=document.getElementById('month-search-count'); if(cnt)cnt.textContent=q?(shown.length+' of '+base.length):'';
+  _paintSelBar('month');
+}
+function _selClear(ctx){ if(ctx==='stock'){STOCK_SEARCH='';renderStock();} else {MONTH_SEARCH='';renderMonth();} }
+function _inlistSearchHTML(ctx){
+  const val = ctx==='stock'?STOCK_SEARCH:MONTH_SEARCH;
+  const fn = ctx==='stock'?'_liveStockSearch':'_liveMonthSearch';
+  const base = ctx==='stock'?(window.__stockAll||[]).length:(window.__monthAll||[]).length;
+  const shownN = ctx==='stock'?(window.__stockItems||[]).length:(window.__monthItems||[]).length;
+  const cnt = val?(shownN+' of '+base):'';
+  return '<div class="inlist-search">'
+    +'<span class="inlist-search-ic">'+_selSearchIco(15)+'</span>'
+    +'<input id="'+ctx+'-search-input" class="inlist-search-input" type="text" inputmode="search" enterkeyhint="search" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" placeholder="Search this list\u2026" value="'+esc(val||'')+'" oninput="'+fn+'(this.value)">'
+    +(val?'<button class="inlist-search-clear" onclick="_selClear(\''+ctx+'\')" title="Clear search">\u2715</button>':'')
+    +'<span id="'+ctx+'-search-count" class="inlist-search-count">'+esc(cnt)+'</span>'
+    +'</div>';
+}
+
 function renderStock(){
   const today=new Date().toISOString().split('T')[0];
   // Gather two populations. Sold/returned excluded — they live on Calendar.
@@ -19740,10 +19929,15 @@ function renderStock(){
     return daysBetween(aDate,today)<daysBetween(bDate,today)?1:-1; // days-desc / legacy
   };
   items=[...items].sort(sortCmp);
+  // v2.21.18 — in-list search feeds the same totals engine as selection.
+  window.__stockAll=items;                                   // pre-search filtered+sorted
+  if(STOCK_SEARCH){items=items.filter(function(i){return _selItemMatchesSearch(i,STOCK_SEARCH);});}
+  window.__stockItems=items;
+  const _useGroup=STOCK_GROUPED&&!STOCK_SEARCH;              // search flattens the grouped view
   // Build listing-month groups when grouped mode is on. Iterate FY keys in
   // chronological-newest-first order so users see latest stock first.
   let groupedHTML='';
-  if(STOCK_GROUPED){
+  if(_useGroup){
     // Use the same FY ordering as Monthly grid (newest FY first, within FY: most recent month first).
     const monthOrder=allDBKeys();
     const monthSet=new Set(items.map(i=>i.month));
@@ -20038,6 +20232,7 @@ function renderStock(){
             <select class="sort-select" onchange="setStockSort(this.value)">${sortHTML}</select>
           </div>`;
       })()}
+      ${((window.__stockAll&&window.__stockAll.length)||STOCK_SEARCH)?_inlistSearchHTML('stock'):''}
       <div class="list-toolbar">
         ${STOCK_SELECTION_MODE?`
           <button class="sel-check" onclick="${STOCK_SELECTED.size===items.length?'STOCK_SELECTED.clear();renderStock()':'selectAllStockVisible()'}">
@@ -20059,10 +20254,11 @@ function renderStock(){
           <button class="select-toggle" onclick="toggleStockSelection()">Select</button>
         `}
       </div>
-      ${STOCK_GROUPED
+      ${_useGroup
         ?`${(()=>{window.__stockItems=items;return groupedHTML;})()}`
-        :`<div class="item-table">${(()=>{window.__stockItems=items;return items.map(i=>renderStockRow(i.month,i)).join('');})()}</div>`}`}`;
+        :`<div class="item-table" id="stock-list">${(()=>{window.__stockItems=items;return items.length?items.map(i=>renderStockRow(i.month,i)).join(''):(STOCK_SEARCH?'<div class="inlist-empty">No stock matches \u201c'+esc(STOCK_SEARCH)+'\u201d</div>':'');})()}</div>`}`}`;
   document.getElementById('p-stock').innerHTML=html;
+  _paintSelBar('stock');
 }
 
 // EXPENSES PAGE
