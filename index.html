@@ -483,6 +483,13 @@ nav:not(#bottom-nav){position:sticky;top:env(safe-area-inset-top,0px);z-index:20
 .item-badge.sold{background:var(--green-dim);color:var(--green);}
 .item-badge.returned{background:var(--red-dim);color:var(--red);}
 .item-badge.resold{background:rgba(167,139,250,0.15);color:var(--purple);}
+.item-badge.bundle{background:rgba(96,165,250,0.15);color:var(--blue);cursor:pointer;}
+/* v2.21.17 — bundle brace: a vertical tie down the left of grouped rows so a
+   multi-item single sale reads as one order in the list. */
+.bundle-brace{position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--blue);opacity:0.55;border-radius:0 2px 2px 0;}
+.bundle-brace.first{top:8px;border-radius:2px 2px 0 0;}
+.bundle-brace.last{bottom:8px;border-radius:0 0 2px 2px;}
+.item-row.in-bundle{position:relative;padding-left:12px;}
 .item-badge.relisted{background:rgba(167,139,250,0.2);color:var(--purple);}
 .item-badge.spares{background:var(--accent-dim);color:var(--warn);}
 /* Patch A — stock state badge: amber/orange = pre-listing, not yet active. */
@@ -19025,6 +19032,10 @@ function renderItemRow(m,i){
   }
   // GID rendered separately so .item-row-gid CSS can hide it at narrow widths
   const _gidSpan=i.gid?'<span class="item-row-meta-sep">·</span><span class="item-row-gid">'+esc(i.gid)+'</span>':'';
+  // v2.21.17 — bundle chip: shows these items were ONE order to ONE buyer, and
+  // opens the combined bundle P&L. The brace (added to the row below) ties the
+  // grouped rows together visually.
+  const _bundleChip=i.bundleId?'<span class="item-badge bundle" title="Sold together as one bundle \u2014 tap for the combined P&L" onclick="event.stopPropagation();openBundlePage(\''+i.bundleId+'\')">\u2ac5 bundle</span>':'';
 
   const metaStr=metaParts.join(' · ');
 
@@ -19082,7 +19093,8 @@ function renderItemRow(m,i){
       '<button class="danger" onclick="event.stopPropagation();deleteItem(\''+m+'\',' + "'"+i.id+"'"+')">' + '<svg width="13" height="13" viewBox="0 0 15 15" fill="none"><path d="M5.5 1h4M1 3.5h13M2.5 3.5l1 9a1 1 0 001 .9h6a1 1 0 001-.9l1-9" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M6 6.5v4M9 6.5v4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg> Delete</button>'+
     '</div></div>';
 
-  return'<div class="item-row'+(selected?' selected':'')+' '+(isStale?' stale':'')+'" '+rowClick+'>'+
+  return'<div class="item-row'+(selected?' selected':'')+' '+(isStale?' stale':'')+(i.bundleId?' in-bundle':'')+'" '+rowClick+'>'+
+    (i.bundleId?'<div class="bundle-brace" title="Sold together as one bundle"></div>':'')+
     '<div class="item-main">'+
       '<div class="item-row-inner">'+
         leftSlot+
@@ -19091,6 +19103,7 @@ function renderItemRow(m,i){
           '<div class="item-row-meta">'+
             (i.state==='sourced'?'<span class="item-badge sourced">STOCK</span>':'<span class="item-badge '+badgeClass+'">'+badgeLabel+'</span>')+
             platBadgeHTML(i)+
+            _bundleChip+
             (metaStr?'<span class="item-row-meta-sep">·</span><span>'+metaStr+'</span>':'')+
             _gidSpan+
             // Date chip: only visible when all other meta is hidden (≤360px)
@@ -19446,6 +19459,78 @@ async function stockBulkAction(action,items){
   }
 }
 
+// ── Bundle helpers (v2.21.17) ────────────────────────────────────────────────
+// A bundle = several items sold to ONE buyer in ONE order. Items carry
+// bundleId (grouping key) + bundleRef (human label) + bundleTotal (order total).
+function _bundleItems(bid){
+  if(!bid)return [];
+  const out=[];
+  allDBKeys().forEach(function(k){
+    (DB[k]||[]).forEach(function(i){ if(i.bundleId===bid)out.push(Object.assign({},i,{_month:k})); });
+  });
+  return out.sort(function(a,b){return (b.salePrice||0)-(a.salePrice||0);});
+}
+// Split a total pro-rata by each item's listed (ask) price, using
+// largest-remainder so the allocated parts sum to the total EXACTLY (no penny
+// drift). Falls back to an even split when there are no listed prices.
+function _bundleSplit(total,weights){
+  const n=weights.length;
+  if(!n)return [];
+  const sum=weights.reduce(function(a,w){return a+(w||0);},0);
+  const cents=Math.round((total||0)*100);
+  const raw=weights.map(function(w){ return sum>0?(cents*(w||0)/sum):(cents/n); });
+  const base=raw.map(function(r){return Math.floor(r);});
+  let left=cents-base.reduce(function(a,b){return a+b;},0);
+  const order=raw.map(function(r,idx){return {idx:idx,frac:r-Math.floor(r)};})
+                 .sort(function(a,b){return b.frac-a.frac;});
+  for(let k=0;k<order.length&&left>0;k++){base[order[k].idx]++;left--;}
+  return base.map(function(c){return +(c/100).toFixed(2);});
+}
+// Combined P&L for a bundle — the numbers as the single order they really were.
+function _bundleSummary(bid){
+  const its=_bundleItems(bid);
+  let revenue=0,cost=0,profit=0,shipping=0;
+  its.forEach(function(i){
+    revenue+=(i.salePrice||0)+(i.postage||0);
+    cost+=(i.costPrice||0)+calcPartsCost(i);
+    shipping+=(i.shippingCost||0);
+    const p=calcGrossProfit(i); if(typeof p==='number')profit+=p;
+  });
+  return {items:its,count:its.length,revenue:+revenue.toFixed(2),cost:+cost.toFixed(2),
+          shipping:+shipping.toFixed(2),profit:+profit.toFixed(2),
+          ref:(its[0]||{}).bundleRef||'',date:(its[0]||{}).dateSold||'',
+          total:(its[0]||{}).bundleTotal||0,
+          margin:revenue>0?+(profit/revenue*100).toFixed(1):null};
+}
+function openBundlePage(bid){
+  const b=_bundleSummary(bid);
+  if(!b.count){toast('Bundle not found','error');return;}
+  const rows=b.items.map(function(i){
+    const p=calcGrossProfit(i);
+    return '<div style="display:flex;align-items:center;gap:8px;padding:10px 14px;border-top:1px solid var(--border);font-size:13px;cursor:pointer" onclick="closePanel();openItemPage(\''+i._month+'\',\''+i.id+'\',document.querySelector(\'.page.on\').id)">'
+      +'<span style="flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(i.item||'Item')+'</span>'
+      +'<span style="color:var(--text-secondary);flex-shrink:0">'+fmt(i.salePrice||0)+'</span>'
+      +'<span style="font-weight:700;flex-shrink:0;color:'+((p||0)>=0?'var(--green)':'var(--red)')+'">'+fmt(p||0)+'</span></div>';
+  }).join('');
+  const kpi=function(l,v,c){return '<div style="flex:1;min-width:120px;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 14px">'
+    +'<div style="font-size:10px;letter-spacing:0.5px;text-transform:uppercase;color:var(--text-secondary)">'+l+'</div>'
+    +'<div style="font-size:19px;font-weight:800;margin-top:4px'+(c?';color:'+c:'')+'">'+v+'</div></div>';};
+  const html='<div style="font-size:12px;color:var(--text-secondary);margin-bottom:12px">'
+      +b.count+' items \u00b7 one buyer \u00b7 '+(b.date?esc(b.date):'\u2014')+(b.ref?' \u00b7 '+esc(b.ref):'')+'</div>'
+    +'<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px">'
+      +kpi('Order total',fmt(b.revenue))
+      +kpi('Item cost',fmt(b.cost))
+      +kpi('Net profit',fmt(b.profit),b.profit>=0?'var(--green)':'var(--red)')
+      +kpi('Margin',b.margin===null?'\u2014':b.margin+'%')
+    +'</div>'
+    +'<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden">'
+      +'<div style="display:flex;gap:8px;padding:9px 14px;font-size:10px;letter-spacing:0.5px;text-transform:uppercase;color:var(--text-secondary)">'
+        +'<span style="flex:1">Item</span><span>Share</span><span style="margin-left:8px">Profit</span></div>'
+      +rows
+    +'</div>';
+  openPanel('Bundle sale',html);
+}
+
 // ── Bundle sale modal ─────────────────────────────────────────────────────────
 // Marks multiple selected items as sold on the same date, splits one shared
 // shipping cost evenly across them, and applies a single platform to all.
@@ -19475,6 +19560,11 @@ function openBundleSaleModal(){
           return '<option value="'+p.id+'">'+(p.label||p.short)+'</option>';
         }).join('')}
       </select>
+    </div>
+    <div class="fg"><label>Total bundle price the buyer paid (\u00a3)</label>
+      <input type="number" id="bundle-total" min="0" step="0.01" value="${+totalAsk.toFixed(2)}" autocomplete="off"
+        oninput="(function(v){var el=document.getElementById('bundle-total-hint');if(el){var n=parseFloat(v);var a=${+totalAsk.toFixed(2)};if(!isNaN(n)&&n>0){var d=n-a;el.textContent=(Math.abs(d)<0.005?'matches the total ask':(d<0?'\u2193 '+ '\u00a3'+Math.abs(d).toFixed(2)+' below ask':'\u2191 \u00a3'+d.toFixed(2)+' above ask')) + ' \u00b7 split pro-rata by listed price';}else{el.textContent='';}}})(this.value)">
+      <div id="bundle-total-hint" style="font-size:11px;color:var(--text-secondary);margin-top:4px;">matches the total ask \u00b7 split pro-rata by listed price</div>
     </div>
     <div class="fg"><label>Total shipping cost for the whole bundle (\u00a3)</label>
       <input type="number" id="bundle-shipping" min="0" step="0.01" placeholder="e.g. 5.38" autocomplete="off"
@@ -19509,19 +19599,37 @@ function submitBundleSale(){
     });
   });
   if(!items.length){toast('No unsold items found','error');return;}
+  // v2.21.17 — allocate ONE bundle total across the items pro-rata by listed
+  // price (largest-remainder, so the shares sum to the total exactly), and split
+  // the one shipping charge the same way. Every item is stamped with a shared
+  // bundleId so the app knows these were a single order to a single buyer.
+  const _totalEl=document.getElementById('bundle-total');
+  const askSum=items.reduce(function(a,i){return a+(i.salePrice||0);},0);
+  const bundleTotal=(_totalEl&&_totalEl.value!=='')?(parseFloat(_totalEl.value)||0):askSum;
+  const weights=items.map(function(i){return i.salePrice||0;});
+  const shares=_bundleSplit(bundleTotal,weights);
+  const shipShares=_bundleSplit(totalShipping,weights);
   const shippingPerItem=items.length>0?+(totalShipping/items.length).toFixed(2):0;
-  items.forEach(function(item){
+  const bundleId='b_'+Date.now()+'_'+Math.random().toString(36).slice(2,7);
+  const bundleRef='BDL-'+String(dateVal||'').replace(/-/g,'').slice(2)+'-'+items.length;
+  items.forEach(function(item,idx){
     item.dateSold=dateVal;
-    if(platform)item.platform=platform;
-    if(shippingPerItem>0)item.shippingCost=(item.shippingCost||0)+shippingPerItem;
-    item.grossProfit=calcGrossProfit(item);
+    // BUGFIX v2.21.17 — was item.platform, which no fee calc reads. The sold
+    // platform must be frozen on soldOnPlatform or fees fall back to the default.
+    if(platform)item.soldOnPlatform=platform;
+    item.salePrice=shares[idx];
+    if((shipShares[idx]||0)>0)item.shippingCost=(item.shippingCost||0)+shipShares[idx];
+    item.bundleId=bundleId;
+    item.bundleRef=bundleRef;
+    item.bundleTotal=+bundleTotal.toFixed(2);
+    item.state='sold';
   });
   saveDB();
   window._bundleIds=[];
   STOCK_SELECTED.clear();
   STOCK_SELECTION_MODE=false;
   closePanel();
-  toast('Bundle: '+items.length+' items sold'+(shippingPerItem>0?' · '+fmt(shippingPerItem)+' shipping each':''));
+  toast('Bundle: '+items.length+' items sold for '+fmt(bundleTotal)+(totalShipping>0?' · '+fmt(totalShipping)+' shipping split':''));
   renderStock();
 }
 
