@@ -19545,10 +19545,10 @@ function selectAllStockVisible(){
   // daysBetween returns ~20,000 (epoch fallthrough) and the item incorrectly
   // lands in 'stale'. Treat missing date as 'no time-bucket' — item still
   // shows under 'all' but is excluded from fresh/maturing/slow/stale.
-  if(STOCK_FILTER==='stale')items=allListed.filter(i=>{const d=_effectiveListDate(i);return d&&daysBetween(d,today)>=90;});
-  else if(STOCK_FILTER==='slow')items=allListed.filter(i=>{const d=_effectiveListDate(i);if(!d)return false;const n=daysBetween(d,today);return n>60&&n<90;});
-  else if(STOCK_FILTER==='maturing')items=allListed.filter(i=>{const d=_effectiveListDate(i);if(!d)return false;const n=daysBetween(d,today);return n>30&&n<=60;});
-  else if(STOCK_FILTER==='fresh')items=allListed.filter(i=>{const d=_effectiveListDate(i);return d&&daysBetween(d,today)<=30;});
+  if(STOCK_FILTER==='stale')items=allListed.filter(i=>{const d=i.dateListed;return d&&daysBetween(d,today)>=90;});
+  else if(STOCK_FILTER==='slow')items=allListed.filter(i=>{const d=i.dateListed;if(!d)return false;const n=daysBetween(d,today);return n>60&&n<90;});
+  else if(STOCK_FILTER==='maturing')items=allListed.filter(i=>{const d=i.dateListed;if(!d)return false;const n=daysBetween(d,today);return n>30&&n<=60;});
+  else if(STOCK_FILTER==='fresh')items=allListed.filter(i=>{const d=i.dateListed;return d&&daysBetween(d,today)<=30;});
   selectAllStock(items);
 }
 
@@ -19980,7 +19980,7 @@ function renderStock(){
   let pop = isStockOnly ? allStock : allListed;
   const cAll=pop.length;
   const cAllListed=allListed.length, cAllStock=allStock.length;
-  const cStale=allListed.filter(i=>{const d=_effectiveListDate(i);return d&&daysBetween(d,today)>=90;}).length;
+  const cStale=allListed.filter(i=>{const d=i.dateListed;return d&&daysBetween(d,today)>=90;}).length;
 
   // Sourced age buckets: New 0–3d · List soon 4–7d · Overdue 8–14d · Stagnant 15d+
   // Used for both the filter chips and the per-row colour dot.
@@ -20001,8 +20001,8 @@ function renderStock(){
     if(STOCK_SOURCED_FILTER!=='all') items=pop.filter(i=>_sourcedBucket(i)===STOCK_SOURCED_FILTER);
   } else {
     // E3 P2 #10 — guard against missing dateListed
-    if(STOCK_FILTER==='stale')items=pop.filter(i=>{const d=_effectiveListDate(i);return d&&daysBetween(d,today)>=90;});
-    else if(STOCK_FILTER==='slow')items=pop.filter(i=>{const d=_effectiveListDate(i);if(!d)return false;const n=daysBetween(d,today);return n>60&&n<90;});
+    if(STOCK_FILTER==='stale')items=pop.filter(i=>{const d=i.dateListed;return d&&daysBetween(d,today)>=90;});
+    else if(STOCK_FILTER==='slow')items=pop.filter(i=>{const d=i.dateListed;if(!d)return false;const n=daysBetween(d,today);return n>60&&n<90;});
     else if(STOCK_FILTER==='maturing')items=pop.filter(i=>{if(!i.dateListed)return false;const d=daysBetween(i.dateListed,today);return d>30&&d<=60;});
     else if(STOCK_FILTER==='fresh')items=pop.filter(i=>i.dateListed&&daysBetween(i.dateListed,today)<=30);
   }
@@ -20126,7 +20126,7 @@ function renderStock(){
   const listedMarkup=listedCost>0?Math.round((totalValue/listedCost-1)*100):0;
   const listedROI=listedCost>0?Math.round(potentialProfit/listedCost*100):null;
   const sourcedROI=sourcedCost>0?Math.round(estPotential/sourcedCost*100):null;
-  const _agedListed=allListed.filter(function(i){const d=_effectiveListDate(i);return d&&daysBetween(d,today)>=90;});
+  const _agedListed=allListed.filter(function(i){const d=i.dateListed;return d&&daysBetween(d,today)>=90;});
   const agedCost=+_agedListed.reduce(function(s,i){return s+_capCost(i);},0).toFixed(2);
   const agedCount=_agedListed.length;
   let _stStats={}; try{ _stStats=calcYearlyStats('all')||{}; }catch(e){}
