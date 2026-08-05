@@ -17980,7 +17980,7 @@ function renderMonthlyGrid(){
     months.forEach(function(k){
       // Session B: FY rollups attribute by sale date, not listing month.
       const ms=calcMonthStatsBySale(k);
-      fyProfit+=ms.realisedProfit;
+      fyProfit+=ms.netProfit;   // v2.21.21 — net (after overheads), uniform with the top P&L summary + month-detail page
       fySold+=ms.soldCount;
       // Roll up ROI from this month's sale events (not from items in DB[k]).
       getSaleEventsInMonth(k).forEach(function(ev){
@@ -18021,8 +18021,8 @@ function renderMonthlyGrid(){
         } else if(hasListedOnly){
           cardContent='<div class="mval nil">—</div>';
         } else {
-          const profVal=ms.realisedProfit>0?'pos':ms.realisedProfit<0?'neg':'nil';
-          cardContent='<div class="mval '+profVal+'">'+(ms.soldCount>0?fmt(ms.realisedProfit):'—')+'</div>';
+          const profVal=ms.netProfit>0?'pos':ms.netProfit<0?'neg':'nil';
+          cardContent='<div class="mval '+profVal+'">'+(ms.soldCount>0?fmt(ms.netProfit):'—')+'</div>';
         }
         const nowBadge=isCurrent?'<span style="font-size:10px;font-weight:700;color:var(--accent);letter-spacing:0.5px;text-transform:uppercase;">Now</span>':'';
         const monthLabel=MONTH_NAMES[keyCode(k)]; // e.g. 'April'
@@ -18858,7 +18858,7 @@ function renderMonth(){
         `}
       </div>
       <div class="item-table" id="month-list">
-        ${(()=>{window.__monthItems=visible;return visible.length?visible.map(e=>renderSaleEventRow(e)).join(''):(MONTH_SEARCH?'<div class="inlist-empty">No sales match \u201c'+esc(MONTH_SEARCH)+'\u201d</div>':'');})()}
+        ${(()=>{window.__monthItems=visible;return visible.length?_renderMonthList(visible):(MONTH_SEARCH?'<div class="inlist-empty">No sales match \u201c'+esc(MONTH_SEARCH)+'\u201d</div>':'');})()}
       </div>
     `}
   `;
@@ -18948,6 +18948,7 @@ function renderSaleEventRow(ev){
           '<div class="item-row-meta">'+
             '<span class="item-badge '+status+'">'+badgeText+'</span>'+
             platBadgeHTML(i)+
+            (i.bundleId?'<span class="item-badge bundle" title="Sold as one bundle \u2014 tap for combined P&L" onclick="event.stopPropagation();openBundlePage(\''+i.bundleId+'\')">\u2ac5 bundle</span>':'')+
             (metaStr?'<span class="item-row-meta-sep">·</span><span>'+metaStr+'</span>':'')+
           '</div>'+
         '</div>'+
@@ -18959,6 +18960,84 @@ function renderSaleEventRow(ev){
       '</div>'+
     '</div>'+
   '</div>';
+}
+
+// ── Bundle collapse (v2.21.20) ───────────────────────────────────────────────
+// Sold bundle members live in Sales History as separate sale-events. Collapse
+// them into ONE combined row that taps through to openBundlePage (the combined
+// P&L). Display-only: month KPIs + selection totals still iterate the raw
+// per-item events, so nothing financial changes.
+function _bundleAllSelected(bid){
+  const ids=_bundleItems(bid).map(function(i){return i.id;});
+  return ids.length>0 && ids.every(function(id){return SELECTED_ITEMS.has(id);});
+}
+function _toggleBundleSelect(bid){
+  const ids=_bundleItems(bid).map(function(i){return i.id;});
+  const all=_bundleAllSelected(bid);
+  ids.forEach(function(id){ if(all)SELECTED_ITEMS.delete(id); else SELECTED_ITEMS.add(id); });
+  renderMonth();
+}
+function renderBundleSaleRow(bid, members){
+  let rev=0, profit=0, dateSold='';
+  members.forEach(function(ev){
+    rev+=(ev.salePrice||0)+((ev.item&&ev.item.postage)||0);   // buyer paid = price + postage
+    profit+=(ev.profit||0);
+    if(!dateSold&&ev.saleDate)dateSold=ev.saleDate;
+  });
+  const n=members.length;
+  const first=(members[0]&&members[0].item)||{};
+  const ref=first.bundleRef||'';
+  const allSel=_bundleAllSelected(bid);
+  const metaParts=[];
+  if(dateSold)metaParts.push('Sold '+dateSold);
+  metaParts.push(n+' items');
+  if(ref)metaParts.push(ref);
+  const metaStr=metaParts.join(' \u00b7 ');
+  const cls=(profit||0)>=0?'pos':'neg';
+  const margin=rev>0?+(profit/rev*100).toFixed(1):null;
+  const leftSlot=SELECTION_MODE
+    ?'<label class="item-checkbox-left" onclick="event.stopPropagation()"><input type="checkbox" '+(allSel?'checked':'')+' onchange="_toggleBundleSelect(\''+bid+'\')" style="width:16px;height:16px;accent-color:var(--accent);cursor:pointer;margin-right:4px"></label>'
+    :'<div class="status-dot sold"></div>';
+  const rowClick=SELECTION_MODE
+    ?'onclick="_toggleBundleSelect(\''+bid+'\')"'
+    :'onclick="openBundlePage(\''+bid+'\')"';
+  return '<div class="item-row bundle-row" '+rowClick+'>'+
+    '<div class="item-main">'+
+      '<div class="item-row-inner">'+
+        leftSlot+
+        '<div class="item-row-body">'+
+          '<div class="item-row-name">'+esc(first.item||'Bundle')+(n>1?' <span style="color:var(--text-secondary);font-weight:600">+ '+(n-1)+' more</span>':'')+'</div>'+
+          '<div class="item-row-meta">'+
+            '<span class="item-badge bundle">\u2ac5 bundle</span>'+
+            '<span class="item-row-meta-sep">\u00b7</span><span>'+metaStr+'</span>'+
+          '</div>'+
+        '</div>'+
+        '<div class="item-row-right">'+
+          '<div class="item-row-price">'+fmt(rev)+'</div>'+
+          '<div class="item-row-profit '+cls+'">'+fmt(profit)+'</div>'+
+          (margin!==null?'<div class="item-row-roi">'+margin.toFixed(1)+'% margin</div>':'')+
+        '</div>'+
+      '</div>'+
+    '</div>'+
+  '</div>';
+}
+// Group a month's sale-events: 2+ visible members of the same bundle -> ONE
+// combined row; a lone member (e.g. filtered) or non-bundle event -> its normal
+// row (which now carries a 'bundle' chip linking to the combined page).
+function _renderMonthList(events){
+  const out=[], seen={};
+  (events||[]).forEach(function(e){
+    const bid=(e && e.sale && !e.isReturned && !e.isReturnAdjustment && e.item && e.item.bundleId)?e.item.bundleId:null;
+    if(bid){
+      if(seen[bid])return;
+      seen[bid]=true;
+      const members=events.filter(function(x){return x && x.item && x.item.bundleId===bid && x.sale && !x.isReturned && !x.isReturnAdjustment;});
+      out.push(members.length>1?renderBundleSaleRow(bid,members):renderSaleEventRow(e));
+    } else {
+      out.push(renderSaleEventRow(e));
+    }
+  });
+  return out.join('');
 }
 
 function renderItemRow(m,i){
@@ -19605,9 +19684,14 @@ function openBundleSaleModal(){
         oninput="(function(v){var el=document.getElementById('bundle-total-hint');if(el){var n=parseFloat(v);var a=${+totalAsk.toFixed(2)};if(!isNaN(n)&&n>0){var d=n-a;el.textContent=(Math.abs(d)<0.005?'matches the total ask':(d<0?'\u2193 '+ '\u00a3'+Math.abs(d).toFixed(2)+' below ask':'\u2191 \u00a3'+d.toFixed(2)+' above ask')) + ' \u00b7 split pro-rata by listed price';}else{el.textContent='';}}})(this.value)">
       <div id="bundle-total-hint" style="font-size:11px;color:var(--text-secondary);margin-top:4px;">matches the total ask \u00b7 split pro-rata by listed price</div>
     </div>
-    <div class="fg"><label>Total shipping cost for the whole bundle (\u00a3)</label>
+    <div class="fg"><label>Postage the buyer paid on top (£)</label>
+      <input type="number" id="bundle-buyer-postage" min="0" step="0.01" value="0" autocomplete="off"
+        oninput="(function(v){var el=document.getElementById('bundle-bpost-hint');if(el){var n=parseFloat(v);el.textContent=(!isNaN(n)&&n>0)?'split pro-rata by listed price':'0 = free / included in the price';}})(this.value)">
+      <div id="bundle-bpost-hint" style="font-size:11px;color:var(--text-secondary);margin-top:4px;">0 = free / included in the price</div>
+    </div>
+    <div class="fg"><label>Your shipping cost — what you paid to post it (£)</label>
       <input type="number" id="bundle-shipping" min="0" step="0.01" placeholder="e.g. 5.38" autocomplete="off"
-        oninput="(function(v){var el=document.getElementById('bundle-ship-hint');if(el){var n=parseFloat(v);var c=${items.length};if(!isNaN(n)&&n>0){el.textContent='= \u00a3'+(n/c).toFixed(2)+' per item';}else{el.textContent='';}}})(this.value)">
+        oninput="(function(v){var el=document.getElementById('bundle-ship-hint');if(el){var n=parseFloat(v);el.textContent=(!isNaN(n)&&n>0)?'split pro-rata by listed price':'';}})(this.value)">
       <div id="bundle-ship-hint" style="font-size:11px;color:var(--text-secondary);margin-top:4px;"></div>
     </div>
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;overflow:hidden;margin-bottom:14px;">
@@ -19647,8 +19731,9 @@ function submitBundleSale(){
   const bundleTotal=(_totalEl&&_totalEl.value!=='')?(parseFloat(_totalEl.value)||0):askSum;
   const weights=items.map(function(i){return i.salePrice||0;});
   const shares=_bundleSplit(bundleTotal,weights);
+  const buyerPostage=parseFloat((document.getElementById('bundle-buyer-postage')||{value:''}).value)||0;
   const shipShares=_bundleSplit(totalShipping,weights);
-  const shippingPerItem=items.length>0?+(totalShipping/items.length).toFixed(2):0;
+  const postShares=_bundleSplit(buyerPostage,weights);
   const bundleId='b_'+Date.now()+'_'+Math.random().toString(36).slice(2,7);
   const bundleRef='BDL-'+String(dateVal||'').replace(/-/g,'').slice(2)+'-'+items.length;
   items.forEach(function(item,idx){
@@ -19657,7 +19742,11 @@ function submitBundleSale(){
     // platform must be frozen on soldOnPlatform or fees fall back to the default.
     if(platform)item.soldOnPlatform=platform;
     item.salePrice=shares[idx];
-    if((shipShares[idx]||0)>0)item.shippingCost=(item.shippingCost||0)+shipShares[idx];
+    // v2.21.20 — bundle = ONE order: OVERWRITE each member's buyer-paid postage
+    // and seller shipping with its pro-rata share (never accumulate stale
+    // per-listing values, which double-counted postage in the combined P&L).
+    item.postage=postShares[idx]||0;
+    item.shippingCost=shipShares[idx]||0;
     item.bundleId=bundleId;
     item.bundleRef=bundleRef;
     item.bundleTotal=+bundleTotal.toFixed(2);
@@ -19850,7 +19939,7 @@ function _liveMonthSearch(q){
   const base=window.__monthAll||[];
   const shown=q?base.filter(function(e){return _selItemMatchesSearch(e.item,q);}):base;
   window.__monthItems=shown;
-  if(el)el.innerHTML=shown.length?shown.map(function(e){return renderSaleEventRow(e);}).join(''):('<div class="inlist-empty">No sales match \u201c'+esc(q)+'\u201d</div>');
+  if(el)el.innerHTML=shown.length?_renderMonthList(shown):('<div class="inlist-empty">No sales match \u201c'+esc(q)+'\u201d</div>');
   const cnt=document.getElementById('month-search-count'); if(cnt)cnt.textContent=q?(shown.length+' of '+base.length):'';
   _paintSelBar('month');
 }
