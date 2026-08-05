@@ -9325,6 +9325,10 @@ function showLoadingScreen(msg, tab){
     el.innerHTML = _bootSkeletonHTML(tab);
     document.body.appendChild(el);
   }
+  // v2.21.22 — pin scroll to top so the boot skeleton never appears mid-scroll
+  // (browsers restore the prior scroll on reload; make our control authoritative).
+  try{if('scrollRestoration' in history)history.scrollRestoration='manual';}catch(e){}
+  window.scrollTo(0,0); if(el)el.scrollTop=0;
   const _m = document.getElementById('app-loading-msg');
   if(_m) _m.textContent = msg || 'Loading…';
   // v2.19.19 -- boot app shell. Lifts the nav chrome above this overlay and
@@ -18824,9 +18828,9 @@ function renderMonth(){
         <option value="price" ${MONTH_SORT==='price'?'selected':''}>Price</option>
         <option value="margin" ${MONTH_SORT==='margin'?'selected':''}>Margin</option>
       </select>
-      ${cAll>0?_inlistSearchHTML('month'):''}
     </div>
 
+    ${cAll>0?_inlistSearchHTML('month'):''}
     ${cAll===0?`
       <div class="empty-state">
         <div class="empty-state-icon"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg></div>
