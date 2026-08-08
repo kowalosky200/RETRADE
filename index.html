@@ -5868,8 +5868,42 @@ c-230 453 -565 1105 -674 1315 -63 120 -114 221 -114 225 0 4 47 19 104 34
       style="width:100%;padding:10px;background:none;border:none;color:var(--text-secondary);font-size:13px;cursor:pointer;margin-top:8px;text-decoration:underline;text-underline-offset:3px;">
       Forgot password?
     </button>
+    <div style="text-align:center;margin-top:14px;padding-top:16px;border-top:1px solid var(--border);font-size:13px;color:var(--text-secondary);">
+      Don't have an account?
+      <button onclick="showSignupScreen()" style="background:none;border:none;color:var(--accent);font-size:13px;font-weight:700;cursor:pointer;padding:0 2px;">Create one</button>
+    </div>
     <div id="auth-loading" style="display:none;text-align:center;margin-top:12px;font-size:13px;color:var(--text-secondary);">Signing in…</div>
   </div>
+
+  <div id="auth-screen-signup" style="display:none;background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:32px;width:100%;max-width:380px;box-shadow:0 8px 40px var(--shadow-md);">
+    <button onclick="showLoginScreen()" style="background:none;border:none;color:var(--text-secondary);font-size:13px;cursor:pointer;padding:0;margin-bottom:18px;display:flex;align-items:center;gap:6px;">
+      <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M10 3L5 8l5 5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      Back to sign in
+    </button>
+    <div style="text-align:center;margin-bottom:24px;">
+      <div style="display:flex;justify-content:center;margin-bottom:12px;">
+        <div style="width:52px;height:52px;border-radius:14px;background:var(--surface2);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M19 8v6M22 11h-6"/></svg>
+        </div>
+      </div>
+      <div style="font-size:20px;font-weight:700;letter-spacing:-0.02em;">Create your account</div>
+      <div style="font-size:13px;color:var(--text-secondary);margin-top:4px;">Start tracking your reselling business</div>
+    </div>
+    <div id="signup-error" style="display:none;border-radius:8px;padding:10px 14px;font-size:13px;margin-bottom:16px;"></div>
+    <div style="margin-bottom:12px;"><label style="display:block;font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:6px;letter-spacing:0.04em;text-transform:uppercase;">Full name</label>
+      <input id="signup-name" type="text" autocomplete="name" placeholder="Jane Smith" style="width:100%;padding:10px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:14px;outline:none;transition:border-color 0.15s;" onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border)'"></div>
+    <div style="margin-bottom:12px;"><label style="display:block;font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:6px;letter-spacing:0.04em;text-transform:uppercase;">Business name <span style="text-transform:none;font-weight:500;opacity:.7;">(optional)</span></label>
+      <input id="signup-business" type="text" autocomplete="organization" placeholder="Smith Resale" style="width:100%;padding:10px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:14px;outline:none;transition:border-color 0.15s;" onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border)'"></div>
+    <div style="margin-bottom:12px;"><label style="display:block;font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:6px;letter-spacing:0.04em;text-transform:uppercase;">Email</label>
+      <input id="signup-email" type="email" autocomplete="email" placeholder="you@example.com" style="width:100%;padding:10px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:14px;outline:none;transition:border-color 0.15s;" onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border)'"></div>
+    <div style="margin-bottom:12px;"><label style="display:block;font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:6px;letter-spacing:0.04em;text-transform:uppercase;">Password</label>
+      <input id="signup-pass" type="password" autocomplete="new-password" placeholder="••••••••" style="width:100%;padding:10px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:14px;outline:none;transition:border-color 0.15s;" onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border)'" onkeydown="if(event.key==='Enter')document.getElementById('signup-pass2').focus()"></div>
+    <div style="margin-bottom:20px;"><label style="display:block;font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:6px;letter-spacing:0.04em;text-transform:uppercase;">Confirm password</label>
+      <input id="signup-pass2" type="password" autocomplete="new-password" placeholder="••••••••" style="width:100%;padding:10px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:14px;outline:none;transition:border-color 0.15s;" onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border)'" onkeydown="if(event.key==='Enter')doSignUp()"></div>
+    <button onclick="doSignUp()" id="signup-btn" style="width:100%;padding:12px;background:var(--accent);color:#000;border:none;border-radius:8px;font-weight:700;font-size:15px;cursor:pointer;transition:background 0.15s;">Create Account</button>
+    <div id="signup-loading" style="display:none;text-align:center;margin-top:12px;font-size:13px;color:var(--text-secondary);">Creating account…</div>
+  </div>
+
 
   <!-- FORGOT PASSWORD SCREEN -->
   <div id="auth-screen-reset" style="display:none;background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:36px 32px;width:100%;max-width:380px;box-shadow:0 8px 40px var(--shadow-md);">
@@ -7920,6 +7954,41 @@ function startPreviewMode(){
   requestAnimationFrame(()=>goToTab('summary'));
 }
 
+function showSignupScreen(){
+  var ov=document.getElementById('auth-overlay'); if(ov)ov.style.display='flex';
+  ['auth-screen-login','auth-screen-reset','auth-screen-newpass'].forEach(function(id){var e=document.getElementById(id);if(e)e.style.display='none';});
+  var su=document.getElementById('auth-screen-signup'); if(su)su.style.display='block';
+  var err=document.getElementById('signup-error'); if(err)err.style.display='none';
+  setTimeout(function(){var e=document.getElementById('signup-name');if(e)e.focus();},60);
+}
+async function doSignUp(){
+  var name=(document.getElementById('signup-name')||{}).value||'', biz=(document.getElementById('signup-business')||{}).value||'';
+  var email=((document.getElementById('signup-email')||{}).value||'').trim(), p1=(document.getElementById('signup-pass')||{}).value||'', p2=(document.getElementById('signup-pass2')||{}).value||'';
+  name=name.trim(); biz=biz.trim();
+  var errEl=document.getElementById('signup-error'), ldEl=document.getElementById('signup-loading'), btn=document.getElementById('signup-btn');
+  function fail(msg){errEl.style.background='var(--red-dim)';errEl.style.border='1px solid var(--red)';errEl.style.color='var(--red)';errEl.textContent=msg;errEl.style.display='block';}
+  if(!name){return fail('Please enter your name.');}
+  if(!/.+@.+\..+/.test(email)){return fail('Please enter a valid email address.');}
+  if(p1.length<8){return fail('Password must be at least 8 characters.');}
+  if(p1!==p2){return fail('The two passwords do not match.');}
+  errEl.style.display='none'; btn.style.display='none'; ldEl.style.display='block';
+  var res; try{ res=await _sb.auth.signUp({email:email, password:p1, options:{data:{full_name:name, business_name:biz}, emailRedirectTo: window.location.origin+window.location.pathname}}); }catch(e){ res={error:{message:'Network error — please try again.'}}; }
+  ldEl.style.display='none'; btn.style.display='block';
+  if(res && res.error){
+    var raw=(res.error.message||'').toLowerCase(); var msg='Could not create the account. Please try again.';
+    if(raw.indexOf('already')>-1||raw.indexOf('registered')>-1||raw.indexOf('exists')>-1){ msg='An account with that email already exists — try signing in.'; }
+    else if(raw.indexOf('password')>-1){ msg=res.error.message; }
+    else if(raw.indexOf('valid email')>-1||raw.indexOf('invalid')>-1){ msg='Please enter a valid email address.'; }
+    else if(raw.indexOf('network')>-1||raw.indexOf('fetch')>-1){ msg='Network error. Check your connection and try again.'; }
+    return fail(msg);
+  }
+  // Signed in immediately (email confirmation OFF) -> onAuthStateChange handles it.
+  if(res && res.data && res.data.session){ return; }
+  // Email confirmation required -> tell them to check their inbox, back to login.
+  showLoginScreen();
+  var ae=document.getElementById('auth-error'); if(ae){ae.style.background='var(--green-dim)';ae.style.border='1px solid var(--green)';ae.style.color='var(--green)';ae.textContent='✓ Account created — check your email to confirm, then sign in.';ae.style.display='block';}
+}
+
 async function doSignIn(){
   const email = document.getElementById('auth-email').value.trim();
   const pass  = document.getElementById('auth-pass').value;
@@ -7963,7 +8032,7 @@ function showForgotPassword(){
 }
 
 function showLoginScreen(){
-  document.getElementById('auth-screen-reset').style.display = 'none';
+  ['auth-screen-reset','auth-screen-signup','auth-screen-newpass'].forEach(function(id){var e=document.getElementById(id);if(e)e.style.display='none';});
   document.getElementById('auth-screen-login').style.display = 'block';
   // Gate: hide dev bypass button unless this is a dev build
   const _pb = document.getElementById('preview-btn');
