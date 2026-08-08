@@ -7701,6 +7701,8 @@ function refreshMoreSheetCountryTrigger(){
 
 const SUPABASE_URL = 'https://hqyglehtssgnlrfndwpy.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhxeWdsZWh0c3NnbmxyZm5kd3B5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU0NzI0MDYsImV4cCI6MjA5MTA0ODQwNn0.Ii7Lk2xjRyDi1GtDE2XB8HtacpbgWIdt8J7zi3bhd6A';
+// v2.21.28 — did we arrive via a password-reset link? capture BEFORE Supabase parses the URL.
+let _pwRecovery=false; try{ _pwRecovery=/type=recovery/i.test((location.hash||'')+' '+(location.search||'')); }catch(e){}
 const _sb = (typeof supabase !== 'undefined')
   ? supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {auth:{autoRefreshToken:true,persistSession:true,detectSessionInUrl:true,flowType:"implicit"}})
   : {auth:{getSession:async()=>({data:{session:null}}),onAuthStateChange:()=>({data:{subscription:{unsubscribe:()=>{}}}}),signInWithPassword:async()=>({error:{message:'offline'}}),signOut:async()=>{},refreshSession:async()=>({data:{},error:true}),resetPasswordForEmail:async()=>({error:null})}};
@@ -8056,6 +8058,7 @@ async function doSetNewPassword(){
   var res; try{ res=await _sb.auth.updateUser({password:p1}); }catch(e){ res={error:{message:'Network error — please try again.'}}; }
   ldEl.style.display='none'; btn.style.display='block';
   if(res && res.error){ return fail((res.error.message||'Could not update password')+'. The reset link may have expired — request a new one.'); }
+  _pwRecovery=false;
   try{ history.replaceState(null,'',window.location.origin+window.location.pathname); }catch(e){}
   errEl.style.background='var(--green-dim)';errEl.style.border='1px solid var(--green)';errEl.style.color='var(--green)';errEl.textContent='✓ Password updated. Please sign in with your new password.';errEl.style.display='block';
   setTimeout(async function(){ try{await _sb.auth.signOut();}catch(e){} showLoginScreen(); var ae=document.getElementById('auth-error'); if(ae){ae.style.background='var(--green-dim)';ae.style.border='1px solid var(--green)';ae.style.color='var(--green)';ae.textContent='✓ Password updated — sign in with your new password.';ae.style.display='block';} }, 1300);
@@ -27276,9 +27279,14 @@ function _restoreAuthInputs(){
 
   // Flag set BEFORE await so onAuthStateChange SIGNED_IN (which fires almost
   // immediately on page load) never triggers a second concurrent initDB call.
-  let _initialLoadDone = !!session;
+  let _initialLoadDone = !!session && !_pwRecovery;
 
-  if(session){
+  if(session && _pwRecovery){
+    // v2.21.28 — arrived via a reset link: set a new password, do NOT enter the app
+    disablePreviewMode();
+    _currentUserId = session.user.id;
+    showNewPasswordScreen();
+  } else if(session){
     disablePreviewMode();
     _currentUserId = session.user.id;
     showApp();
@@ -27297,6 +27305,12 @@ function _restoreAuthInputs(){
   // Listen for auth state changes
   _sb.auth.onAuthStateChange(async (event, sess) => {
     if(_previewMode && event !== 'SIGNED_IN') return;
+    // v2.21.28 — a password-reset session must NOT auto-login; show the reset screen instead.
+    if(event === 'PASSWORD_RECOVERY' || (_pwRecovery && sess && (event === 'SIGNED_IN' || event === 'INITIAL_SESSION' || event === 'TOKEN_REFRESHED'))){
+      if(sess) _currentUserId = sess.user.id;
+      showNewPasswordScreen();
+      return;
+    }
     if(event === 'SIGNED_IN' && sess){
       _currentUserId = sess.user.id;
       showApp();
