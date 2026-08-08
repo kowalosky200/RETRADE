@@ -5901,6 +5901,29 @@ c-230 453 -565 1105 -674 1315 -63 120 -114 221 -114 225 0 4 47 19 104 34
     <div id="reset-loading" style="display:none;text-align:center;margin-top:12px;font-size:13px;color:var(--text-secondary);">Sending…</div>
   </div>
 
+  <div id="auth-screen-newpass" style="display:none;background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:36px 32px;width:100%;max-width:380px;box-shadow:0 8px 40px var(--shadow-md);">
+    <div style="text-align:center;margin-bottom:28px;">
+      <div style="display:flex;justify-content:center;margin-bottom:12px;">
+        <div style="width:52px;height:52px;border-radius:14px;background:var(--surface2);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="10" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+        </div>
+      </div>
+      <div style="font-size:20px;font-weight:700;letter-spacing:-0.02em;">Set a New Password</div>
+      <div style="font-size:13px;color:var(--text-secondary);margin-top:4px;">Choose a new password for your account</div>
+    </div>
+    <div id="newpass-error" style="display:none;border-radius:8px;padding:10px 14px;font-size:13px;margin-bottom:16px;"></div>
+    <div style="margin-bottom:16px;">
+      <label style="display:block;font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:6px;letter-spacing:0.04em;text-transform:uppercase;">New password</label>
+      <input id="newpass-1" type="password" autocomplete="new-password" placeholder="••••••••" style="width:100%;padding:10px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:14px;outline:none;transition:border-color 0.15s;" onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border)'" onkeydown="if(event.key==='Enter')document.getElementById('newpass-2').focus()">
+    </div>
+    <div style="margin-bottom:22px;">
+      <label style="display:block;font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:6px;letter-spacing:0.04em;text-transform:uppercase;">Confirm new password</label>
+      <input id="newpass-2" type="password" autocomplete="new-password" placeholder="••••••••" style="width:100%;padding:10px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:14px;outline:none;transition:border-color 0.15s;" onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border)'" onkeydown="if(event.key==='Enter')doSetNewPassword()">
+    </div>
+    <button onclick="doSetNewPassword()" id="newpass-btn" style="width:100%;padding:12px;background:var(--accent);color:#000;border:none;border-radius:8px;font-weight:700;font-size:15px;cursor:pointer;transition:background 0.15s;">Update Password</button>
+    <div id="newpass-loading" style="display:none;text-align:center;margin-top:12px;font-size:13px;color:var(--text-secondary);">Updating…</div>
+  </div>
+
 </div>
 
 <script>
@@ -7645,7 +7668,7 @@ function refreshMoreSheetCountryTrigger(){
 const SUPABASE_URL = 'https://hqyglehtssgnlrfndwpy.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhxeWdsZWh0c3NnbmxyZm5kd3B5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU0NzI0MDYsImV4cCI6MjA5MTA0ODQwNn0.Ii7Lk2xjRyDi1GtDE2XB8HtacpbgWIdt8J7zi3bhd6A';
 const _sb = (typeof supabase !== 'undefined')
-  ? supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {auth:{autoRefreshToken:true,persistSession:true,detectSessionInUrl:false,flowType:"implicit"}})
+  ? supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {auth:{autoRefreshToken:true,persistSession:true,detectSessionInUrl:true,flowType:"implicit"}})
   : {auth:{getSession:async()=>({data:{session:null}}),onAuthStateChange:()=>({data:{subscription:{unsubscribe:()=>{}}}}),signInWithPassword:async()=>({error:{message:'offline'}}),signOut:async()=>{},refreshSession:async()=>({data:{},error:true}),resetPasswordForEmail:async()=>({error:null})}};
 
 let _previewMode = false;
@@ -7945,6 +7968,28 @@ function showLoginScreen(){
   // Gate: hide dev bypass button unless this is a dev build
   const _pb = document.getElementById('preview-btn');
   if(_pb) _pb.style.display = PREVIEW_MODE_ENABLED ? 'block' : 'none';
+}
+
+function showNewPasswordScreen(){
+  var ov=document.getElementById('auth-overlay'); if(ov)ov.style.display='flex';
+  ['auth-screen-login','auth-screen-reset'].forEach(function(id){var e=document.getElementById(id);if(e)e.style.display='none';});
+  var np=document.getElementById('auth-screen-newpass'); if(np)np.style.display='block';
+  var err=document.getElementById('newpass-error'); if(err)err.style.display='none';
+  setTimeout(function(){var e=document.getElementById('newpass-1');if(e)e.focus();},60);
+}
+async function doSetNewPassword(){
+  var p1=(document.getElementById('newpass-1')||{}).value||'', p2=(document.getElementById('newpass-2')||{}).value||'';
+  var errEl=document.getElementById('newpass-error'), ldEl=document.getElementById('newpass-loading'), btn=document.getElementById('newpass-btn');
+  function fail(msg){errEl.style.background='var(--red-dim)';errEl.style.border='1px solid var(--red)';errEl.style.color='var(--red)';errEl.textContent=msg;errEl.style.display='block';}
+  if(p1.length<8){return fail('Password must be at least 8 characters.');}
+  if(p1!==p2){return fail('The two passwords do not match.');}
+  errEl.style.display='none'; btn.style.display='none'; ldEl.style.display='block';
+  var res; try{ res=await _sb.auth.updateUser({password:p1}); }catch(e){ res={error:{message:'Network error — please try again.'}}; }
+  ldEl.style.display='none'; btn.style.display='block';
+  if(res && res.error){ return fail((res.error.message||'Could not update password')+'. The reset link may have expired — request a new one.'); }
+  try{ history.replaceState(null,'',window.location.origin+window.location.pathname); }catch(e){}
+  errEl.style.background='var(--green-dim)';errEl.style.border='1px solid var(--green)';errEl.style.color='var(--green)';errEl.textContent='✓ Password updated. Please sign in with your new password.';errEl.style.display='block';
+  setTimeout(async function(){ try{await _sb.auth.signOut();}catch(e){} showLoginScreen(); var ae=document.getElementById('auth-error'); if(ae){ae.style.background='var(--green-dim)';ae.style.border='1px solid var(--green)';ae.style.color='var(--green)';ae.textContent='✓ Password updated — sign in with your new password.';ae.style.display='block';} }, 1300);
 }
 
 async function doResetPassword(){
@@ -27196,6 +27241,10 @@ function _restoreAuthInputs(){
         await _hydrateUserSettings(_currentUserId); // F6: sync settings from cloud on login
       }
       // else: page-load SIGNED_IN echo — already loaded, do nothing
+    } else if(event === 'PASSWORD_RECOVERY'){
+      // v2.21.26 — user returned via the reset-email link: let them set a new password
+      if(sess) _currentUserId = sess.user.id;
+      showNewPasswordScreen();
     } else if(event === 'TOKEN_REFRESHED' && sess){
       // Silent token refresh — just update userId, no reload needed
       _currentUserId = sess.user.id;
@@ -27210,6 +27259,10 @@ function _restoreAuthInputs(){
       showLogin();
     }
   });
+
+  // v2.21.26 — fallback: if the page loaded straight from a recovery link, show
+  // the set-password screen even if the PASSWORD_RECOVERY event was missed.
+  try{ if(/type=recovery/.test(window.location.hash||'')) setTimeout(showNewPasswordScreen, 300); }catch(e){}
 
   // Re-check session when tab becomes visible again (phone wake, tab switch)
   // If token expired while backgrounded, boot to login immediately
