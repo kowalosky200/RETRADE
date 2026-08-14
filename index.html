@@ -21103,13 +21103,14 @@ function renderExpenses(){
     return `<div class="expense-item">
       <div class="exp-dot expense"></div>
       <div class="expense-main"><div class="expense-label">${esc(e.description||'Expense')}</div><div class="expense-meta">${[e.date,e.category?esc(_expenseCanonLabel(e.category)):''].filter(Boolean).join('<span style="color:var(--border2)">&nbsp;·&nbsp;</span>')}</div></div>
-      <div class="expense-right"><div class="expense-amount">${(e.amount||0)>0?fmt(e.amount):'<span style="color:var(--muted)">—</span>'}</div></div>
+      <div class="expense-right"><div class="expense-amount">${e.amount<0?'<span style="color:var(--green);font-weight:700">+'+fmt(-e.amount)+'</span>':((e.amount||0)>0?fmt(e.amount):'<span style="color:var(--muted)">—</span>')}</div></div>
       <div class="expense-actions" onclick="event.stopPropagation()">
         <div class="ddwrap" id="${ddId}" style="position:relative">
           <button class="ddbtn" onclick="event.stopPropagation();toggleDD('${ddId}')" title="Actions">⋮</button>
           <div class="ddmenu">
             <button onclick="event.stopPropagation();toggleDD('${ddId}');editExpense(${idx})">${icon('edit',14)} Edit</button>
             <button onclick="event.stopPropagation();toggleDD('${ddId}');duplicateExpense(${idx})">${icon('dupe',14)} Duplicate</button>
+            ${(e.amount>0&&!e.isRefund)?`<button onclick="event.stopPropagation();toggleDD('${ddId}');recordRefund(${idx})">${icon('undo',14)} Record refund</button>`:''}
             <button class="danger" onclick="event.stopPropagation();toggleDD('${ddId}');deleteExpense(${idx})">${icon('trash',14)} Delete</button>
           </div>
         </div>
@@ -21666,6 +21667,38 @@ function showTripBreakdown(idx){
   openPanel('Trip Breakdown', body);
 }
 
+function recordRefund(idx){
+  const e=(DB.expenses||[])[idx]; if(!e)return;
+  const orig=Number(e.amount)||0;
+  const prior=(DB.expenses||[]).filter(function(x){return x&&x.refundOf===e.id;}).reduce(function(s,x){return s+Math.abs(Number(x.amount)||0);},0);
+  const remaining=Math.max(0,+(orig-prior).toFixed(2));
+  openPanel('Record a refund',`
+    <div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:16px;font-size:13px;color:var(--text-secondary);line-height:1.5;">
+      Refund against:<br><b style="color:var(--text)">${esc(e.description||'Expense')}</b><br>${fmt(orig)} \u00b7 ${esc(_expenseCanonLabel(e.category))}${prior>0?` \u00b7 <span style="color:var(--green)">${fmt(prior)} already refunded</span>`:''}
+    </div>
+    <div class="fg"><label>Refund amount (\u00a3)</label><input type="number" id="refund-amt" step="0.01" min="0" max="${remaining}" value="${remaining}" inputmode="decimal"></div>
+    <div class="fg"><label>Date received</label><input type="date" id="refund-date" value="${new Date().toISOString().split('T')[0]}"></div>
+    <div class="fg"><label>Note (optional)</label><input type="text" id="refund-note" placeholder="e.g. returned to supplier"></div>
+    <button class="btn btn-primary" style="width:100%;margin-top:16px" onclick="saveRefund(${idx})">Record refund</button>
+  `);
+  setTimeout(function(){var a=document.getElementById('refund-amt');if(a){a.focus();a.select();}},60);
+}
+function saveRefund(idx){
+  const e=(DB.expenses||[])[idx]; if(!e)return;
+  const orig=Number(e.amount)||0;
+  const amt=parseFloat((document.getElementById('refund-amt')||{}).value);
+  if(!isFinite(amt)||amt<=0){toast('Refund amount must be a positive number','error');return;}
+  const prior=(DB.expenses||[]).filter(function(x){return x&&x.refundOf===e.id;}).reduce(function(s,x){return s+Math.abs(Number(x.amount)||0);},0);
+  if(prior+amt>orig+0.005){toast('Total refunds would exceed the original cost of '+fmt(orig),'error');return;}
+  const date=(document.getElementById('refund-date')||{}).value||new Date().toISOString().split('T')[0];
+  const note=((document.getElementById('refund-note')||{}).value||'').trim();
+  const ref={id:'exp_'+Date.now(),date:_canonicalLinkedDate(e.sourcingRunId||null,date),
+    description:'Refund \u2014 '+(e.description||'expense')+(note?(' ('+note+')'):''),
+    category:e.category, amount:-Math.abs(+amt.toFixed(2)), isRefund:true, refundOf:e.id, sourcingRunId:e.sourcingRunId||null};
+  if(!DB.expenses)DB.expenses=[];
+  DB.expenses.push(ref);
+  saveDB();closePanel();toast('Refund recorded');renderExpenses();
+}
 function editExpense(idx){
   const e=(DB.expenses||[])[idx];if(!e)return;
   openPanel('Edit Expense',`
