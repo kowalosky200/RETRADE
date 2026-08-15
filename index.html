@@ -17791,9 +17791,12 @@ function showRangeSnapshot(label, fromDate, toDate){
     return;
   }
 
-  // NEW7: gross revenue — refunds surface in Refund KPI drill-down, not here.
-  const totalRev  = items.reduce((s,i)=>s+calcItemRevenue(i),0);
-  const totalProf = items.reduce((s,i)=>s+(i._profit||0),0);
+  // v2.21.33 — NET revenue/profit from dated events (sales on sale date, refunds
+  // on their logged date) so this tap-through snapshot reconciles exactly with the
+  // chart line and the dashboard KPIs (previously revenue was gross -> mismatch).
+  const _evs = getSaleEventsInRange(fromDate, toDate);
+  const totalRev  = _evs.reduce((s,x)=>s+(Number(x.salePrice)||0),0);
+  const totalProf = _evs.reduce((s,x)=>s+(Number(x.profit)||0),0);
   const margin    = totalRev>0?(totalProf/totalRev*100).toFixed(1):null;
   const profColor = totalProf>=0?'var(--green)':'var(--red)';
 
