@@ -21196,7 +21196,9 @@ function renderReturns(){
     filtered.forEach(function(x){
       const meta=_returnTypeMeta(x.type);
       const badgeCol=x.isFull?'var(--red)':'var(--accent)';
-      let disp = x.item.isReturned?'In stock (returned)':(x.item.resaleSalePrice?'Resold':'Relisted');
+      // A partial refund leaves the item WITH the buyer — the sale stands, it was never returned/relisted.
+      // Only full refunds bring the item back, so the returned/resold/relisted disposition applies to those.
+      let disp = !x.isFull?'Kept (sold)':(x.item.isReturned?'In stock (returned)':(x.item.resaleSalePrice?'Resold':'Relisted'));
       html+='<div style="display:flex;align-items:center;gap:12px;padding:12px 14px;border-bottom:1px solid var(--border);cursor:pointer;" onclick="openItemPage(\''+x.m+'\',\''+x.id+'\',\'p-returns\')">'
         +'<div style="flex:1;min-width:0;">'
           +'<div style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(x.name)+'</div>'
