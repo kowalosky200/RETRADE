@@ -10799,6 +10799,8 @@ function _renderItemPageInner(m,id){
   if((i.dateSold||i.resaleSalePrice)&&!i.isReturned&&!i.scrappedAt)html+='<button class="btn btn-secondary ip-act-btn" onclick="openReturn(\''+m+'\',\''+id+'\')">'+icon('return',15)+'<span class="ip-act-label-always">Return</span></button>';
   if(i.dateSold&&!i.resaleSalePrice&&!i.isReturned&&!i.scrappedAt)html+='<button class="btn btn-secondary ip-act-btn" onclick="revertToActive(\''+m+'\',\''+id+'\')" title="Undo the sold mark — move this item back to active stock">'+icon('revert',15)+'<span class="ip-act-label">Revert</span></button>';
   html+='<button class="btn btn-secondary ip-act-btn" onclick="confirmDupeItem(\''+m+'\',\''+id+'\')">'+icon('dupe',15)+'<span class="ip-act-label">Dupe</span></button>';
+  if(!i.dateSold&&!i.resaleSalePrice&&!i.isReturned&&!i.scrappedAt&&(i.state==='sourced'||i.state==='listed'))html+='<button class="btn btn-secondary ip-act-btn" onclick="openSplitModal(\''+m+'\',\''+id+'\')" title="Split a multi-buy lot into separate units"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3v6a3 3 0 0 0 3 3h6a3 3 0 0 1 3 3v6"/><path d="M6 3v6a3 3 0 0 1-3 3"/><polyline points="15 9 18 12 15 15"/></svg><span class="ip-act-label">Split</span></button>';
+
   if(i.state==='listed'&&!i.scrappedAt)html+='<button class="btn btn-secondary ip-act-btn" onclick="withdrawToSourced(\''+m+'\',\''+id+'\')" title="Withdraw listing and move back to sourced stock" style="color:var(--accent)">'+icon('withdraw',15)+'<span class="ip-act-label">Withdraw</span></button>';
   if(_canScrap(i))html+='<button class="btn btn-secondary ip-act-btn" onclick="openScrapModal(\''+m+'\',\''+id+'\')" title="Write off or set aside" style="color:var(--warn)">'+icon('box',15)+'<span class="ip-act-label">Scrap</span></button>';
   if(i.scrappedAt)html+='<button class="btn btn-secondary ip-act-btn" onclick="unScrap(\''+m+'\',\''+id+'\')" title="Restore to active stock" style="color:var(--accent)">'+icon('revert',15)+'<span class="ip-act-label">Un-scrap</span></button>';
@@ -23678,6 +23680,100 @@ function _renderRecentlyDeletedSection(){
     +'<div class="section-card-desc" style="margin-bottom:4px;">Deleted this session. Restores to the item\u2019s original month. Cleared when you reload.</div>'
     +rows
     +'</div>';
+}
+
+// ── SPLIT A MULTI-BUY LOT INTO N UNITS ──────────────────────────────────────
+// Oskar logs a bundle (e.g. 2x monitor for £25) as ONE line, then wants N
+// separate sellable units. Split divides the cost (and estSalePrice) evenly
+// across N — unit 1 = this item re-priced, units 2..N = fresh listing copies.
+// Cost-neutral: Σ unit costs == original (odd pennies land on unit 1). Only
+// for a live UNSOLD item; no realised/tax math is touched. (Duplicate copies
+// an item as-is; Split divides a lot — two distinct actions.)
+function _splitStripSuffix(name){ const mm=(name||'').match(/^(.+?) - (\d+)$/); return mm?mm[1]:(name||''); }
+function _splitPennies(totalPence,n){
+  const base=Math.floor(totalPence/n); let rem=totalPence-base*n; const out=[];
+  for(let k=0;k<n;k++)out.push(base+(k<rem?1:0));
+  return out;
+}
+function _splitReadN(){
+  let n=parseInt(((document.getElementById('split-n')||{}).value),10);
+  if(!(n>=2))n=2; if(n>50)n=50; return n;
+}
+function openSplitModal(m,id){
+  const i=(DB[m]||[]).find(function(x){return x.id===id;});
+  if(!i)return;
+  const cost=Number(i.costPrice)||0, est=Number(i.estSalePrice)||0;
+  const html=''
+    +'<div class="item-full-section" style="margin-bottom:14px">'
+      +'<div class="item-full-section-title">Lot</div>'
+      +'<div style="font-weight:600;font-size:15px">'+esc(i.item||'Untitled')+'</div>'
+      +'<div style="font-size:13px;color:var(--muted);margin-top:4px">'+fmt(cost)+' cost'+(est>0?' \u00b7 '+fmt(est)+' est sale':'')+' total</div>'
+    +'</div>'
+    +'<div class="fg"><label>How many units in this lot?</label>'
+      +'<input id="split-n" type="number" inputmode="numeric" min="2" max="50" step="1" value="2" oninput="_splitPreview(\''+m+'\',\''+id+'\')"></div>'
+    +'<div id="split-preview" style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:11px 13px;font-size:13px;margin-bottom:14px"></div>'
+    +'<div style="font-size:12.5px;color:var(--text-secondary);line-height:1.5;margin-bottom:14px">Splits this one line into N separate units, dividing the cost'+(est>0?' and estimate':'')+' evenly. Use this when you logged a multi-buy as a single item. (To copy an item as-is instead, use Duplicate.)</div>'
+    +'<div style="display:flex;gap:8px">'
+      +'<button class="btn btn-primary" style="flex:1" onclick="confirmSplit(\''+m+'\',\''+id+'\')">Split into units</button>'
+      +'<button class="btn btn-secondary" onclick="closePanel()">Cancel</button>'
+    +'</div>';
+  openPanel('Split into units',html);
+  _splitPreview(m,id);
+}
+function _splitPreview(m,id){
+  const i=(DB[m]||[]).find(function(x){return x.id===id;}); if(!i)return;
+  const el=document.getElementById('split-preview'); if(!el)return;
+  const n=_splitReadN();
+  const cParts=_splitPennies(Math.round((Number(i.costPrice)||0)*100),n);
+  const est=Math.round((Number(i.estSalePrice)||0)*100);
+  const eParts=est>0?_splitPennies(est,n):null;
+  const even=cParts.every(function(x){return x===cParts[0];})&&(!eParts||eParts.every(function(x){return x===eParts[0];}));
+  let txt='<span style="font-weight:600">'+n+' units</span> \u2014 each: <span style="font-weight:700">'+fmt(cParts[0]/100)+'</span> cost';
+  if(eParts)txt+=' \u00b7 <span style="font-weight:700">'+fmt(eParts[0]/100)+'</span> est sale';
+  if(!even)txt+='<div style="color:var(--muted);font-size:11.5px;margin-top:3px">Odd pennies go on unit 1 so the total stays exact.</div>';
+  el.innerHTML=txt;
+}
+function confirmSplit(m,id){
+  const i=(DB[m]||[]).find(function(x){return x.id===id;}); if(!i)return;
+  if(i.dateSold||i.resaleSalePrice||i.isReturned||i.scrappedAt){toast('Only unsold items can be split');return;}
+  const n=_splitReadN();
+  const cParts=_splitPennies(Math.round((Number(i.costPrice)||0)*100),n);
+  const hasEst=(Number(i.estSalePrice)||0)>0;
+  const eParts=hasEst?_splitPennies(Math.round((Number(i.estSalePrice)||0)*100),n):null;
+  const rootId=i.parentId||i.id;
+  const baseName=i.baseName||_splitStripSuffix(i.item);
+  // unit 1 = the original, re-priced to its share
+  i.costPrice=cParts[0]/100;
+  if(hasEst)i.estSalePrice=eParts[0]/100;
+  i.parentId=rootId; i.baseName=baseName;
+  if((i.copySeq||1)===1){ i.copySeq=1; i.item=baseName; }
+  // highest existing seq in this lot, so new units continue the numbering
+  let startSeq=1;
+  (DB[m]||[]).forEach(function(x){ const s=(typeof x.copySeq==='number')?x.copySeq:1; if((x.id===rootId||x.parentId===rootId)&&s>startSeq)startSeq=s; });
+  for(let k=1;k<n;k++){
+    const copy=JSON.parse(JSON.stringify(i));
+    copy.id='spl_'+Date.now()+'_'+k;
+    copy.gid='R-'+String(getNextGID()).padStart(4,'0');
+    copy.dateSold=null;copy.grossProfit=null;copy.isReturned=false;
+    copy.resaleSalePrice=null;copy.resaleDateSold=null;copy.resaleGrossProfit=null;
+    copy.soldOnPlatform=null;copy.resalePlatform=null;copy.resaleListingFee=0;
+    delete copy.scrappedAt;delete copy.scrapReason;delete copy.scrapNote;
+    copy.returnHistory=[];delete copy.returnData;
+    copy.accountSettled=false;
+    copy.costPrice=cParts[k]/100;
+    if(hasEst)copy.estSalePrice=eParts[k]/100;
+    copy.parentId=rootId; copy.baseName=baseName;
+    copy.copySeq=startSeq+k; copy.item=baseName+' - '+(startSeq+k);
+    if(copy.state==='listed'){ copy.dateListed=new Date().toISOString().split('T')[0]; _stampListingFee(copy); }
+    DB[m].push(copy);
+  }
+  saveDB();
+  closePanel();
+  toast('Split into '+n+' units');
+  const cur=document.querySelector('.page.on');
+  if(cur&&cur.id==='p-item'){renderItemPage(m,id);return;}
+  SELECTED_MONTH=m;
+  if(typeof renderStock==='function')renderStock();
 }
 
 function confirmDupeItem(m,id){
