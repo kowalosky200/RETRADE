@@ -494,6 +494,7 @@ nav:not(#bottom-nav){position:sticky;top:env(safe-area-inset-top,0px);z-index:20
 .item-badge.spares{background:var(--accent-dim);color:var(--warn);}
 /* Patch A — stock state badge: amber/orange = pre-listing, not yet active. */
 .item-badge.sourced{background:var(--accent-dim);color:var(--accent);border:1px solid rgba(212,136,10,0.22);}
+.item-badge.scrapped{background:var(--surface2);color:var(--muted);border:1px dashed var(--border);}
 .chip.chip-state-sourced.active{background:var(--accent-dim);color:var(--accent);border-color:rgba(212,136,10,0.35);}
 .chip.chip-state-listed.active{background:rgba(96,165,250,0.13);color:var(--blue);border-color:rgba(96,165,250,0.35);}
 .chip.chip-state-all.active{background:var(--surface2);color:var(--text);border-color:var(--border);}
@@ -5205,6 +5206,10 @@ c-230 453 -565 1105 -674 1315 -63 120 -114 221 -114 225 0 4 47 19 104 34
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/></svg>
             <span>Returns</span>
           </button>
+          <button data-tab="scrapped" onclick="goToTab('scrapped',this);closeNavMore()">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18l-1.5 14a2 2 0 0 1-2 2H6.5a2 2 0 0 1-2-2L3 6z"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+            <span>Scrapped</span>
+          </button>
           <button data-tab="tax" onclick="goToTab('tax',this);closeNavMore()">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="15" x2="15" y2="9"/><circle cx="9.5" cy="9.5" r="1" fill="currentColor" stroke="none"/><circle cx="14.5" cy="14.5" r="1" fill="currentColor" stroke="none"/></svg>
             <span>Tax / SA103</span>
@@ -5398,6 +5403,10 @@ c-230 453 -565 1105 -674 1315 -63 120 -114 221 -114 225 0 4 47 19 104 34
     <button onclick="closeMoreSheet();goToTab('returns',document.querySelector('[data-tab=\'returns\']'))" class="more-sheet-row" data-sheet-tab="returns">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/></svg>
       <span>Returns</span>
+    </button>
+    <button onclick="closeMoreSheet();goToTab('scrapped',document.querySelector('[data-tab=\'scrapped\']'))" class="more-sheet-row" data-sheet-tab="scrapped">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18l-1.5 14a2 2 0 0 1-2 2H6.5a2 2 0 0 1-2-2L3 6z"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+      <span>Scrapped</span>
     </button>
     <button onclick="closeMoreSheet();goToTab('tax',document.querySelector('[data-tab=\'tax\']'))" class="more-sheet-row" data-sheet-tab="tax">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="15" x2="15" y2="9"/><circle cx="9.5" cy="9.5" r="1" fill="currentColor" stroke="none"/><circle cx="14.5" cy="14.5" r="1" fill="currentColor" stroke="none"/></svg>
@@ -5647,6 +5656,10 @@ c-230 453 -565 1105 -674 1315 -63 120 -114 221 -114 225 0 4 47 19 104 34
       <span class="side-nav-item-ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/></svg></span>
       <span class="side-nav-item-label">Returns</span>
     </button>
+    <button class="side-nav-item" data-tab="scrapped" onclick="goToTab('scrapped',this)">
+      <span class="side-nav-item-ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18l-1.5 14a2 2 0 0 1-2 2H6.5a2 2 0 0 1-2-2L3 6z"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg></span>
+      <span class="side-nav-item-label">Scrapped</span>
+    </button>
     <button class="side-nav-item" data-tab="data" onclick="goToTab('data',this)">
       <span class="side-nav-item-ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v4c0 1.66 4 3 9 3s9-1.34 9-3V5"/><path d="M3 9v5c0 1.66 4 3 9 3s9-1.34 9-3V9"/><path d="M3 14v5c0 1.66 4 3 9 3s9-1.34 9-3v-5"/></svg></span>
       <span class="side-nav-item-label">Data</span>
@@ -5744,6 +5757,7 @@ c-230 453 -565 1105 -674 1315 -63 120 -114 221 -114 225 0 4 47 19 104 34
 <div class="page" id="p-expenses"></div>
 <div class="page" id="p-cash"></div>
 <div class="page" id="p-returns"></div>
+<div class="page" id="p-scrapped"></div>
 <div class="page" id="p-accounts"></div>
 <div class="page" id="p-tax"></div>
 <div class="page" id="p-data"></div>
@@ -8277,6 +8291,9 @@ function _rowToItem(row, parts, returns){
     resalePostage:       row.resale_postage        ? Number(row.resale_postage)        : null,
     grossProfit:     row.gross_profit != null ? Number(row.gross_profit) : null,
     state:           row.state || null,
+      scrappedAt:      row.scrapped_at || null,
+      scrapReason:     row.scrap_reason || null,
+      scrapNote:       row.scrap_note || null,
     dateSourced:     row.date_sourced || null,
     sourcingRunId:   row.sourcing_run_id || null,
     // E33/E36 — Accounts. accountType per-item overrides the account's default
@@ -8362,6 +8379,9 @@ function _itemToRow(i, month){
     last_refresh_at:      i._lastRefreshAt      || null,
     gross_profit:     i.grossProfit || null,
     state:            i.state || 'listed',
+    scrapped_at:      i.scrappedAt || null,
+    scrap_reason:     i.scrapReason || null,
+    scrap_note:       i.scrapNote || null,
     date_sourced:     i.dateSourced || null,
     sourcing_run_id:  i.sourcingRunId || null,
     // E33 — Accounts (partners), see _rowToItem note above.
@@ -9095,7 +9115,7 @@ async function initDB(){
     const _freshSession = !_isSameSession();
     const _lastTab = (() => { if(_freshSession) return 'summary';
       try{ return localStorage.getItem(_SK.tab) || 'summary'; }catch(e){ return 'summary'; } })();
-    const _safeTab = ['summary','monthly','stock','expenses','cash','returns','tax','data','runs'].includes(_lastTab) ? _lastTab : 'summary';
+    const _safeTab = ['summary','monthly','stock','expenses','cash','returns','scrapped','tax','data','runs'].includes(_lastTab) ? _lastTab : 'summary';
     showLoadingScreen('Loading your data…', _safeTab);
     await Promise.race([
       loadFromSupabase(),
@@ -9449,12 +9469,13 @@ function _bootSkeletonHTML(tab){
   else if(tab === 'data')        body = _skelGeneric('90px', false);
   else if(tab === 'cash')        body = _skelGeneric('120px', false);
   else if(tab === 'returns')     body = _skelGeneric('120px', false);
+  else if(tab === 'scrapped')    body = _skelGeneric('120px', false);
   else                           body = _skelSummary();
   // .page (not .page.on — see the .rt-skel CSS note) so the box model is shared.
   // rt-skel-<tab> is what lets the ID-scoped page rules reach this element --
   // see the .rt-skel-summary note in the CSS. Emitted for every tab so a future
   // ID rule on any page has a selector waiting for it.
-  const _t = ['summary','monthly','stock','expenses','cash','returns','tax','data','runs'].includes(tab) ? tab : 'summary';
+  const _t = ['summary','monthly','stock','expenses','cash','returns','scrapped','tax','data','runs'].includes(tab) ? tab : 'summary';
   return '<div class="page rt-skel rt-skel-' + _t + '">' + body
     + '<div style="text-align:center;margin-top:20px;font-size:13px;color:var(--text-secondary);" id="app-loading-msg"></div>'
     + '</div>';
@@ -9543,6 +9564,7 @@ function refreshActivePage(){
   else if(id==='p-expenses')renderExpenses();
   else if(id==='p-cash'&&typeof renderCash==='function')renderCash();
   else if(id==='p-returns'&&typeof renderReturns==='function')renderReturns();
+  else if(id==='p-scrapped'&&typeof renderScrapped==='function')renderScrapped();
   else if(id==='p-accounts'&&typeof renderAccountsPage==='function')renderAccountsPage();
   else if(id==='p-tax'&&typeof renderTax==='function')renderTax();
   else if(id==='p-active-run'&&typeof renderActiveRunPage==='function')renderActiveRunPage();
@@ -9799,6 +9821,7 @@ function goToTab(name,sourceEl){
   else if(name==='expenses')renderExpenses();
   else if(name==='cash')renderCash();
   else if(name==='returns')renderReturns();
+  else if(name==='scrapped')renderScrapped();
   else if(name==='accounts')renderAccountsPage();
   else if(name==='tax')renderTax();
   else if(name==='data')renderData();
@@ -9882,7 +9905,7 @@ function exitItemPage(){
     // Restore the page the panel was on top of
     const pageId=_savedPanelState.pageId||'p-summary';
     document.getElementById(pageId).classList.add('on');
-    const tabMap={'p-summary':'summary','p-monthly':'monthly','p-stock':'stock','p-expenses':'expenses','p-cash':'cash','p-tax':'tax','p-data':'data','p-runs':'runs','p-accounts':'accounts','p-returns':'returns'};
+    const tabMap={'p-summary':'summary','p-monthly':'monthly','p-stock':'stock','p-expenses':'expenses','p-cash':'cash','p-tax':'tax','p-data':'data','p-runs':'runs','p-accounts':'accounts','p-returns':'returns','p-scrapped':'scrapped'};
     const tabName=tabMap[pageId];
     if(tabName){const tab=document.querySelector('[data-tab="'+tabName+'"]');if(tab)tab.classList.add('on');}
     handleNavResize();
@@ -9909,7 +9932,7 @@ function exitItemPage(){
     return;
   }
   document.getElementById(origin).classList.add('on');
-  const tabMap={'p-summary':'summary','p-monthly':'monthly','p-stock':'stock','p-expenses':'expenses','p-cash':'cash','p-tax':'tax','p-data':'data','p-runs':'runs','p-accounts':'accounts','p-returns':'returns'};
+  const tabMap={'p-summary':'summary','p-monthly':'monthly','p-stock':'stock','p-expenses':'expenses','p-cash':'cash','p-tax':'tax','p-data':'data','p-runs':'runs','p-accounts':'accounts','p-returns':'returns','p-scrapped':'scrapped'};
   const tabName=tabMap[origin];
   if(tabName){const tab=document.querySelector('[data-tab="'+tabName+'"]');if(tab)tab.classList.add('on');}
   handleNavResize();
@@ -9957,6 +9980,7 @@ function exitItemPage(){
   else if(origin==='p-expenses'&&typeof renderExpenses==='function'){renderExpenses();_restoreTabScroll('expenses');}
   else if(origin==='p-cash'&&typeof renderCash==='function'){renderCash();_restoreTabScroll('cash');}
   else if(origin==='p-returns'&&typeof renderReturns==='function'){renderReturns();_restoreTabScroll('returns');}
+  else if(origin==='p-scrapped'&&typeof renderScrapped==='function'){renderScrapped();_restoreTabScroll('scrapped');}
   else if(origin==='p-tax'&&typeof renderTax==='function'){renderTax();_restoreTabScroll('tax');}
   else if(origin==='p-data'&&typeof renderData==='function'){renderData();_restoreTabScroll('data');}
 }
@@ -10420,7 +10444,7 @@ function _renderItemPageInner(m,id){
   const _isZeroCost=(i.costPrice==null||i.costPrice===0)&&!(_rcptShipping>0)&&!(_rcptPackaging>0)&&!calcPartsCost(i);
   const roiDisplay=_isZeroCost&&profit!==null?'∞':(roi!==null?roi.toFixed(1)+'%':null);
   const marginDisplay=(margin!==null?margin.toFixed(1)+'%':null);
-  const status=i.isReturned?'returned':i.resaleSalePrice?'resold':i.dateSold?'sold':i.condition==='spares'?'spares':'active';
+  const status=i.scrappedAt?'scrapped':i.isReturned?'returned':i.resaleSalePrice?'resold':i.dateSold?'sold':i.condition==='spares'?'spares':'active';
   const hasReturn=(i.returnHistory||[]).length>0;
   const _plat=_s1Platform(i); // v2.19.33 — Sale 1 receipt reflects Sale 1's platform
   const _showPostage=(_plat!=='vinted');
@@ -10770,12 +10794,14 @@ function _renderItemPageInner(m,id){
   html+='<div class="ip-topbar-row1">';
   html+='<button class="btn btn-secondary ip-back" onclick="exitItemPage()">'+icon('back',14)+'<span class="ip-back-label"> Back</span></button>';
 
-  if((!i.dateSold&&!i.resaleSalePrice)&&!i.isReturned)html+='<button class="btn btn-primary ip-act-btn" onclick="markSold(\''+m+'\',\''+id+'\')">'+icon('sold',15)+'<span class="ip-act-label-always">Mark Sold</span></button>';
-  if(i.isReturned)html+='<button class="btn btn-primary ip-act-btn" onclick="openRelist(\''+m+'\',\''+id+'\')">'+icon('relist',15)+'<span class="ip-act-label-always">Relist</span></button>';
-  if((i.dateSold||i.resaleSalePrice)&&!i.isReturned)html+='<button class="btn btn-secondary ip-act-btn" onclick="openReturn(\''+m+'\',\''+id+'\')">'+icon('return',15)+'<span class="ip-act-label-always">Return</span></button>';
-  if(i.dateSold&&!i.resaleSalePrice&&!i.isReturned)html+='<button class="btn btn-secondary ip-act-btn" onclick="revertToActive(\''+m+'\',\''+id+'\')" title="Undo the sold mark — move this item back to active stock">'+icon('revert',15)+'<span class="ip-act-label">Revert</span></button>';
+  if((!i.dateSold&&!i.resaleSalePrice)&&!i.isReturned&&!i.scrappedAt)html+='<button class="btn btn-primary ip-act-btn" onclick="markSold(\''+m+'\',\''+id+'\')">'+icon('sold',15)+'<span class="ip-act-label-always">Mark Sold</span></button>';
+  if(i.isReturned&&!i.scrappedAt)html+='<button class="btn btn-primary ip-act-btn" onclick="openRelist(\''+m+'\',\''+id+'\')">'+icon('relist',15)+'<span class="ip-act-label-always">Relist</span></button>';
+  if((i.dateSold||i.resaleSalePrice)&&!i.isReturned&&!i.scrappedAt)html+='<button class="btn btn-secondary ip-act-btn" onclick="openReturn(\''+m+'\',\''+id+'\')">'+icon('return',15)+'<span class="ip-act-label-always">Return</span></button>';
+  if(i.dateSold&&!i.resaleSalePrice&&!i.isReturned&&!i.scrappedAt)html+='<button class="btn btn-secondary ip-act-btn" onclick="revertToActive(\''+m+'\',\''+id+'\')" title="Undo the sold mark — move this item back to active stock">'+icon('revert',15)+'<span class="ip-act-label">Revert</span></button>';
   html+='<button class="btn btn-secondary ip-act-btn" onclick="confirmDupeItem(\''+m+'\',\''+id+'\')">'+icon('dupe',15)+'<span class="ip-act-label">Dupe</span></button>';
-  if(i.state==='listed')html+='<button class="btn btn-secondary ip-act-btn" onclick="withdrawToSourced(\''+m+'\',\''+id+'\')" title="Withdraw listing and move back to sourced stock" style="color:var(--accent)">'+icon('withdraw',15)+'<span class="ip-act-label">Withdraw</span></button>';
+  if(i.state==='listed'&&!i.scrappedAt)html+='<button class="btn btn-secondary ip-act-btn" onclick="withdrawToSourced(\''+m+'\',\''+id+'\')" title="Withdraw listing and move back to sourced stock" style="color:var(--accent)">'+icon('withdraw',15)+'<span class="ip-act-label">Withdraw</span></button>';
+  if(_canScrap(i))html+='<button class="btn btn-secondary ip-act-btn" onclick="openScrapModal(\''+m+'\',\''+id+'\')" title="Write off or set aside" style="color:var(--warn)">'+icon('box',15)+'<span class="ip-act-label">Scrap</span></button>';
+  if(i.scrappedAt)html+='<button class="btn btn-secondary ip-act-btn" onclick="unScrap(\''+m+'\',\''+id+'\')" title="Restore to active stock" style="color:var(--accent)">'+icon('revert',15)+'<span class="ip-act-label">Un-scrap</span></button>';
   html+='<button class="btn btn-secondary ip-act-btn ip-act-danger" onclick="deleteItem(\''+m+'\',\''+id+'\')">'+icon('trash',15)+'</button>';
   html+='</div>'; // close ip-topbar-row1
   html+='<div class="ip-topbar-row2">';
@@ -11110,7 +11136,7 @@ function showSearchDropdown(q){
     return;
   }
   const rows=shown.map((i,idx)=>{
-    const status=i.isReturned?'returned':i.resaleSalePrice?'resold':i.dateSold?'sold':i.condition==='spares'?'spares':'active';
+    const status=i.scrappedAt?'scrapped':i.isReturned?'returned':i.resaleSalePrice?'resold':i.dateSold?'sold':i.condition==='spares'?'spares':'active';
     const catGlyph=catIcon(i.category,18);
     const price=i.salePrice?fmt(i.salePrice):'—';
     return`<div class="search-result" data-idx="${idx}" onclick="selectSearchResult(${idx})" onmouseenter="setSearchActive(${idx})">
@@ -11189,7 +11215,7 @@ function handleMobileSearchInput(q){
   // Delegated click — avoids inline quoting issues with dynamic data
   _mobileSearchItems=results;
   resultsEl.innerHTML=results.map(function(item,idx){
-    const status=item.isReturned?'returned':item.resaleSalePrice?'resold':item.dateSold?'sold':item.state==='sourced'?'sourced':'listed';
+    const status=item.scrappedAt?'scrapped':item.isReturned?'returned':item.resaleSalePrice?'resold':item.dateSold?'sold':item.state==='sourced'?'sourced':'listed';
     return '<div data-mob-idx="'+idx+'" style="display:flex;align-items:center;gap:10px;padding:11px 16px;'+(idx>0?'border-top:1px solid var(--border)':'')+';cursor:pointer;background:var(--surface);">'+
       '<div style="flex:1;min-width:0;">'+
         '<div style="font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(item.item)+'</div>'+
@@ -11347,7 +11373,7 @@ function renderSearchResults(q){
   const totalProfit=soldItems.reduce((s,i)=>s+calcGrossProfit(i),0);
 
   const rows=results.map(i=>{
-    const status=i.isReturned?'returned':i.resaleSalePrice?'resold':i.dateSold?'sold':i.condition==='spares'?'spares':'listed';
+    const status=i.scrappedAt?'scrapped':i.isReturned?'returned':i.resaleSalePrice?'resold':i.dateSold?'sold':i.condition==='spares'?'spares':'listed';
     const profit=(i.dateSold||i.resaleSalePrice)&&!i.isReturned?calcGrossProfit(i):null;
     const margin=calcMargin(i);
     const catGlyph=catIcon(i.category,16);
@@ -12528,8 +12554,8 @@ function _renderRunPage(run){
   const totalMiles=runTrips.reduce(function(s,t){return s+(t.mileage||0);},0);
 
   // ── Item state buckets ─────────────────────────────────────────────────────
-  const sourcedItems=items.filter(function(i){return i.state==='sourced';});
-  const listedItems=items.filter(function(i){return i.state==='listed'&&!i.dateSold&&!i.resaleSalePrice;});
+  const sourcedItems=items.filter(function(i){return i.state==='sourced'&&!i.scrappedAt;});
+  const listedItems=items.filter(function(i){return i.state==='listed'&&!i.dateSold&&!i.resaleSalePrice&&!i.scrappedAt;});
   const soldItems=items.filter(function(i){return i.state==='sold'||!!i.resaleSalePrice;});
   const returnedItems=items.filter(function(i){return i.isReturned&&!i.resaleSalePrice;});
 
@@ -12539,13 +12565,13 @@ function _renderRunPage(run){
 
   // ── Potential ─────────────────────────────────────────────────────────────
   const unsoldItems=[...sourcedItems,...listedItems];
-  const estItems=unsoldItems.filter(function(i){return i.estSalePrice!=null||i.salePrice!=null;});
-  const estPotential=estItems.reduce(function(s,i){
-    // Use estSalePrice if set, fall back to listed salePrice
-    const estPrice=i.estSalePrice!=null?i.estSalePrice:(i.salePrice||0);
-    const fees=estPrice*0.12;
-    return s+(estPrice-fees-(i.costPrice||0)-calcPartsCost(i));
-  },0);
+  // v2.21.36 — use the app-wide realistic estimator (_estPotentialNet: real
+  // asking price for LISTED items, estSalePrice for SOURCED, real fees+promo+
+  // fulfilment drag) so the run P&L matches the Stock Room + item page, and a
+  // stale whole-lot estSalePrice inherited by a listed duplicate no longer
+  // inflates it (both copies read their own per-unit asking price once listed).
+  const estItems=unsoldItems.filter(function(i){return _estPotentialNet(i)!=null;});
+  const estPotential=estItems.reduce(function(s,i){return s+(_estPotentialNet(i)||0);},0);
   const hasEst=estItems.length>0;
   const overhead=tripCost+expCost;
   const netBestCase=realisedProfit+estPotential-overhead;
@@ -12681,7 +12707,7 @@ function _renderRunPage(run){
     g.items.forEach(function(i,idx){
       const isItemSold=g.key==='sold';
       const gp=isItemSold?calcGrossProfit(i):null;
-      const ep=(!isItemSold&&i.estSalePrice!=null)?(i.estSalePrice*0.88-(i.costPrice||0)-calcPartsCost(i)):null;
+      const ep=(!isItemSold)?_estPotentialNet(i):null; // v2.21.36 — live estimator (was estSalePrice*0.88; inherited whole-lot est on duplicates)
       const valStr=isItemSold
         ?(gp!==null?'<span style="font-size:13px;font-weight:700;color:'+(gp>=0?'var(--green)':'var(--red)')+';">\u00a3'+gp.toFixed(2)+'</span>':'')
         :(ep!==null?'<span style="font-size:12px;color:var(--muted);">est <span style="color:'+(ep>=0?'var(--green)':'var(--red)')+';">\u00a3'+ep.toFixed(2)+'</span></span>':'<span style="font-size:11px;color:var(--muted);">\u00a3'+(i.costPrice||0).toFixed(2)+' cost</span>');
@@ -12701,7 +12727,7 @@ function _renderRunPage(run){
         +_rdBox
         +'<div style="flex:1;min-width:0;">'
           +'<div style="font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(i.item||'Untitled')+'</div>'
-          +'<div style="font-size:11px;color:var(--text-secondary);">\u00a3'+(i.costPrice||0).toFixed(2)+' cost'+(i.salePrice&&isItemSold?' \u00b7 sold \u00a3'+i.salePrice.toFixed(2):'')+(i.estSalePrice&&!isItemSold?' \u00b7 est \u00a3'+i.estSalePrice.toFixed(2):'')+'</div>'
+          +'<div style="font-size:11px;color:var(--text-secondary);">\u00a3'+(i.costPrice||0).toFixed(2)+' cost'+(i.salePrice&&isItemSold?' \u00b7 sold \u00a3'+i.salePrice.toFixed(2):'')+((!isItemSold&&i.salePrice)?' \u00b7 list \u00a3'+i.salePrice.toFixed(2):(i.estSalePrice&&!isItemSold?' \u00b7 est \u00a3'+i.estSalePrice.toFixed(2):''))+'</div>'
         +'</div>'
         +valStr
         +'</div>';
@@ -13121,8 +13147,8 @@ function _refreshSideNavStockCount(){
       allDBKeys().forEach(function(k){
         (DB[k]||[]).forEach(function(i){
           if(!i)return;
-          const isActiveSourced=(i.state==='sourced');
-          const isActiveListed =(i.state==='listed' && !i.dateSold && !i.isReturned && !i.resaleSalePrice);
+          const isActiveSourced=(i.state==='sourced'&&!i.scrappedAt);
+          const isActiveListed =(i.state==='listed' && !i.dateSold && !i.isReturned && !i.resaleSalePrice && !i.scrappedAt);
           if(isActiveSourced||isActiveListed)count++;
         });
       });
@@ -16060,10 +16086,10 @@ function showCategoryItems(cat,_fromBack){
     if((i.category||'Other')===cat)items.push({...i,month:k});
   });});
   const sold=items.filter(i=>(i.dateSold||i.resaleSalePrice)&&!i.isReturned);
-  const active=items.filter(i=>!i.dateSold&&!i.isReturned&&!i.resaleSalePrice);
+  const active=items.filter(i=>!i.dateSold&&!i.isReturned&&!i.resaleSalePrice&&!i.scrappedAt);
   items.sort((a,b)=>{
     const statusOrder=i=>{
-      if(!i.dateSold&&!i.isReturned&&!i.resaleSalePrice)return 0;
+      if(!i.dateSold&&!i.isReturned&&!i.resaleSalePrice&&!i.scrappedAt)return 0;
       if((i.dateSold||i.resaleSalePrice)&&!i.isReturned)return 1;
       return 2;
     };
@@ -16096,11 +16122,11 @@ function showCategoryItems(cat,_fromBack){
     </div>
     ${items.map(i=>{
       const _today=new Date().toISOString().split('T')[0];
-      const status=i.isReturned?'returned':i.resaleSalePrice?'resold':i.dateSold?'sold':i.condition==='spares'?'spares':'listed';
+      const status=i.scrappedAt?'scrapped':i.isReturned?'returned':i.resaleSalePrice?'resold':i.dateSold?'sold':i.condition==='spares'?'spares':'listed';
       const prof=(i.dateSold||i.resaleSalePrice)&&!i.isReturned?calcGrossProfit(i):null;
       const daysToSell=!i.isReturned&&(i.dateSold||i.resaleSalePrice)?calcDaysToSell(i):null;
       const _eld=_effectiveListDate(i);
-      const daysListed=!i.dateSold&&!i.isReturned&&!i.resaleSalePrice&&_eld?daysBetween(_eld,_today):null;
+      const daysListed=!i.dateSold&&!i.isReturned&&!i.resaleSalePrice&&!i.scrappedAt&&_eld?daysBetween(_eld,_today):null;
       const returnedAt=i.isReturned&&i.returnHistory&&i.returnHistory.length?i.returnHistory[i.returnHistory.length-1].loggedAt:null;
       const daysSinceReturn=i.isReturned&&(returnedAt||i.dateListed)?daysBetween(returnedAt||i.dateListed,_today):null;
       const isStale=daysListed!==null&&daysListed>=90;
@@ -16224,7 +16250,7 @@ function showListedInPeriodItems(){
     return;
   }
   const sold=items.filter(i=>(i.dateSold||i.resaleSalePrice)&&!i.isReturned).length;
-  const active=items.filter(i=>!i.dateSold&&!i.isReturned&&!i.resaleSalePrice).length;
+  const active=items.filter(i=>!i.dateSold&&!i.isReturned&&!i.resaleSalePrice&&!i.scrappedAt).length;
   const returned=items.filter(i=>i.isReturned).length;
   const periodLabel={'7d':'Last 7 days','30d':'Last 30 days','60d':'Last 60 days','90d':'Last 90 days','current_fy':'Current FY','prev_fy':'Previous FY'}[SUMMARY_PERIOD]||SUMMARY_PERIOD;
   const summary='<div style="margin-bottom:16px;display:flex;gap:10px;flex-wrap:wrap">'
@@ -17700,7 +17726,7 @@ function showMonthSnapshot(monthKey){
   const returned = events.filter(e=>e.isReturned);
   // Active stock for THIS listing month — items in DB[monthKey] that are still live.
   const listed = (DB[monthKey]||[]).filter(i=>(i.item||'').trim().toUpperCase()!=='MONTH END' &&
-                                              !i.dateSold && !i.isReturned && !i.resaleSalePrice);
+                                              !i.dateSold && !i.isReturned && !i.resaleSalePrice && !i.scrappedAt);
   const stockValue = listed.reduce((s,i)=>s+(i.salePrice||0),0);
   const marginPct = ms.totalRev>0 ? (ms.realisedProfit/ms.totalRev*100).toFixed(1) : null;
   const profColor = ms.realisedProfit>=0?'var(--green)':'var(--red)';
@@ -17802,26 +17828,22 @@ function showRangeSnapshot(label, fromDate, toDate){
   // on their logged date) so this tap-through snapshot reconciles exactly with the
   // chart line and the dashboard KPIs (previously revenue was gross -> mismatch).
   const _evs = getSaleEventsInRange(fromDate, toDate);
-  const totalRev  = _evs.reduce((s,x)=>s+(Number(x.salePrice)||0),0);
+  const _saleEvs = _evs.filter(x=>!x.isReturnAdjustment);
+  const _retEvs  = _evs.filter(x=>x.isReturnAdjustment);
+  const grossRev  = _saleEvs.reduce((s,x)=>s+(Number(x.salePrice)||0),0);
+  const refundTot = _retEvs.reduce((s,x)=>s+(Number(x.salePrice)||0),0); // negative
   const totalProf = _evs.reduce((s,x)=>s+(Number(x.profit)||0),0);
-  const margin    = totalRev>0?(totalProf/totalRev*100).toFixed(1):null;
+  const margin    = grossRev>0?(totalProf/grossRev*100).toFixed(1):null;
   const profColor = totalProf>=0?'var(--green)':'var(--red)';
+  const _hasRefunds = _retEvs.length>0;
 
+  const _snapCell = (lab,val,col)=>`<div style="background:var(--surface2);border-radius:10px;padding:11px 12px"><div style="font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:3px">${lab}</div><div style="font-size:18px;font-weight:700;font-family:'Inter',sans-serif;letter-spacing:-0.04em;color:${col}">${val}</div></div>`;
   const kpis = `
-    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:14px">
-      <div style="background:var(--surface2);border-radius:10px;padding:11px 12px">
-        <div style="font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:3px">Revenue</div>
-        <div style="font-size:18px;font-weight:700;font-family:'Inter',sans-serif;letter-spacing:-0.04em;color:var(--blue)">${fmt(totalRev)}</div>
-      </div>
-      <div style="background:var(--surface2);border-radius:10px;padding:11px 12px">
-        <div style="font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:3px">Profit</div>
-        <div style="font-size:18px;font-weight:700;font-family:'Inter',sans-serif;letter-spacing:-0.04em;color:${profColor}">${fmt(totalProf)}</div>
-        ${margin?`<div style="font-size:10px;color:var(--muted);margin-top:1px">${margin}%</div>`:''}
-      </div>
-      <div style="background:var(--surface2);border-radius:10px;padding:11px 12px">
-        <div style="font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:3px">Sold</div>
-        <div style="font-size:18px;font-weight:700;font-family:'Inter',sans-serif;letter-spacing:-0.04em;color:var(--text)">${items.length}</div>
-      </div>
+    <div style="display:grid;grid-template-columns:${_hasRefunds?'1fr 1fr':'1fr 1fr 1fr'};gap:8px;margin-bottom:14px">
+      ${_snapCell('Revenue',fmt(grossRev),'var(--blue)')}
+      ${_hasRefunds?_snapCell('Refunds',fmt(refundTot),'var(--warn)'):''}
+      ${_snapCell('Profit',fmt(totalProf)+(margin?` <span style="font-size:10px;color:var(--muted);font-weight:400">${margin}%</span>`:''),profColor)}
+      ${_snapCell('Sold',String(items.length),'var(--text)')}
     </div>`;
 
   items.sort((a,b)=>(b._profit||0)-(a._profit||0));
@@ -17834,7 +17856,15 @@ function showRangeSnapshot(label, fromDate, toDate){
       <div style="font-size:13px;font-weight:600;font-family:var(--font-mono);flex-shrink:0">${fmt(calcItemRevenue(i))}</div>
     </div>`).join('');
 
-  openPanel(label, kpis + `<div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:6px">Items Sold</div>` + rows, false);
+  const retRows = _retEvs.map(x=>`
+    <div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);cursor:pointer" onclick="openItemDetail('${x.month}','${x.item.id}')">
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(x.item.item)}</div>
+        <div style="font-size:11px;color:var(--warn);margin-top:2px;font-weight:600">${fmt(x.profit||0)} <span style="color:var(--muted);font-weight:400">\u00b7 Returned ${x.saleDate||''}</span></div>
+      </div>
+      <div style="font-size:13px;font-weight:600;font-family:var(--font-mono);color:var(--warn);flex-shrink:0">${fmt(x.salePrice)}</div>
+    </div>`).join('');
+  openPanel(label, kpis + `<div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:6px">Items Sold</div>` + rows + (retRows?`<div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.1em;margin:14px 0 6px">Returned (${_retEvs.length})</div>`+retRows:''), false);
 }
 
 function goToMonth(m){
@@ -19275,12 +19305,12 @@ function renderItemRow(m,i){
       '<div class="item-actions">'+stockActions+'</div>'+
     '</div>';
   }
-  const status=i.isReturned?'returned':i.resaleSalePrice?'resold':i.dateSold?'sold':i.condition==='spares'?'spares':'listed';
+  const status=i.scrappedAt?'scrapped':i.isReturned?'returned':i.resaleSalePrice?'resold':i.dateSold?'sold':i.condition==='spares'?'spares':'listed';
   const today=new Date().toISOString().split('T')[0];
   // daysListed: for active items only (stale detection). For sold/resold use calcDaysToSell.
   // Relisted items use _relistedAt as the clock-reset point via _effectiveListDate.
   const _effListDate=_effectiveListDate(i);
-  const daysListed=(!i.dateSold&&!i.isReturned&&!i.resaleSalePrice)?daysBetween(i.dateListed,today):0;
+  const daysListed=(!i.dateSold&&!i.isReturned&&!i.resaleSalePrice&&!i.scrappedAt)?daysBetween(i.dateListed,today):0;
   const daysThisCycle=(!i.dateSold&&!i.resaleSalePrice)?daysBetween(_effListDate,today):0;
   const daysToSellVal=(i.dateSold||i.resaleSalePrice)&&!i.isReturned?calcDaysToSell(i):null;
   const profit=calcGrossProfit(i);
@@ -19290,7 +19320,7 @@ function renderItemRow(m,i){
   const badgeClass=isRelisted?'relisted':status;
   const badgeLabel=isRelisted?'relisted':status;
   // Stale uses original daysListed so an item can't dodge the stale flag by being relisted
-  const isStale=!i.dateSold&&!i.isReturned&&!i.resaleSalePrice&&daysListed>=90;
+  const isStale=!i.dateSold&&!i.isReturned&&!i.resaleSalePrice&&!i.scrappedAt&&daysListed>=90;
 
   // Status-aware meta — minimum useful info per status
   const metaParts=[];
@@ -19343,7 +19373,7 @@ function renderItemRow(m,i){
     const cls=profit>=0?'pos':'neg';
     profitEl='<div class="item-row-profit '+cls+'">'+fmt(profit)+'</div>';
     if(margin!==null&&margin!==undefined)profitEl+='<div class="item-row-roi">'+margin.toFixed(1)+'% margin</div>';
-  }else if(!i.dateSold&&!i.isReturned&&!i.resaleSalePrice&&profit!==null){
+  }else if(!i.dateSold&&!i.isReturned&&!i.resaleSalePrice&&!i.scrappedAt&&profit!==null){
     // Active items: show "est. profit" using lifetime semantics — for normal
     // listings this equals calcGrossProfit, but for relisted-after-return items
     // it includes the hypothetical sale-2 so the headline is "lifetime P&L if sold".
@@ -19495,7 +19525,7 @@ function openItemDetail(m,id,noHistory){
   const roi=calcROI(i);
   const _isZeroCost2=(i.costPrice==null||i.costPrice===0)&&!(i.shippingCost>0)&&!(i.packagingCost>0)&&!calcPartsCost(i);
   const roiDisplay2=_isZeroCost2&&profit!==null?'∞':(roi!==null?roi.toFixed(1)+'%':null);
-  const status=i.isReturned?'returned':i.resaleSalePrice?'resold':i.dateSold?'sold':i.condition==='spares'?'spares':'listed';
+  const status=i.scrappedAt?'scrapped':i.isReturned?'returned':i.resaleSalePrice?'resold':i.dateSold?'sold':i.condition==='spares'?'spares':'listed';
   const isSold=(i.dateSold||i.resaleSalePrice)&&!i.isReturned;
   const isUnsold=!i.dateSold&&!i.resaleSalePrice&&!i.isReturned;
 
@@ -19700,7 +19730,7 @@ function selectAllStockVisible(){
   const today=new Date().toISOString().split('T')[0];
   let allListed=[];
   allDBKeys().forEach(k=>(DB[k]||[]).forEach(i=>{
-    if(!i.dateSold&&!i.isReturned&&!i.resaleSalePrice)allListed.push({...i,month:k});
+    if(!i.dateSold&&!i.isReturned&&!i.resaleSalePrice&&!i.scrappedAt)allListed.push({...i,month:k});
   }));
   let items=allListed;
   // E3 P2 #10 — Guard against items missing dateListed. Without dateListed,
@@ -20132,7 +20162,7 @@ function renderStock(){
     if((i.item||'').trim().toUpperCase()==='MONTH END')return;
     if(i.state==='sourced'){
       allStock.push({...i,month:k});
-    } else if(!i.dateSold && !i.isReturned && !i.resaleSalePrice){
+    } else if(!i.dateSold && !i.isReturned && !i.resaleSalePrice && !i.scrappedAt){
       allListed.push({...i,month:k});
     }
   }));
@@ -20724,7 +20754,7 @@ function _cashStockTied(){
     (DB[k]||[]).forEach(function(i){
       if(!i)return;
       if((i.item||'').trim().toUpperCase()==='MONTH END')return;
-      const onHand = (i.state==='sourced') || (!i.dateSold && !i.isReturned && !i.resaleSalePrice);
+      const onHand = (i.state==='sourced') || (!i.dateSold && !i.isReturned && !i.resaleSalePrice && !i.scrappedAt);
       if(!onHand)return;
       c += (typeof calcPartsCost==='function'?(Number(calcPartsCost(i))||0):0); // parts: his cash regardless
       const paid = (!i.accountId) || (i.accountSettled===true);
@@ -20960,6 +20990,134 @@ function _returnTypeMeta(t){
   if(t==='partial_ebay')  return{label:'Partial refund · eBay',cls:'partial'};
   return{label:t||'Return',cls:'partial'};
 }
+// ── SCRAP / WRITE-OFF ───────────────────────────────────────────────────────
+// A returned item Oskar won't relist gets a terminal 'scrapped' flag. Its buy
+// cost was already booked as COGS when the original sale it came back from was
+// recorded (SA103 Box 17, at the sale month), so scrapping re-books NOTHING —
+// it only writes scrappedAt/scrapReason and strips any phantom resale postage.
+// Tax-neutral by construction (proven: phase0_scrap_test.js). Reason 'joblot'
+// pre-stages the job-lot merge (built separately).
+function _canScrap(i){
+  if(!i||i.scrappedAt)return false;
+  if(i.dateSold||i.resaleSalePrice)return false;
+  return (i.returnHistory||[]).some(function(r){return r.type==='full_seller'||r.type==='full_ebay';});
+}
+function openScrapModal(m,id){
+  const i=(DB[m]||[]).find(function(x){return x.id===id;});
+  if(!i)return;
+  const cost=(Number(i.costPrice)||0)+((typeof calcPartsCost==='function')?(Number(calcPartsCost(i))||0):0);
+  const html=''
+    +'<div class="item-full-section" style="margin-bottom:16px">'
+      +'<div class="item-full-section-title">Item</div>'
+      +'<div style="font-weight:600;font-size:15px">'+esc(i.item||'Untitled')+'</div>'
+      +'<div style="font-size:13px;color:var(--muted);margin-top:4px">Written-off capital: '+fmt(cost)+' \u00b7 already returned</div>'
+    +'</div>'
+    +'<div class="fg"><label>What are you doing with it?</label>'
+      +'<select id="scrap-reason">'
+        +'<option value="recycle">Recycle / bin it \u2014 gone for good</option>'
+        +'<option value="joblot">Set aside for a job lot</option>'
+        +'<option value="scrap">Keep for spares / other</option>'
+      +'</select></div>'
+    +'<div class="fg"><label>Note (optional)</label><input id="scrap-note" type="text" placeholder="e.g. faulty, not worth relisting"></div>'
+    +'<div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px 12px;font-size:12.5px;color:var(--text-secondary);line-height:1.5;margin-bottom:14px">'
+      +'Terminal state \u2014 the item leaves your active stock and lands on the Scrapped page. Its cost was already booked when the sale it came back from was recorded, so scrapping doesn\u2019t change your tax figures.</div>'
+    +'<div style="display:flex;gap:8px">'
+      +'<button class="btn btn-primary" style="flex:1" onclick="confirmScrap(\''+m+'\',\''+id+'\')">Scrap item</button>'
+      +'<button class="btn btn-secondary" onclick="closePanel()">Cancel</button>'
+    +'</div>';
+  openPanel('Scrap item',html);
+}
+function confirmScrap(m,id){
+  const i=(DB[m]||[]).find(function(x){return x.id===id;});
+  if(!i)return;
+  const reasonEl=document.getElementById('scrap-reason');
+  const noteEl=document.getElementById('scrap-note');
+  i.scrapReason=(reasonEl&&reasonEl.value)||'recycle';
+  const _note=((noteEl&&noteEl.value)||'').trim();
+  if(_note)i.scrapNote=_note; else delete i.scrapNote;
+  i.scrappedAt=new Date().toISOString();
+  // Strip phantom Sale-2 economics — a never-resold item must not carry resale figures.
+  i.resalePostage=null;i.resaleShippingCost=null;i.resalePackagingCost=null;i.resalePromoPercent=null;
+  saveDB();
+  closePanel();
+  toast('Item scrapped');
+  const cur=document.querySelector('.page.on');
+  if(cur&&cur.id==='p-item'){renderItemPage(m,id);return;}
+  if(cur&&cur.id==='p-scrapped'&&typeof renderScrapped==='function'){renderScrapped();return;}
+  if(cur&&cur.id==='p-stock'&&typeof renderStock==='function')renderStock();
+}
+function unScrap(m,id){
+  const i=(DB[m]||[]).find(function(x){return x.id===id;});
+  if(!i)return;
+  delete i.scrappedAt;delete i.scrapReason;delete i.scrapNote;
+  saveDB();
+  toast('Item restored to stock');
+  const cur=document.querySelector('.page.on');
+  if(cur&&cur.id==='p-item'){renderItemPage(m,id);return;}
+  if(cur&&cur.id==='p-scrapped'&&typeof renderScrapped==='function'){renderScrapped();return;}
+  if(cur&&cur.id==='p-stock'&&typeof renderStock==='function')renderStock();
+}
+function _scrappedItems(){
+  const out=[];
+  (typeof allDBKeys==='function'?allDBKeys():[]).forEach(function(k){
+    (DB[k]||[]).forEach(function(i){
+      if(i&&i.scrappedAt&&(i.item||'').trim().toUpperCase()!=='MONTH END')out.push({m:k,item:i});
+    });
+  });
+  out.sort(function(a,b){return String(b.item.scrappedAt||'').localeCompare(String(a.item.scrappedAt||''));});
+  return out;
+}
+function renderScrapped(){
+  const el=document.getElementById('p-scrapped');if(!el)return;
+  const rows=_scrappedItems();
+  let writtenOff=0;const byReason={recycle:0,joblot:0,scrap:0};
+  rows.forEach(function(r){
+    writtenOff+=(Number(r.item.costPrice)||0)+((typeof calcPartsCost==='function')?(Number(calcPartsCost(r.item))||0):0);
+    const rk=(r.item.scrapReason||'scrap');byReason[rk]=(byReason[rk]||0)+1;
+  });
+  const kpi=function(label,val,foot,col){
+    return '<div class="card kpi"><div class="kpi-label">'+esc(label)+'</div>'
+      +'<div class="kpi-value num"'+(col?' style="color:'+col+'"':'')+'>'+val+'</div>'
+      +(foot?'<div class="kpi-foot">'+foot+'</div>':'')+'</div>';
+  };
+  const _reasonLabel={recycle:'Recycled',joblot:'Job lot',scrap:'Spares/other'};
+  let html=''
+    +'<div class="page-header"><div>'
+      +'<div class="page-title">Scrapped</div>'
+      +'<div class="page-subtitle">Returned items you won\u2019t relist \u2014 written off or set aside. Their cost was already booked at the original sale.</div>'
+    +'</div></div>';
+  html+='<div class="kgrid" style="margin-bottom:16px;">'
+    +kpi('Items scrapped',String(rows.length),(byReason.recycle||0)+' recycled \u00b7 '+(byReason.joblot||0)+' job-lot \u00b7 '+(byReason.scrap||0)+' spares')
+    +kpi('Written-off capital',fmt(writtenOff),'Cost of goods that never resold',writtenOff>0?'var(--warn)':'')
+  +'</div>';
+  if(!rows.length){
+    html+='<div class="card" style="padding:20px;text-align:center;color:var(--text-secondary);line-height:1.5;">Nothing scrapped. When you scrap a returned item it\u2019ll show here.</div>';
+  }else{
+    html+='<div class="section-card" style="padding:0;overflow:hidden;">';
+    rows.forEach(function(r){
+      const i=r.item;
+      const c=(Number(i.costPrice)||0)+((typeof calcPartsCost==='function')?(Number(calcPartsCost(i))||0):0);
+      const when=String(i.scrappedAt||'').slice(0,10);
+      html+='<div style="display:flex;align-items:center;gap:12px;padding:12px 14px;border-bottom:1px solid var(--border);cursor:pointer;" onclick="openItemPage(\''+r.m+'\',\''+i.id+'\',\'p-scrapped\')">'
+        +'<div style="flex:1;min-width:0;">'
+          +'<div style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(i.item||'Untitled')+'</div>'
+          +'<div style="font-size:12px;color:var(--text-secondary);margin-top:2px;">'
+            +'<span style="color:var(--muted);font-weight:600;">'+esc(_reasonLabel[i.scrapReason]||'Scrapped')+'</span>'
+            +' \u00b7 '+esc(when||'\u2014')
+            +(i.scrapNote?' \u00b7 '+esc(i.scrapNote):'')
+          +'</div>'
+        +'</div>'
+        +'<div style="text-align:right;flex-shrink:0;">'
+          +'<div class="num" style="font-weight:700;color:var(--warn);">\u2212'+fmt(c)+'</div>'
+          +'<div style="font-size:11px;color:var(--muted);">written off</div>'
+        +'</div>'
+      +'</div>';
+    });
+    html+='</div>';
+  }
+  el.innerHTML=html;
+}
+
 function renderReturns(){
   const el=document.getElementById('p-returns');if(!el)return;
   // Flatten every return entry across all items
@@ -22178,7 +22336,7 @@ function _runIntegrityScanner(){
       if((i.costPrice||0)<0)
         itemFindings.push({severity:'error',code:'neg-cost',label:'Negative cost price',desc:'Cost price is a negative number ('+fmt(i.costPrice)+'). This is almost certainly a data entry error and will inflate profit figures.'});
 
-      if(i.state!=='sourced'&&!i.dateSold&&!i.isReturned&&!i.resaleSalePrice&&!i.dateListed)
+      if(i.state!=='sourced'&&!i.dateSold&&!i.isReturned&&!i.resaleSalePrice&&!i.scrappedAt&&!i.dateListed)
         itemFindings.push({severity:'error',code:'listed-no-date',label:'Listed but no list date',desc:'Active listing has no listing date. The aging bar, age filters, and "days listed" counter all depend on this.'});
 
       if(i.state==='sourced'&&!i.dateSourced)
@@ -23559,6 +23717,7 @@ function duplicateItem(m,id,context){
   _stampListingFee(copy);
   copy.accountSettled=false; // new item = new debt to the partner
   copy.returnHistory=[];delete copy.returnData;
+  delete copy.scrappedAt;delete copy.scrapReason;delete copy.scrapNote; // v2.21.36 — a clone is a fresh live listing, never born scrapped
   const stripSuffix=function(name){
     const m2=(name||'').match(/^(.+?) - (\d+)$/);
     return m2?m2[1]:(name||'');
@@ -24793,7 +24952,7 @@ function calcYearlyStats(period){
         const _gp=calcGrossProfit(i);
         if(_gp!==null){catMap[cat].profitSum+=_gp;}
         catMap[cat].revSum+=calcItemRevenue(i);
-      } else if(!i.dateSold&&!i.isReturned&&!i.resaleSalePrice){
+      } else if(!i.dateSold&&!i.isReturned&&!i.resaleSalePrice&&!i.scrappedAt){
         const d=daysBetween(i.dateListed,today3);
         if(d>=90)catMap[cat].stale++;
       }
@@ -25268,7 +25427,7 @@ function _unsoldStockCostInRange(from,to){
     (DB[k]||[]).forEach(function(i){
       if((i.item||'').trim().toUpperCase()==='MONTH END')return;
       // Skip anything that's sold, resold or currently returned-and-refunded
-      if(i.dateSold||i.resaleSalePrice||i.isReturned)return;
+      if(i.dateSold||i.resaleSalePrice||i.isReturned||i.scrappedAt)return;
       // Only items still in an active pre-sale state
       const st=i.state||'listed';
       if(st!=='sourced'&&st!=='listed')return;
@@ -25993,7 +26152,7 @@ function calcMonthStatsBySale(m){
           refundCount,partialCount,  // legacy aliases
           // Active stock for this listing month (kept so the grid card can show
           // "X sold · Y active" without a second call):
-          listedCount:(DB[m]||[]).filter(function(i){return !i.dateSold&&!i.isReturned&&!i.resaleSalePrice&&((i.item||'').trim().toUpperCase()!=='MONTH END');}).length};
+          listedCount:(DB[m]||[]).filter(function(i){return !i.dateSold&&!i.isReturned&&!i.resaleSalePrice&&!i.scrappedAt&&((i.item||'').trim().toUpperCase()!=='MONTH END');}).length};
 }
 
 // eBay UK BPF: iterative solve matches spreadsheet values exactly
@@ -26478,7 +26637,7 @@ function calcEstProfit(i){
 }
 
 function calcROI(i){
-  if(!i.dateSold&&!i.isReturned&&!i.resaleSalePrice)return null;
+  if(!i.dateSold&&!i.isReturned&&!i.resaleSalePrice&&!i.scrappedAt)return null;
   // ROI denominator = capital actually outlaid to acquire and prep the item.
   // eBay fees (BPF) and promo fees are deductions from revenue, not investments —
   // they do not belong in the denominator. This keeps ROI honest:
@@ -26499,7 +26658,7 @@ function calcROI(i){
 // the same net profit used everywhere else (calcGrossProfit). Mirrors
 // calcROI's null-guards: returns null until the item has actually sold.
 function calcMargin(i){
-  if(!i.dateSold&&!i.isReturned&&!i.resaleSalePrice)return null;
+  if(!i.dateSold&&!i.isReturned&&!i.resaleSalePrice&&!i.scrappedAt)return null;
   const rev=calcItemRevenue(i);
   if(!rev||rev<=0)return null;
   const profit=calcGrossProfit(i);
@@ -26823,6 +26982,7 @@ window.addEventListener('load',function(){
         else if(id==='p-expenses'&&typeof renderExpenses==='function')renderExpenses();
         else if(id==='p-cash'&&typeof renderCash==='function')renderCash();
         else if(id==='p-returns'&&typeof renderReturns==='function')renderReturns();
+  else if(id==='p-scrapped'&&typeof renderScrapped==='function')renderScrapped();
         else if(id==='p-runs'&&typeof renderRunsPage==='function')renderRunsPage();
       },150);
     }
