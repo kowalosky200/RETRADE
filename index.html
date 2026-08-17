@@ -20310,7 +20310,7 @@ function renderStock(){
 
   // Value KPI: sourced items contribute cost; listed items contribute asking price
   let totalValue=0;
-  pop.forEach(i=>{ if(i.state==='sourced')totalValue+=(i.costPrice||0); else totalValue+=(i.salePrice||0); });
+  pop.forEach(i=>{ if(i.state==='sourced'||i.isReturned)totalValue+=(i.costPrice||0); else totalValue+=(i.salePrice||0); }); // returned-and-back valued at COST (matches _cashStockTied)
   const potentialProfit=pop.reduce((s,i)=>s+(calcEstProfit(i)||0),0);
   const avgAsking=allListed.length?(allListed.reduce((s,i)=>s+(i.salePrice||0),0)/allListed.length):0;
 
@@ -20745,7 +20745,9 @@ function _cashStockTied(){
     (DB[k]||[]).forEach(function(i){
       if(!i)return;
       if((i.item||'').trim().toUpperCase()==='MONTH END')return;
-      const onHand = (i.state==='sourced') || (!i.dateSold && !i.isReturned && !i.resaleSalePrice && !i.scrappedAt);
+      // On-hand = anything unsold you still hold: sourced, listed, OR returned-and-back.
+      // (Excludes scrapped/donated even if state==='sourced' — the old sourced branch leaked those.)
+      const onHand = !i.dateSold && !i.resaleSalePrice && !i.scrappedAt;
       if(!onHand)return;
       c += (typeof calcPartsCost==='function'?(Number(calcPartsCost(i))||0):0); // parts: his cash regardless
       const paid = (!i.accountId) || (i.accountSettled===true);
