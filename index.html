@@ -5207,6 +5207,10 @@ c-230 453 -565 1105 -674 1315 -63 120 -114 221 -114 225 0 4 47 19 104 34
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/></svg>
             <span>Returns</span>
           </button>
+          <button data-tab="scrapped" onclick="goToTab('scrapped',this);closeNavMore()">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18l-1.5 14a2 2 0 0 1-2 2H6.5a2 2 0 0 1-2-2L3 6z"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+            <span>Scrapped/Donated</span>
+          </button>
           <button data-tab="tax" onclick="goToTab('tax',this);closeNavMore()">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="15" x2="15" y2="9"/><circle cx="9.5" cy="9.5" r="1" fill="currentColor" stroke="none"/><circle cx="14.5" cy="14.5" r="1" fill="currentColor" stroke="none"/></svg>
             <span>Tax / SA103</span>
@@ -5400,6 +5404,10 @@ c-230 453 -565 1105 -674 1315 -63 120 -114 221 -114 225 0 4 47 19 104 34
     <button onclick="closeMoreSheet();goToTab('returns',document.querySelector('[data-tab=\'returns\']'))" class="more-sheet-row" data-sheet-tab="returns">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/></svg>
       <span>Returns</span>
+    </button>
+    <button onclick="closeMoreSheet();goToTab('scrapped',document.querySelector('[data-tab=\'scrapped\']'))" class="more-sheet-row" data-sheet-tab="scrapped">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18l-1.5 14a2 2 0 0 1-2 2H6.5a2 2 0 0 1-2-2L3 6z"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+      <span>Scrapped/Donated</span>
     </button>
     <button onclick="closeMoreSheet();goToTab('tax',document.querySelector('[data-tab=\'tax\']'))" class="more-sheet-row" data-sheet-tab="tax">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="15" x2="15" y2="9"/><circle cx="9.5" cy="9.5" r="1" fill="currentColor" stroke="none"/><circle cx="14.5" cy="14.5" r="1" fill="currentColor" stroke="none"/></svg>
@@ -5649,6 +5657,10 @@ c-230 453 -565 1105 -674 1315 -63 120 -114 221 -114 225 0 4 47 19 104 34
       <span class="side-nav-item-ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/></svg></span>
       <span class="side-nav-item-label">Returns</span>
     </button>
+    <button class="side-nav-item" data-tab="scrapped" onclick="goToTab('scrapped',this)">
+      <span class="side-nav-item-ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18l-1.5 14a2 2 0 0 1-2 2H6.5a2 2 0 0 1-2-2L3 6z"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg></span>
+      <span class="side-nav-item-label">Scrapped/Donated</span>
+    </button>
     <button class="side-nav-item" data-tab="data" onclick="goToTab('data',this)">
       <span class="side-nav-item-ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v4c0 1.66 4 3 9 3s9-1.34 9-3V5"/><path d="M3 9v5c0 1.66 4 3 9 3s9-1.34 9-3V9"/><path d="M3 14v5c0 1.66 4 3 9 3s9-1.34 9-3v-5"/></svg></span>
       <span class="side-nav-item-label">Data</span>
@@ -5746,6 +5758,7 @@ c-230 453 -565 1105 -674 1315 -63 120 -114 221 -114 225 0 4 47 19 104 34
 <div class="page" id="p-expenses"></div>
 <div class="page" id="p-cash"></div>
 <div class="page" id="p-returns"></div>
+<div class="page" id="p-scrapped"></div>
 <div class="page" id="p-accounts"></div>
 <div class="page" id="p-tax"></div>
 <div class="page" id="p-data"></div>
@@ -9103,7 +9116,7 @@ async function initDB(){
     const _freshSession = !_isSameSession();
     const _lastTab = (() => { if(_freshSession) return 'summary';
       try{ return localStorage.getItem(_SK.tab) || 'summary'; }catch(e){ return 'summary'; } })();
-    const _safeTab = ['summary','monthly','stock','expenses','cash','returns','tax','data','runs'].includes(_lastTab) ? _lastTab : 'summary';
+    const _safeTab = ['summary','monthly','stock','expenses','cash','returns','scrapped','tax','data','runs'].includes(_lastTab) ? _lastTab : 'summary';
     showLoadingScreen('Loading your data…', _safeTab);
     await Promise.race([
       loadFromSupabase(),
@@ -9463,7 +9476,7 @@ function _bootSkeletonHTML(tab){
   // rt-skel-<tab> is what lets the ID-scoped page rules reach this element --
   // see the .rt-skel-summary note in the CSS. Emitted for every tab so a future
   // ID rule on any page has a selector waiting for it.
-  const _t = ['summary','monthly','stock','expenses','cash','returns','tax','data','runs'].includes(tab) ? tab : 'summary';
+  const _t = ['summary','monthly','stock','expenses','cash','returns','scrapped','tax','data','runs'].includes(tab) ? tab : 'summary';
   return '<div class="page rt-skel rt-skel-' + _t + '">' + body
     + '<div style="text-align:center;margin-top:20px;font-size:13px;color:var(--text-secondary);" id="app-loading-msg"></div>'
     + '</div>';
@@ -9567,7 +9580,9 @@ function refreshActivePage(){
       if(_acct && typeof _renderAccountPage==='function')_renderAccountPage(_acct);
     }catch(e){/* stay silent — item detail still safely skipped */}
   }
-  // p-search intentionally skipped
+  // Search results are live too — re-run the last query so a sale/return/scrap
+  // updates the item's status in the results immediately (v2.21.43).
+  else if(id==='p-search'&&typeof renderSearchResults==='function'){ if(typeof _lastSearchQuery!=='undefined'&&_lastSearchQuery)renderSearchResults(_lastSearchQuery); }
 }
 
 // BUYER PROTECTION FEE (Tiered eBay UK formula)
@@ -9713,7 +9728,7 @@ function _loadUIState(){try{
   // than resuming stale page/filter state. Collapsed-group state is harmless to
   // restore either way, but we skip it too for a fully clean start.
   if(!_isSameSession())return;
-  const sf=localStorage.getItem(_SK.stockF);const ssf=localStorage.getItem(_SK.stockSF);const sso=localStorage.getItem(_SK.stockSo);const ssof=localStorage.getItem(_SK.stockSoF);const sgr=localStorage.getItem(_SK.stockGr);const sc=localStorage.getItem(_SK.stkCol);const rs=localStorage.getItem(_SK.runsSort);const sp=localStorage.getItem(_SK.sumPer);const mv=localStorage.getItem(_SK.monthV);if(sf)STOCK_FILTER=sf;if(ssf)STOCK_STATE_FILTER=ssf;if(sso)STOCK_SORT=sso;if(ssof)STOCK_SOURCED_FILTER=ssof;if(sgr)STOCK_GROUPED=sgr==='1';if(sc){try{STOCK_COLLAPSED=new Set(JSON.parse(sc));}catch(e){}}if(rs)RUNS_SORT=rs;if(sp)SUMMARY_PERIOD=sp;if(mv)MONTHLY_VIEW=mv;}catch(e){}}
+  const sf=localStorage.getItem(_SK.stockF);const ssf=localStorage.getItem(_SK.stockSF);const sso=localStorage.getItem(_SK.stockSo);const ssof=localStorage.getItem(_SK.stockSoF);const sgr=localStorage.getItem(_SK.stockGr);const sc=localStorage.getItem(_SK.stkCol);const rs=localStorage.getItem(_SK.runsSort);const sp=localStorage.getItem(_SK.sumPer);const mv=localStorage.getItem(_SK.monthV);if(sf)STOCK_FILTER=sf;if(ssf)STOCK_STATE_FILTER=(ssf==='removed'?'listed':ssf);if(sso)STOCK_SORT=sso;if(ssof)STOCK_SOURCED_FILTER=ssof;if(sgr)STOCK_GROUPED=sgr==='1';if(sc){try{STOCK_COLLAPSED=new Set(JSON.parse(sc));}catch(e){}}if(rs)RUNS_SORT=rs;if(sp)SUMMARY_PERIOD=sp;if(mv)MONTHLY_VIEW=mv;}catch(e){}}
 function _saveTabScroll(){const a=document.querySelector('.page.on');if(a)_scrollMap[a.id.replace('p-','')]=window.scrollY||window.pageYOffset||0;}
 function _restoreTabScroll(tab){const y=_scrollMap[tab];if(y)requestAnimationFrame(function(){requestAnimationFrame(function(){window.scrollTo(0,y);});});}
 
@@ -19306,7 +19321,7 @@ function renderItemRow(m,i){
   const profit=calcGrossProfit(i);
   const roi=calcROI(i);
   const margin=calcMargin(i);
-  const isRelisted=i.isReturned&&(i.returnHistory||[]).some(r=>r.type==='full_seller'||r.type==='full_ebay')&&!i.resaleSalePrice&&!!i.salePrice;
+  const isRelisted=!i.isReturned&&!i.dateSold&&!i.resaleSalePrice&&(i.returnHistory||[]).some(r=>r.type==='full_seller'||r.type==='full_ebay'); // relist clears isReturned; a returned-and-back item stays 'returned', not 'relisted'
   const badgeClass=isRelisted?'relisted':status;
   const badgeLabel=isRelisted?'relisted':status;
   // Stale uses original daysListed so an item can't dodge the stale flag by being relisted
@@ -20166,7 +20181,7 @@ function renderStock(){
   const cAllListed=allListed.length, cAllStock=allStock.length, cAllRemoved=allRemoved.length;
   // Shared 3-way segment control (Listed / Sourced / Scrapped-Donated).
   const _stockSeg=(function(){
-    const bk=[{key:'listed',label:'Listed',count:cAllListed},{key:'sourced',label:'Sourced',count:cAllStock},{key:'removed',label:'Scrapped/Donated',count:cAllRemoved}];
+    const bk=[{key:'listed',label:'Listed',count:cAllListed},{key:'sourced',label:'Sourced',count:cAllStock}];
     return '<div class="segmented stock-state-seg">'+bk.map(function(b){return '<button class="'+(STOCK_STATE_FILTER===b.key?'is-active':'')+'" onclick="setStockStateFilter(\''+b.key+'\')">'+b.label+'<span class="count">'+b.count+'</span></button>';}).join('')+'</div>';
   })();
   if(isRemovedOnly){
@@ -20214,7 +20229,7 @@ function renderStock(){
     if(STOCK_SORT==='price')return(b.salePrice||0)-(a.salePrice||0);
     if(STOCK_SORT==='cost-desc')return(b.costPrice||0)-(a.costPrice||0); // highest cost first
     // day sorts — use dateListed if present, else dateSourced (sourced items)
-    const aDate=a.dateListed||a.dateSourced, bDate=b.dateListed||b.dateSourced;
+    const aDate=_effectiveListDate(a)||a.dateSourced, bDate=_effectiveListDate(b)||b.dateSourced; // relisted items reset the clock (v2.21.43)
     if(STOCK_SORT==='days-asc')return daysBetween(aDate,today)>daysBetween(bDate,today)?1:-1;
     return daysBetween(aDate,today)<daysBetween(bDate,today)?1:-1; // days-desc / legacy
   };
@@ -20992,10 +21007,10 @@ function _returnTypeMeta(t){
 // pre-stages the job-lot merge (built separately).
 function _canScrap(i){
   if(!i||i.scrappedAt)return false;
-  if(i.dateSold||i.resaleSalePrice)return false;
   if((i.item||'').trim().toUpperCase()==='MONTH END')return false;
-  // Any live unsold item can be removed from stock — sourced, listed, or returned-and-back.
-  return i.state==='sourced'||i.state==='listed'||i.isReturned;
+  // Removable unless it's currently sold/resold AND not back in your hands. isReturned always
+  // wins (a returned item is on hand regardless of prior sale/resale or an odd leftover state).
+  return !((i.dateSold||i.resaleSalePrice)&&!i.isReturned);
 }
 function openScrapModal(m,id){
   const i=(DB[m]||[]).find(function(x){return x.id===id;});
@@ -21081,8 +21096,9 @@ function _removedBodyHTML(rows, origin){
   };
   const _reasonLabel={scrapped:'Scrapped',donated:'Donated',recycled:'Recycled',other:'Other'};
   let html='<div class="kgrid" style="margin-bottom:16px;">'
-    +kpi('Capital scrapped',fmt(capScrapped),((byReason.scrapped||0)+(byReason.recycled||0)+(byReason.other||0))+' item(s) \u00b7 faulty / binned / recycled',capScrapped>0?'var(--warn)':'')
-    +kpi('Capital donated',fmt(capDonated),(byReason.donated||0)+' item(s) given away',capDonated>0?'var(--accent)':'')
+    +kpi('Total off the books',fmt(capScrapped+capDonated),rows.length+' item(s) removed',(capScrapped+capDonated)>0?'var(--text)':'')
+    +kpi('Capital scrapped',fmt(capScrapped),((byReason.scrapped||0)+(byReason.recycled||0)+(byReason.other||0))+' faulty / binned / recycled',capScrapped>0?'var(--warn)':'')
+    +kpi('Capital donated',fmt(capDonated),(byReason.donated||0)+' given away',capDonated>0?'var(--accent)':'')
   +'</div>';
   if(!rows.length){
     html+='<div class="card" style="padding:20px;text-align:center;color:var(--text-secondary);line-height:1.5;">Nothing removed yet. When you scrap or donate an item it\u2019ll show here.</div>';
@@ -21245,7 +21261,7 @@ function renderReturns(){
       const badgeCol=x.isFull?'var(--red)':'var(--accent)';
       // A partial refund leaves the item WITH the buyer — the sale stands, it was never returned/relisted.
       // Only full refunds bring the item back, so the returned/resold/relisted disposition applies to those.
-      let disp = !x.isFull?'Kept (sold)':(x.item.isReturned?'In stock (returned)':(x.item.resaleSalePrice?'Resold':'Relisted'));
+      let disp = x.item.scrappedAt?(x.item.scrapReason==='donated'?'Donated':'Scrapped'):(!x.isFull?'Kept (sold)':(x.item.isReturned?'In stock (returned)':(x.item.resaleSalePrice?'Resold':'Relisted')));
       html+='<div style="display:flex;align-items:center;gap:12px;padding:12px 14px;border-bottom:1px solid var(--border);cursor:pointer;" onclick="openItemPage(\''+x.m+'\',\''+x.id+'\',\'p-returns\')">'
         +'<div style="flex:1;min-width:0;">'
           +'<div style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(x.name)+'</div>'
