@@ -18972,8 +18972,9 @@ function renderMonth(){
 
     <div class="sales-kpis-v2">
       <div class="card kpi">
-        <div class="kpi-label">Revenue</div>
+        <div class="kpi-label">Revenue${stats.returnsAmt>0?' (net)':''}</div>
         <div class="kpi-value num">${fmtK(stats.totalRev)}</div>
+        ${stats.returnsAmt>0?`<div class="kpi-foot" style="color:var(--warn)">${fmt(stats.grossRev)} gross − ${fmt(stats.returnsAmt)} returns</div>`:''}
         <div class="kpi-foot">${stats.soldCount} sale${stats.soldCount!==1?'s':''}${stats.returnedCount>0?' · '+stats.returnedCount+' returned':''}</div>
       </div>
       <div class="card kpi kpi-realised">
@@ -19277,9 +19278,9 @@ function renderItemRow(m,i){
       '<button class="ddbtn" onclick="event.stopPropagation();toggleDD(\'dd-'+i.id+'\')" title="Actions">\u22ee</button>'+
       '<div class="ddmenu">'+
         '<button onclick="event.stopPropagation();toggleDD(\'dd-'+i.id+'\');openListFromSourced(\''+m+'\',\''+i.id+'\')" style="color:var(--accent);font-weight:600;">'+icon('list',14)+' List Item</button>'+
-        '<button onclick="event.stopPropagation();openItemPage(\''+m+'\',\''+i.id+'\',document.querySelector(\'.page.on\').id)">'+icon('fullpage',14)+' Full page</button>'+
         '<button onclick="event.stopPropagation();editItem(\''+m+'\',\''+i.id+'\')">'+icon('edit',14)+' Edit</button>'+
         '<button onclick="event.stopPropagation();confirmDupeItem(\''+m+'\',\''+i.id+'\')">'+icon('dupe',14)+' Duplicate</button>'+
+        (_canScrap(i)?'<button onclick="event.stopPropagation();toggleDD(\'dd-'+i.id+'\');openScrapModal(\''+m+'\',\''+i.id+'\')" style="color:var(--warn)">'+icon('box',14)+' Remove</button>':'')+
         '<button class="danger" onclick="event.stopPropagation();deleteItem(\''+m+'\',\''+i.id+'\')">'+icon('trash',14)+' Delete</button>'+
       '</div></div>';
     const photoHTML=i.photo?'<div class="stock-row-thumb" style="width:38px;height:38px;border-radius:6px;background:#0007 center/cover no-repeat url(\''+i.photo+'\');flex-shrink:0;border:1px solid var(--border);"></div>':'';
@@ -26249,7 +26250,7 @@ function downloadRangeExcel(from,to){
 //   refundedSalesRev  Sum of revenue from sale events in m that had any refund
 function calcMonthStatsBySale(m){
   const events=getSaleEventsInMonth(m);
-  let totalRev=0,realisedProfit=0,soldCount=0,eventCount=0,returnedCount=0;
+  let totalRev=0,realisedProfit=0,soldCount=0,eventCount=0,returnedCount=0,grossRev=0,returnsAmt=0;
   let roiSum=0,roiCount=0,daysSum=0,daysCount=0;
   let marginSum=0,marginCount=0;
   events.forEach(function(e){
@@ -26257,6 +26258,7 @@ function calcMonthStatsBySale(m){
     // Return adjustments are negative cash events in their logged month.
     const _evRev=e.isReturnAdjustment?(e.salePrice||0):((e.isReturned&&e.sale==='1'&&e.item.resaleSalePrice)?0:(e.salePrice||0));
     totalRev+=_evRev;
+    if(_evRev>0)grossRev+=_evRev; else if(_evRev<0)returnsAmt+=(-_evRev); // v2.21.46 — gross vs returns split
     realisedProfit+=e.profit||0;
     if(e.isReturnAdjustment){
       returnedCount++;
@@ -26306,7 +26308,7 @@ function calcMonthStatsBySale(m){
   // Turnover cannot be negative: refund adjustments reduce it but the loss is
   // carried on profit, not shown as negative sales. (v2.13.0)
   if(totalRev<0)totalRev=0;
-  return {totalRev:+totalRev.toFixed(2),realisedProfit:grossProfit,grossProfit,netProfit,
+  return {totalRev:+totalRev.toFixed(2),grossRev:+grossRev.toFixed(2),returnsAmt:+returnsAmt.toFixed(2),realisedProfit:grossProfit,grossProfit,netProfit,
           tripsCost:+tripsCost.toFixed(2),expensesCost:+expensesCost.toFixed(2),overheads,
           soldCount,eventCount,returnedCount,avgROI,avgMargin,avgDays,
           fullRefundCount,partialOnlyCount,refundedItemCount,refundDenom,refundItemRate,
@@ -26643,7 +26645,7 @@ function calcGrossProfit(i){
     const _outbound=_sellerShips?(_s1Ship+_s1Pkg+_s2Ship+_s2Pkg):0;
     const _retPost=_fullRets.reduce(function(s,r){return s+(r.returnPostage||0);},0);
     const _listing=(i.listingFee||0)+(i.resaleListingFee||0);
-    const _sunk=(i.costPrice||0)+calcPartsCost(i)+_outbound+_retPost+_listing;
+    const _sunk=(i.resaleSalePrice?((i.costPrice||0)+calcPartsCost(i)):0)+_outbound+_retPost+_listing; // v2.21.45 — returned-not-resold: cost is recoverable stock, not a loss
     return +(-_sunk).toFixed(2);
   }
   // Partial refund handling for fees:
@@ -26717,7 +26719,12 @@ function calcGrossProfit(i){
   // rather than inside the resale branch below so a relisted-but-unsold item
   // still carries the fee it has already been charged.
   const listingFee=(i.listingFee||0)+(i.resaleListingFee||0);
-  const cost=(i.costPrice||0)+(_sellerPaysShipping?_s1Shipping:0)+(_sellerPaysShipping?_s1Packaging:0)+promoCost+returnCost+partsCost+listingFee;
+  // v2.21.45 — a fully-returned item that hasn't been resold is BACK IN STOCK: its cost
+  // (buy + parts) is recoverable capital, not a realised loss. Only the sunk selling costs
+  // (shipping/pkg/promo/return/fees/listing) count. Resold items keep the cost (consumed by
+  // the resale, v2.21.16). Display-only — calcGrossProfit does NOT feed SA103.
+  const _backInStock=!i.resaleSalePrice&&(i.returnHistory||[]).some(function(r){return r.type==='full_seller'||r.type==='full_ebay';});
+  const cost=(_backInStock?0:(i.costPrice||0))+(_sellerPaysShipping?_s1Shipping:0)+(_sellerPaysShipping?_s1Packaging:0)+promoCost+returnCost+(_backInStock?0:partsCost)+listingFee;
   let profit=rev-cost;
   // Second sale (resold after return)
   if(i.resaleSalePrice){
