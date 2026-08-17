@@ -495,6 +495,7 @@ nav:not(#bottom-nav){position:sticky;top:env(safe-area-inset-top,0px);z-index:20
 /* Patch A — stock state badge: amber/orange = pre-listing, not yet active. */
 .item-badge.sourced{background:var(--accent-dim);color:var(--accent);border:1px solid rgba(212,136,10,0.22);}
 .item-badge.scrapped{background:var(--surface2);color:var(--muted);border:1px dashed var(--border);}
+.item-badge.donated{background:var(--accent-dim);color:var(--accent);border:1px dashed rgba(212,136,10,0.3);}
 .chip.chip-state-sourced.active{background:var(--accent-dim);color:var(--accent);border-color:rgba(212,136,10,0.35);}
 .chip.chip-state-listed.active{background:rgba(96,165,250,0.13);color:var(--blue);border-color:rgba(96,165,250,0.35);}
 .chip.chip-state-all.active{background:var(--surface2);color:var(--text);border-color:var(--border);}
@@ -5206,10 +5207,6 @@ c-230 453 -565 1105 -674 1315 -63 120 -114 221 -114 225 0 4 47 19 104 34
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/></svg>
             <span>Returns</span>
           </button>
-          <button data-tab="scrapped" onclick="goToTab('scrapped',this);closeNavMore()">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18l-1.5 14a2 2 0 0 1-2 2H6.5a2 2 0 0 1-2-2L3 6z"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
-            <span>Scrapped</span>
-          </button>
           <button data-tab="tax" onclick="goToTab('tax',this);closeNavMore()">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="15" x2="15" y2="9"/><circle cx="9.5" cy="9.5" r="1" fill="currentColor" stroke="none"/><circle cx="14.5" cy="14.5" r="1" fill="currentColor" stroke="none"/></svg>
             <span>Tax / SA103</span>
@@ -5403,10 +5400,6 @@ c-230 453 -565 1105 -674 1315 -63 120 -114 221 -114 225 0 4 47 19 104 34
     <button onclick="closeMoreSheet();goToTab('returns',document.querySelector('[data-tab=\'returns\']'))" class="more-sheet-row" data-sheet-tab="returns">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/></svg>
       <span>Returns</span>
-    </button>
-    <button onclick="closeMoreSheet();goToTab('scrapped',document.querySelector('[data-tab=\'scrapped\']'))" class="more-sheet-row" data-sheet-tab="scrapped">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18l-1.5 14a2 2 0 0 1-2 2H6.5a2 2 0 0 1-2-2L3 6z"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
-      <span>Scrapped</span>
     </button>
     <button onclick="closeMoreSheet();goToTab('tax',document.querySelector('[data-tab=\'tax\']'))" class="more-sheet-row" data-sheet-tab="tax">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="15" x2="15" y2="9"/><circle cx="9.5" cy="9.5" r="1" fill="currentColor" stroke="none"/><circle cx="14.5" cy="14.5" r="1" fill="currentColor" stroke="none"/></svg>
@@ -5656,10 +5649,6 @@ c-230 453 -565 1105 -674 1315 -63 120 -114 221 -114 225 0 4 47 19 104 34
       <span class="side-nav-item-ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/></svg></span>
       <span class="side-nav-item-label">Returns</span>
     </button>
-    <button class="side-nav-item" data-tab="scrapped" onclick="goToTab('scrapped',this)">
-      <span class="side-nav-item-ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18l-1.5 14a2 2 0 0 1-2 2H6.5a2 2 0 0 1-2-2L3 6z"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg></span>
-      <span class="side-nav-item-label">Scrapped</span>
-    </button>
     <button class="side-nav-item" data-tab="data" onclick="goToTab('data',this)">
       <span class="side-nav-item-ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v4c0 1.66 4 3 9 3s9-1.34 9-3V5"/><path d="M3 9v5c0 1.66 4 3 9 3s9-1.34 9-3V9"/><path d="M3 14v5c0 1.66 4 3 9 3s9-1.34 9-3v-5"/></svg></span>
       <span class="side-nav-item-label">Data</span>
@@ -5757,7 +5746,6 @@ c-230 453 -565 1105 -674 1315 -63 120 -114 221 -114 225 0 4 47 19 104 34
 <div class="page" id="p-expenses"></div>
 <div class="page" id="p-cash"></div>
 <div class="page" id="p-returns"></div>
-<div class="page" id="p-scrapped"></div>
 <div class="page" id="p-accounts"></div>
 <div class="page" id="p-tax"></div>
 <div class="page" id="p-data"></div>
@@ -9115,7 +9103,7 @@ async function initDB(){
     const _freshSession = !_isSameSession();
     const _lastTab = (() => { if(_freshSession) return 'summary';
       try{ return localStorage.getItem(_SK.tab) || 'summary'; }catch(e){ return 'summary'; } })();
-    const _safeTab = ['summary','monthly','stock','expenses','cash','returns','scrapped','tax','data','runs'].includes(_lastTab) ? _lastTab : 'summary';
+    const _safeTab = ['summary','monthly','stock','expenses','cash','returns','tax','data','runs'].includes(_lastTab) ? _lastTab : 'summary';
     showLoadingScreen('Loading your data…', _safeTab);
     await Promise.race([
       loadFromSupabase(),
@@ -9475,7 +9463,7 @@ function _bootSkeletonHTML(tab){
   // rt-skel-<tab> is what lets the ID-scoped page rules reach this element --
   // see the .rt-skel-summary note in the CSS. Emitted for every tab so a future
   // ID rule on any page has a selector waiting for it.
-  const _t = ['summary','monthly','stock','expenses','cash','returns','scrapped','tax','data','runs'].includes(tab) ? tab : 'summary';
+  const _t = ['summary','monthly','stock','expenses','cash','returns','tax','data','runs'].includes(tab) ? tab : 'summary';
   return '<div class="page rt-skel rt-skel-' + _t + '">' + body
     + '<div style="text-align:center;margin-top:20px;font-size:13px;color:var(--text-secondary);" id="app-loading-msg"></div>'
     + '</div>';
@@ -10444,7 +10432,7 @@ function _renderItemPageInner(m,id){
   const _isZeroCost=(i.costPrice==null||i.costPrice===0)&&!(_rcptShipping>0)&&!(_rcptPackaging>0)&&!calcPartsCost(i);
   const roiDisplay=_isZeroCost&&profit!==null?'∞':(roi!==null?roi.toFixed(1)+'%':null);
   const marginDisplay=(margin!==null?margin.toFixed(1)+'%':null);
-  const status=i.scrappedAt?'scrapped':i.isReturned?'returned':i.resaleSalePrice?'resold':i.dateSold?'sold':i.condition==='spares'?'spares':'active';
+  const status=i.scrappedAt?(i.scrapReason==='donated'?'donated':'scrapped'):i.isReturned?'returned':i.resaleSalePrice?'resold':i.dateSold?'sold':i.condition==='spares'?'spares':'active';
   const hasReturn=(i.returnHistory||[]).length>0;
   const _plat=_s1Platform(i); // v2.19.33 — Sale 1 receipt reflects Sale 1's platform
   const _showPostage=(_plat!=='vinted');
@@ -10802,7 +10790,7 @@ function _renderItemPageInner(m,id){
   if(!i.dateSold&&!i.resaleSalePrice&&!i.isReturned&&!i.scrappedAt&&(i.state==='sourced'||i.state==='listed'))html+='<button class="btn btn-secondary ip-act-btn" onclick="openSplitModal(\''+m+'\',\''+id+'\')" title="Split a multi-buy lot into separate units"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3v6a3 3 0 0 0 3 3h6a3 3 0 0 1 3 3v6"/><path d="M6 3v6a3 3 0 0 1-3 3"/><polyline points="15 9 18 12 15 15"/></svg><span class="ip-act-label">Split</span></button>';
 
   if(i.state==='listed'&&!i.scrappedAt)html+='<button class="btn btn-secondary ip-act-btn" onclick="withdrawToSourced(\''+m+'\',\''+id+'\')" title="Withdraw listing and move back to sourced stock" style="color:var(--accent)">'+icon('withdraw',15)+'<span class="ip-act-label">Withdraw</span></button>';
-  if(_canScrap(i))html+='<button class="btn btn-secondary ip-act-btn" onclick="openScrapModal(\''+m+'\',\''+id+'\')" title="Write off or set aside" style="color:var(--warn)">'+icon('box',15)+'<span class="ip-act-label">Scrap</span></button>';
+  if(_canScrap(i))html+='<button class="btn btn-secondary ip-act-btn" onclick="openScrapModal(\''+m+'\',\''+id+'\')" title="Remove from stock — scrap or donate" style="color:var(--warn)">'+icon('box',15)+'<span class="ip-act-label">Remove</span></button>';
   if(i.scrappedAt)html+='<button class="btn btn-secondary ip-act-btn" onclick="unScrap(\''+m+'\',\''+id+'\')" title="Restore to active stock" style="color:var(--accent)">'+icon('revert',15)+'<span class="ip-act-label">Un-scrap</span></button>';
   html+='<button class="btn btn-secondary ip-act-btn ip-act-danger" onclick="deleteItem(\''+m+'\',\''+id+'\')">'+icon('trash',15)+'</button>';
   html+='</div>'; // close ip-topbar-row1
@@ -11138,7 +11126,7 @@ function showSearchDropdown(q){
     return;
   }
   const rows=shown.map((i,idx)=>{
-    const status=i.scrappedAt?'scrapped':i.isReturned?'returned':i.resaleSalePrice?'resold':i.dateSold?'sold':i.condition==='spares'?'spares':'active';
+    const status=i.scrappedAt?(i.scrapReason==='donated'?'donated':'scrapped'):i.isReturned?'returned':i.resaleSalePrice?'resold':i.dateSold?'sold':i.condition==='spares'?'spares':'active';
     const catGlyph=catIcon(i.category,18);
     const price=i.salePrice?fmt(i.salePrice):'—';
     return`<div class="search-result" data-idx="${idx}" onclick="selectSearchResult(${idx})" onmouseenter="setSearchActive(${idx})">
@@ -11217,7 +11205,7 @@ function handleMobileSearchInput(q){
   // Delegated click — avoids inline quoting issues with dynamic data
   _mobileSearchItems=results;
   resultsEl.innerHTML=results.map(function(item,idx){
-    const status=item.scrappedAt?'scrapped':item.isReturned?'returned':item.resaleSalePrice?'resold':item.dateSold?'sold':item.state==='sourced'?'sourced':'listed';
+    const status=item.scrappedAt?(item.scrapReason==='donated'?'donated':'scrapped'):item.isReturned?'returned':item.resaleSalePrice?'resold':item.dateSold?'sold':item.state==='sourced'?'sourced':'listed';
     return '<div data-mob-idx="'+idx+'" style="display:flex;align-items:center;gap:10px;padding:11px 16px;'+(idx>0?'border-top:1px solid var(--border)':'')+';cursor:pointer;background:var(--surface);">'+
       '<div style="flex:1;min-width:0;">'+
         '<div style="font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(item.item)+'</div>'+
@@ -11375,7 +11363,7 @@ function renderSearchResults(q){
   const totalProfit=soldItems.reduce((s,i)=>s+calcGrossProfit(i),0);
 
   const rows=results.map(i=>{
-    const status=i.scrappedAt?'scrapped':i.isReturned?'returned':i.resaleSalePrice?'resold':i.dateSold?'sold':i.condition==='spares'?'spares':'listed';
+    const status=i.scrappedAt?(i.scrapReason==='donated'?'donated':'scrapped'):i.isReturned?'returned':i.resaleSalePrice?'resold':i.dateSold?'sold':i.condition==='spares'?'spares':'listed';
     const profit=(i.dateSold||i.resaleSalePrice)&&!i.isReturned?calcGrossProfit(i):null;
     const margin=calcMargin(i);
     const catGlyph=catIcon(i.category,16);
@@ -16124,7 +16112,7 @@ function showCategoryItems(cat,_fromBack){
     </div>
     ${items.map(i=>{
       const _today=new Date().toISOString().split('T')[0];
-      const status=i.scrappedAt?'scrapped':i.isReturned?'returned':i.resaleSalePrice?'resold':i.dateSold?'sold':i.condition==='spares'?'spares':'listed';
+      const status=i.scrappedAt?(i.scrapReason==='donated'?'donated':'scrapped'):i.isReturned?'returned':i.resaleSalePrice?'resold':i.dateSold?'sold':i.condition==='spares'?'spares':'listed';
       const prof=(i.dateSold||i.resaleSalePrice)&&!i.isReturned?calcGrossProfit(i):null;
       const daysToSell=!i.isReturned&&(i.dateSold||i.resaleSalePrice)?calcDaysToSell(i):null;
       const _eld=_effectiveListDate(i);
@@ -19307,7 +19295,7 @@ function renderItemRow(m,i){
       '<div class="item-actions">'+stockActions+'</div>'+
     '</div>';
   }
-  const status=i.scrappedAt?'scrapped':i.isReturned?'returned':i.resaleSalePrice?'resold':i.dateSold?'sold':i.condition==='spares'?'spares':'listed';
+  const status=i.scrappedAt?(i.scrapReason==='donated'?'donated':'scrapped'):i.isReturned?'returned':i.resaleSalePrice?'resold':i.dateSold?'sold':i.condition==='spares'?'spares':'listed';
   const today=new Date().toISOString().split('T')[0];
   // daysListed: for active items only (stale detection). For sold/resold use calcDaysToSell.
   // Relisted items use _relistedAt as the clock-reset point via _effectiveListDate.
@@ -19527,7 +19515,7 @@ function openItemDetail(m,id,noHistory){
   const roi=calcROI(i);
   const _isZeroCost2=(i.costPrice==null||i.costPrice===0)&&!(i.shippingCost>0)&&!(i.packagingCost>0)&&!calcPartsCost(i);
   const roiDisplay2=_isZeroCost2&&profit!==null?'∞':(roi!==null?roi.toFixed(1)+'%':null);
-  const status=i.scrappedAt?'scrapped':i.isReturned?'returned':i.resaleSalePrice?'resold':i.dateSold?'sold':i.condition==='spares'?'spares':'listed';
+  const status=i.scrappedAt?(i.scrapReason==='donated'?'donated':'scrapped'):i.isReturned?'returned':i.resaleSalePrice?'resold':i.dateSold?'sold':i.condition==='spares'?'spares':'listed';
   const isSold=(i.dateSold||i.resaleSalePrice)&&!i.isReturned;
   const isUnsold=!i.dateSold&&!i.resaleSalePrice&&!i.isReturned;
 
@@ -20159,21 +20147,34 @@ function _inlistSearchHTML(ctx){
 function renderStock(){
   const today=new Date().toISOString().split('T')[0];
   // Gather two populations. Sold/returned excluded — they live on Calendar.
-  let allListed=[], allStock=[];
+  let allListed=[], allStock=[], allRemoved=[];
   allDBKeys().forEach(k=>(DB[k]||[]).forEach(i=>{
     if((i.item||'').trim().toUpperCase()==='MONTH END')return;
-    if(i.state==='sourced'){
-      allStock.push({...i,month:k});
-    } else if(!i.dateSold && !i.isReturned && !i.resaleSalePrice && !i.scrappedAt){
+    if(i.scrappedAt){ allRemoved.push({...i,month:k}); }
+    else if(i.state==='sourced' || (i.isReturned && !i.resaleSalePrice)){
+      allStock.push({...i,month:k});   // sourced OR returned-and-back = live stock again
+    } else if(!i.dateSold && !i.isReturned && !i.resaleSalePrice){
       allListed.push({...i,month:k});
     }
   }));
   // Population is strictly one or the other — no combined 'all' view.
+  const isRemovedOnly = STOCK_STATE_FILTER==='removed';
   const isStockOnly = STOCK_STATE_FILTER==='sourced';
   const isListedOnly = STOCK_STATE_FILTER==='listed';
-  let pop = isStockOnly ? allStock : allListed;
+  let pop = isRemovedOnly ? allRemoved : (isStockOnly ? allStock : allListed);
   const cAll=pop.length;
-  const cAllListed=allListed.length, cAllStock=allStock.length;
+  const cAllListed=allListed.length, cAllStock=allStock.length, cAllRemoved=allRemoved.length;
+  // Shared 3-way segment control (Listed / Sourced / Scrapped-Donated).
+  const _stockSeg=(function(){
+    const bk=[{key:'listed',label:'Listed',count:cAllListed},{key:'sourced',label:'Sourced',count:cAllStock},{key:'removed',label:'Scrapped/Donated',count:cAllRemoved}];
+    return '<div class="segmented stock-state-seg">'+bk.map(function(b){return '<button class="'+(STOCK_STATE_FILTER===b.key?'is-active':'')+'" onclick="setStockStateFilter(\''+b.key+'\')">'+b.label+'<span class="count">'+b.count+'</span></button>';}).join('')+'</div>';
+  })();
+  if(isRemovedOnly){
+    const _hdr='<div class="page-header"><div><div class="page-title">Stock Room</div><div class="page-subtitle">Items that have left your stock \u2014 scrapped, recycled, or donated.</div></div></div>';
+    const _rows=allRemoved.map(function(x){return {m:x.month,item:x};});
+    const _el=document.getElementById('p-stock'); if(_el)_el.innerHTML=_hdr+_stockSeg+_removedBodyHTML(_rows,'p-stock');
+    return;
+  }
   const cStale=allListed.filter(i=>{const d=i.dateListed;return d&&daysBetween(d,today)>=90;}).length;
 
   // Sourced age buckets: New 0–3d · List soon 4–7d · Overdue 8–14d · Stagnant 15d+
@@ -20392,19 +20393,7 @@ function renderStock(){
       </div>
     </div>
     <div class="stock-kpis-v2 stock-kpis">${kpiHTML}</div>
-    ${(()=>{
-      // 2-option toggle: Listed ↔ Sourced. No 'All' — you're always in one mode.
-      // V2 segmented component; active state via .is-active (CSS-driven, no inline colour).
-      const stateBuckets=[
-        {key:'listed',  label:'Listed',  count:cAllListed},
-        {key:'sourced', label:'Sourced', count:cAllStock}
-      ];
-      const segs=stateBuckets.map(b=>{
-        const isActive=STOCK_STATE_FILTER===b.key;
-        return `<button class="${isActive?'is-active':''}" onclick="setStockStateFilter('${b.key}')">${b.label}<span class="count">${b.count}</span></button>`;
-      }).join('');
-      return `<div class="segmented stock-state-seg">${segs}</div>`;
-    })()}
+    ${_stockSeg}
     ${cAll===0?`<div class="empty-state">
       <div class="empty-state-text">${isStockOnly?'No sourced items':'No active listings'}</div>
       <div class="empty-state-sub">${isStockOnly?'Tap + and choose Sourced item to add your first.':'Use Quick Add to list your first item.'}</div>
@@ -21002,7 +20991,9 @@ function _returnTypeMeta(t){
 function _canScrap(i){
   if(!i||i.scrappedAt)return false;
   if(i.dateSold||i.resaleSalePrice)return false;
-  return (i.returnHistory||[]).some(function(r){return r.type==='full_seller'||r.type==='full_ebay';});
+  if((i.item||'').trim().toUpperCase()==='MONTH END')return false;
+  // Any live unsold item can be removed from stock — sourced, listed, or returned-and-back.
+  return i.state==='sourced'||i.state==='listed'||i.isReturned;
 }
 function openScrapModal(m,id){
   const i=(DB[m]||[]).find(function(x){return x.id===id;});
@@ -21012,29 +21003,30 @@ function openScrapModal(m,id){
     +'<div class="item-full-section" style="margin-bottom:16px">'
       +'<div class="item-full-section-title">Item</div>'
       +'<div style="font-weight:600;font-size:15px">'+esc(i.item||'Untitled')+'</div>'
-      +'<div style="font-size:13px;color:var(--muted);margin-top:4px">Written-off capital: '+fmt(cost)+' \u00b7 already returned</div>'
+      +'<div style="font-size:13px;color:var(--muted);margin-top:4px">Capital in this item: '+fmt(cost)+' \u00b7 leaves your stock</div>'
     +'</div>'
     +'<div class="fg"><label>What are you doing with it?</label>'
       +'<select id="scrap-reason">'
-        +'<option value="recycle">Recycle / bin it \u2014 gone for good</option>'
-        +'<option value="joblot">Set aside for a job lot</option>'
-        +'<option value="scrap">Keep for spares / other</option>'
+        +'<option value="scrapped">Scrapped \u2014 faulty / binned</option>'
+        +'<option value="donated">Donated \u2014 given away</option>'
+        +'<option value="recycled">Recycled</option>'
+        +'<option value="other">Other</option>'
       +'</select></div>'
     +'<div class="fg"><label>Note (optional)</label><input id="scrap-note" type="text" placeholder="e.g. faulty, not worth relisting"></div>'
     +'<div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px 12px;font-size:12.5px;color:var(--text-secondary);line-height:1.5;margin-bottom:14px">'
-      +'Terminal state \u2014 the item leaves your active stock and lands on the Scrapped page. Its cost was already booked when the sale it came back from was recorded, so scrapping doesn\u2019t change your tax figures.</div>'
+      +'This removes the item from your active stock and records it under Scrapped/Donated for your write-off tracking. It stays visible there so you can see what you\u2019ve lost or given away.</div>'
     +'<div style="display:flex;gap:8px">'
       +'<button class="btn btn-primary" style="flex:1" onclick="confirmScrap(\''+m+'\',\''+id+'\')">Scrap item</button>'
       +'<button class="btn btn-secondary" onclick="closePanel()">Cancel</button>'
     +'</div>';
-  openPanel('Scrap item',html);
+  openPanel('Remove from stock',html);
 }
 function confirmScrap(m,id){
   const i=(DB[m]||[]).find(function(x){return x.id===id;});
   if(!i)return;
   const reasonEl=document.getElementById('scrap-reason');
   const noteEl=document.getElementById('scrap-note');
-  i.scrapReason=(reasonEl&&reasonEl.value)||'recycle';
+  i.scrapReason=(reasonEl&&reasonEl.value)||'scrapped';
   const _note=((noteEl&&noteEl.value)||'').trim();
   if(_note)i.scrapNote=_note; else delete i.scrapNote;
   i.scrappedAt=new Date().toISOString();
@@ -21069,31 +21061,84 @@ function _scrappedItems(){
   out.sort(function(a,b){return String(b.item.scrappedAt||'').localeCompare(String(a.item.scrappedAt||''));});
   return out;
 }
-function renderScrapped(){
-  const el=document.getElementById('p-scrapped');if(!el)return;
-  const rows=_scrappedItems();
-  let writtenOff=0;const byReason={recycle:0,joblot:0,scrap:0};
+// Shared body for the Scrapped/Donated view — used by the Stock Room "Scrapped/Donated"
+// segment (and the legacy renderScrapped). rows: [{m, item}]. Returns KPIs + list HTML.
+function _removedBodyHTML(rows, origin){
+  origin=origin||'p-stock';
+  rows=(rows||[]).slice().sort(function(a,b){return String((b.item||{}).scrappedAt||'').localeCompare(String((a.item||{}).scrappedAt||''));});
+  let capScrapped=0,capDonated=0;const byReason={scrapped:0,donated:0,recycled:0,other:0};
   rows.forEach(function(r){
-    writtenOff+=(Number(r.item.costPrice)||0)+((typeof calcPartsCost==='function')?(Number(calcPartsCost(r.item))||0):0);
-    const rk=(r.item.scrapReason||'scrap');byReason[rk]=(byReason[rk]||0)+1;
+    const c=(Number(r.item.costPrice)||0)+((typeof calcPartsCost==='function')?(Number(calcPartsCost(r.item))||0):0);
+    const rk=(r.item.scrapReason||'scrapped');byReason[rk]=(byReason[rk]||0)+1;
+    if(rk==='donated')capDonated+=c; else capScrapped+=c;
   });
   const kpi=function(label,val,foot,col){
     return '<div class="card kpi"><div class="kpi-label">'+esc(label)+'</div>'
       +'<div class="kpi-value num"'+(col?' style="color:'+col+'"':'')+'>'+val+'</div>'
       +(foot?'<div class="kpi-foot">'+foot+'</div>':'')+'</div>';
   };
-  const _reasonLabel={recycle:'Recycled',joblot:'Job lot',scrap:'Spares/other'};
-  let html=''
-    +'<div class="page-header"><div>'
-      +'<div class="page-title">Scrapped</div>'
-      +'<div class="page-subtitle">Returned items you won\u2019t relist \u2014 written off or set aside. Their cost was already booked at the original sale.</div>'
-    +'</div></div>';
-  html+='<div class="kgrid" style="margin-bottom:16px;">'
-    +kpi('Items scrapped',String(rows.length),(byReason.recycle||0)+' recycled \u00b7 '+(byReason.joblot||0)+' job-lot \u00b7 '+(byReason.scrap||0)+' spares')
-    +kpi('Written-off capital',fmt(writtenOff),'Cost of goods that never resold',writtenOff>0?'var(--warn)':'')
+  const _reasonLabel={scrapped:'Scrapped',donated:'Donated',recycled:'Recycled',other:'Other'};
+  let html='<div class="kgrid" style="margin-bottom:16px;">'
+    +kpi('Capital scrapped',fmt(capScrapped),((byReason.scrapped||0)+(byReason.recycled||0)+(byReason.other||0))+' item(s) \u00b7 faulty / binned / recycled',capScrapped>0?'var(--warn)':'')
+    +kpi('Capital donated',fmt(capDonated),(byReason.donated||0)+' item(s) given away',capDonated>0?'var(--accent)':'')
   +'</div>';
   if(!rows.length){
-    html+='<div class="card" style="padding:20px;text-align:center;color:var(--text-secondary);line-height:1.5;">Nothing scrapped. When you scrap a returned item it\u2019ll show here.</div>';
+    html+='<div class="card" style="padding:20px;text-align:center;color:var(--text-secondary);line-height:1.5;">Nothing removed yet. When you scrap or donate an item it\u2019ll show here.</div>';
+    return html;
+  }
+  html+='<div class="section-card" style="padding:0;overflow:hidden;">';
+  rows.forEach(function(r){
+    const i=r.item;
+    const c=(Number(i.costPrice)||0)+((typeof calcPartsCost==='function')?(Number(calcPartsCost(i))||0):0);
+    const when=String(i.scrappedAt||'').slice(0,10);
+    const isDon=(i.scrapReason==='donated');
+    html+='<div style="display:flex;align-items:center;gap:12px;padding:12px 14px;border-bottom:1px solid var(--border);cursor:pointer;" onclick="openItemPage(\''+r.m+'\',\''+i.id+'\',\''+origin+'\')">'
+      +'<div style="flex:1;min-width:0;">'
+        +'<div style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(i.item||'Untitled')+'</div>'
+        +'<div style="font-size:12px;color:var(--text-secondary);margin-top:2px;">'
+          +'<span style="color:'+(isDon?'var(--accent)':'var(--muted)')+';font-weight:600;">'+esc(_reasonLabel[i.scrapReason]||'Scrapped')+'</span>'
+          +' \u00b7 '+esc(when||'\u2014')
+          +(i.scrapNote?' \u00b7 '+esc(i.scrapNote):'')
+        +'</div>'
+      +'</div>'
+      +'<div style="text-align:right;flex-shrink:0;">'
+        +'<div class="num" style="font-weight:700;color:'+(isDon?'var(--accent)':'var(--warn)')+';">\u2212'+fmt(c)+'</div>'
+        +'<div style="font-size:11px;color:var(--muted);">'+(isDon?'donated':'written off')+'</div>'
+      +'</div>'
+    +'</div>';
+  });
+  html+='</div>';
+  return html;
+}
+
+function renderScrapped(){
+  const el=document.getElementById('p-scrapped');if(!el)return;
+  el.innerHTML='<div class="page-header"><div><div class="page-title">Scrapped / Donated</div></div></div>'+_removedBodyHTML(_scrappedItems(),'p-scrapped'); return;
+  /* legacy body below (unreached) */
+  const rows=_scrappedItems();
+  let capScrapped=0,capDonated=0;const byReason={scrapped:0,donated:0,recycled:0,other:0};
+  rows.forEach(function(r){
+    const c=(Number(r.item.costPrice)||0)+((typeof calcPartsCost==='function')?(Number(calcPartsCost(r.item))||0):0);
+    const rk=(r.item.scrapReason||'scrapped');byReason[rk]=(byReason[rk]||0)+1;
+    if(rk==='donated')capDonated+=c; else capScrapped+=c;
+  });
+  const kpi=function(label,val,foot,col){
+    return '<div class="card kpi"><div class="kpi-label">'+esc(label)+'</div>'
+      +'<div class="kpi-value num"'+(col?' style="color:'+col+'"':'')+'>'+val+'</div>'
+      +(foot?'<div class="kpi-foot">'+foot+'</div>':'')+'</div>';
+  };
+  const _reasonLabel={scrapped:'Scrapped',donated:'Donated',recycled:'Recycled',other:'Other'};
+  let html=''
+    +'<div class="page-header"><div>'
+      +'<div class="page-title">Scrapped / Donated</div>'
+      +'<div class="page-subtitle">Items that have left your stock \u2014 scrapped, recycled, or given away. Your record of what you\u2019ve lost or donated.</div>'
+    +'</div></div>';
+  html+='<div class="kgrid" style="margin-bottom:16px;">'
+    +kpi('Capital scrapped',fmt(capScrapped),((byReason.scrapped||0)+(byReason.recycled||0)+(byReason.other||0))+' item(s) \u00b7 faulty / binned / recycled',capScrapped>0?'var(--warn)':'')
+    +kpi('Capital donated',fmt(capDonated),(byReason.donated||0)+' item(s) given away',capDonated>0?'var(--accent)':'')
+  +'</div>';
+  if(!rows.length){
+    html+='<div class="card" style="padding:20px;text-align:center;color:var(--text-secondary);line-height:1.5;">Nothing removed yet. When you scrap or donate an item it\u2019ll show here.</div>';
   }else{
     html+='<div class="section-card" style="padding:0;overflow:hidden;">';
     rows.forEach(function(r){
