@@ -8904,7 +8904,12 @@ function _setSyncing(val){
   if(el) el.style.display = val ? 'flex' : 'none';
   // Drop 4 — sidebar footer sync indicator reflects the same state
   if(typeof _refreshSideNavSync==='function'){
-    _refreshSideNavSync(val ? 'saving' : 'synced');
+    // v2.21.50 — after a sync attempt, if any writes are still unconfirmed
+    // (sitting in the on-device outbox) show an honest "unsynced" state rather
+    // than a clean "Synced".
+    let _syncState = val ? 'saving' : 'synced';
+    if(!val){ try{ if(typeof _outboxPendingCount==='function' && _outboxPendingCount()>0) _syncState='pending'; }catch(e){} }
+    _refreshSideNavSync(_syncState);
   }
   if(!val){
     // Wake up anyone waiting (e.g. sign-out guard)
@@ -8918,6 +8923,104 @@ function _setSyncing(val){
 function _waitForSync(){
   if(!_syncing) return Promise.resolve();
   return new Promise(res => _syncResolvers.push(res));
+}
+
+// ============================================================
+// v2.21.50 — LOCAL WRITE-AHEAD OUTBOX (Phase 0 durability)
+// Mirrors every cloud write to localStorage BEFORE it is attempted; prunes it
+// once Supabase confirms. If a write never reaches the cloud (network drop, tab
+// evicted mid-save, reload before the in-tab auto-retry fires), the entry
+// survives on-device and replays on next boot. Supabase upserts/deletes are
+// idempotent, so replaying an already-saved write is a harmless no-op. This
+// only moves the same rows the diff engine already writes — it NEVER touches
+// the money/tax engine (calcGrossProfit / _saleBreakdown).
+// ============================================================
+const OUTBOX_KEY_BASE = 'retrade_outbox_v1';
+function _outboxKey(){ return OUTBOX_KEY_BASE + '_' + (_currentUserId || 'anon'); }
+function _outboxRead(){
+  try{ const raw = localStorage.getItem(_outboxKey()); return raw ? JSON.parse(raw) : {}; }
+  catch(e){ return {}; }
+}
+function _outboxSave(obj){
+  try{
+    if(!obj || Object.keys(obj).length === 0){ localStorage.removeItem(_outboxKey()); }
+    else { localStorage.setItem(_outboxKey(), JSON.stringify(obj)); }
+    return true;
+  }catch(e){ console.warn('[RETRADE] outbox write failed (quota?):', e && e.message); return false; }
+}
+function _outboxPendingCount(){ try{ return Object.keys(_outboxRead()).length; }catch(e){ return 0; } }
+// Build a save entry from a fingerprint value. Item fp = JSON+'|'+monthKey;
+// every other entity fp = plain JSON.
+function _outboxEntry(key, fpVal){
+  const ts = Date.now();
+  if(key.indexOf('item:') === 0){
+    const p = fpVal.lastIndexOf('|');
+    return { op:'save', type:'item', month: fpVal.slice(p+1), json: fpVal.slice(0,p), ts:ts };
+  }
+  return { op:'save', type: key.slice(0, key.indexOf(':')), json: fpVal, ts:ts };
+}
+function _outboxDeleteEntry(key){
+  return { op:'delete', type: key.slice(0, key.indexOf(':')), id: key.slice(key.indexOf(':')+1), ts: Date.now() };
+}
+// Replay unconfirmed writes found in the outbox at boot. Re-applies each to the
+// in-memory DB so the diff engine (whose _dbSnapshot is already the loaded cloud
+// state) sees them as dirty and re-persists them. Returns the count applied.
+function _recoverOutbox(){
+  let applied = 0;
+  try{
+    const ob = _outboxRead();
+    const keys = Object.keys(ob);
+    if(!keys.length) return 0;
+    keys.forEach(function(k){
+      const e = ob[k];
+      if(!e) return;
+      try{
+        if(e.op === 'save'){
+          const obj = JSON.parse(e.json);
+          if(e.type === 'item'){
+            const m = e.month;
+            if(!DB[m]) DB[m] = [];
+            const idx = DB[m].findIndex(function(x){return x.id===obj.id;});
+            if(idx>=0) DB[m][idx] = obj; else DB[m].push(obj);
+          } else if(e.type === 'trip'){
+            DB.trips = DB.trips || [];
+            const idx = DB.trips.findIndex(function(x){return x.id===obj.id;});
+            if(idx>=0) DB.trips[idx]=obj; else DB.trips.push(obj);
+          } else if(e.type === 'exp'){
+            DB.expenses = DB.expenses || [];
+            const idx = DB.expenses.findIndex(function(x){return x.id===obj.id;});
+            if(idx>=0) DB.expenses[idx]=obj; else DB.expenses.push(obj);
+          } else if(e.type === 'cash'){
+            DB.cashLedger = DB.cashLedger || [];
+            const idx = DB.cashLedger.findIndex(function(x){return x.id===obj.id;});
+            if(idx>=0) DB.cashLedger[idx]=obj; else DB.cashLedger.push(obj);
+          } else if(e.type === 'run'){
+            if(typeof _sourcingRuns!=='undefined' && _sourcingRuns){
+              const idx = _sourcingRuns.findIndex(function(x){return x.id===obj.id;});
+              if(idx>=0) _sourcingRuns[idx]=obj; else _sourcingRuns.push(obj);
+            }
+          } else if(e.type === 'acct'){
+            if(typeof _accounts!=='undefined' && _accounts){
+              const idx = _accounts.findIndex(function(x){return x.id===obj.id;});
+              if(idx>=0) _accounts[idx]=obj; else _accounts.push(obj);
+            }
+          }
+          applied++;
+        } else if(e.op === 'delete'){
+          const id = e.id;
+          if(e.type === 'item'){
+            allDBKeys().forEach(function(m){ if(DB[m]) DB[m] = DB[m].filter(function(x){return x.id!==id;}); });
+          } else if(e.type === 'trip'){ if(DB.trips) DB.trips = DB.trips.filter(function(x){return x.id!==id;}); }
+          else if(e.type === 'exp'){ if(DB.expenses) DB.expenses = DB.expenses.filter(function(x){return x.id!==id;}); }
+          else if(e.type === 'cash'){ if(DB.cashLedger) DB.cashLedger = DB.cashLedger.filter(function(x){return x.id!==id;}); }
+          else if(e.type === 'run'){ if(typeof _sourcingRuns!=='undefined' && _sourcingRuns) _sourcingRuns = _sourcingRuns.filter(function(x){return x.id!==id;}); }
+          else if(e.type === 'acct'){ if(typeof _accounts!=='undefined' && _accounts) _accounts = _accounts.filter(function(x){return x.id!==id;}); }
+          applied++;
+        }
+      }catch(inner){ console.warn('[RETRADE] outbox replay failed', k, inner && inner.message); }
+    });
+  }catch(e){ console.warn('[RETRADE] outbox recovery failed:', e && e.message); return 0; }
+  return applied;
 }
 
 function saveDB(){
@@ -8971,6 +9074,22 @@ async function _persistChanges(){
     // fingerprint in the new snapshot, so on the next save trigger
     // current[key] !== prev[key] → retry is automatic.
     const failedKeys = new Set();
+
+    // v2.21.50 — stage the FULL pending batch to the on-device outbox BEFORE any
+    // await, so a tab eviction mid-sync cannot lose a write. Pruned to only the
+    // failures at the end. Wrapped so an outbox hiccup never breaks the sync.
+    try{
+      const _stage = {};
+      for(const k of Object.keys(current)){
+        if(current[k] === prev[k]) continue;
+        _stage[k] = _outboxEntry(k, current[k]);
+      }
+      for(const k of Object.keys(prev)){
+        if(current[k] !== undefined) continue;
+        _stage[k] = _outboxDeleteEntry(k);
+      }
+      if(Object.keys(_stage).length) _outboxSave(_stage);
+    }catch(e){ console.warn('[RETRADE] outbox stage failed:', e && e.message); }
 
     // Detect changed / new items
     for(const key of Object.keys(current)){
@@ -9061,6 +9180,21 @@ async function _persistChanges(){
       }
     }
 
+    // v2.21.50 — prune the outbox to only the writes that FAILED to confirm.
+    // On full success this clears it; failures stay on-device and replay next
+    // boot (in addition to the in-tab failedKeys retry below).
+    try{
+      if(failedKeys.size === 0){ _outboxSave({}); }
+      else {
+        const _rem = {};
+        failedKeys.forEach(function(k){
+          if(current[k] !== undefined) _rem[k] = _outboxEntry(k, current[k]);
+          else                        _rem[k] = _outboxDeleteEntry(k);
+        });
+        _outboxSave(_rem);
+      }
+    }catch(e){ console.warn('[RETRADE] outbox prune failed:', e && e.message); }
+
     // Build the new snapshot from current state, then restore prev[key] for
     // any keys that failed — that way next sync sees them as still "needs
     // sync" (current !== prev) and retries automatically. Brand-new entities
@@ -9150,6 +9284,17 @@ async function initDB(){
       // and re-upserts the entire DB on every page load.
       _dbSnapshot = _dbFingerprint();
     }
+    // v2.21.50 — replay any writes that never confirmed to the cloud (found in
+    // the on-device outbox). _dbSnapshot now holds the loaded cloud state, so
+    // recovered rows show as dirty and get re-persisted on the scheduled save.
+    try{
+      const _recovered = _recoverOutbox();
+      if(_recovered>0){
+        console.warn('[RETRADE] Recovered '+_recovered+' unsynced change(s) from local outbox');
+        setTimeout(function(){ try{ saveDB(); }catch(e){ console.warn('[RETRADE] recovery flush failed',e); } }, 700);
+        try{ toast('Recovered '+_recovered+' unsynced change'+(_recovered===1?'':'s')+' saved on this device','ok'); }catch(e){}
+      }
+    }catch(e){ console.warn('[RETRADE] outbox recovery block failed:', e && e.message); }
     _loadUIState();
     hideLoadingScreen();
     // _freshSession / _lastTab / _safeTab were resolved before the load (7B) --
@@ -13221,6 +13366,13 @@ function _refreshSideNavSync(state){
     wrap.classList.add('error');
     txt.textContent='Save failed';
     wrap.title='Save failed — will retry next change';
+  } else if(state==='pending'){
+    // v2.21.50 — some changes are saved on this device but not yet confirmed
+    // in the cloud. Honest signal (reuses the error dot styling).
+    wrap.classList.add('error');
+    const _n=(typeof _outboxPendingCount==='function')?_outboxPendingCount():0;
+    txt.textContent=_n>0?(_n+' unsynced'):'Unsynced';
+    wrap.title='Some changes are saved on this device but not yet in the cloud — they sync on the next change or when you reopen the app';
   } else {
     txt.textContent='Synced';
     wrap.title='Last synced '+hh+':'+mm;
