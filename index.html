@@ -1227,6 +1227,22 @@ button .rt-icon,.btn .rt-icon{pointer-events:none;}
   .ip-timeline-detail{font-size:12px;}
   .ip-timeline-header button{padding:4px 10px!important;font-size:12px!important;}
 
+  /* v2.21.51 — Activity / history feed */
+  .act-feed{max-width:760px;margin:0 auto;}
+  .act-day{font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);margin:18px 4px 8px;}
+  .act-row{display:flex;align-items:center;gap:12px;padding:12px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;margin-bottom:8px;}
+  .act-row.act-undone{opacity:.55;}
+  .act-main{flex:1;min-width:0;}
+  .act-line{font-size:14px;line-height:1.35;}
+  .act-item{font-weight:700;cursor:pointer;text-decoration:underline;text-decoration-color:var(--border);text-underline-offset:2px;}
+  .act-item:hover{text-decoration-color:var(--muted);}
+  .act-sub{font-size:12px;color:var(--muted);margin-top:2px;}
+  .act-undone-tag{color:var(--warn);font-weight:700;}
+  .act-badge{display:inline-block;font-size:11px;font-weight:700;padding:2px 8px;border-radius:6px;margin-right:6px;border:1px solid var(--border);background:var(--surface);color:var(--text);}
+  .act-badge.act-sold,.act-badge.act-resold,.act-badge.act-listed{border-color:var(--accent);color:var(--accent);}
+  .act-badge.act-returned,.act-badge.act-scrapped,.act-badge.act-deleted{border-color:var(--warn);color:var(--warn);}
+  .act-undo{flex:0 0 auto;display:inline-flex;align-items:center;gap:5px;padding:6px 12px!important;font-size:13px!important;white-space:nowrap;}
+
   /* Page padding consistency */
   .item-full-page{padding:14px 16px 80px;}
 }
@@ -5211,6 +5227,10 @@ c-230 453 -565 1105 -674 1315 -63 120 -114 221 -114 225 0 4 47 19 104 34
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18l-1.5 14a2 2 0 0 1-2 2H6.5a2 2 0 0 1-2-2L3 6z"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
             <span>Scrapped/Donated</span>
           </button>
+          <button data-tab="activity" onclick="goToTab('activity',this);closeNavMore()">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v5h5"/><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8"/><path d="M12 7v5l3 2"/></svg>
+            <span>Activity</span>
+          </button>
           <button data-tab="tax" onclick="goToTab('tax',this);closeNavMore()">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="15" x2="15" y2="9"/><circle cx="9.5" cy="9.5" r="1" fill="currentColor" stroke="none"/><circle cx="14.5" cy="14.5" r="1" fill="currentColor" stroke="none"/></svg>
             <span>Tax / SA103</span>
@@ -5408,6 +5428,10 @@ c-230 453 -565 1105 -674 1315 -63 120 -114 221 -114 225 0 4 47 19 104 34
     <button onclick="closeMoreSheet();goToTab('scrapped',document.querySelector('[data-tab=\'scrapped\']'))" class="more-sheet-row" data-sheet-tab="scrapped">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18l-1.5 14a2 2 0 0 1-2 2H6.5a2 2 0 0 1-2-2L3 6z"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
       <span>Scrapped/Donated</span>
+    </button>
+    <button onclick="closeMoreSheet();goToTab('activity',document.querySelector('[data-tab=\'activity\']'))" class="more-sheet-row" data-sheet-tab="activity">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v5h5"/><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8"/><path d="M12 7v5l3 2"/></svg>
+      <span>Activity</span>
     </button>
     <button onclick="closeMoreSheet();goToTab('tax',document.querySelector('[data-tab=\'tax\']'))" class="more-sheet-row" data-sheet-tab="tax">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="15" x2="15" y2="9"/><circle cx="9.5" cy="9.5" r="1" fill="currentColor" stroke="none"/><circle cx="14.5" cy="14.5" r="1" fill="currentColor" stroke="none"/></svg>
@@ -5661,6 +5685,10 @@ c-230 453 -565 1105 -674 1315 -63 120 -114 221 -114 225 0 4 47 19 104 34
       <span class="side-nav-item-ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18l-1.5 14a2 2 0 0 1-2 2H6.5a2 2 0 0 1-2-2L3 6z"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg></span>
       <span class="side-nav-item-label">Scrapped/Donated</span>
     </button>
+    <button class="side-nav-item" data-tab="activity" onclick="goToTab('activity',this)">
+      <span class="side-nav-item-ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v5h5"/><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8"/><path d="M12 7v5l3 2"/></svg></span>
+      <span class="side-nav-item-label">Activity</span>
+    </button>
     <button class="side-nav-item" data-tab="data" onclick="goToTab('data',this)">
       <span class="side-nav-item-ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v4c0 1.66 4 3 9 3s9-1.34 9-3V5"/><path d="M3 9v5c0 1.66 4 3 9 3s9-1.34 9-3V9"/><path d="M3 14v5c0 1.66 4 3 9 3s9-1.34 9-3v-5"/></svg></span>
       <span class="side-nav-item-label">Data</span>
@@ -5759,6 +5787,7 @@ c-230 453 -565 1105 -674 1315 -63 120 -114 221 -114 225 0 4 47 19 104 34
 <div class="page" id="p-cash"></div>
 <div class="page" id="p-returns"></div>
 <div class="page" id="p-scrapped"></div>
+<div class="page" id="p-activity"></div>
 <div class="page" id="p-accounts"></div>
 <div class="page" id="p-tax"></div>
 <div class="page" id="p-data"></div>
@@ -8412,7 +8441,7 @@ async function loadFromSupabase(){
   // Fetch all tables in parallel — explicit .eq('user_id') on every query as
   // belt-and-braces on top of RLS. Prevents NULL-user_id orphan rows or
   // misconfigured policies from bleeding into the loaded DB.
-  const [itemsRes, partsRes, returnsRes, tripsRes, expensesRes, runsRes, accountsRes, cashRes] = await Promise.all([
+  const [itemsRes, partsRes, returnsRes, tripsRes, expensesRes, runsRes, accountsRes, cashRes, activityRes] = await Promise.all([
     _sb.from('items').select('*').eq('user_id', uid).order('date_listed', {ascending: true}),
     _sb.from('item_parts').select('*').eq('user_id', uid),
     _sb.from('item_returns').select('*').eq('user_id', uid).order('logged_at', {ascending: true}),
@@ -8421,6 +8450,7 @@ async function loadFromSupabase(){
     _sb.from('sourcing_runs').select('*').eq('user_id', uid).order('date_started', {ascending: false}),
     _sb.from('accounts').select('*').eq('user_id', uid).order('name', {ascending: true}),
     _sb.from('cash_ledger').select('*').eq('user_id', uid).order('date', {ascending: true}),
+    _sb.from('activity_log').select('*').eq('user_id', uid).order('ts', {ascending: true}),
   ]);
 
   if(itemsRes.error) throw new Error('Items load failed: ' + itemsRes.error.message);
@@ -8480,6 +8510,19 @@ async function loadFromSupabase(){
   } else {
     DB.cashLedger = DB.cashLedger || [];
     if(cashRes && cashRes.error) console.warn('cash_ledger load skipped (table may not exist yet):', cashRes.error.message);
+  }
+  // v2.21.51 — activity log (graceful: skip cleanly if table not yet created)
+  if(activityRes && !activityRes.error){
+    DB.activityLog = (activityRes.data || []).map(r => ({
+      id:r.id, itemId:r.item_id||null, itemName:r.item_name||'',
+      action:r.action||'', fromState:r.from_state||null, toState:r.to_state||null,
+      before:r.before_snapshot||null, month:r.month||null, after:r.after_summary||'',
+      ts:Number(r.ts)||(r.created_at?Date.parse(r.created_at):Date.now()),
+      undoable:!!r.undoable, undone:!!r.undone
+    }));
+  } else {
+    DB.activityLog = DB.activityLog || [];
+    if(activityRes && activityRes.error) console.warn('activity_log load skipped (table may not exist yet):', activityRes.error.message);
   }
   // Patch C — load sourcing runs (graceful: if table doesn't exist yet, skip)
   if(!runsRes.error){
@@ -8758,6 +8801,27 @@ async function deleteCashMoveFromSupabase(id){
   const {error} = await _sbCall(()=>_sb.from('cash_ledger').delete().eq('id', id).eq('user_id', _currentUserId));
   if(error) console.warn('cash_ledger delete skipped:', error.message);
 }
+// v2.21.51 — activity_log row I/O (same graceful pattern as cash_ledger: a
+// missing table keeps rows on-device via the outbox and never trips the
+// schema-error alarm in _persistChanges).
+async function saveActivityToSupabase(l){
+  const row = {
+    id:l.id, user_id:_currentUserId||null, item_id:l.itemId||null, item_name:l.itemName||'',
+    action:l.action||'', from_state:l.fromState||null, to_state:l.toState||null,
+    before_snapshot:l.before||null, month:l.month||null, after_summary:l.after||'',
+    ts:l.ts||Date.now(), undoable:!!l.undoable, undone:!!l.undone,
+    created_at:new Date(l.ts||Date.now()).toISOString()
+  };
+  const {error} = await _sbCall(()=>_sb.from('activity_log').upsert(row, {onConflict:'id,user_id'}));
+  if(error){
+    if(!window._activityTableWarned){ window._activityTableWarned=true; toast('Activity saved on this device. Add the activity_log table in Supabase to sync.','err'); }
+    console.warn('activity_log save skipped:', error.message);
+  }
+}
+async function deleteActivityFromSupabase(id){
+  const {error} = await _sbCall(()=>_sb.from('activity_log').delete().eq('id', id).eq('user_id', _currentUserId));
+  if(error) console.warn('activity_log delete skipped:', error.message);
+}
 
 // E6 lesson: both mappers must round-trip every field. Adding a field to one
 // without the other = silent data loss on save or load. Audit before shipping.
@@ -9004,6 +9068,10 @@ function _recoverOutbox(){
               const idx = _accounts.findIndex(function(x){return x.id===obj.id;});
               if(idx>=0) _accounts[idx]=obj; else _accounts.push(obj);
             }
+          } else if(e.type === 'log'){
+            DB.activityLog = DB.activityLog || [];
+            const idx = DB.activityLog.findIndex(function(x){return x.id===obj.id;});
+            if(idx>=0) DB.activityLog[idx]=obj; else DB.activityLog.push(obj);
           }
           applied++;
         } else if(e.op === 'delete'){
@@ -9015,12 +9083,161 @@ function _recoverOutbox(){
           else if(e.type === 'cash'){ if(DB.cashLedger) DB.cashLedger = DB.cashLedger.filter(function(x){return x.id!==id;}); }
           else if(e.type === 'run'){ if(typeof _sourcingRuns!=='undefined' && _sourcingRuns) _sourcingRuns = _sourcingRuns.filter(function(x){return x.id!==id;}); }
           else if(e.type === 'acct'){ if(typeof _accounts!=='undefined' && _accounts) _accounts = _accounts.filter(function(x){return x.id!==id;}); }
+          else if(e.type === 'log'){ if(DB.activityLog) DB.activityLog = DB.activityLog.filter(function(x){return x.id!==id;}); }
           applied++;
         }
       }catch(inner){ console.warn('[RETRADE] outbox replay failed', k, inner && inner.message); }
     });
   }catch(e){ console.warn('[RETRADE] outbox recovery failed:', e && e.message); return 0; }
   return applied;
+}
+
+// ============================================================
+// v2.21.51 — ACTIVITY LOG + UNDO (Phase 1)
+// SINGLE choke point: _captureActivity() runs at the top of every real saveDB,
+// diffs each item's committed status against a shadow taken at the previous
+// capture, and logs each STATE TRANSITION with the item's prior snapshot. Being
+// driven by committed state, it catches modal-driven mutations too, and it
+// never edits a mutation function or the money/tax engine. Undo restores a
+// snapshot and only the LATEST change on an item is undoable. Log rows ride the
+// same diff + outbox durability as every other entity.
+// ============================================================
+let _activityShadow = {};          // id -> {status,name,month,snap(JSON string)}
+let _suppressActivityCapture = false;
+function _uuidLog(){ return 'log_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,9); }
+// Money-free canonical status label (mirrors the list-row status deriver).
+function _actStatus(i){
+  if(!i) return 'gone';
+  if(i.scrappedAt) return (i.scrapReason==='donated')?'donated':'scrapped';
+  if(i.isReturned) return 'returned';
+  if(i.resaleSalePrice) return 'resold';
+  if(i.dateSold) return 'sold';
+  if(i.state==='sourced') return 'sourced';
+  return 'listed';
+}
+const _ACT_LABEL = { listed:'Listed', sold:'Marked sold', returned:'Returned', resold:'Re-sold', scrapped:'Scrapped', donated:'Donated', sourced:'Moved to sourced', deleted:'Deleted' };
+function _findItemMonth(id){ const ks=allDBKeys(); for(const m of ks){ if((DB[m]||[]).some(x=>x.id===id)) return m; } return null; }
+function _pushActivity(itemId,itemName,fromState,toState,beforeObj,month){
+  try{
+    DB.activityLog = DB.activityLog || [];
+    DB.activityLog.push({
+      id:_uuidLog(), itemId:itemId, itemName:itemName,
+      action:(_ACT_LABEL[toState]||toState),
+      fromState:fromState, toState:toState,
+      before: beforeObj ? JSON.parse(JSON.stringify(beforeObj)) : null,
+      month: month||null,
+      after:(itemName?itemName+' — ':'')+(_ACT_LABEL[toState]||toState),
+      ts:Date.now(), undoable: !!beforeObj, undone:false
+    });
+    if(DB.activityLog.length>2000) DB.activityLog.splice(0, DB.activityLog.length-2000);
+  }catch(e){ console.warn('[RETRADE] pushActivity failed:', e && e.message); }
+}
+function _captureActivity(){
+  if(_suppressActivityCapture) return;
+  try{
+    DB.activityLog = DB.activityLog || [];
+    const seen = {};
+    allDBKeys().forEach(function(m){
+      (DB[m]||[]).forEach(function(i){
+        seen[i.id] = true;
+        const status = _actStatus(i);
+        const cur = JSON.stringify(i);
+        const prev = _activityShadow[i.id];
+        if(!prev){ _activityShadow[i.id] = { status:status, name:i.item||'', month:m, snap:cur }; return; }
+        if(prev.status !== status){
+          _pushActivity(i.id, i.item||prev.name||'', prev.status, status, prev.snap?JSON.parse(prev.snap):null, m);
+        }
+        _activityShadow[i.id] = { status:status, name:i.item||'', month:m, snap:cur };
+      });
+    });
+    Object.keys(_activityShadow).forEach(function(id){
+      if(seen[id]) return;
+      const prev = _activityShadow[id];
+      _pushActivity(id, prev.name||'', prev.status, 'deleted', prev.snap?JSON.parse(prev.snap):null, prev.month);
+      delete _activityShadow[id];
+    });
+  }catch(e){ console.warn('[RETRADE] activity capture failed:', e && e.message); }
+}
+function _initActivityShadow(){
+  _activityShadow = {};
+  try{
+    allDBKeys().forEach(function(m){
+      (DB[m]||[]).forEach(function(i){
+        _activityShadow[i.id] = { status:_actStatus(i), name:i.item||'', month:m, snap:JSON.stringify(i) };
+      });
+    });
+  }catch(e){ console.warn('[RETRADE] activity shadow seed failed:', e && e.message); }
+}
+// Undo restores the before-snapshot; only the latest non-undone entry per item.
+function undoActivity(logId){
+  const log = (DB.activityLog||[]).find(l=>l.id===logId);
+  if(!log){ toast('Activity entry not found','err'); return; }
+  if(log.undone){ toast('Already undone','err'); return; }
+  if(!log.undoable || !log.before){ toast("This change can't be undone",'err'); return; }
+  const laterActive = (DB.activityLog||[]).some(l=>l.itemId===log.itemId && !l.undone && l.ts>log.ts);
+  if(laterActive){ toast('Undo the newer change on this item first','err'); return; }
+  const before = log.before;
+  const targetMonth = log.month || _findItemMonth(log.itemId) || allDBKeys().slice(-1)[0];
+  _suppressActivityCapture = true;
+  try{
+    allDBKeys().forEach(function(m){ if(DB[m]) DB[m]=DB[m].filter(x=>x.id!==log.itemId); });
+    const m = targetMonth;
+    if(!DB[m]) DB[m]=[];
+    DB[m].push(JSON.parse(JSON.stringify(before)));
+    log.undone = true;
+    _activityShadow[log.itemId] = { status:_actStatus(before), name:before.item||'', month:m, snap:JSON.stringify(before) };
+    saveDB();
+    toast('Change undone — '+(log.itemName||'item')+' restored');
+  }catch(e){ console.warn('[RETRADE] undo failed:', e&&e.message); toast('Undo failed','err'); }
+  _suppressActivityCapture = false;
+  const on=document.querySelector('.page.on');
+  if(on && on.id==='p-activity' && typeof renderActivity==='function') renderActivity();
+}
+function _actDayLabel(d){
+  const t=new Date(); const y=new Date(t); y.setDate(t.getDate()-1);
+  if(d.toDateString()===t.toDateString())return 'Today';
+  if(d.toDateString()===y.toDateString())return 'Yesterday';
+  return d.toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short',year:(d.getFullYear()!==t.getFullYear()?'numeric':undefined)});
+}
+function _actGoItem(id){
+  const m=_findItemMonth(id);
+  if(m && typeof openItemPage==='function'){ openItemPage(m,id,'p-activity'); return; }
+  toast('Item not found (it may have been deleted)','err');
+}
+const _UNDO_SVG='<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"/></svg>';
+function renderActivity(){
+  const el=document.getElementById('p-activity'); if(!el) return;
+  const rows=(DB.activityLog||[]).slice().sort(function(a,b){return b.ts-a.ts;});
+  // The only undoable entry per item is its most recent non-undone one.
+  const latestActive={};
+  rows.forEach(function(r){ if(!r.undone && latestActive[r.itemId]===undefined) latestActive[r.itemId]=r.id; });
+  let body='';
+  if(!rows.length){
+    body='<div style="text-align:center;padding:52px 16px;color:var(--muted)">'
+      +'<div style="font-size:15px;font-weight:600;color:var(--text)">No activity yet</div>'
+      +'<div style="font-size:13px;margin-top:6px;max-width:380px;margin-left:auto;margin-right:auto;line-height:1.5">Every change to an item — sold, returned, re-sold, relisted, scrapped or deleted — will show up here, newest first, and you can undo the latest change on any item.</div></div>';
+  } else {
+    let lastDay='';
+    rows.forEach(function(r){
+      const d=new Date(r.ts); const dayKey=d.toDateString();
+      if(dayKey!==lastDay){ lastDay=dayKey; body+='<div class="act-day">'+_actDayLabel(d)+'</div>'; }
+      const hh=String(d.getHours()).padStart(2,'0'), mm=String(d.getMinutes()).padStart(2,'0');
+      const canUndo = r.undoable && !r.undone && latestActive[r.itemId]===r.id;
+      const sub = (r.fromState?esc(r.fromState)+' \u2192 '+esc(r.toState||''):esc(r.toState||''))
+                + ' \u00b7 '+hh+':'+mm + (r.undone?' \u00b7 <span class="act-undone-tag">undone</span>':'');
+      body+='<div class="act-row'+(r.undone?' act-undone':'')+'">'
+        +'<div class="act-main">'
+        +'<div class="act-line"><span class="act-badge act-'+esc(r.toState||'')+'">'+esc(r.action||'')+'</span>'
+        +'<span class="act-item" onclick="_actGoItem(\''+r.itemId+'\')">'+esc(r.itemName||'item')+'</span></div>'
+        +'<div class="act-sub">'+sub+'</div>'
+        +'</div>'
+        +(canUndo?'<button class="btn btn-secondary act-undo" onclick="undoActivity(\''+r.id+'\')">'+_UNDO_SVG+'Undo</button>':'')
+        +'</div>';
+    });
+  }
+  el.innerHTML='<div class="page-header"><div><div class="page-title">Activity &amp; history</div>'
+    +'<div class="page-sub">Every change to your stock, newest first \u2014 undo the latest change on any item.</div></div></div>'
+    +'<div class="act-feed">'+body+'</div>';
 }
 
 function saveDB(){
@@ -9032,6 +9249,7 @@ function saveDB(){
     return;
   }
   DB._userOwned = true;
+  try{ _captureActivity(); }catch(e){ console.warn('[RETRADE] capture hook failed',e); }
   refreshActivePage();
   // Debounce: wait 400ms of quiet before persisting (handles rapid edits)
   clearTimeout(_saveTimer);
@@ -9047,6 +9265,7 @@ function _dbFingerprint(){
   (DB.trips||[]).forEach(t => { fp['trip:'+t.id] = JSON.stringify(t); });
   (DB.expenses||[]).forEach(e => { fp['exp:'+e.id] = JSON.stringify(e); });
   (DB.cashLedger||[]).forEach(m => { fp['cash:'+m.id] = JSON.stringify(m); });
+  (DB.activityLog||[]).forEach(l => { fp['log:'+l.id] = JSON.stringify(l); });
   (_sourcingRuns||[]).forEach(r => { fp['run:'+r.id] = JSON.stringify(r); });
   (_accounts||[]).forEach(a => { fp['acct:'+a.id] = JSON.stringify(a); });
   return fp;
@@ -9122,6 +9341,10 @@ async function _persistChanges(){
           const id = key.slice(5);
           const acct = (_accounts||[]).find(a => a.id === id);
           if(acct) await saveAccountToSupabase(acct);
+        } else if(key.startsWith('log:')){
+          const id = key.slice(4);
+          const l = (DB.activityLog||[]).find(x => x.id === id);
+          if(l) await saveActivityToSupabase(l);
         }
       }catch(e){ errors.push(e.message); failedKeys.add(key); }
     }
@@ -9149,6 +9372,9 @@ async function _persistChanges(){
         } else if(key.startsWith('acct:')){
           const id = key.slice(5);
           await deleteAccountFromSupabase(id);
+        } else if(key.startsWith('log:')){
+          const id = key.slice(4);
+          await deleteActivityFromSupabase(id);
         }
       }catch(e){ errors.push(e.message); failedKeys.add(key); }
     }
@@ -9250,7 +9476,7 @@ async function initDB(){
     const _freshSession = !_isSameSession();
     const _lastTab = (() => { if(_freshSession) return 'summary';
       try{ return localStorage.getItem(_SK.tab) || 'summary'; }catch(e){ return 'summary'; } })();
-    const _safeTab = ['summary','monthly','stock','expenses','cash','returns','scrapped','tax','data','runs'].includes(_lastTab) ? _lastTab : 'summary';
+    const _safeTab = ['summary','monthly','stock','expenses','cash','returns','scrapped','tax','data','runs','activity'].includes(_lastTab) ? _lastTab : 'summary';
     showLoadingScreen('Loading your data…', _safeTab);
     await Promise.race([
       loadFromSupabase(),
@@ -9295,6 +9521,9 @@ async function initDB(){
         try{ toast('Recovered '+_recovered+' unsynced change'+(_recovered===1?'':'s')+' saved on this device','ok'); }catch(e){}
       }
     }catch(e){ console.warn('[RETRADE] outbox recovery block failed:', e && e.message); }
+    // v2.21.51 — seed the activity shadow from loaded data so pre-existing items
+    // never log as brand-new; the first real transition after boot logs cleanly.
+    try{ _initActivityShadow(); }catch(e){ console.warn('[RETRADE] shadow seed failed',e); }
     _loadUIState();
     hideLoadingScreen();
     // _freshSession / _lastTab / _safeTab were resolved before the load (7B) --
@@ -9616,12 +9845,13 @@ function _bootSkeletonHTML(tab){
   else if(tab === 'cash')        body = _skelGeneric('120px', false);
   else if(tab === 'returns')     body = _skelGeneric('120px', false);
   else if(tab === 'scrapped')    body = _skelGeneric('120px', false);
+  else if(tab === 'activity')    body = _skelGeneric('90px', false);
   else                           body = _skelSummary();
   // .page (not .page.on — see the .rt-skel CSS note) so the box model is shared.
   // rt-skel-<tab> is what lets the ID-scoped page rules reach this element --
   // see the .rt-skel-summary note in the CSS. Emitted for every tab so a future
   // ID rule on any page has a selector waiting for it.
-  const _t = ['summary','monthly','stock','expenses','cash','returns','scrapped','tax','data','runs'].includes(tab) ? tab : 'summary';
+  const _t = ['summary','monthly','stock','expenses','cash','returns','scrapped','tax','data','runs','activity'].includes(tab) ? tab : 'summary';
   return '<div class="page rt-skel rt-skel-' + _t + '">' + body
     + '<div style="text-align:center;margin-top:20px;font-size:13px;color:var(--text-secondary);" id="app-loading-msg"></div>'
     + '</div>';
@@ -9711,6 +9941,7 @@ function refreshActivePage(){
   else if(id==='p-cash'&&typeof renderCash==='function')renderCash();
   else if(id==='p-returns'&&typeof renderReturns==='function')renderReturns();
   else if(id==='p-scrapped'&&typeof renderScrapped==='function')renderScrapped();
+  else if(id==='p-activity'&&typeof renderActivity==='function')renderActivity();
   else if(id==='p-accounts'&&typeof renderAccountsPage==='function')renderAccountsPage();
   else if(id==='p-tax'&&typeof renderTax==='function')renderTax();
   else if(id==='p-active-run'&&typeof renderActiveRunPage==='function')renderActiveRunPage();
@@ -9970,6 +10201,7 @@ function goToTab(name,sourceEl){
   else if(name==='cash')renderCash();
   else if(name==='returns')renderReturns();
   else if(name==='scrapped')renderScrapped();
+  else if(name==='activity')renderActivity();
   else if(name==='accounts')renderAccountsPage();
   else if(name==='tax')renderTax();
   else if(name==='data')renderData();
@@ -10053,7 +10285,7 @@ function exitItemPage(){
     // Restore the page the panel was on top of
     const pageId=_savedPanelState.pageId||'p-summary';
     document.getElementById(pageId).classList.add('on');
-    const tabMap={'p-summary':'summary','p-monthly':'monthly','p-stock':'stock','p-expenses':'expenses','p-cash':'cash','p-tax':'tax','p-data':'data','p-runs':'runs','p-accounts':'accounts','p-returns':'returns','p-scrapped':'scrapped'};
+    const tabMap={'p-summary':'summary','p-monthly':'monthly','p-stock':'stock','p-expenses':'expenses','p-cash':'cash','p-tax':'tax','p-data':'data','p-runs':'runs','p-accounts':'accounts','p-returns':'returns','p-scrapped':'scrapped','p-activity':'activity'};
     const tabName=tabMap[pageId];
     if(tabName){const tab=document.querySelector('[data-tab="'+tabName+'"]');if(tab)tab.classList.add('on');}
     handleNavResize();
@@ -10080,7 +10312,7 @@ function exitItemPage(){
     return;
   }
   document.getElementById(origin).classList.add('on');
-  const tabMap={'p-summary':'summary','p-monthly':'monthly','p-stock':'stock','p-expenses':'expenses','p-cash':'cash','p-tax':'tax','p-data':'data','p-runs':'runs','p-accounts':'accounts','p-returns':'returns','p-scrapped':'scrapped'};
+  const tabMap={'p-summary':'summary','p-monthly':'monthly','p-stock':'stock','p-expenses':'expenses','p-cash':'cash','p-tax':'tax','p-data':'data','p-runs':'runs','p-accounts':'accounts','p-returns':'returns','p-scrapped':'scrapped','p-activity':'activity'};
   const tabName=tabMap[origin];
   if(tabName){const tab=document.querySelector('[data-tab="'+tabName+'"]');if(tab)tab.classList.add('on');}
   handleNavResize();
