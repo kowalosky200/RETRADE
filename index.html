@@ -1226,6 +1226,9 @@ button .rt-icon,.btn .rt-icon{pointer-events:none;}
   .ip-timeline-label{font-size:13px;}
   .ip-timeline-detail{font-size:12px;}
   .ip-timeline-header button{padding:4px 10px!important;font-size:12px!important;}
+  /* v2.21.54 — link-to-sale candidate list */
+  .link-cand{display:flex;align-items:center;gap:12px;width:100%;text-align:left;padding:10px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:9px;margin-bottom:7px;cursor:pointer;color:var(--text);}
+  .link-cand:hover{border-color:var(--accent);}
 
   /* v2.21.51 — Activity / history feed */
   .act-feed{max-width:760px;margin:0 auto;}
@@ -8324,6 +8327,8 @@ function _rowToItem(row, parts, returns){
       scrappedAt:      row.scrapped_at || null,
       scrapReason:     row.scrap_reason || null,
       scrapNote:       row.scrap_note || null,
+      supplierRefund:  (row.supplier_refund!=null ? Number(row.supplier_refund) : null),
+      scrapNote:       row.scrap_note || null,
     dateSourced:     row.date_sourced || null,
     sourcingRunId:   row.sourcing_run_id || null,
     // E33/E36 — Accounts. accountType per-item overrides the account's default
@@ -8411,6 +8416,8 @@ function _itemToRow(i, month){
     state:            i.state || 'listed',
     scrapped_at:      i.scrappedAt || null,
     scrap_reason:     i.scrapReason || null,
+    scrap_note:       i.scrapNote || null,
+    supplier_refund:  (i.supplierRefund!=null ? Number(i.supplierRefund) : null),
     scrap_note:       i.scrapNote || null,
     date_sourced:     i.dateSourced || null,
     sourcing_run_id:  i.sourcingRunId || null,
@@ -9108,14 +9115,14 @@ function _uuidLog(){ return 'log_' + Date.now().toString(36) + '_' + Math.random
 // Money-free canonical status label (mirrors the list-row status deriver).
 function _actStatus(i){
   if(!i) return 'gone';
-  if(i.scrappedAt) return (i.scrapReason==='donated')?'donated':'scrapped';
+  if(i.scrappedAt){ if(i.scrapReason==='supplier_return')return 'returned_supplier'; return (i.scrapReason==='donated')?'donated':'scrapped'; }
   if(i.isReturned) return 'returned';
   if(i.resaleSalePrice) return 'resold';
   if(i.dateSold) return 'sold';
   if(i.state==='sourced') return 'sourced';
   return 'listed';
 }
-const _ACT_LABEL = { listed:'Listed', sold:'Marked sold', returned:'Returned', resold:'Re-sold', scrapped:'Scrapped', donated:'Donated', sourced:'Moved to sourced', deleted:'Deleted' };
+const _ACT_LABEL = { listed:'Listed', sold:'Marked sold', returned:'Returned', resold:'Re-sold', scrapped:'Scrapped', donated:'Donated', returned_supplier:'Returned to supplier', sourced:'Moved to sourced', deleted:'Deleted' };
 function _findItemMonth(id){ const ks=allDBKeys(); for(const m of ks){ if((DB[m]||[]).some(x=>x.id===id)) return m; } return null; }
 function _pushActivity(itemId,itemName,fromState,toState,beforeObj,month){
   try{
@@ -11181,7 +11188,8 @@ function _renderItemPageInner(m,id){
   html+='<button class="btn btn-secondary ip-act-btn" onclick="confirmDupeItem(\''+m+'\',\''+id+'\')">'+icon('dupe',15)+'<span class="ip-act-label">Dupe</span></button>';
   if(!i.dateSold&&!i.resaleSalePrice&&!i.isReturned&&!i.scrappedAt&&(i.state==='sourced'||i.state==='listed'))html+='<button class="btn btn-secondary ip-act-btn" onclick="openSplitModal(\''+m+'\',\''+id+'\')" title="Split a multi-buy lot into separate units"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3v6a3 3 0 0 0 3 3h6a3 3 0 0 1 3 3v6"/><path d="M6 3v6a3 3 0 0 1-3 3"/><polyline points="15 9 18 12 15 15"/></svg><span class="ip-act-label">Split</span></button>';
 
-  if(_canScrap(i))html+='<button class="btn btn-secondary ip-act-btn" onclick="openScrapModal(\''+m+'\',\''+id+'\')" title="Dispose of item — scrap or donate" style="color:var(--warn)">'+icon('box',15)+'<span class="ip-act-label">Dispose</span></button>';
+  if(_canScrap(i))html+='<button class="btn btn-secondary ip-act-btn" onclick="openScrapModal(\''+m+'\',\''+id+'\')" title="Dispose of item — scrap or donate" style="color:var(--warn)">'+'<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="5" rx="1"/><path d="M4 9v9a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9"/><line x1="10" y1="13" x2="14" y2="13"/></svg>'+'<span class="ip-act-label">Dispose</span></button>';
+  if(!i.bundleId&&!i.scrappedAt&&(i.isReturned||(!i.dateSold&&!i.resaleSalePrice)))html+='<button class="btn btn-secondary ip-act-btn" onclick="openLinkToSaleModal(\''+m+'\',\''+id+'\')" title="Link this item into an existing sale (bundle)" style="color:var(--accent)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 17H7A5 5 0 0 1 7 7h2"/><path d="M15 7h2a5 5 0 0 1 0 10h-2"/><line x1="8" y1="12" x2="16" y2="12"/></svg><span class="ip-act-label">Add to sale</span></button>';
   html+='<button class="btn btn-secondary ip-act-btn ip-act-danger" onclick="deleteItem(\''+m+'\',\''+id+'\')">'+icon('trash',15)+'</button>';
   html+='</div>'; // close ip-topbar-row1
   html+='<div class="ip-topbar-row2">';
@@ -19662,7 +19670,7 @@ function renderItemRow(m,i){
         '<button onclick="event.stopPropagation();toggleDD(\'dd-'+i.id+'\');openListFromSourced(\''+m+'\',\''+i.id+'\')" style="color:var(--accent);font-weight:600;">'+icon('list',14)+' List Item</button>'+
         '<button onclick="event.stopPropagation();editItem(\''+m+'\',\''+i.id+'\')">'+icon('edit',14)+' Edit</button>'+
         '<button onclick="event.stopPropagation();confirmDupeItem(\''+m+'\',\''+i.id+'\')">'+icon('dupe',14)+' Duplicate</button>'+
-        (_canScrap(i)?'<button onclick="event.stopPropagation();toggleDD(\'dd-'+i.id+'\');openScrapModal(\''+m+'\',\''+i.id+'\')" style="color:var(--warn)">'+icon('box',14)+' Dispose</button>':'')+
+        (_canScrap(i)?'<button onclick="event.stopPropagation();toggleDD(\'dd-'+i.id+'\');openScrapModal(\''+m+'\',\''+i.id+'\')" style="color:var(--warn)">'+'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="5" rx="1"/><path d="M4 9v9a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9"/><line x1="10" y1="13" x2="14" y2="13"/></svg>'+' Dispose</button>':'')+
         '<button class="danger" onclick="event.stopPropagation();deleteItem(\''+m+'\',\''+i.id+'\')">'+icon('trash',14)+' Delete</button>'+
       '</div></div>';
     const photoHTML=i.photo?'<div class="stock-row-thumb" style="width:38px;height:38px;border-radius:6px;background:#0007 center/cover no-repeat url(\''+i.photo+'\');flex-shrink:0;border:1px solid var(--border);"></div>':'';
@@ -19792,7 +19800,7 @@ function renderItemRow(m,i){
       (!i.dateSold&&!i.resaleSalePrice&&i.state==='listed'?'<button onclick="event.stopPropagation();withdrawToSourced(\''+m+'\',\''+i.id+'\')" style="color:var(--warn)">'+icon('withdraw',14)+' Withdraw</button>':'')+
       ((i.dateSold||i.resaleSalePrice)&&!i.isReturned?'<button onclick="event.stopPropagation();openReturn(\''+m+'\',' + "'"+i.id+"'"+')">'+icon('return',14)+' Log Return</button>':'')+
       '<button onclick="event.stopPropagation();confirmDupeItem(\''+m+'\',' + "'"+i.id+"'"+')">' + '<svg width="13" height="13" viewBox="0 0 16 16" fill="none"><rect x="5" y="5" width="9" height="9" rx="1.5" stroke="currentColor" stroke-width="1.4"/><path d="M3 11V3a1 1 0 011-1h8" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg> Duplicate</button>'+
-      (_canScrap(i)?'<button onclick="event.stopPropagation();toggleDD(\'dd-'+i.id+'\');openScrapModal(\''+m+'\',\''+i.id+'\')" style="color:var(--warn)">'+icon('box',14)+' Dispose</button>':'')+
+      (_canScrap(i)?'<button onclick="event.stopPropagation();toggleDD(\'dd-'+i.id+'\');openScrapModal(\''+m+'\',\''+i.id+'\')" style="color:var(--warn)">'+'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="5" rx="1"/><path d="M4 9v9a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9"/><line x1="10" y1="13" x2="14" y2="13"/></svg>'+' Dispose</button>':'')+
       '<button class="danger" onclick="event.stopPropagation();deleteItem(\''+m+'\',' + "'"+i.id+"'"+')">' + '<svg width="13" height="13" viewBox="0 0 15 15" fill="none"><path d="M5.5 1h4M1 3.5h13M2.5 3.5l1 9a1 1 0 001 .9h6a1 1 0 001-.9l1-9" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M6 6.5v4M9 6.5v4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg> Delete</button>'+
     '</div></div>';
 
@@ -20344,6 +20352,118 @@ function submitBundleSale(){
   closePanel();
   toast('Bundle: '+items.length+' items sold for '+fmt(bundleTotal)+(totalShipping>0?' · '+fmt(totalShipping)+' shipping split':''));
   renderStock();
+}
+
+// ============================================================
+// v2.21.54 — RETROACTIVE "ADD TO A SALE" (link an orphan into an existing sale)
+// For legacy items that were really sold as part of a bundle but recorded as a
+// standalone/unsold/returned item. Merges the orphan into the target's sale:
+// shared bundleId, the ORDER TOTAL re-split across all members, and the orphan
+// marked sold so its cost books into COGS at the sale month. Because every member
+// books its own revenue AND its own cost, the split BETWEEN members is tax-neutral
+// — total revenue is unchanged; the only movement is the orphan's cost entering
+// COGS (correct: the item genuinely sold). Never edits the money engine.
+// ============================================================
+function _findItemRef(id){ let r=null; allDBKeys().forEach(function(k){ if(r)return; const x=(DB[k]||[]).find(function(i){return i.id===id;}); if(x)r=x; }); return r; }
+// PURE merge — mutates the passed member refs. Testable in isolation.
+function _applyLinkToSale(members, orphanIds, total, dateSold, platform){
+  if(!members.length) return null;
+  const weights=members.map(function(i){ return (i.costPrice||0)+((typeof calcPartsCost==='function')?(calcPartsCost(i)||0):0); });
+  const sumW=weights.reduce(function(a,b){return a+b;},0);
+  const shares=_bundleSplit(total, sumW>0?weights:members.map(function(){return 1;}));
+  const withId=members.find(function(i){return i.bundleId;});
+  const bundleId=withId?withId.bundleId:('b_'+Date.now()+'_'+Math.random().toString(36).slice(2,7));
+  const withRef=members.find(function(i){return i.bundleRef;});
+  const bundleRef=withRef?withRef.bundleRef:('BDL-'+String(dateSold||'').replace(/-/g,'').slice(2)+'-'+members.length);
+  members.forEach(function(item,idx){
+    if(orphanIds.has(item.id)){
+      // orphan was never really a standalone sale — clear the workaround state
+      item.isReturned=false;
+      delete item.returnHistory; delete item._dateSoldAtReturn; delete item._salePriceAtReturn;
+      delete item.resaleSalePrice; delete item.resalePostage; delete item.resaleShippingCost;
+      delete item.resalePackagingCost; delete item.resalePromoPercent;
+      delete item.scrappedAt; delete item.scrapReason; delete item.scrapNote;
+      item.postage=0; item.shippingCost=0;         // the real shipping sits on the target
+      item.dateSold=dateSold;
+      if(platform)item.soldOnPlatform=platform;
+    }
+    item.salePrice=shares[idx];
+    item.bundleId=bundleId; item.bundleRef=bundleRef; item.bundleTotal=+(+total).toFixed(2);
+    item.state='sold';
+  });
+  return {bundleId:bundleId, shares:shares};
+}
+let _linkOrphan=null;
+function openLinkToSaleModal(m,id){
+  const orphan=(DB[m]||[]).find(function(x){return x.id===id;}); if(!orphan){toast('Item not found','err');return;}
+  _linkOrphan={m:m,id:id,name:orphan.item||'this item'};
+  const html='<div style="font-size:12px;color:var(--text-secondary);margin-bottom:12px;line-height:1.5;">'
+    +'Pick the sale this item was really part of. It will be marked <strong>sold</strong> as part of that order and its cost will count toward that month\'s profit. The order total is split across all items \u2014 your total revenue and tax don\'t change unless you edit the total.</div>'
+    +'<div class="fg"><input type="text" id="link-search" placeholder="Search sold items by name or ref\u2026" autocomplete="off" style="width:100%" oninput="_linkFilter(this.value)"></div>'
+    +'<div id="link-cands">'+_linkCandsHTML('')+'</div>';
+  openPanel('Add \u201c'+esc(orphan.item||'item')+'\u201d to a sale', html);
+}
+function _linkFilter(q){ const el=document.getElementById('link-cands'); if(el)el.innerHTML=_linkCandsHTML(q); }
+function _soldCandidates(query){
+  const q=(query||'').trim().toLowerCase();
+  const out=[];
+  allDBKeys().forEach(function(k){ (DB[k]||[]).forEach(function(i){
+    if(_linkOrphan&&i.id===_linkOrphan.id)return;
+    if(i.scrappedAt||i.isReturned)return;
+    if(!(i.dateSold||i.resaleSalePrice))return;
+    if(q){ const hay=((i.item||'')+' '+(i.gid||'')+' '+(i.bundleRef||'')).toLowerCase(); if(hay.indexOf(q)<0)return; }
+    out.push(Object.assign({},i,{_month:k}));
+  }); });
+  out.sort(function(a,b){ return String(b.dateSold||'').localeCompare(String(a.dateSold||'')); });
+  return out.slice(0,40);
+}
+function _linkCandsHTML(query){
+  const cands=_soldCandidates(query);
+  if(!cands.length) return '<div style="text-align:center;padding:22px;color:var(--muted);font-size:13px;">No matching sold items.</div>';
+  return cands.map(function(i){
+    const chip=i.bundleId?' <span class="item-badge bundle" style="pointer-events:none;">\u2ac5 bundle</span>':'';
+    return '<button class="link-cand" onclick="selectLinkTarget(\''+i.id+'\')">'
+      +'<div style="flex:1;min-width:0;"><div style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(i.item||'Item')+chip+'</div>'
+      +'<div style="font-size:12px;color:var(--muted);">'+esc(i.dateSold||'')+(i.gid?' \u00b7 '+esc(i.gid):'')+'</div></div>'
+      +'<div style="font-weight:700;flex-shrink:0;">'+fmt((i.bundleId?i.bundleTotal:i.salePrice)||0)+'</div></button>';
+  }).join('');
+}
+function selectLinkTarget(targetId){
+  if(!_linkOrphan){toast('Reopen the item','err');return;}
+  const target=_findItemRef(targetId); if(!target){toast('Sale not found','err');return;}
+  const isBundle=!!target.bundleId;
+  const members=[];
+  if(isBundle){ allDBKeys().forEach(function(k){(DB[k]||[]).forEach(function(i){ if(i.bundleId===target.bundleId)members.push(i); });}); }
+  else members.push(target);
+  const names=members.map(function(i){return i.item;}).concat([_linkOrphan.name]);
+  const defTotal=(isBundle?(target.bundleTotal||0):(target.salePrice||0));
+  const list=names.map(function(n){return '<div style="padding:7px 12px;font-size:13px;border-top:1px solid var(--border);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(n||'Item')+'</div>';}).join('');
+  const html='<div style="font-size:12px;color:var(--text-secondary);margin-bottom:12px;line-height:1.5;">These '+(names.length)+' items will be linked as one order. Confirm the total the buyer paid for all of them together \u2014 it\'s split across the items; your revenue and tax stay the same unless you change it.</div>'
+    +'<div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;overflow:hidden;margin-bottom:14px;"><div style="padding:7px 12px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);">Items in this order</div>'+list+'</div>'
+    +'<div class="fg"><label>Total the buyer paid for all of them (\u00a3)</label>'
+    +'<input type="number" id="link-total" min="0" step="0.01" value="'+(+defTotal).toFixed(2)+'" autocomplete="off"></div>'
+    +'<button class="btn btn-secondary" style="width:48%;" onclick="openLinkToSaleModal(\''+_linkOrphan.m+'\',\''+_linkOrphan.id+'\')">\u2190 Back</button>'
+    +'<button class="btn btn-primary" style="width:48%;float:right;" onclick="confirmLinkToSale(\''+targetId+'\')">Link into this sale</button>';
+  openPanel('Confirm the order', html);
+}
+function confirmLinkToSale(targetId){
+  if(!_linkOrphan){toast('Reopen the item','err');return;}
+  const orphan=_findItemRef(_linkOrphan.id); const target=_findItemRef(targetId);
+  if(!orphan||!target){toast('Item not found','err');return;}
+  const el=document.getElementById('link-total');
+  const defTotal=(target.bundleId?(target.bundleTotal||0):(target.salePrice||0));
+  const total=(el&&el.value!=='')?(parseFloat(el.value)||0):defTotal;
+  if(!(total>0)){toast('Enter the total the buyer paid','err');return;}
+  const seen={}, members=[];
+  function add(it){ if(it&&!seen[it.id]){seen[it.id]=true;members.push(it);} }
+  if(target.bundleId){ allDBKeys().forEach(function(k){(DB[k]||[]).forEach(function(i){ if(i.bundleId===target.bundleId)add(_findItemRef(i.id)); });}); }
+  add(target); add(orphan);
+  const dateSold=target.dateSold||new Date().toISOString().split('T')[0];
+  const platform=target.soldOnPlatform||target.defaultPlatform||'';
+  const res=_applyLinkToSale(members, new Set([orphan.id]), total, dateSold, platform);
+  saveDB(); closePanel();
+  toast('Linked '+(orphan.item||'item')+' into the sale');
+  if(res&&res.bundleId&&typeof openBundlePage==='function')openBundlePage(res.bundleId);
 }
 
 // Bulk platform change — works for both Stock page (source='stock') and Monthly page (source='month')
@@ -21157,6 +21277,28 @@ function _cashStockTied(){
   });
   return +c.toFixed(2);
 }
+// v2.21.55 — capital actually lost on items that left stock as a disposition.
+// scrap/donate/recycle/other recovered nothing (−full cost); a supplier return
+// recovered its refund (−shortfall only; full refund nets to 0). Removed items are
+// already OUT of _cashStockTied, which released their tied cost back to available;
+// subtracting this term corrects that release so cash reflects real money: scrap
+// leaves cash unchanged (it was already spent), a supplier refund adds only what
+// actually came back. CASH-ONLY — never touches a taxable figure.
+function _cashCapitalNetLost(){
+  let lost=0;
+  (typeof allDBKeys==='function'?allDBKeys():[]).forEach(function(k){
+    (DB[k]||[]).forEach(function(i){
+      if(!i||!i.scrappedAt)return;
+      if((i.item||'').trim().toUpperCase()==='MONTH END')return;
+      let paidCost=(typeof calcPartsCost==='function'?(Number(calcPartsCost(i))||0):0); // parts: his cash regardless
+      const paid=(!i.accountId)||(i.accountSettled===true);
+      if(paid) paidCost += (i.accountPaidAmount!=null)?(Number(i.accountPaidAmount)||0):(Number(i.costPrice)||0);
+      const recovered=(i.scrapReason==='supplier_return')?(Number(i.supplierRefund)||0):0;
+      lost += (paidCost-recovered);
+    });
+  });
+  return +lost.toFixed(2);
+}
 function calcCashSummary(){
   const s=(typeof calcYearlyStats==='function')?calcYearlyStats('all'):{realisedProfit:0,stockValue:0,netProfit:0};
   const fyS=(typeof _currentFYStart==='function')?_currentFYStart():new Date().getFullYear();
@@ -21173,13 +21315,14 @@ function calcCashSummary(){
   const tradingCashMargin=+(Number(s.realisedProfit)||0).toFixed(2); // receipts − sold COGS − fees − postage − refunds − splits (all cash)
   const stockTied=_cashStockTied();                                  // real cost of unsold stock (sourced + listed), cash already paid out
   const cashOverheads=_cashOverheadsAllTime();
-  const operatingCash=+(tradingCashMargin-stockTied-cashOverheads).toFixed(2);
+  const capitalLost=_cashCapitalNetLost();                            // real capital gone on scrapped/donated/returned stock
+  const operatingCash=+(tradingCashMargin-stockTied-cashOverheads-capitalLost).toFixed(2);
   const cashAvailable=+(opening+operatingCash+contrib-draw+adjust).toFixed(2);
   const netProfit=+(Number(s.netProfit)||0).toFixed(2);
   return {
     opening:+opening.toFixed(2),contrib:+contrib.toFixed(2),draw:+draw.toFixed(2),adjust:+adjust.toFixed(2),
     contribFY:+contribFY.toFixed(2),drawFY:+drawFY.toFixed(2),
-    tradingCashMargin,stockTied,cashOverheads,operatingCash,cashAvailable,
+    tradingCashMargin,stockTied,cashOverheads,capitalLost,operatingCash,cashAvailable,
     netProfit,grossProfit:tradingCashMargin,
     netOwner:+(draw-contrib).toFixed(2),
     profitRetained:+(netProfit-draw+contrib).toFixed(2),
@@ -21396,6 +21539,12 @@ function _canScrap(i){
   // wins (a returned item is on hand regardless of prior sale/resale or an odd leftover state).
   return !((i.dateSold||i.resaleSalePrice)&&!i.isReturned);
 }
+function _scrapReasonToggle(){
+  const sel=document.getElementById('scrap-reason'); if(!sel)return;
+  const isRet=sel.value==='supplier_return';
+  const wrap=document.getElementById('scrap-refund-wrap'); if(wrap)wrap.style.display=isRet?'':'none';
+  const btn=document.getElementById('scrap-confirm-btn'); if(btn)btn.textContent=isRet?'Record return':'Remove from stock';
+}
 function openScrapModal(m,id){
   const i=(DB[m]||[]).find(function(x){return x.id===id;});
   if(!i)return;
@@ -21407,17 +21556,19 @@ function openScrapModal(m,id){
       +'<div style="font-size:13px;color:var(--muted);margin-top:4px">Capital in this item: '+fmt(cost)+' \u00b7 leaves your stock</div>'
     +'</div>'
     +'<div class="fg"><label>What are you doing with it?</label>'
-      +'<select id="scrap-reason">'
+      +'<select id="scrap-reason" onchange="_scrapReasonToggle()">'
         +'<option value="scrapped">Scrapped \u2014 faulty / binned</option>'
         +'<option value="donated">Donated \u2014 given away</option>'
         +'<option value="recycled">Recycled</option>'
+        +'<option value="supplier_return">Returned to supplier \u2014 money back</option>'
         +'<option value="other">Other</option>'
       +'</select></div>'
+    +'<div class="fg" id="scrap-refund-wrap" style="display:none"><label>Refund back into cash (\u00a3)</label><input id="scrap-refund" type="number" min="0" step="0.01" value="'+(+cost).toFixed(2)+'" autocomplete="off"><div style="font-size:11px;color:var(--text-secondary);margin-top:4px">Defaults to what you paid. The item leaves stock and this amount returns to your cash.</div></div>'
     +'<div class="fg"><label>Note (optional)</label><input id="scrap-note" type="text" placeholder="e.g. faulty, not worth relisting"></div>'
     +'<div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px 12px;font-size:12.5px;color:var(--text-secondary);line-height:1.5;margin-bottom:14px">'
       +'This removes the item from your active stock and records it under Scrapped/Donated for your write-off tracking. It stays visible there so you can see what you\u2019ve lost or given away.</div>'
     +'<div style="display:flex;gap:8px">'
-      +'<button class="btn btn-primary" style="flex:1" onclick="confirmScrap(\''+m+'\',\''+id+'\')">Scrap item</button>'
+      +'<button class="btn btn-primary" style="flex:1" id="scrap-confirm-btn" onclick="confirmScrap(\''+m+'\',\''+id+'\')">Remove from stock</button>'
       +'<button class="btn btn-secondary" onclick="closePanel()">Cancel</button>'
     +'</div>';
   openPanel('Dispose of item',html);
@@ -21430,12 +21581,16 @@ function confirmScrap(m,id){
   i.scrapReason=(reasonEl&&reasonEl.value)||'scrapped';
   const _note=((noteEl&&noteEl.value)||'').trim();
   if(_note)i.scrapNote=_note; else delete i.scrapNote;
+  if(i.scrapReason==='supplier_return'){
+    const rEl=document.getElementById('scrap-refund');
+    i.supplierRefund=Math.max(0, parseFloat(rEl&&rEl.value)||0);
+  } else { delete i.supplierRefund; }
   i.scrappedAt=new Date().toISOString();
   // Strip phantom Sale-2 economics — a never-resold item must not carry resale figures.
   i.resalePostage=null;i.resaleShippingCost=null;i.resalePackagingCost=null;i.resalePromoPercent=null;
   saveDB();
   closePanel();
-  toast('Item scrapped');
+  toast(i.scrapReason==='supplier_return'?'Return recorded \u2014 refund back in cash':'Item removed from stock');
   const cur=document.querySelector('.page.on');
   if(cur&&cur.id==='p-item'){renderItemPage(m,id);return;}
   if(cur&&cur.id==='p-scrapped'&&typeof renderScrapped==='function'){renderScrapped();return;}
