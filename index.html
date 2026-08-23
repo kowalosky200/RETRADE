@@ -1231,6 +1231,16 @@ button .rt-icon,.btn .rt-icon{pointer-events:none;}
   /* Combined hardening — retroactive link-to-sale candidate list */
   .link-cand{display:flex;align-items:center;gap:12px;width:100%;text-align:left;padding:10px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:9px;margin-bottom:7px;cursor:pointer;color:var(--text);}
   .link-cand:hover{border-color:var(--accent);}
+  /* v1.01 — historical sale reconciliation. These are decision cards rather
+     than generic radio inputs because each choice has different accounting
+     consequences. Keep the whole row tappable on mobile. */
+  .reconcile-mode-card{display:flex;align-items:flex-start;gap:10px;padding:11px 12px;margin-bottom:8px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;cursor:pointer;transition:border-color .15s,background .15s;line-height:1.4;}
+  .reconcile-mode-card:hover{border-color:var(--border2);}
+  .reconcile-mode-card:has(input:checked){border-color:var(--accent);background:var(--accent-dim);}
+  .reconcile-mode-card input{margin-top:3px;accent-color:var(--accent);flex-shrink:0;}
+  .reconcile-mode-card span{display:flex;flex-direction:column;gap:2px;min-width:0;}
+  .reconcile-mode-card strong{font-size:13px;color:var(--text);}
+  .reconcile-mode-card small{font-size:11.5px;color:var(--text-secondary);font-weight:400;}
 
   /* v2.21.51 — Activity / history feed */
   .act-feed{max-width:760px;margin:0 auto;}
@@ -3485,6 +3495,7 @@ svg.cat-donut-draw circle.donut-seg-last{
 .rt .stock-kpis-v2 .kpi-foot{font-size:12px;color:var(--text-tertiary);}
 /* Segmented toggle — full width + standard bottom gap */
 .rt .stock-state-seg{width:100%;margin-bottom:16px;}
+@media(max-width:420px){.rt .stock-state-seg button{padding:0 5px;font-size:11px;gap:3px}.rt .stock-state-seg button .count{font-size:9px}}
 @media(max-width:720px){
   /* Launch hardening: keep Inventory metrics useful without forcing a 2x2 card
      wall before the stock list. Horizontal scroll preserves all four KPIs while
@@ -4727,6 +4738,21 @@ svg.cat-donut-draw circle.donut-seg-last{
     box-shadow:0 0 0 2px rgba(220,91,91,0.24);
     animation:none;
   }
+  .rt #side-nav .side-nav-sync.pending .side-nav-sync-dot{
+    background:var(--brand);
+    box-shadow:0 0 0 2px rgba(242,179,61,0.20);
+    animation:none;
+  }
+  /* v1.01 — mobile has no sidebar/top nav, so cloud state lives in one tiny
+     corner badge instead of repetitive toasts. Hidden entirely when healthy. */
+  #mobile-sync-badge{display:none;position:fixed;left:12px;bottom:calc(62px + env(safe-area-inset-bottom,0px) + 10px);z-index:315;width:30px;height:30px;border-radius:50%;align-items:center;justify-content:center;background:var(--surface);border:1px solid var(--border);box-shadow:0 2px 10px var(--shadow);color:var(--text-secondary);pointer-events:none;opacity:.92;}
+  #mobile-sync-badge svg{width:15px;height:15px;}
+  #mobile-sync-badge.saving{display:flex;color:var(--accent);}
+  #mobile-sync-badge.saving svg{animation:sideSyncSpin .9s linear infinite;}
+  #mobile-sync-badge.pending{display:flex;color:var(--accent);}
+  #mobile-sync-badge.error{display:flex;color:var(--red);}
+  @keyframes sideSyncSpin{to{transform:rotate(360deg);}}
+  @media(min-width:601px){#mobile-sync-badge{display:none!important;}}
   @keyframes sideSyncPulse{
     0%,100%{opacity:1;}
     50%{opacity:0.5;}
@@ -5778,6 +5804,7 @@ c-230 453 -565 1105 -674 1315 -63 120 -114 221 -114 225 0 4 47 19 104 34
 </div>
 
 <div id="toast"></div>
+<div id="mobile-sync-badge" role="status" aria-live="polite" aria-label="Cloud sync status"></div>
 
 <div id="confirm-modal" role="dialog" aria-modal="true" aria-labelledby="confirm-title" aria-describedby="confirm-msg">
   <div class="confirm-box">
@@ -6282,6 +6309,7 @@ const _ICON_PATHS={
   dupe:'<rect x="8" y="8" width="12" height="12" rx="2"/><path d="M4 16V6a2 2 0 0 1 2-2h10"/>', // copy
   edit:'<path d="M4 20h4L18.5 9.5a2.1 2.1 0 0 0-3-3L5 17v3z"/><path d="M13.5 6.5l3 3"/>',       // pencil
   trash:'<path d="M4 7h16"/><path d="M9 7V4h6v3"/><path d="M6 7l1 13a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-13"/><path d="M10 11v6M14 11v6"/>', // bin
+  dispose:'<path d="M4 7h16"/><path d="M9 7V4h6v3"/><path d="M6 7l1 13a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-13"/><path d="M9.5 11.5l5 5M14.5 11.5l-5 5"/>', // bin + X = dispose / remove from stock
   fullpage:'<path d="M14 4h6v6"/><path d="M20 4l-8 8"/><path d="M18 14v4a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4"/>', // open external
   list:'<path d="M3 6h18M3 12h18M3 18h18"/>',                                      // lines = list it
   add:'<path d="M12 5v14M5 12h14"/>',                                              // plus
@@ -6646,9 +6674,17 @@ function _syncUserSettingsToCloud(){
         tax_other_income:_taxOtherIncome(),
         updated_at:new Date().toISOString()
       };
-      await _sb.from('user_settings').upsert(row,{onConflict:'user_id'});
+      const uid=row.user_id;
+      const upd=await _sb.from('user_settings').update(row).eq('user_id',uid).select('user_id');
+      if(upd.error)throw upd.error;
+      if(!upd.data||upd.data.length===0){
+        const ins=await _sb.from('user_settings').insert(row);
+        if(ins.error)throw ins.error;
+      }
     }catch(e){
-      console.warn('[RETRADE] user_settings sync failed (non-fatal):',e.message);
+      _lastSyncError='Settings sync: '+(e&&e.message?e.message:String(e));
+      console.warn('[RETRADE] user_settings sync failed (non-fatal):',_lastSyncError);
+      if(typeof _refreshSideNavSync==='function')_refreshSideNavSync('pending');
     }
   },800);
 }
@@ -6996,7 +7032,7 @@ let COST_CAT_FILTER='all';   // 'all' or a canonical EXPENSE_CATEGORY_DEFS label
 let SELECTION_MODE=false;
 let STOCK_SORT='days-asc';          // stock sort: profit | roi | price | days-desc | days-asc | cost-desc
 let STOCK_FILTER='all';           // listed-age filter: all | fresh | maturing | slow | stale
-let STOCK_STATE_FILTER='listed';  // Patch A — population: 'listed' | 'sourced'
+let STOCK_STATE_FILTER='listed';  // v1.01 — population: 'all' | 'listed' | 'sourced'(UI: Unlisted) | 'returned'
 let STOCK_SOURCED_FILTER='all';   // Patch A — sourced-age filter: all | new | soon | overdue | stagnant
 let STOCK_GROUPED=false;          // Session B: false=flat list, true=group by listing month
 let STOCK_SELECTION_MODE=false;   // stock page checkbox mode
@@ -7011,6 +7047,13 @@ let _activeSourcingRun=null;      // convenience pointer: run with status==='act
 // E33 — Accounts (partners/vendors). Unlike Runs (time-boxed sourcing trips),
 // an account is a standing relationship that can span many runs and months.
 let _accounts=[];                 // all accounts loaded from Supabase
+// v1.01 — Job Lots are inventory containers (not sale bundles). Membership
+// owns the physical grouping; child sale/return history remains on the items.
+let _jobLots=[];
+let _jobLotItems=[];
+let _jobLotSchemaAvailable=false;
+let _saleReconciliations=[];
+let _reconciliationSchemaAvailable=false;
 let _acctSelectMode=false;        // selection mode active on account detail page
 let _acctSelected=new Set();      // set of item IDs selected on account detail page
 let MONTHLY_VIEW='grid';          // 'grid' | 'detail'
@@ -8666,7 +8709,7 @@ function _itemToRow(i, month){
 async function _verifySchemaVersion(){
   if(ALLOW_SCHEMA_FALLBACK)return true;
   const res=await _sbCall(()=>_sb.from('retrade_meta').select('value').eq('key','schema_version').single());
-  if(res.error)throw new Error('Database migration check failed. Run retrade_supabase_launch_migration.sql before using this build. '+res.error.message);
+  if(res.error)throw new Error('Database migration check failed. Run the current RETRADE Supabase migration before using this build. '+res.error.message);
   if(!res.data||res.data.value!==RETRADE_SCHEMA_VERSION){
     throw new Error('Database schema version mismatch. App expects '+RETRADE_SCHEMA_VERSION+' but Supabase reports '+((res.data&&res.data.value)||'none')+'.');
   }
@@ -8687,7 +8730,7 @@ async function loadFromSupabase(){
   // Fetch all tables in parallel — explicit .eq('user_id') on every query as
   // belt-and-braces on top of RLS. Prevents NULL-user_id orphan rows or
   // misconfigured policies from bleeding into the loaded DB.
-  const [itemsRes, partsRes, returnsRes, tripsRes, expensesRes, runsRes, accountsRes, cashRes, activityRes] = await Promise.all([
+  const [itemsRes, partsRes, returnsRes, tripsRes, expensesRes, runsRes, accountsRes, cashRes, activityRes, jobLotsRes, jobLotItemsRes, reconcileRes] = await Promise.all([
     _sb.from('items').select('*').eq('user_id', uid).order('date_listed', {ascending: true}),
     _sb.from('item_parts').select('*').eq('user_id', uid),
     _sb.from('item_returns').select('*').eq('user_id', uid).order('logged_at', {ascending: true}),
@@ -8697,6 +8740,9 @@ async function loadFromSupabase(){
     _sb.from('accounts').select('*').eq('user_id', uid).order('name', {ascending: true}),
     _sb.from('cash_ledger').select('*').eq('user_id', uid).order('date', {ascending: true}),
     _sb.from('activity_log').select('*').eq('user_id', uid).order('ts', {ascending: true}),
+    _sb.from('job_lots').select('*').eq('user_id', uid).order('created_at', {ascending: true}),
+    _sb.from('job_lot_items').select('*').eq('user_id', uid).order('added_at', {ascending: true}),
+    _sb.from('sale_reconciliations').select('*').eq('user_id', uid).order('created_at', {ascending: true}),
   ]);
 
   // Core financial data must load as a complete set. Showing an apparently
@@ -8784,6 +8830,38 @@ async function loadFromSupabase(){
   } else {
     DB.activityLog = DB.activityLog || [];
     if(activityRes && activityRes.error) console.warn('activity_log load skipped (table may not exist yet):', activityRes.error.message);
+  }
+  // v1.01 — Job Lot + historical-reconciliation support is additive. An
+  // older database can still load the core app; the Job Lot UI then explains
+  // that the v1.01 migration is required instead of emitting sync 400s.
+  _jobLotSchemaAvailable=!!(jobLotsRes&&!jobLotsRes.error&&jobLotItemsRes&&!jobLotItemsRes.error);
+  if(_jobLotSchemaAvailable){
+    _jobLots=(jobLotsRes.data||[]).map(function(r){return{
+      id:r.id,name:r.name||'Job Lot',status:r.status||'building',dateCreated:r.date_created||null,
+      dateListed:r.date_listed||null,dateSold:r.date_sold||null,salePrice:Number(r.sale_price)||0,
+      platform:r.platform||'ebay',notes:r.notes||'',createdAt:r.created_at||null,updatedAt:r.updated_at||null
+    };});
+    _jobLotItems=(jobLotItemsRes.data||[]).map(function(r){return{
+      id:r.id,jobLotId:r.job_lot_id,itemId:r.item_id,addedAt:r.added_at||null,
+      removedAt:r.removed_at||null,costBasisAtAdd:Number(r.cost_basis_at_add)||0,notes:r.notes||''
+    };});
+  }else{
+    _jobLots=[];_jobLotItems=[];
+    if((jobLotsRes&&jobLotsRes.error)||(jobLotItemsRes&&jobLotItemsRes.error))console.info('[RETRADE] Job Lots unavailable until v1.01 stock-lifecycle migration is applied.');
+  }
+  _reconciliationSchemaAvailable=!!(reconcileRes&&!reconcileRes.error);
+  if(_reconciliationSchemaAvailable){
+    _saleReconciliations=(reconcileRes.data||[]).map(function(r){return{
+      id:r.id,attachedItemId:r.attached_item_id||null,targetSaleItemId:r.target_sale_item_id||null,
+      targetBundleId:r.target_bundle_id||null,targetBundleRef:r.target_bundle_ref||null,
+      treatment:r.treatment||'',status:r.status||'applied',priorOrderTotal:Number(r.prior_order_total)||0,
+      resultingOrderTotal:Number(r.resulting_order_total)||0,additionalRevenue:Number(r.additional_revenue)||0,
+      priorAllocation:r.prior_allocation||null,resultingAllocation:r.resulting_allocation||null,
+      pnlDelta:r.pnl_delta||null,beforeSnapshot:r.before_snapshot||null,afterSnapshot:r.after_snapshot||null,
+      note:r.note||'',createdAt:r.created_at||null
+    };});
+  }else{
+    _saleReconciliations=[];
   }
   // Patch C — load sourcing runs (graceful: if table doesn't exist yet, skip)
   if(!runsRes.error){
@@ -8883,6 +8961,22 @@ function _missingColumnFromError(err){
   if(mm) return mm[1];
   return null;
 }
+function _isConflictTargetError(err){
+  const m=((err&&err.message)||'').toLowerCase();
+  return !!(err&&(err.code==='42P10'||m.includes('no unique or exclusion constraint matching the on conflict specification')));
+}
+async function _upsertOwned(table,payload,conflict){
+  let result=await _sbCall(()=>_sb.from(table).upsert(payload,{onConflict:conflict}));
+  if(result&&result.error&&conflict==='id,user_id'&&_isConflictTargetError(result.error)){
+    // Older RETRADE schemas generally have id as the primary key. RLS still
+    // scopes ownership; retrying on id prevents a missing composite index from
+    // masquerading as an internet failure while the full migration is applied.
+    console.warn('[RETRADE] '+table+' lacks composite conflict index; retrying on id');
+    result=await _sbCall(()=>_sb.from(table).upsert(payload,{onConflict:'id'}));
+  }
+  return result;
+}
+
 async function _sbWriteFallback(makeQuery, rows, label){
   // rows: a single object (upsert) or an array of objects (insert).
   let payload = Array.isArray(rows) ? rows.map(r=>({...r})) : {...rows};
@@ -8893,7 +8987,8 @@ async function _sbWriteFallback(makeQuery, rows, label){
     if(!error){
       if(stripped.length && !window['_migWarn_'+label]){
         window['_migWarn_'+label]=true;
-        toast('Saved locally. Run the Supabase migration to sync new fields: '+stripped.join(', '),'err');
+        _lastSyncError='Database migration needed for '+label+': '+stripped.join(', ');
+        console.warn('[RETRADE] '+_lastSyncError);
       }
       return {error:null, stripped, data:result?result.data:null};
     }
@@ -8974,7 +9069,7 @@ async function saveItemToSupabase(m, i){
   // _sbWriteFallback so the row STILL persists instead of the whole save throwing
   // and the item silently reverting on reload (was the "sold → listed" data loss).
   const {error: itemErr} = await _sbWriteFallback(
-    p => _sb.from('items').upsert(p, {onConflict: 'id,user_id'}), row, 'items');
+    p => _upsertOwned('items',p,'id,user_id'), row, 'items');
   if(itemErr) throw new Error('Save item failed: ' + itemErr.message);
 
   // Replace child snapshots safely. New rows are inserted before the old
@@ -9031,7 +9126,7 @@ async function saveTripToSupabase(t){
     expenses: Array.isArray(t.expenses) ? t.expenses : [],
     sourcing_run_id: t.sourcingRunId||null
   };
-  let {error} = await _sbCall(()=>_sb.from('trips').upsert(row, {onConflict:'id,user_id'}));
+  let {error} = await _upsertOwned('trips',row,'id,user_id');
   // BUG-07 graceful fallback: if Supabase doesn't have the expenses column
   // yet (user hasn't run the migration SQL), retry without that field so the
   // trip itself still saves. The extras stay in DB.trips locally and will
@@ -9039,10 +9134,11 @@ async function saveTripToSupabase(t){
   if(error && ALLOW_SCHEMA_FALLBACK && /expenses/i.test(error.message||'') && /column/i.test(error.message||'')){
     if(!window._tripExpensesColumnWarned){
       window._tripExpensesColumnWarned=true;
-      toast('Trip saved locally. Add the expenses column in Supabase to sync extras.','err');
+      _lastSyncError='Trip extras are waiting for the Supabase migration';
+      console.warn('[RETRADE] '+_lastSyncError);
     }
     delete row.expenses;
-    const retry = await _sbCall(()=>_sb.from('trips').upsert(row, {onConflict:'id,user_id'}));
+    const retry = await _upsertOwned('trips',row,'id,user_id');
     error = retry.error;
   }
   if(error) throw new Error('Save trip failed: ' + error.message);
@@ -9056,7 +9152,7 @@ async function deleteTripFromSupabase(id){
 
 async function saveExpenseToSupabase(e){
   const row = {id:e.id, user_id:_currentUserId||null, date:e.date, description:e.description||'', amount:e.amount||0, category:e.category||null, sourcing_run_id:e.sourcingRunId||null};
-  const {error} = await _sbCall(()=>_sb.from('expenses').upsert(row, {onConflict:'id,user_id'}));
+  const {error} = await _upsertOwned('expenses',row,'id,user_id');
   if(error) throw new Error('Save expense failed: ' + error.message);
 }
 
@@ -9075,12 +9171,13 @@ async function saveCashMoveToSupabase(m){
     amount:m.amount||0, direction:m.direction||'in',
     description:m.description||'', reconcile_anchor:m.reconcileAnchor===true, created_at:m.createdAt||new Date().toISOString()
   };
-  const {error} = await _sbCall(()=>_sb.from('cash_ledger').upsert(row, {onConflict:'id,user_id'}));
+  const {error} = await _upsertOwned('cash_ledger',row,'id,user_id');
   if(error){
     if(!ALLOW_SCHEMA_FALLBACK) throw new Error('Save cash entry failed: '+error.message);
     if(!window._cashTableWarned){
       window._cashTableWarned=true;
-      toast('Cash entry saved on this device. Add the cash_ledger table in Supabase to sync.','err');
+      _lastSyncError='Cash ledger is waiting for the Supabase migration';
+      console.warn('[RETRADE] '+_lastSyncError);
     }
     console.warn('cash_ledger save skipped:', error.message);
   }
@@ -9102,10 +9199,10 @@ async function saveActivityToSupabase(l){
     ts:l.ts||Date.now(), undoable:!!l.undoable, undone:!!l.undone,
     created_at:new Date(l.ts||Date.now()).toISOString()
   };
-  const {error} = await _sbCall(()=>_sb.from('activity_log').upsert(row, {onConflict:'id,user_id'}));
+  const {error} = await _upsertOwned('activity_log',row,'id,user_id');
   if(error){
     if(!ALLOW_SCHEMA_FALLBACK) throw new Error('Save activity failed: '+error.message);
-    if(!window._activityTableWarned){ window._activityTableWarned=true; toast('Activity saved on this device. Add the activity_log table in Supabase to sync.','err'); }
+    if(!window._activityTableWarned){ window._activityTableWarned=true; _lastSyncError='Activity log is waiting for the Supabase migration'; console.warn('[RETRADE] '+_lastSyncError); }
     console.warn('activity_log save skipped:', error.message);
   }
 }
@@ -9115,6 +9212,60 @@ async function deleteActivityFromSupabase(id){
     if(!ALLOW_SCHEMA_FALLBACK) throw new Error('Delete activity failed: '+error.message);
     console.warn('activity_log delete skipped:', error.message);
   }
+}
+
+// v1.01 — Job Lot persistence. The UI is feature-gated when the optional
+// tables are absent, so these functions should only be reached after a clean load.
+function _jobLotToRow(l){return{
+  id:l.id,user_id:_currentUserId||null,name:l.name||'Job Lot',status:l.status||'building',
+  date_created:l.dateCreated||null,date_listed:l.dateListed||null,date_sold:l.dateSold||null,
+  sale_price:Number(l.salePrice)||0,platform:l.platform||null,notes:l.notes||null,
+  created_at:l.createdAt||new Date().toISOString()
+};}
+function _jobLotItemToRow(m){return{
+  id:m.id,user_id:_currentUserId||null,job_lot_id:m.jobLotId,item_id:m.itemId,
+  added_at:m.addedAt||new Date().toISOString(),removed_at:m.removedAt||null,
+  cost_basis_at_add:Number(m.costBasisAtAdd)||0,notes:m.notes||null
+};}
+async function saveJobLotToSupabase(l){
+  if(!_jobLotSchemaAvailable)throw new Error('Job Lot tables are not available — run the v1.01 stock-lifecycle migration');
+  const {error}=await _upsertOwned('job_lots',_jobLotToRow(l),'id,user_id');
+  if(error)throw new Error('Save Job Lot failed: '+error.message);
+}
+async function deleteJobLotFromSupabase(id){
+  if(!_jobLotSchemaAvailable)return;
+  const {error}=await _sbCall(()=>_sb.from('job_lots').delete().eq('id',id).eq('user_id',_currentUserId));
+  if(error)throw new Error('Delete Job Lot failed: '+error.message);
+}
+async function saveJobLotItemToSupabase(m){
+  if(!_jobLotSchemaAvailable)throw new Error('Job Lot tables are not available — run the v1.01 stock-lifecycle migration');
+  const {error}=await _upsertOwned('job_lot_items',_jobLotItemToRow(m),'id,user_id');
+  if(error)throw new Error('Save Job Lot membership failed: '+error.message);
+}
+async function deleteJobLotItemFromSupabase(id){
+  if(!_jobLotSchemaAvailable)return;
+  const {error}=await _sbCall(()=>_sb.from('job_lot_items').delete().eq('id',id).eq('user_id',_currentUserId));
+  if(error)throw new Error('Delete Job Lot membership failed: '+error.message);
+}
+function _saleReconcileToRow(r){return{
+  id:r.id,user_id:_currentUserId||null,attached_item_id:r.attachedItemId||null,
+  target_sale_item_id:r.targetSaleItemId||null,target_bundle_id:r.targetBundleId||null,
+  target_bundle_ref:r.targetBundleRef||null,treatment:r.treatment||'link_only',
+  status:r.status||'applied',prior_order_total:Number(r.priorOrderTotal)||0,
+  resulting_order_total:Number(r.resultingOrderTotal)||0,additional_revenue:Number(r.additionalRevenue)||0,
+  prior_allocation:r.priorAllocation||null,resulting_allocation:r.resultingAllocation||null,
+  pnl_delta:r.pnlDelta||null,before_snapshot:r.beforeSnapshot||null,after_snapshot:r.afterSnapshot||null,
+  note:r.note||null,created_at:r.createdAt||new Date().toISOString()
+};}
+async function saveSaleReconciliationToSupabase(r){
+  if(!_reconciliationSchemaAvailable)return; // Activity remains the durable fallback on older schemas.
+  const {error}=await _upsertOwned('sale_reconciliations',_saleReconcileToRow(r),'id,user_id');
+  if(error)throw new Error('Save sale reconciliation failed: '+error.message);
+}
+async function deleteSaleReconciliationFromSupabase(id){
+  if(!_reconciliationSchemaAvailable)return;
+  const {error}=await _sbCall(()=>_sb.from('sale_reconciliations').delete().eq('id',id).eq('user_id',_currentUserId));
+  if(error)throw new Error('Delete sale reconciliation failed: '+error.message);
 }
 
 // E6 lesson: both mappers must round-trip every field. Adding a field to one
@@ -9169,7 +9320,7 @@ async function saveRunToSupabase(run){
   // migrated (E32) — without this the whole run upsert threw and the run never
   // persisted (the "runs" data-loss episode). Now it saves minus the field.
   const {error}=await _sbWriteFallback(
-    p => _sb.from('sourcing_runs').upsert(p,{onConflict:'id,user_id'}), row, 'sourcing_runs');
+    p => _upsertOwned('sourcing_runs',p,'id,user_id'), row, 'sourcing_runs');
   if(error) throw new Error('Save run failed: '+error.message);
 }
 
@@ -9233,7 +9384,7 @@ function _rowToAccount(row){
 async function saveAccountToSupabase(a){
   const row=_accountToRow(a);
   const {error}=await _sbWriteFallback(
-    p=>_sb.from('accounts').upsert(p,{onConflict:'id,user_id'}),
+    p=>_upsertOwned('accounts',p,'id,user_id'),
     row,
     'accounts'
   );
@@ -9252,6 +9403,7 @@ let _saveTimer = null;
 let _currentUserId = null; // set on SIGNED_IN, cleared on SIGNED_OUT
 let _syncing = false;      // true while _persistChanges is actively running
 let _syncResolvers = [];   // resolve callbacks waiting for sync to finish
+let _lastSyncError = null; // diagnostics only; routine retries stay silent in the UI
 
 function _setSyncing(val){
   _syncing = val;
@@ -9412,7 +9564,7 @@ function _actStatus(i){
   if(i.state==='sourced') return 'sourced';
   return 'listed';
 }
-const _ACT_LABEL = { listed:'Listed', sold:'Marked sold', returned:'Returned', resold:'Re-sold', scrapped:'Scrapped', donated:'Donated', returned_supplier:'Returned to supplier', sourced:'Moved to sourced', deleted:'Deleted' };
+const _ACT_LABEL = { listed:'Listed', sold:'Marked sold', returned:'Returned', resold:'Re-sold', scrapped:'Scrapped', donated:'Donated', returned_supplier:'Returned to supplier', sourced:'Moved to unlisted', deleted:'Deleted' };
 function _findItemMonth(id){ const ks=allDBKeys(); for(const m of ks){ if((DB[m]||[]).some(x=>x.id===id)) return m; } return null; }
 function _pushActivity(itemId,itemName,fromState,toState,beforeObj,month){
   try{
@@ -9564,6 +9716,11 @@ function _dbFingerprint(){
   (DB.activityLog||[]).forEach(l => { fp['log:'+l.id] = JSON.stringify(l); });
   (_sourcingRuns||[]).forEach(r => { fp['run:'+r.id] = JSON.stringify(r); });
   (_accounts||[]).forEach(a => { fp['acct:'+a.id] = JSON.stringify(a); });
+  if(_jobLotSchemaAvailable){
+    (_jobLots||[]).forEach(l => { fp['jlot:'+l.id] = JSON.stringify(l); });
+    (_jobLotItems||[]).forEach(m => { fp['jmem:'+m.id] = JSON.stringify(m); });
+  }
+  if(_reconciliationSchemaAvailable)(_saleReconciliations||[]).forEach(r => { fp['recon:'+r.id] = JSON.stringify(r); });
   return fp;
 }
 
@@ -9641,6 +9798,15 @@ async function _persistChanges(){
           const id = key.slice(4);
           const l = (DB.activityLog||[]).find(x => x.id === id);
           if(l) await saveActivityToSupabase(l);
+        } else if(key.startsWith('jlot:')){
+          const id=key.slice(5); const l=(_jobLots||[]).find(x=>x.id===id);
+          if(l) await saveJobLotToSupabase(l);
+        } else if(key.startsWith('jmem:')){
+          const id=key.slice(5); const m=(_jobLotItems||[]).find(x=>x.id===id);
+          if(m) await saveJobLotItemToSupabase(m);
+        } else if(key.startsWith('recon:')){
+          const id=key.slice(6); const r=(_saleReconciliations||[]).find(x=>x.id===id);
+          if(r) await saveSaleReconciliationToSupabase(r);
         }
       }catch(e){ errors.push(e.message); failedKeys.add(key); }
     }
@@ -9671,35 +9837,29 @@ async function _persistChanges(){
         } else if(key.startsWith('log:')){
           const id = key.slice(4);
           await deleteActivityFromSupabase(id);
+        } else if(key.startsWith('jlot:')){
+          await deleteJobLotFromSupabase(key.slice(5));
+        } else if(key.startsWith('jmem:')){
+          await deleteJobLotItemFromSupabase(key.slice(5));
+        } else if(key.startsWith('recon:')){
+          await deleteSaleReconciliationFromSupabase(key.slice(6));
         }
       }catch(e){ errors.push(e.message); failedKeys.add(key); }
     }
 
     if(errors.length > 0){
-      // F9: Distinguish schema errors (missing column — user's connection is fine, just needs migration)
-      // from real network/connection errors. Don't alarm the user about connection for schema issues.
+      // v1.01 — a PostgREST/constraint/schema 400 is NOT a bad internet
+      // connection. Keep failed writes in the durable outbox, expose the exact
+      // reason in diagnostics/title text, and let the small sync indicator carry
+      // the state. Routine retries never interrupt the user with a toast.
       const schemaErrors=errors.filter(function(msg){
-        return msg&&(msg.includes('does not exist')||msg.includes('undefined column')||msg.includes('42703')||msg.includes('column'));
+        return msg&&(msg.includes('does not exist')||msg.includes('undefined column')||msg.includes('42703')||msg.includes('PGRST204')||msg.includes('schema'));
       });
-      const networkErrors=errors.filter(function(msg){
-        return !msg||(!(msg.includes('does not exist'))&&!(msg.includes('undefined column'))&&!(msg.includes('42703'))&&!(msg.includes('column')));
-      });
-      if(schemaErrors.length>0){
-        // The column-fallback (_sbWriteFallback) normally strips the un-migrated
-        // column and saves anyway, so reaching here means a save STILL failed and
-        // did not reach the cloud. This used to log silently, which is exactly how
-        // "sold reverted to listed" / "data disappeared" happened invisibly.
-        // Surface it once so the migration actually gets run.
-        console.warn('[RETRADE] Supabase schema mismatch (column not yet migrated):', schemaErrors);
-        if(!window._schemaMismatchWarned){
-          window._schemaMismatchWarned=true;
-          toast('⚠️ Some changes could not sync to the cloud (missing DB column). Run the Supabase migration — see handover.','err');
-        }
-      }
-      if(networkErrors.length>0){
-        console.error('Supabase sync errors:', networkErrors);
-        toast('⚠️ Cloud sync issue — check connection');
-      }
+      if(schemaErrors.length)console.warn('[RETRADE] Supabase schema mismatch:',schemaErrors);
+      console.error('[RETRADE] Cloud sync pending; writes retained locally:',errors);
+      _lastSyncError=errors.join(' | ')||'Cloud sync pending';
+    } else {
+      _lastSyncError=null;
     }
 
     // v2.21.50 — prune the outbox to only the writes that FAILED to confirm.
@@ -9815,7 +9975,6 @@ async function initDB(){
       if(_recovered>0){
         console.warn('[RETRADE] Recovered '+_recovered+' unsynced change(s) from local outbox');
         setTimeout(function(){ try{ saveDB(); }catch(e){ console.warn('[RETRADE] recovery flush failed',e); } }, 700);
-        try{ toast('Recovered '+_recovered+' unsynced change'+(_recovered===1?'':'s')+' saved on this device','ok'); }catch(e){}
       }
     }catch(e){ console.warn('[RETRADE] outbox recovery block failed:', e && e.message); }
     // v2.21.51 — seed the activity shadow from loaded data so pre-existing items
@@ -10401,7 +10560,7 @@ function _loadUIState(){try{
   // than resuming stale page/filter state. Collapsed-group state is harmless to
   // restore either way, but we skip it too for a fully clean start.
   if(!_isSameSession())return;
-  const sf=localStorage.getItem(_SK.stockF);const ssf=localStorage.getItem(_SK.stockSF);const sso=localStorage.getItem(_SK.stockSo);const ssof=localStorage.getItem(_SK.stockSoF);const sgr=localStorage.getItem(_SK.stockGr);const sc=localStorage.getItem(_SK.stkCol);const rs=localStorage.getItem(_SK.runsSort);const sp=localStorage.getItem(_SK.sumPer);const mv=localStorage.getItem(_SK.monthV);if(sf)STOCK_FILTER=sf;if(ssf)STOCK_STATE_FILTER=(ssf==='removed'?'listed':ssf);if(sso)STOCK_SORT=sso;if(ssof)STOCK_SOURCED_FILTER=ssof;if(sgr)STOCK_GROUPED=sgr==='1';if(sc){try{STOCK_COLLAPSED=new Set(JSON.parse(sc));}catch(e){}}if(rs)RUNS_SORT=rs;if(sp)SUMMARY_PERIOD=sp;if(mv)MONTHLY_VIEW=mv;}catch(e){}}
+  const sf=localStorage.getItem(_SK.stockF);const ssf=localStorage.getItem(_SK.stockSF);const sso=localStorage.getItem(_SK.stockSo);const ssof=localStorage.getItem(_SK.stockSoF);const sgr=localStorage.getItem(_SK.stockGr);const sc=localStorage.getItem(_SK.stkCol);const rs=localStorage.getItem(_SK.runsSort);const sp=localStorage.getItem(_SK.sumPer);const mv=localStorage.getItem(_SK.monthV);if(sf)STOCK_FILTER=sf;if(ssf){const _ssf=(ssf==='removed'?'listed':ssf);STOCK_STATE_FILTER=['all','listed','sourced','returned'].includes(_ssf)?_ssf:'listed';}if(sso)STOCK_SORT=sso;if(ssof)STOCK_SOURCED_FILTER=ssof;if(sgr)STOCK_GROUPED=sgr==='1';if(sc){try{STOCK_COLLAPSED=new Set(JSON.parse(sc));}catch(e){}}if(rs)RUNS_SORT=rs;if(sp)SUMMARY_PERIOD=sp;if(mv)MONTHLY_VIEW=mv;}catch(e){}}
 function _saveTabScroll(){const a=document.querySelector('.page.on');if(a)_scrollMap[a.id.replace('p-','')]=window.scrollY||window.pageYOffset||0;}
 function _restoreTabScroll(tab){const y=_scrollMap[tab];if(y)requestAnimationFrame(function(){requestAnimationFrame(function(){window.scrollTo(0,y);});});}
 
@@ -11463,13 +11622,14 @@ function _renderItemPageInner(m,id){
 
   if((!i.dateSold&&!i.resaleSalePrice)&&!i.isReturned&&!i.scrappedAt)html+='<button class="btn btn-primary ip-act-btn" onclick="markSold(\''+m+'\',\''+id+'\')">'+icon('sold',15)+'<span class="ip-act-label-always">Mark Sold</span></button>';
   if(i.isReturned&&!i.resaleSalePrice&&!i.scrappedAt)html+='<button class="btn btn-primary ip-act-btn" onclick="openRelist(\''+m+'\',\''+id+'\')">'+icon('relist',15)+'<span class="ip-act-label-always">Relist</span></button>';
+  if(i.isReturned&&!i.resaleSalePrice&&!i.scrappedAt)html+='<button class="btn btn-secondary ip-act-btn" onclick="moveReturnedToUnlisted(\''+m+'\',\''+id+'\')" title="Keep the return history but move this unit to Unlisted">'+icon('inbox',15)+'<span class="ip-act-label">Unlisted</span></button>';
   if((i.dateSold||i.resaleSalePrice)&&!i.isReturned&&!i.scrappedAt)html+='<button class="btn btn-secondary ip-act-btn" onclick="openReturn(\''+m+'\',\''+id+'\')">'+icon('return',15)+'<span class="ip-act-label-always">Return</span></button>';
   if(_stepBackTitle(i))html+='<button class="btn btn-secondary ip-act-btn" onclick="stepBack(\''+m+'\',\''+id+'\')" title="'+_stepBackTitle(i)+' \u2014 step back one state" style="color:var(--accent)">'+icon('revert',15)+'<span class="ip-act-label">Undo</span></button>';
   html+='<button class="btn btn-secondary ip-act-btn" onclick="confirmDupeItem(\''+m+'\',\''+id+'\')">'+icon('dupe',15)+'<span class="ip-act-label">Dupe</span></button>';
   if(!i.dateSold&&!i.resaleSalePrice&&!i.isReturned&&!i.scrappedAt&&(i.state==='sourced'||i.state==='listed'))html+='<button class="btn btn-secondary ip-act-btn" onclick="openSplitModal(\''+m+'\',\''+id+'\')" title="Split a multi-buy lot into separate units"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3v6a3 3 0 0 0 3 3h6a3 3 0 0 1 3 3v6"/><path d="M6 3v6a3 3 0 0 1-3 3"/><polyline points="15 9 18 12 15 15"/></svg><span class="ip-act-label">Split</span></button>';
 
-  if(_canScrap(i))html+='<button class="btn btn-secondary ip-act-btn" onclick="openScrapModal(\''+m+'\',\''+id+'\')" title="Dispose of item — scrap or donate" style="color:var(--warn)">'+icon('box',15)+'<span class="ip-act-label">Dispose</span></button>';
-  if(!i.bundleId&&!i.scrappedAt&&!i.resaleSalePrice&&(i.isReturned||!i.dateSold))html+='<button class="btn btn-secondary ip-act-btn" onclick="openLinkToSaleModal(\''+m+'\',\''+id+'\')" title="Reconcile this item into an existing sale" style="color:var(--accent)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 17H7A5 5 0 0 1 7 7h2"/><path d="M15 7h2a5 5 0 0 1 0 10h-2"/><line x1="8" y1="12" x2="16" y2="12"/></svg><span class="ip-act-label">Add to sale</span></button>';
+  if(_canScrap(i))html+='<button class="btn btn-secondary ip-act-btn" onclick="openScrapModal(\''+m+'\',\''+id+'\')" title="Dispose of item — scrap or donate" style="color:var(--warn)">'+icon('dispose',15)+'<span class="ip-act-label">Dispose</span></button>';
+  if(!i.bundleId&&!i.scrappedAt&&!i.resaleSalePrice&&(i.isReturned||!i.dateSold))html+='<button class="btn btn-secondary ip-act-btn" onclick="openLinkToSaleModal(\''+m+'\',\''+id+'\')" title="Reconcile this item with an existing historical sale" style="color:var(--accent)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 17H7A5 5 0 0 1 7 7h2"/><path d="M15 7h2a5 5 0 0 1 0 10h-2"/><line x1="8" y1="12" x2="16" y2="12"/></svg><span class="ip-act-label">Reconcile sale</span></button>';
   html+='<button class="btn btn-secondary ip-act-btn ip-act-danger" onclick="deleteItem(\''+m+'\',\''+id+'\')">'+icon('trash',15)+'</button>';
   html+='</div>'; // close ip-topbar-row1
   html+='<div class="ip-topbar-row2">';
@@ -12428,9 +12588,9 @@ const _FAB_OPTION_DEFS = {
     svg:'<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><line x1="7" y1="9" x2="17" y2="9"/><line x1="7" y1="13" x2="17" y2="13"/><line x1="7" y1="17" x2="13" y2="17"/></svg>'
   },
   sourced: {
-    label:'Sourced item', cls:'sourced',
+    label:'Unlisted stock', cls:'sourced',
     onClick:'closeFabDial();openStockQuickAdd()',
-    title:'Add sourced item (pre-listing)',
+    title:'Add unlisted stock (pre-listing)',
     svg:'<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="14" width="18" height="6" rx="1.5"/><rect x="5" y="9" width="14" height="5" rx="1.5"/><rect x="7.5" y="4" width="9" height="5" rx="1.5"/></svg>'
   },
   sourcerun: {
@@ -13906,29 +14066,31 @@ function _refreshSideNavUser(){
 function _refreshSideNavSync(state){
   const wrap=document.getElementById('side-nav-sync');
   const txt =document.getElementById('side-nav-sync-text');
-  if(!wrap||!txt)return;
-  wrap.classList.remove('saving','error');
+  const mob =document.getElementById('mobile-sync-badge');
   const now=new Date();
   const hh=String(now.getHours()).padStart(2,'0');
   const mm=String(now.getMinutes()).padStart(2,'0');
-  if(state==='saving'){
-    wrap.classList.add('saving');
-    txt.textContent='Saving…';
-    wrap.title='Saving…';
-  } else if(state==='error'){
-    wrap.classList.add('error');
-    txt.textContent='Save failed';
-    wrap.title='Save failed — will retry next change';
-  } else if(state==='pending'){
-    // v2.21.50 — some changes are saved on this device but not yet confirmed
-    // in the cloud. Honest signal (reuses the error dot styling).
-    wrap.classList.add('error');
-    const _n=(typeof _outboxPendingCount==='function')?_outboxPendingCount():0;
-    txt.textContent=_n>0?(_n+' unsynced'):'Unsynced';
-    wrap.title='Some changes are saved on this device but not yet in the cloud — they sync on the next change or when you reopen the app';
-  } else {
-    txt.textContent='Synced';
-    wrap.title='Last synced '+hh+':'+mm;
+  const pending=(typeof _outboxPendingCount==='function')?_outboxPendingCount():0;
+  const syncSvg='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 7h-5V2"/><path d="M20 7a8 8 0 1 0 1 8"/></svg>';
+  const warnSvg='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l9 17H3z"/><path d="M12 9v5M12 17h.01"/></svg>';
+  if(wrap&&txt){
+    wrap.classList.remove('saving','pending','error');
+    if(state==='saving'){
+      wrap.classList.add('saving'); txt.textContent='Syncing'; wrap.title='Saving changes to cloud';
+    } else if(state==='error'){
+      wrap.classList.add('error'); txt.textContent='Sync issue'; wrap.title=_lastSyncError||'Cloud sync needs attention';
+    } else if(state==='pending'){
+      wrap.classList.add('pending'); txt.textContent='Pending'; wrap.title=(pending?pending+' change'+(pending===1?'':'s')+' ':'Changes ')+'safe on this device; cloud retry happens automatically'+(_lastSyncError?' · '+_lastSyncError:'');
+    } else {
+      txt.textContent='Synced'; wrap.title='Last synced '+hh+':'+mm;
+    }
+  }
+  if(mob){
+    mob.className=''; mob.innerHTML='';
+    if(state==='saving'){mob.className='saving';mob.innerHTML=syncSvg;mob.setAttribute('aria-label','Syncing changes');mob.title='Syncing';}
+    else if(state==='pending'){mob.className='pending';mob.innerHTML=syncSvg;mob.setAttribute('aria-label','Changes pending cloud sync');mob.title='Changes safe on device; cloud retry pending';}
+    else if(state==='error'){mob.className='error';mob.innerHTML=warnSvg;mob.setAttribute('aria-label','Cloud sync needs attention');mob.title=_lastSyncError||'Cloud sync needs attention';}
+    else{mob.setAttribute('aria-label','Cloud synced');mob.title='Synced';}
   }
 }
 
@@ -14101,7 +14263,12 @@ function _accountStats(accountId){
   const _paysOnSale=_accountPaysOnSale(_acctForTerms);
   const items=_accountItems(accountId);
   const sold=items.filter(_accountItemIsSold);
-  const active=items.filter(function(i){return !_accountItemIsSold(i)&&!i.isReturned;});
+  const active=items.filter(function(i){return !_accountItemIsSold(i)&&!i.isReturned&&!i.scrappedAt;});
+  const returned=items.filter(function(i){return i.isReturned&&!i.scrappedAt&&!i.resaleSalePrice;});
+  const listedStock=active.filter(function(i){return i.state==='listed';});
+  const unlistedStock=active.filter(function(i){return i.state==='sourced';});
+  const stockOnHand=active.concat(returned);
+  const _stockCost=function(i){return (Number(i.costPrice)||0)+(typeof calcPartsCost==='function'?(Number(calcPartsCost(i))||0):0);};
   const grossProfit=sold.reduce(function(s,i){return s+(calcGrossProfit(i)||0);},0);
   let totalOwed=0,unsettledOwed=0,settledOwed=0,splitItemCount=0,partnerProfitCut=0,unsettledCount=0,unsettledSoldCount=0,unsettledUnsoldCount=0,unsettledUnsoldOwed=0,unsettledSoldOwed=0;
   // Iterate ALL items — supplier debt is per-purchase (returns non-null even when
@@ -14129,7 +14296,10 @@ function _accountStats(accountId){
   },0);
   return{
     itemCount:items.length, soldCount:sold.length, activeCount:active.length,
-    activeStockValue:active.reduce(function(s,i){return s+(i.salePrice||0);},0),
+    listedCount:listedStock.length, unlistedCount:unlistedStock.length, returnedCount:returned.length,
+    stockOnHandCount:stockOnHand.length,
+    stockCost:+stockOnHand.reduce(function(s,i){return s+_stockCost(i);},0).toFixed(2),
+    activeStockValue:+listedStock.reduce(function(s,i){return s+(i.salePrice||0);},0).toFixed(2),
     activePotential:+activePotential.toFixed(2),
     grossProfit:+grossProfit.toFixed(2), yourShare:+yourShare.toFixed(2),
     totalOwed:+totalOwed.toFixed(2), settledOwed:+settledOwed.toFixed(2),
@@ -14592,7 +14762,8 @@ function _renderAccountPage(acct){
       const db=(b.resaleSalePrice?b.resaleDateSold:b.dateSold)||'';
       return db.localeCompare(da);
     });
-  const active=items.filter(function(i){return !_accountItemIsSold(i)&&!i.isReturned;});
+  const active=items.filter(function(i){return !_accountItemIsSold(i)&&!i.isReturned&&!i.scrappedAt;});
+  const returned=items.filter(function(i){return i.isReturned&&!i.scrappedAt&&!i.resaleSalePrice;});
 
   const mc=function(label,val,sub,valCol){
     // Keep semantic value colour (green/red/--warn); omit when neutral.
@@ -14621,8 +14792,13 @@ function _renderAccountPage(acct){
     +mc('Your realised profit','\u00a3'+stats.yourShare.toFixed(0),stats.soldCount+' sold',stats.yourShare>=0?'var(--green)':'var(--red)')
     +mc('Outstanding to partner',_outVal,_outSub,_outColour)
     +mc('Paid to partner','\u00a3'+stats.settledOwed.toFixed(0),(acct.settlements||[]).length+' settlement'+((acct.settlements||[]).length!==1?'s':''))
-    +mc('Active stock potential','\u00a3'+stats.activePotential.toFixed(0),stats.activeCount+' unsold',stats.activePotential>=0?'var(--green)':'var(--red)')
+    +mc('Stock on hand',String(stats.stockOnHandCount),stats.listedCount+' listed · '+stats.unlistedCount+' unlisted · '+stats.returnedCount+' returned')
   +'</div>';
+  const stockSummaryHTML='<div style="display:flex;gap:10px;flex-wrap:wrap;margin:-6px 0 16px;padding:10px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;font-size:12px;color:var(--text-secondary);">'
+    +'<span><strong style="color:var(--text);">Stock cost '+fmt(stats.stockCost)+'</strong></span>'
+    +'<span>Listed asking '+fmt(stats.activeStockValue)+'</span>'
+    +'<span>Est. potential '+fmt(stats.activePotential)+'</span>'
+    +'</div>';
 
   const isSupplierAcct=(acct.accountType==='supplier');
 
@@ -14741,31 +14917,52 @@ function _renderAccountPage(acct){
   const activeRows=active.length?active.map(function(i){
     const owed=_accountItemDebt(i); // non-null for supplier items with cost
     const isSel=_acctSelected.has(i.id);
+    const isUnlisted=i.state==='sourced';
+    const stateLabel=isUnlisted?'Unlisted':'Listed';
     const askingStr=fmt(i.salePrice||0);
+    const stockCostStr=fmt((Number(i.costPrice)||0)+(typeof calcPartsCost==='function'?(Number(calcPartsCost(i))||0):0));
     if(_acctSelectMode){
       return '<div class="metric-inline" style="align-items:center;cursor:pointer;" onclick="_acctToggleSelect(\''+i.id+'\')">'
         +_selCheckbox(isSel)
         +'<div style="min-width:0;flex:1;"><div style="font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(i.item||'Untitled')+'</div>'
-        +'<div style="font-size:11px;color:var(--text-secondary);"><span class="item-badge '+i.state+'" style="font-size:10px;padding:2px 6px;">'+i.state+'</span> \u00b7 '+_splitLine(i)+'</div></div>'
+        +'<div style="font-size:11px;color:var(--text-secondary);"><span class="item-badge '+i.state+'" style="font-size:10px;padding:2px 6px;">'+stateLabel+'</span> \u00b7 '+_splitLine(i)+'</div></div>'
         +'<div style="text-align:right;flex-shrink:0;margin-left:8px;">'
-          +'<div style="font-size:14px;font-weight:700;">'+askingStr+'</div>'
+          +'<div style="font-size:14px;font-weight:700;">'+(isUnlisted?stockCostStr:askingStr)+'</div>'
           +(owed!==null?'<div style="font-size:11px;color:var(--text-secondary);">owed '+fmt(owed)+'</div>':'')
         +'</div></div>';
     }
     // Active row right column — asking price + owed/settle for suppliers only
     const activeRight='<div style="text-align:right;flex-shrink:0;min-width:105px;">'
-      +'<div style="font-size:13px;font-weight:700;color:var(--text-secondary);white-space:nowrap;">Asking '+askingStr+'</div>'
+      +'<div style="font-size:13px;font-weight:700;color:var(--text-secondary);white-space:nowrap;">'+(isUnlisted?'Cost '+stockCostStr:'Asking '+askingStr)+'</div>'
       +(owed!==null?'<div style="font-size:12px;color:var(--text-secondary);margin-top:1px;">Owed '+fmt(owed)+' <span style="opacity:0.7;">(cost)</span></div>'+'<div style="margin-top:4px;">'+_settleControl(i,owed)+'</div>':'')
     +'</div>';
     return '<div class="metric-inline" style="align-items:flex-start;">'
       +'<div style="min-width:0;flex:1;">'
         +'<div class="metric-k clickable" data-itemid="'+i.id+'" data-month="'+i._month+'" onclick="openItemDetail(this.dataset.month,this.dataset.itemid)" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(i.item||'Untitled')+'</div>'
-        +'<div style="font-size:11px;color:var(--text-secondary);margin-top:2px;"><span class="item-badge '+i.state+'" style="font-size:10px;padding:2px 6px;">'+i.state+'</span> \u00b7 '+_splitLine(i)+'</div>'
+        +'<div style="font-size:11px;color:var(--text-secondary);margin-top:2px;"><span class="item-badge '+i.state+'" style="font-size:10px;padding:2px 6px;">'+stateLabel+'</span> \u00b7 '+_splitLine(i)+'</div>'
         +_editSplitBtn(i)
       +'</div>'
       +activeRight
     +'</div>';
   }).join('') : '<div style="padding:20px;text-align:center;color:var(--muted);font-size:13px;">No active stock from this account</div>';
+
+  const returnedRows=returned.length?returned.map(function(i){
+    const isSel=_acctSelected.has(i.id);
+    const rr=(i.returnHistory||[]).slice().reverse().find(function(r){return r.type==='full_seller'||r.type==='full_ebay';});
+    const rd=(rr&&rr.loggedAt)||'';
+    const cost=fmt((Number(i.costPrice)||0)+(typeof calcPartsCost==='function'?(Number(calcPartsCost(i))||0):0));
+    if(_acctSelectMode){
+      return '<div class="metric-inline" style="align-items:center;cursor:pointer;" onclick="_acctToggleSelect(\''+i.id+'\')">'
+        +_selCheckbox(isSel)+'<div style="min-width:0;flex:1;"><div style="font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(i.item||'Untitled')+'</div>'
+        +'<div style="font-size:11px;color:var(--text-secondary);"><span class="item-badge returned" style="font-size:10px;padding:2px 6px;">Returned</span>'+(rd?' · '+rd:'')+'</div></div>'
+        +'<div style="font-size:13px;font-weight:700;">Cost '+cost+'</div></div>';
+    }
+    return '<div class="metric-inline" style="align-items:flex-start;">'
+      +'<div style="min-width:0;flex:1;"><div class="metric-k clickable" data-itemid="'+i.id+'" data-month="'+i._month+'" onclick="openItemDetail(this.dataset.month,this.dataset.itemid)" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(i.item||'Untitled')+'</div>'
+      +'<div style="font-size:11px;color:var(--text-secondary);margin-top:2px;"><span class="item-badge returned" style="font-size:10px;padding:2px 6px;">Returned</span>'+(rd?' · back '+rd:'')+' · action needed</div></div>'
+      +'<div style="text-align:right;flex-shrink:0;min-width:105px;"><div style="font-size:13px;font-weight:700;color:var(--text-secondary);">Cost '+cost+'</div>'
+      +'<button class="btn btn-secondary" style="font-size:11px;padding:3px 9px;margin-top:5px;color:var(--accent);" onclick="openRelist(\''+i._month+'\',\''+i.id+'\')">Relist</button></div></div>';
+  }).join(''):'<div style="padding:14px;text-align:center;color:var(--muted);font-size:12px;">No returned stock</div>';
 
   // "Mark all N unsettled as paid" — supplier accounts include unsold items in
   // the count (debt is per-purchase, not per-sale). Consignment/hybrid still
@@ -14829,12 +15026,13 @@ function _renderAccountPage(acct){
     +'</div>'
     +defaultLine
     +heroHTML
+    +stockSummaryHTML
     +selBar
     +((!isSupplierAcct&&hasDefault&&noSplitCount>0&&!_acctSelectMode)?'<button class="btn btn-secondary" style="width:100%;margin-bottom:10px;" onclick="applyDefaultSplitToAll(\''+acct.id+'\')">Apply '+acct.defaultSplitPercent+'% to '+noSplitCount+' item'+(noSplitCount!==1?'s':'')+' with no split</button>':'')
     +(unsettledCount>0&&!_acctSelectMode?'<button class="btn btn-primary" style="width:100%;margin-bottom:14px;" onclick="'+(isSupplierAcct?'settleAllForAccount(\''+acct.id+'\')':'_openConsignmentSettlementBuilder(\''+acct.id+'\','+JSON.stringify(sold.filter(function(i){return !i.accountSettled;}).map(function(i){return i.id;}))+')')+'">'+(isSupplierAcct?'Mark all '+unsettledCount+' unsettled as paid':'Allocate & settle '+unsettledCount+' item'+(unsettledCount!==1?'s':''))+'</button>':'')
     +'<div class="panel-card" style="margin-bottom:14px;"><div class="sl">Sold items</div>'+soldRows+'</div>'
     +((acct.settlements||[]).length?'<div class="panel-card" style="margin-bottom:14px;"><div class="sl">Settlement history</div>'+(acct.settlements||[]).map(function(tx){return '<button type="button" class="metric-inline" style="width:100%;border:0;background:transparent;text-align:left;cursor:pointer;" onclick="_openSettlementDetail(\''+acct.id+'\',\''+tx.id+'\')"><div style="min-width:0;flex:1;"><div class="metric-k">'+(tx.paid?'Paid ':'Allocated ')+fmt(tx.partnerAmount||0)+'</div><div style="font-size:11px;color:var(--text-secondary);">'+esc(tx.date||'')+' · '+((tx.items||[]).length)+' item'+((tx.items||[]).length!==1?'s':'')+(tx.note?' · '+esc(tx.note):'')+'</div></div><span style="font-size:11px;color:'+(tx.paid?'var(--green)':'var(--warn)')+';">'+(tx.paid?'Paid ✓':'Unpaid')+'</span></button>';}).join('')+'</div>':'')
-    +'<div class="panel-card"><div class="sl">Active stock</div>'+activeRows+'</div>'
+    +'<div class="panel-card"><div class="sl">Stock on hand</div>'+activeRows+(returned.length?'<div class="sl" style="margin-top:16px;">Returned · action needed</div>'+returnedRows:'')+'</div>'
   +'</div>';
   page.innerHTML=html;
 }
@@ -15877,7 +16075,7 @@ function submitListFromSourced(m, srcId){
   // Find the sourced item — it may live in its original month bucket
   let srcMonth=m, srcItem=null;
   allDBKeys().forEach(function(k){ const found=(DB[k]||[]).find(x=>x.id===srcId); if(found){srcMonth=k;srcItem=found;} });
-  if(!srcItem||srcItem.state!=='sourced'){toast('Sourced item not found — may already be listed','error');return;}
+  if(!srcItem||srcItem.state!=='sourced'){toast('Unlisted item not found — may already be listed','error');return;}
 
   // Delivery fields
   const isSimple=document.getElementById('qa-delivery-simple')&&document.getElementById('qa-delivery-simple').style.display!=='none';
@@ -16085,9 +16283,9 @@ function openStockQuickAdd(){
       </button>
       <button class="btn btn-secondary" onclick="closePanel();_goToSourcedStock()" style="flex:1;justify-content:center;">Done</button>
     </div>
-    <button class="btn btn-primary" id="sqa-submit-btn" style="width:100%;margin-top:18px" onclick="submitStockQuickAdd()">Save Sourced Item</button>
+    <button class="btn btn-primary" id="sqa-submit-btn" style="width:100%;margin-top:18px" onclick="submitStockQuickAdd()">Save Unlisted Item</button>
   `;
-  openPanel('Quick Add — Sourced Item',html);
+  openPanel('Quick Add — Unlisted Stock',html);
   // Wire a local preview only; the actual file uploads on Save
   const photoInput=document.getElementById('sqa-photo');
   if(photoInput){
@@ -16290,6 +16488,28 @@ function withdrawToSourced(m, id){
       </div>
     </div>`;
   document.body.insertAdjacentHTML('beforeend', modalHtml);
+}
+
+// v1.01 — A returned unit can be parked in Unlisted without pretending the
+// failed sale never happened. Full-return history stays intact, so when it
+// eventually sells markSold() correctly records Sale 2 rather than a new Sale 1.
+async function moveReturnedToUnlisted(m,id){
+  const rec=_findItemRecordById(id),item=rec&&rec.item;
+  if(!item||!item.isReturned||item.resaleSalePrice||item.scrappedAt){toast('This item is not waiting in Returned','err');return;}
+  const ok=await showConfirm(
+    'Move to Unlisted?',
+    'The item will leave the Returned queue and sit in Unlisted until you decide what to do with it. The failed sale and full-return history stay intact, and no revenue or cost is changed.',
+    {okLabel:'Move to Unlisted',danger:false}
+  );
+  if(!ok)return;
+  item.isReturned=false;
+  item.state='sourced';
+  item.dateSold=null;
+  saveDB();
+  toast('Moved to Unlisted — return history kept');
+  const active=document.querySelector('.page.on');
+  if(active&&active.id==='p-item')renderItemPage(rec.month,id);
+  else if(typeof renderStock==='function')renderStock();
 }
 
 function closeWithdrawModal(){
@@ -17276,7 +17496,11 @@ function openDashboardStock(filter){
   delete _scrollMap['stock'];
   goToTab('stock',document.querySelector('[data-tab="stock"]'));
   _stockFromSummary=true;   // set AFTER goToTab (which clears it)
-  if(filter)setStockFilter(filter);
+  if(filter==='all'){STOCK_STATE_FILTER='all';STOCK_FILTER='all';STOCK_SOURCED_FILTER='all';}
+  else if(filter==='sourced'||filter==='unlisted'){STOCK_STATE_FILTER='sourced';STOCK_FILTER='all';}
+  else if(filter==='returned'){STOCK_STATE_FILTER='returned';STOCK_FILTER='all';STOCK_SOURCED_FILTER='all';}
+  else {STOCK_STATE_FILTER='listed';STOCK_FILTER=(filter&&filter!=='listed')?filter:'all';STOCK_SOURCED_FILTER='all';}
+  _saveUIState();
   renderStock(); // re-render so back button appears
 }
 
@@ -18137,14 +18361,20 @@ function renderSummary(){
         </section>`;
       _wireFormLabels(el);_suppressPasswordManagers(el);return;
     }
-    const activeStock=allItems().filter(i=>!i.isReturned&&!i.dateSold&&!i.resaleSalePrice);
+    const activeStock=allItems().filter(function(i){
+      if(i.scrappedAt||i.resaleSalePrice)return false;
+      if(i.isReturned||i.state==='returned')return true;
+      return !i.dateSold&&(i.state==='sourced'||i.state==='listed'||!i.state);
+    });
+    const listedSummaryStock=activeStock.filter(function(i){return !i.isReturned&&i.state!=='sourced';});
     const activeStockCount=activeStock.length;
-    const activeStockVal=activeStock.reduce((s,i)=>s+(i.salePrice||0),0);
+    const activeStockVal=listedSummaryStock.reduce((s,i)=>s+(i.salePrice||0),0);
     const listedInPeriod=allItems().filter(i=>i.dateListed&&i.dateListed>=range.from&&i.dateListed<=range.to).length;
-    // Aging buckets for active stock — same model as Stock page, surfaced compactly here
+    // Listing-age buckets only apply to active listings — Unlisted/Returned use
+    // their own age clocks inside Inventory.
     const _todayStr=new Date().toISOString().split('T')[0];
     const sumAgeBuckets={fresh:0,maturing:0,slow:0,stale:0};
-    activeStock.forEach(i=>{
+    listedSummaryStock.forEach(i=>{
       const d=daysBetween(i.dateListed,_todayStr);
       if(d<=30)sumAgeBuckets.fresh++;
       else if(d<=60)sumAgeBuckets.maturing++;
@@ -18332,18 +18562,18 @@ function renderSummary(){
           <div class="summary-cat-head"><div class="sl">Inventory health</div><div class="summary-cat-count">By age in current state</div></div>
           <div class="inv-band-grid">
             <div class="inv-metrics">
-              <div class="inv-stat clickable" onclick="showFilteredItems('sourced')"><div class="inv-stat-k">Active stock value</div><div class="inv-stat-v num" data-cv="${Number(activeStockVal||0)}" data-cv-fmt="money" data-cv-key="sum-inv-value">${fmt(activeStockVal)}</div><div class="inv-stat-sub">At current ask</div></div>
-              <div class="inv-stat clickable" onclick="openDashboardStock('all')"><div class="inv-stat-k">Stock on hand</div><div class="inv-stat-v num" data-cv="${Number(activeStockCount||0)}" data-cv-fmt="int" data-cv-key="sum-inv-count">${activeStockCount}</div><div class="inv-stat-sub">Sourced + listed</div></div>
+              <div class="inv-stat clickable" onclick="openDashboardStock('listed')"><div class="inv-stat-k">Listed asking value</div><div class="inv-stat-v num" data-cv="${Number(activeStockVal||0)}" data-cv-fmt="money" data-cv-key="sum-inv-value">${fmt(activeStockVal)}</div><div class="inv-stat-sub">At current ask</div></div>
+              <div class="inv-stat clickable" onclick="openDashboardStock('all')"><div class="inv-stat-k">Stock on hand</div><div class="inv-stat-v num" data-cv="${Number(activeStockCount||0)}" data-cv-fmt="int" data-cv-key="sum-inv-count">${activeStockCount}</div><div class="inv-stat-sub">Listed + unlisted + returned</div></div>
               <div class="inv-stat clickable" onclick="showListedInPeriodItems()"><div class="inv-stat-k">Listed in period</div><div class="inv-stat-v num" data-cv="${Number(listedInPeriod||0)}" data-cv-fmt="int" data-cv-key="sum-inv-listed">${listedInPeriod}</div><div class="inv-stat-sub">Fresh sourcing pace</div></div>
             </div>
-            ${activeStockCount>0?(()=>{
+            ${listedSummaryStock.length>0?(()=>{
               const segs=[
                 {key:'fresh',label:'Fresh',count:sumAgeBuckets.fresh,col:'var(--green)'},
                 {key:'maturing',label:'Maturing',count:sumAgeBuckets.maturing,col:'var(--text-secondary)'},
                 {key:'slow',label:'Slow',count:sumAgeBuckets.slow,col:'var(--warn)'},
                 {key:'stale',label:'Stale',count:sumAgeBuckets.stale,col:'var(--red)'}
               ];
-              const tot=activeStockCount||1;
+              const tot=listedSummaryStock.length||1;
               const bar=segs.map(s=>{
                 const pct=(s.count/tot)*100;
                 if(pct===0)return '';
@@ -19882,6 +20112,7 @@ function renderSaleEventRow(ev){
     '<button class="ddbtn" aria-label="Item actions" onclick="event.stopPropagation();toggleDD(\'dd-'+i.id+'-s'+ev.sale+'\')" title="Actions">⋮</button>'+
     '<div class="ddmenu">'+
       '<button onclick="event.stopPropagation();openItemPage(\''+m+'\',\''+i.id+'\',document.querySelector(\'.page.on\').id)">'+icon('fullpage',14)+' Full page</button>'+
+      (i.isReturned&&!i.resaleSalePrice&&!i.scrappedAt?'<button onclick="event.stopPropagation();toggleDD(\'dd-'+i.id+'\');openRelist(\''+m+'\',\''+i.id+'\')" style="color:var(--accent);font-weight:600;">'+icon('relist',14)+' Relist</button>':'')+
       '<button onclick="event.stopPropagation();editItem(\''+m+'\',\''+i.id+'\')">'+icon('edit',14)+' Edit</button>'+
       (!ev.isReturned&&!ev.isReturnAdjustment?'<button onclick="event.stopPropagation();openReturn(\''+m+'\',\''+i.id+'\')">'+icon('return',14)+' Log Return</button>':'')+
       '<button onclick="event.stopPropagation();confirmDupeItem(\''+m+'\',\''+i.id+'\')">'+icon('dupe',14)+' Duplicate</button>'+
@@ -19994,7 +20225,7 @@ function renderItemRow(m,i){
   // Patch A — Stock-state items have a different shape (no salePrice / dateListed / fees).
   // Branch early to a stock-specific row layout. Keeps selection/click/menu wiring
   // consistent with listed-item rows so STOCK_SELECTION_MODE etc. still work.
-  if(i.state==='sourced'){
+  if(i.state==='sourced'&&!i.isReturned){
     const today=new Date().toISOString().split('T')[0];
     const ageDays=_daysInStock(i);
     const ageStr=ageDays===null?'':ageDays+'d in stock';
@@ -20027,7 +20258,7 @@ function renderItemRow(m,i){
         '<button onclick="event.stopPropagation();toggleDD(\'dd-'+i.id+'\');openListFromSourced(\''+m+'\',\''+i.id+'\')" style="color:var(--accent);font-weight:600;">'+icon('list',14)+' List Item</button>'+
         '<button onclick="event.stopPropagation();editItem(\''+m+'\',\''+i.id+'\')">'+icon('edit',14)+' Edit</button>'+
         '<button onclick="event.stopPropagation();confirmDupeItem(\''+m+'\',\''+i.id+'\')">'+icon('dupe',14)+' Duplicate</button>'+
-        (_canScrap(i)?'<button onclick="event.stopPropagation();toggleDD(\'dd-'+i.id+'\');openScrapModal(\''+m+'\',\''+i.id+'\')" style="color:var(--warn)">'+icon('box',14)+' Dispose</button>':'')+
+        (_canScrap(i)?'<button onclick="event.stopPropagation();toggleDD(\'dd-'+i.id+'\');openScrapModal(\''+m+'\',\''+i.id+'\')" style="color:var(--warn)">'+icon('dispose',14)+' Dispose</button>':'')+
         '<button class="danger" onclick="event.stopPropagation();deleteItem(\''+m+'\',\''+i.id+'\')">'+icon('trash',14)+' Delete</button>'+
       '</div></div>';
     const photoHTML=i.photo?'<div class="stock-row-thumb" style="width:38px;height:38px;border-radius:6px;background:#0007 center/cover no-repeat url(\''+i.photo+'\');flex-shrink:0;border:1px solid var(--border);"></div>':'';
@@ -20044,7 +20275,7 @@ function renderItemRow(m,i){
           '<div class="item-row-body">'+
             '<div class="item-row-name">'+esc(i.item||'Untitled stock item')+'</div>'+
             '<div class="item-row-meta">'+
-              '<span class="item-badge sourced">STOCK</span>'+
+              '<span class="item-badge sourced">UNLISTED</span>'+
               (stockMetaStr?'<span class="item-row-meta-sep">\u00b7</span><span>'+stockMetaStr+'</span>':'')+
               _stockHint+
             '</div>'+
@@ -20095,7 +20326,10 @@ function renderItemRow(m,i){
     else if(i.dateSold){metaParts.push('sold '+i.dateSold);_primaryDate='sold '+i.dateSold;}
     if(daysToSellVal!==null)metaParts.push(daysToSellVal+'d avg');
   }else if(status==='returned'){
-    if(i.dateSold){metaParts.push('sold '+i.dateSold);_primaryDate='sold '+i.dateSold;}
+    const _lastReturn=(i.returnHistory||[]).slice().reverse().find(function(r){return r.type==='full_seller'||r.type==='full_ebay';});
+    const _returnedAt=_lastReturn&&_lastReturn.loggedAt;
+    if(_returnedAt){metaParts.push('returned '+_returnedAt);_primaryDate='returned '+_returnedAt;metaParts.push(daysBetween(_returnedAt,today)+'d back');}
+    else if(i.dateSold){metaParts.push('returned after '+i.dateSold);_primaryDate='returned';}
   }
   // GID rendered separately so .item-row-gid CSS can hide it at narrow widths
   const _gidSpan=i.gid?'<span class="item-row-meta-sep">·</span><span class="item-row-gid">'+esc(i.gid)+'</span>':'';
@@ -20153,11 +20387,13 @@ function renderItemRow(m,i){
     '<div class="ddmenu">'+
       '<button onclick="event.stopPropagation();openItemPage(\''+m+'\',\''+i.id+'\',document.querySelector(\'.page.on\').id)">'+icon('fullpage',14)+' Full page</button>'+
       '<button onclick="event.stopPropagation();editItem(\''+m+'\',\''+i.id+'\')">'+icon('edit',14)+' Edit</button>'+
-      (!i.dateSold&&!i.resaleSalePrice?'<button onclick="event.stopPropagation();markSold(\''+m+'\',\''+i.id+'\')">' + '<svg width="14" height="14" viewBox="0 0 15 15" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M8.5 1.5h4a1 1 0 011 1v4a.5.5 0 01-.15.35l-6 6a1 1 0 01-1.41 0l-4-4a1 1 0 010-1.41l6-6A.5.5 0 018.5 1.5z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/><circle cx="11" cy="4" r="0.8" fill="currentColor"/></svg> Mark Sold</button>':'')+
+      (i.isReturned&&!i.resaleSalePrice&&!i.scrappedAt?'<button onclick="event.stopPropagation();toggleDD(\'dd-'+i.id+'\');openRelist(\''+m+'\',\''+i.id+'\')" style="color:var(--accent);font-weight:600;">'+icon('relist',14)+' Relist</button>':'')+
+      (i.isReturned&&!i.resaleSalePrice&&!i.scrappedAt?'<button onclick="event.stopPropagation();toggleDD(\'dd-'+i.id+'\');moveReturnedToUnlisted(\''+m+'\',\''+i.id+'\')">'+icon('inbox',14)+' Move to Unlisted</button>':'')+
+      (!i.isReturned&&!i.dateSold&&!i.resaleSalePrice?'<button onclick="event.stopPropagation();markSold(\''+m+'\',\''+i.id+'\')">' + '<svg width="14" height="14" viewBox="0 0 15 15" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M8.5 1.5h4a1 1 0 011 1v4a.5.5 0 01-.15.35l-6 6a1 1 0 01-1.41 0l-4-4a1 1 0 010-1.41l6-6A.5.5 0 018.5 1.5z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/><circle cx="11" cy="4" r="0.8" fill="currentColor"/></svg> Mark Sold</button>':'')+
       (!i.dateSold&&!i.resaleSalePrice&&i.state==='listed'?'<button onclick="event.stopPropagation();withdrawToSourced(\''+m+'\',\''+i.id+'\')" style="color:var(--warn)">'+icon('withdraw',14)+' Withdraw</button>':'')+
       ((i.dateSold||i.resaleSalePrice)&&!i.isReturned?'<button onclick="event.stopPropagation();openReturn(\''+m+'\',' + "'"+i.id+"'"+')">'+icon('return',14)+' Log Return</button>':'')+
       '<button onclick="event.stopPropagation();confirmDupeItem(\''+m+'\',' + "'"+i.id+"'"+')">' + '<svg width="13" height="13" viewBox="0 0 16 16" fill="none"><rect x="5" y="5" width="9" height="9" rx="1.5" stroke="currentColor" stroke-width="1.4"/><path d="M3 11V3a1 1 0 011-1h8" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg> Duplicate</button>'+
-      (_canScrap(i)?'<button onclick="event.stopPropagation();toggleDD(\'dd-'+i.id+'\');openScrapModal(\''+m+'\',\''+i.id+'\')" style="color:var(--warn)">'+icon('box',14)+' Dispose</button>':'')+
+      (_canScrap(i)?'<button onclick="event.stopPropagation();toggleDD(\'dd-'+i.id+'\');openScrapModal(\''+m+'\',\''+i.id+'\')" style="color:var(--warn)">'+icon('dispose',14)+' Dispose</button>':'')+
       '<button class="danger" onclick="event.stopPropagation();deleteItem(\''+m+'\',' + "'"+i.id+"'"+')">' + '<svg width="13" height="13" viewBox="0 0 15 15" fill="none"><path d="M5.5 1h4M1 3.5h13M2.5 3.5l1 9a1 1 0 001 .9h6a1 1 0 001-.9l1-9" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M6 6.5v4M9 6.5v4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg> Delete</button>'+
     '</div></div>';
 
@@ -20169,7 +20405,7 @@ function renderItemRow(m,i){
         '<div class="item-row-body">'+
           '<div class="item-row-name">'+esc(i.item)+'</div>'+
           '<div class="item-row-meta">'+
-            (i.state==='sourced'?'<span class="item-badge sourced">STOCK</span>':'<span class="item-badge '+badgeClass+'">'+badgeLabel+'</span>')+
+            (i.state==='sourced'?'<span class="item-badge sourced">UNLISTED</span>':'<span class="item-badge '+badgeClass+'">'+badgeLabel+'</span>')+
             platBadgeHTML(i)+
             _bundleChip+
             (metaStr?'<span class="item-row-meta-sep">·</span><span>'+metaStr+'</span>':'')+
@@ -20213,7 +20449,7 @@ function openItemDetail(m,id,noHistory){
       :'';
     const html=`
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px">
-        <span class="item-badge sourced" style="font-size:11px;padding:4px 9px"></span>
+        <span class="item-badge sourced" style="font-size:11px;padding:4px 9px">UNLISTED</span>
         ${i.gid?`<span style="font-size:11px;color:var(--muted);font-family:monospace">${i.gid}</span>`:''}
         ${i.category?`<span style="font-size:11px;color:var(--muted)">· ${esc(i.category)}</span>`:''}
       </div>
@@ -20369,7 +20605,7 @@ function openItemDetail(m,id,noHistory){
     </div>
     ${statStrip}
     ${(primaryBtn||revertBtn)?`<div style="display:flex;gap:8px;margin-bottom:16px">${primaryBtn}${revertBtn}</div>`:''}
-    ${isUnsold&&i.state==='listed'?`<div style="margin-bottom:16px"><button class="btn btn-secondary" style="width:100%;justify-content:center;gap:6px;color:var(--accent);border-color:var(--accent-dim)" onclick="withdrawToSourced('${m}','${id}')"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M10 4L6 8l4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M6 8h8M3 2v12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg> Move to Sourced</button></div>`:''}
+    ${isUnsold&&i.state==='listed'?`<div style="margin-bottom:16px"><button class="btn btn-secondary" style="width:100%;justify-content:center;gap:6px;color:var(--accent);border-color:var(--accent-dim)" onclick="withdrawToSourced('${m}','${id}')"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M10 4L6 8l4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M6 8h8M3 2v12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg> Move to Unlisted</button></div>`:''}
     ${quickEdit}
     ${returnSection}
     <div style="display:grid;grid-template-columns:1fr auto auto;gap:8px;align-items:center;padding-top:12px;border-top:1px solid var(--border)">
@@ -20443,12 +20679,18 @@ function setStockSort(s){STOCK_SORT=s;renderStock();_saveUIState();}
 function setStockFilter(f){STOCK_FILTER=f;renderStock();_saveUIState();}
 // Patch A — sourced-age bucket filter setter
 function setStockSourcedFilter(f){STOCK_SOURCED_FILTER=f;renderStock();}
-// Patch A — population filter ('listed' | 'sourced'). Switching resets the
-// irrelevant age filter on the other side to avoid stale filter state.
+// v1.01 — Inventory population filter. Backend `sourced` remains canonical
+// for compatibility; the operating UI calls that queue “Unlisted”.
 function setStockStateFilter(f){
+  if(!['all','listed','sourced','returned'].includes(f))f='listed';
   STOCK_STATE_FILTER=f;
-  if(f==='sourced') STOCK_FILTER='all';
-  if(f==='listed')  STOCK_SOURCED_FILTER='all';
+  // Each queue has different useful secondary filters/sorts. Never let a stale
+  // Listed-age filter silently hide Returned/Unlisted rows.
+  if(f!=='listed') STOCK_FILTER='all';
+  if(f!=='sourced') STOCK_SOURCED_FILTER='all';
+  if(f==='sourced'&&!['cost-desc','days-desc','days-asc'].includes(STOCK_SORT))STOCK_SORT='days-desc';
+  if((f==='returned'||f==='all')&&!['cost-desc','days-desc','days-asc'].includes(STOCK_SORT))STOCK_SORT='days-desc';
+  if(f==='listed'&&STOCK_SORT==='cost-desc')STOCK_SORT='days-asc';
   renderStock();
   _saveUIState();
 }
@@ -20508,7 +20750,7 @@ async function stockBulkAction(action,items){
     const today=new Date().toISOString().split('T')[0];
     STOCK_SELECTED.forEach(function(id){
       const rec=_findItemRecordById(id);const found=rec&&rec.item;
-      if(found&&!found.dateSold&&!found.resaleSalePrice){
+      if(found&&found.state==='listed'&&!found.isReturned&&!found.dateSold&&!found.resaleSalePrice&&!found.scrappedAt){
         found.dateSold=today;found.isReturned=false;found.state='sold';
         if(!found.soldOnPlatform)found.soldOnPlatform=_itemPlatform(found);
         found.grossProfit=calcGrossProfit(found);
@@ -20722,31 +20964,86 @@ function submitBundleSale(){
 // model can make this atomic across every member.
 // ============================================================
 function _findItemRef(id){const r=_findItemRecordById(id);return r?r.item:null;}
-function _applyLinkToSale(members,orphanIds,total,dateSold,platform){
-  if(!members.length)return null;
-  const weights=members.map(function(i){return (Number(i.costPrice)||0)+((typeof calcPartsCost==='function')?(Number(calcPartsCost(i))||0):0);});
-  const sumW=weights.reduce(function(a,b){return a+b;},0);
-  const shares=_bundleSplit(total,sumW>0?weights:members.map(function(){return 1;}));
-  const withId=members.find(function(i){return i.bundleId;});
+function _linkTargetMembers(target){
+  const members=[],seen={};
+  function add(i){if(i&&!seen[i.id]){seen[i.id]=true;members.push(i);}}
+  if(target&&target.bundleId){
+    allDBKeys().forEach(function(k){(DB[k]||[]).forEach(function(i){if(i.bundleId===target.bundleId)add(i);});});
+  }
+  add(target);
+  return members;
+}
+function _linkOrderTotal(target,members){
+  if(target&&target.bundleId&&Number(target.bundleTotal)>0)return Number(target.bundleTotal)||0;
+  return (members||[]).reduce(function(s,i){return s+(Number(i.salePrice)||0);},0);
+}
+function _linkOrderRef(target){
+  if(!target)return 'sale';
+  return target.bundleRef||target.gid||target.item||'sale';
+}
+function _linkCostBasis(i){return (Number(i&&i.costPrice)||0)+((typeof calcPartsCost==='function')?(Number(calcPartsCost(i))||0):0);}
+function _prepareHistoricalSaleItem(item,dateSold,platform,target){
+  // This is intentionally only used after the user explicitly confirms a
+  // financial reconciliation. Any legacy return workaround is preserved in
+  // Activity's before_snapshot before being cleared from the live stock record.
+  item.isReturned=false;
+  delete item.returnHistory;delete item._dateSoldAtReturn;delete item._salePriceAtReturn;
+  delete item.resaleSalePrice;delete item.resaleDateSold;delete item.resalePlatform;delete item.resalePostage;
+  delete item.resaleShippingCost;delete item.resalePackagingCost;delete item.resalePromoPercent;delete item.resaleListingFee;
+  delete item.scrappedAt;delete item.scrapReason;delete item.scrapNote;delete item.supplierRefund;
+  item.dateSold=dateSold;
+  item.state='sold';
+  // One historical order already owns its postage / fulfilment charge. Do not
+  // invent a second delivery charge on the newly attached member.
+  item.postage=0;
+  item.shippingCost=0;
+  if(platform){item.soldOnPlatform=platform;item.salePlatform=platform;}
+  // Inherit a linear promo rate where one exists so splitting the order price
+  // does not accidentally make the promotion disappear from the attached item.
+  if(target&&Number(target.promoPercent)>0&&!Number(item.promoPercent))item.promoPercent=Number(target.promoPercent)||0;
+}
+function _ensureBundleForReconcile(members,target,total,dateSold){
+  const withId=(members||[]).find(function(i){return i.bundleId;});
   const bundleId=withId?withId.bundleId:_newId('b');
-  const withRef=members.find(function(i){return i.bundleRef;});
+  const withRef=(members||[]).find(function(i){return i.bundleRef;});
   const bundleRef=withRef?withRef.bundleRef:('BDL-'+String(dateSold||'').replace(/-/g,'').slice(2)+'-'+members.length);
-  members.forEach(function(item,idx){
-    if(orphanIds.has(item.id)){
-      item.isReturned=false;
-      delete item.returnHistory;delete item._dateSoldAtReturn;delete item._salePriceAtReturn;
-      delete item.resaleSalePrice;delete item.resaleDateSold;delete item.resalePlatform;delete item.resalePostage;
-      delete item.resaleShippingCost;delete item.resalePackagingCost;delete item.resalePromoPercent;delete item.resaleListingFee;
-      delete item.scrappedAt;delete item.scrapReason;delete item.scrapNote;delete item.supplierRefund;
-      item.postage=0;item.shippingCost=0;
-      item.dateSold=dateSold;
-      item.state='sold';
-      if(platform){item.soldOnPlatform=platform;item.salePlatform=platform;}
-    }
-    item.salePrice=shares[idx];
-    item.bundleId=bundleId;item.bundleRef=bundleRef;item.bundleTotal=+(+total).toFixed(2);
+  (members||[]).forEach(function(i){i.bundleId=bundleId;i.bundleRef=bundleRef;i.bundleTotal=+(Number(total)||0).toFixed(2);});
+  return {bundleId:bundleId,bundleRef:bundleRef};
+}
+function _applyIncludedReconcile(existing,orphan,total,dateSold,platform,target){
+  const all=existing.slice();all.push(orphan);
+  // Use the values the records already carry as the allocation signal. This
+  // mirrors normal bundle creation and avoids the old bug that weighted revenue
+  // by COST, which had no relationship to what the buyer paid.
+  const weights=all.map(function(i){return Math.max(0,Number(i.salePrice)||0);});
+  const shares=_bundleSplit(total,weights.some(function(v){return v>0;})?weights:all.map(function(){return 1;}));
+  _prepareHistoricalSaleItem(orphan,dateSold,platform,target);
+  all.forEach(function(i,idx){i.salePrice=shares[idx];});
+  const b=_ensureBundleForReconcile(all,target,total,dateSold);
+  return {bundleId:b.bundleId,bundleRef:b.bundleRef,total:+Number(total).toFixed(2),shares:shares};
+}
+function _applyAdditionalReconcile(existing,orphan,additional,dateSold,platform,target){
+  const oldTotal=_linkOrderTotal(target,existing);
+  const newTotal=+(oldTotal+additional).toFixed(2);
+  _prepareHistoricalSaleItem(orphan,dateSold,platform,target);
+  orphan.salePrice=+additional.toFixed(2);
+  const all=existing.slice();all.push(orphan);
+  const b=_ensureBundleForReconcile(all,target,newTotal,dateSold);
+  return {bundleId:b.bundleId,bundleRef:b.bundleRef,total:newTotal,additional:+additional.toFixed(2)};
+}
+function _pushSaleReconcileActivity(orphanRec,before,target,mode,res){
+  DB.activityLog=DB.activityLog||[];
+  const label=mode==='included'?'Sale reconciliation · included total':mode==='additional'?'Sale reconciliation · added revenue':'Sale reconciliation · needs review';
+  const targetRef=(res&&res.bundleRef)||_linkOrderRef(target);
+  const after=mode==='link_only'
+    ?('Needs review · linked by note to '+targetRef+' · no financial changes')
+    :(label+' · '+targetRef+' · order price '+fmt((res&&res.total)||0));
+  DB.activityLog.push({
+    id:_uuidLog(),itemId:orphanRec.item.id,itemName:orphanRec.item.item||'',
+    action:label,fromState:_actStatus(before),toState:mode==='link_only'?_actStatus(before):'sold',
+    before:JSON.parse(JSON.stringify(before)),month:orphanRec.month,after:after,
+    ts:Date.now(),undoable:false,undone:false
   });
-  return {bundleId:bundleId,bundleRef:bundleRef,shares:shares};
 }
 let _linkOrphan=null;
 function openLinkToSaleModal(m,id){
@@ -20754,12 +21051,12 @@ function openLinkToSaleModal(m,id){
   if(orphan.resaleSalePrice){toast('A completed resale cannot be merged into another sale','err');return;}
   _linkOrphan={m:m,id:id,name:orphan.item||'this item'};
   const historyWarn=orphan.isReturned&&Array.isArray(orphan.returnHistory)&&orphan.returnHistory.length
-    ?'<div class="info-box" style="margin-bottom:12px;color:var(--warn)"><strong>Reconciliation:</strong> this item has return history. Linking it will replace that workaround history with the selected order. Export a backup first if you are unsure.</div>':'';
+    ?'<div class="info-box" style="margin-bottom:12px;color:var(--warn)"><strong>Returned-item history found.</strong> If you choose a financial reconciliation, RETRADE will preserve the current record in Activity before converting this item into the historical order. If you are not certain, use <strong>Link only · needs review</strong>.</div>':'';
   const html=historyWarn
-    +'<div style="font-size:12px;color:var(--text-secondary);margin-bottom:12px;line-height:1.5;">Pick the sale this item was really part of. RETRADE will mark it sold on that order and re-split the order total across every member so the overall revenue stays unchanged.</div>'
+    +'<div style="font-size:12px;color:var(--text-secondary);margin-bottom:12px;line-height:1.55;">Use this only to repair an older order that was recorded incompletely. Pick the sale this physical item really belonged to. You will choose how the old total should be treated <strong>before any money is changed</strong>.</div>'
     +'<div class="fg"><input type="text" id="link-search" placeholder="Search sold items by name or ref…" autocomplete="off" oninput="_linkFilter(this.value)"></div>'
     +'<div id="link-cands">'+_linkCandsHTML('')+'</div>';
-  openPanel('Add “'+esc(orphan.item||'item')+'” to a sale',html);
+  openPanel('Reconcile “'+esc(orphan.item||'item')+'” with a sale',html);
 }
 function _linkFilter(q){const el=document.getElementById('link-cands');if(el)el.innerHTML=_linkCandsHTML(q);}
 function _soldCandidates(query){
@@ -20768,8 +21065,8 @@ function _soldCandidates(query){
     if(_linkOrphan&&i.id===_linkOrphan.id)return;
     if(i.scrappedAt||i.isReturned)return;
     if(!(i.dateSold||i.resaleSalePrice))return;
-    // The repair engine currently links into Sale 1/bundles only. A Sale-2 target
-    // has different frozen fee/postage semantics and must not be silently flattened.
+    // Historical repair currently targets Sale 1/bundles only. Sale 2 has
+    // separate frozen return/fee semantics and must never be flattened here.
     if(i.resaleSalePrice)return;
     if(q){const hay=((i.item||'')+' '+(i.gid||'')+' '+(i.bundleRef||'')).toLowerCase();if(hay.indexOf(q)<0)return;}
     out.push(Object.assign({},i,{_month:k}));
@@ -20788,45 +21085,95 @@ function _linkCandsHTML(query){
 function selectLinkTarget(targetId){
   if(!_linkOrphan){toast('Reopen the item','err');return;}
   const target=_findItemRef(targetId);if(!target){toast('Sale not found','err');return;}
-  const members=[];
-  if(target.bundleId){allDBKeys().forEach(function(k){(DB[k]||[]).forEach(function(i){if(i.bundleId===target.bundleId)members.push(i);});});}
-  else members.push(target);
-  const names=members.map(function(i){return i.item;}).concat([_linkOrphan.name]);
-  const defTotal=target.bundleId?(Number(target.bundleTotal)||0):(Number(target.salePrice)||0);
-  const list=names.map(function(n){return '<div style="padding:7px 12px;font-size:13px;border-top:1px solid var(--border);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(n||'Item')+'</div>';}).join('');
-  const html='<div style="font-size:12px;color:var(--text-secondary);margin-bottom:12px;line-height:1.5;">These '+names.length+' items will become one order. Confirm the total the buyer paid. This repair changes the revenue allocation between members, so History records it but does not offer a one-click undo yet.</div>'
-    +'<div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;overflow:hidden;margin-bottom:14px;"><div style="padding:7px 12px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);">Items in this order</div>'+list+'</div>'
-    +'<div class="fg"><label>Total buyer paid (£)</label><input type="number" id="link-total" min="0" step="0.01" value="'+(+defTotal).toFixed(2)+'" autocomplete="off"></div>'
-    +'<button class="btn btn-secondary" style="width:48%;" onclick="openLinkToSaleModal(\''+_linkOrphan.m+'\',\''+_linkOrphan.id+'\')">← Back</button>'
-    +'<button class="btn btn-primary" style="width:48%;float:right;" onclick="confirmLinkToSale(\''+targetId+'\')">Link into sale</button>';
-  openPanel('Confirm order reconciliation',html);
+  const members=_linkTargetMembers(target);
+  const orphanRec=_findItemRecordById(_linkOrphan.id);if(!orphanRec){toast('Item not found','err');return;}
+  const orphan=orphanRec.item;
+  const recorded=_linkOrderTotal(target,members);
+  const itemCost=_linkCostBasis(orphan);
+  const list=members.concat([orphan]).map(function(i,idx){
+    const isNew=idx===members.length;
+    return '<div style="padding:8px 12px;font-size:13px;border-top:1px solid var(--border);display:flex;gap:8px;align-items:center;">'
+      +'<span style="flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(i.item||'Item')+(isNew?' <span style="font-size:10px;color:var(--accent);font-weight:700;">TO ADD</span>':'')+'</span>'
+      +'<span style="color:var(--text-secondary);flex-shrink:0;">'+fmt(Number(i.salePrice)||0)+'</span></div>';
+  }).join('');
+  const warn=(orphan.isReturned&&Array.isArray(orphan.returnHistory)&&orphan.returnHistory.length)
+    ?'<div class="info-box" style="margin:0 0 12px;color:var(--warn)"><strong>This item has return history.</strong> Financial modes will replace the live workaround state, but its complete before-state remains in Activity. Choose Link only if you cannot verify the accounting.</div>':'';
+  const html=warn
+    +'<div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start;margin-bottom:12px;">'
+      +'<div><div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;font-weight:700;">Recorded order price</div><div style="font-size:22px;font-weight:800;margin-top:2px;">'+fmt(recorded)+'</div></div>'
+      +'<div style="text-align:right"><div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;font-weight:700;">Item cost basis</div><div style="font-size:18px;font-weight:700;margin-top:2px;">'+fmt(itemCost)+'</div></div>'
+    +'</div>'
+    +'<div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;overflow:hidden;margin-bottom:14px;"><div style="padding:7px 12px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);">Order members</div>'+list+'</div>'
+    +'<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:0 0 8px;">How should the old total be treated?</div>'
+    +'<label class="reconcile-mode-card"><input type="radio" name="link-mode" value="included" checked onchange="_updateLinkPreview(\''+targetId+'\')"><span><strong>Included in recorded total</strong><small>The '+fmt(recorded)+' already includes this item. Revenue stays unchanged; RETRADE re-allocates that price across all members.</small></span></label>'
+    +'<label class="reconcile-mode-card"><input type="radio" name="link-mode" value="additional" onchange="_updateLinkPreview(\''+targetId+'\')"><span><strong>Additional to recorded total</strong><small>The old record is missing some buyer revenue. Existing item shares stay unchanged; enter only the missing amount for this item.</small></span></label>'
+    +'<div id="link-additional-wrap" style="display:none;margin:8px 0 10px 30px;"><div class="fg" style="margin:0"><label>Missing amount (£)</label><input type="number" id="link-additional" min="0" step="0.01" placeholder="e.g. 20.00" autocomplete="off" oninput="_updateLinkPreview(\''+targetId+'\')"></div></div>'
+    +'<label class="reconcile-mode-card"><input type="radio" name="link-mode" value="link_only" onchange="_updateLinkPreview(\''+targetId+'\')"><span><strong>Link only · needs review</strong><small>Safest when you are not sure. No revenue, cost, fee, return or stock-state values are changed; RETRADE records the relationship in Activity for later review.</small></span></label>'
+    +'<div id="link-preview" class="info-box" style="margin:12px 0"></div>'
+    +'<label id="link-cost-confirm-wrap" style="display:flex;gap:9px;align-items:flex-start;margin:10px 0 14px;font-size:12px;color:var(--text-secondary);line-height:1.45;"><input type="checkbox" id="link-cost-confirm" style="margin-top:2px;flex-shrink:0;"><span>I have checked that this item’s cost is <strong>not already counted in another sale</strong>. Its '+fmt(itemCost)+' cost basis can be attached to this historical order once.</span></label>'
+    +'<div style="display:flex;gap:8px;"><button class="btn btn-secondary" style="flex:1" onclick="openLinkToSaleModal(\''+_linkOrphan.m+'\',\''+_linkOrphan.id+'\')">← Back</button>'
+    +'<button class="btn btn-primary" style="flex:1" onclick="confirmLinkToSale(\''+targetId+'\')">Reconcile</button></div>';
+  openPanel('Reconcile historical order',html);
+  setTimeout(function(){_updateLinkPreview(targetId);},0);
 }
-function confirmLinkToSale(targetId){
+function _updateLinkPreview(targetId){
+  const target=_findItemRef(targetId),orphanRec=_linkOrphan?_findItemRecordById(_linkOrphan.id):null;
+  if(!target||!orphanRec)return;
+  const members=_linkTargetMembers(target),recorded=_linkOrderTotal(target,members),cost=_linkCostBasis(orphanRec.item);
+  const modeEl=document.querySelector('input[name="link-mode"]:checked');
+  const mode=modeEl?modeEl.value:'included';
+  const addWrap=document.getElementById('link-additional-wrap');if(addWrap)addWrap.style.display=mode==='additional'?'':'none';
+  const confirmWrap=document.getElementById('link-cost-confirm-wrap');if(confirmWrap)confirmWrap.style.display=mode==='link_only'?'none':'flex';
+  const p=document.getElementById('link-preview');if(!p)return;
+  if(mode==='link_only'){
+    p.innerHTML='<strong>No accounting change.</strong> The item stays exactly where it is now. A “Needs review” link to '+esc(_linkOrderRef(target))+' is written to Activity.';
+    return;
+  }
+  if(mode==='additional'){
+    const el=document.getElementById('link-additional');const a=el&&el.value!==''?(parseFloat(el.value)||0):0;
+    p.innerHTML='<strong>Preview:</strong> recorded order price '+fmt(recorded)+' → <strong>'+fmt(recorded+a)+'</strong>. Existing item revenue shares stay unchanged; this item receives '+fmt(a)+'. Its '+fmt(cost)+' cost basis is counted once when attached.';
+    return;
+  }
+  p.innerHTML='<strong>Preview:</strong> recorded order price stays <strong>'+fmt(recorded)+'</strong>. Revenue is reallocated across '+(members.length+1)+' items using their current item values. This item adds its '+fmt(cost)+' cost basis to the order exactly once.';
+}
+async function confirmLinkToSale(targetId){
   if(!_linkOrphan){toast('Reopen the item','err');return;}
   const orphanRec=_findItemRecordById(_linkOrphan.id),targetRec=_findItemRecordById(targetId);
   if(!orphanRec||!targetRec){toast('Item not found','err');return;}
   const orphan=orphanRec.item,target=targetRec.item;
-  const el=document.getElementById('link-total');
-  const defTotal=target.bundleId?(Number(target.bundleTotal)||0):(Number(target.salePrice)||0);
-  const total=(el&&el.value!=='')?(parseFloat(el.value)||0):defTotal;
-  if(!(total>0)){toast('Enter the total buyer paid','err');return;}
-  const seen={},members=[];
-  function add(it){if(it&&!seen[it.id]){seen[it.id]=true;members.push(it);}}
-  if(target.bundleId){allDBKeys().forEach(function(k){(DB[k]||[]).forEach(function(i){if(i.bundleId===target.bundleId)add(i);});});}
-  add(target);add(orphan);
+  const modeEl=document.querySelector('input[name="link-mode"]:checked');
+  const mode=modeEl?modeEl.value:'included';
+  const existing=_linkTargetMembers(target).filter(function(i){return i.id!==orphan.id;});
+  const recorded=_linkOrderTotal(target,existing);
+  if(mode!=='link_only'){
+    const check=document.getElementById('link-cost-confirm');
+    if(!check||!check.checked){toast('Confirm that the item cost is not already counted elsewhere','err');return;}
+  }
+  let additional=0;
+  if(mode==='additional'){
+    const el=document.getElementById('link-additional');additional=el&&el.value!==''?(parseFloat(el.value)||0):0;
+    if(!(additional>0)){toast('Enter the missing amount for this item','err');return;}
+  }
   const dateSold=target.dateSold||new Date().toISOString().split('T')[0];
   const platform=target.salePlatform||target.soldOnPlatform||_s1Platform(target)||'';
-  const beforeStatus=_actStatus(orphan);
+  const before=JSON.parse(JSON.stringify(orphan));
   _suppressActivityCapture=true;
-  const res=_applyLinkToSale(members,new Set([orphan.id]),total,dateSold,platform);
   try{
-    DB.activityLog=DB.activityLog||[];
-    DB.activityLog.push({id:_uuidLog(),itemId:orphan.id,itemName:orphan.item||'',action:'Added to sale',fromState:beforeStatus,toState:'sold',before:null,month:orphanRec.month,after:'Linked into '+((res&&res.bundleRef)||'order'),ts:Date.now(),undoable:false,undone:false});
+    let res=null;
+    if(mode==='included')res=_applyIncludedReconcile(existing,orphan,recorded,dateSold,platform,target);
+    else if(mode==='additional')res=_applyAdditionalReconcile(existing,orphan,additional,dateSold,platform,target);
+    _pushSaleReconcileActivity(orphanRec,before,target,mode,res);
     _initActivityShadow();
     saveDB();
+    closePanel();
+    if(mode==='link_only'){
+      toast('Review link saved — no accounting changed');
+      if(typeof renderStock==='function')renderStock();
+      return;
+    }
+    toast(mode==='included'?'Sale reconciled — recorded total kept':'Sale reconciled — missing revenue added');
+    if(res&&res.bundleId&&typeof openBundlePage==='function')openBundlePage(res.bundleId);
   }finally{_suppressActivityCapture=false;}
-  closePanel();toast('Linked '+(orphan.item||'item')+' into the sale');
-  if(res&&res.bundleId&&typeof openBundlePage==='function')openBundlePage(res.bundleId);
 }
 
 // Bulk platform change — works for both Stock page (source='stock') and Monthly page (source='month')
@@ -21028,39 +21375,34 @@ function _inlistSearchHTML(ctx){
 
 function renderStock(){
   const today=new Date().toISOString().split('T')[0];
-  // Gather two populations. Sold/returned excluded — they live on Calendar.
-  let allListed=[], allStock=[], allRemoved=[];
+  // v1.01 — Inventory means physical stock on hand. A returned unit is its own
+  // operational queue; it is never silently folded back into Unlisted.
+  let allListed=[], allStock=[], allReturned=[], allRemoved=[];
   allDBKeys().forEach(k=>(DB[k]||[]).forEach(i=>{
     if((i.item||'').trim().toUpperCase()==='MONTH END')return;
-    if(i.scrappedAt){ allRemoved.push({...i,month:k}); }
-    else if(i.state==='sourced' || (i.isReturned && !i.resaleSalePrice)){
-      allStock.push({...i,month:k});   // sourced OR returned-and-back = live stock again
-    } else if(!i.dateSold && !i.isReturned && !i.resaleSalePrice){
-      allListed.push({...i,month:k});
-    }
+    const row={...i,month:k};
+    if(i.scrappedAt){ allRemoved.push(row); return; }
+    if((i.isReturned||i.state==='returned')&&!i.resaleSalePrice){ allReturned.push(row); return; }
+    if(i.state==='sourced'&&!i.dateSold&&!i.resaleSalePrice){ allStock.push(row); return; }
+    if(!i.dateSold&&!i.resaleSalePrice){ allListed.push(row); }
   }));
-  // Population is strictly one or the other — no combined 'all' view.
-  const isRemovedOnly = STOCK_STATE_FILTER==='removed';
-  const isStockOnly = STOCK_STATE_FILTER==='sourced';
-  const isListedOnly = STOCK_STATE_FILTER==='listed';
-  let pop = isRemovedOnly ? allRemoved : (isStockOnly ? allStock : allListed);
+  const allOnHand=[...allListed,...allStock,...allReturned];
+  const isAllView=STOCK_STATE_FILTER==='all';
+  const isStockOnly=STOCK_STATE_FILTER==='sourced'; // UI label: Unlisted
+  const isListedOnly=STOCK_STATE_FILTER==='listed';
+  const isReturnedOnly=STOCK_STATE_FILTER==='returned';
+  let pop=isAllView?allOnHand:(isStockOnly?allStock:(isReturnedOnly?allReturned:allListed));
   const cAll=pop.length;
-  const cAllListed=allListed.length, cAllStock=allStock.length, cAllRemoved=allRemoved.length;
-  // Shared 3-way segment control (Listed / Sourced / Scrapped-Donated).
+  const cAllListed=allListed.length, cAllStock=allStock.length, cAllReturned=allReturned.length;
   const _stockSeg=(function(){
     const bk=[
+      {key:'all',label:'All',count:allOnHand.length},
       {key:'listed',label:'Listed',count:cAllListed},
-      {key:'sourced',label:'Sourced',count:cAllStock},
-      {key:'removed',label:'Archive',count:cAllRemoved}
+      {key:'sourced',label:'Unlisted',count:cAllStock},
+      {key:'returned',label:'Returned',count:cAllReturned}
     ];
     return '<div class="segmented stock-state-seg">'+bk.map(function(b){return '<button class="'+(STOCK_STATE_FILTER===b.key?'is-active':'')+'" onclick="setStockStateFilter(\''+b.key+'\')">'+b.label+'<span class="count">'+b.count+'</span></button>';}).join('')+'</div>';
   })();
-  if(isRemovedOnly){
-    const _hdr='<div class="page-header"><div><div class="page-title">Inventory</div><div class="page-subtitle">Archived stock \u2014 scrapped, recycled, or donated.</div></div></div>';
-    const _rows=allRemoved.map(function(x){return {m:x.month,item:x};});
-    const _el=document.getElementById('p-stock'); if(_el)_el.innerHTML=_hdr+_stockSeg+_removedBodyHTML(_rows,'p-stock');
-    return;
-  }
   const cStale=allListed.filter(i=>{const d=i.dateListed;return d&&daysBetween(d,today)>=90;}).length;
 
   // Sourced age buckets: New 0–3d · List soon 4–7d · Overdue 8–14d · Stagnant 15d+
@@ -21078,9 +21420,9 @@ function renderStock(){
 
   let items=pop;
   if(isStockOnly){
-    // Sourced-age filter
+    // Unlisted-age filter (backend state remains `sourced`).
     if(STOCK_SOURCED_FILTER!=='all') items=pop.filter(i=>_sourcedBucket(i)===STOCK_SOURCED_FILTER);
-  } else {
+  } else if(isListedOnly) {
     // E3 P2 #10 — guard against missing dateListed
     if(STOCK_FILTER==='stale')items=pop.filter(i=>{const d=i.dateListed;return d&&daysBetween(d,today)>=90;});
     else if(STOCK_FILTER==='slow')items=pop.filter(i=>{const d=i.dateListed;if(!d)return false;const n=daysBetween(d,today);return n>60&&n<90;});
@@ -21099,8 +21441,16 @@ function renderStock(){
     }
     if(STOCK_SORT==='price')return(b.salePrice||0)-(a.salePrice||0);
     if(STOCK_SORT==='cost-desc')return(b.costPrice||0)-(a.costPrice||0); // highest cost first
-    // day sorts — use dateListed if present, else dateSourced (sourced items)
-    const aDate=_effectiveListDate(a)||a.dateSourced, bDate=_effectiveListDate(b)||b.dateSourced; // relisted items reset the clock (v2.21.43)
+    // day sorts use the meaningful date for the active queue: latest full-return
+    // date for Returned, listing-cycle date for Listed, sourcing date for Unlisted.
+    const _sortDate=function(x){
+      if(x.isReturned||x.state==='returned'){
+        const r=(x.returnHistory||[]).slice().reverse().find(function(y){return y.type==='full_seller'||y.type==='full_ebay';});
+        return (r&&r.loggedAt)||x.dateSold||x.dateSourced||x.dateListed;
+      }
+      return _effectiveListDate(x)||x.dateSourced||x.dateListed;
+    };
+    const aDate=_sortDate(a), bDate=_sortDate(b);
     if(STOCK_SORT==='days-asc')return daysBetween(aDate,today)>daysBetween(bDate,today)?1:-1;
     return daysBetween(aDate,today)<daysBetween(bDate,today)?1:-1; // days-desc / legacy
   };
@@ -21109,7 +21459,7 @@ function renderStock(){
   window.__stockAll=items;                                   // pre-search filtered+sorted
   if(STOCK_SEARCH){items=items.filter(function(i){return _selItemMatchesSearch(i,STOCK_SEARCH);});}
   window.__stockItems=items;
-  const _useGroup=STOCK_GROUPED&&!STOCK_SEARCH;              // search flattens the grouped view
+  const _useGroup=STOCK_GROUPED&&!STOCK_SEARCH&&isListedOnly;              // search flattens the grouped view
   // Build listing-month groups when grouped mode is on. Iterate FY keys in
   // chronological-newest-first order so users see latest stock first.
   let groupedHTML='';
@@ -21204,8 +21554,11 @@ function renderStock(){
   const _capCost=function(i){return (Number(i.costPrice)||0)+(typeof calcPartsCost==='function'?(Number(calcPartsCost(i))||0):0);};
   const listedCost=+allListed.reduce(function(s,i){return s+_capCost(i);},0).toFixed(2);
   const sourcedCost=+allStock.reduce(function(s,i){return s+_capCost(i);},0).toFixed(2);
-  const listedMarkup=listedCost>0?Math.round((totalValue/listedCost-1)*100):0;
-  const listedROI=listedCost>0?Math.round(potentialProfit/listedCost*100):null;
+  const returnedCost=+allReturned.reduce(function(s,i){return s+_capCost(i);},0).toFixed(2);
+  const listedAsking=+allListed.reduce(function(s,i){return s+(Number(i.salePrice)||0);},0).toFixed(2);
+  const listedPotentialProfit=+allListed.reduce(function(s,i){return s+(calcEstProfit(i)||0);},0).toFixed(2);
+  const listedMarkup=listedCost>0?Math.round((listedAsking/listedCost-1)*100):0;
+  const listedROI=listedCost>0?Math.round(listedPotentialProfit/listedCost*100):null;
   const sourcedROI=sourcedCost>0?Math.round(estPotential/sourcedCost*100):null;
   const _agedListed=allListed.filter(function(i){const d=i.dateListed;return d&&daysBetween(d,today)>=90;});
   const agedCost=+_agedListed.reduce(function(s,i){return s+_capCost(i);},0).toFixed(2);
@@ -21213,48 +21566,52 @@ function renderStock(){
   let _stStats={}; try{ _stStats=calcYearlyStats('all')||{}; }catch(e){}
   const stSellThrough=(_stStats.sellThrough!=null)?Math.round(_stStats.sellThrough):null;
   const stAvgDays=(_stStats.avgDays!=null)?_stStats.avgDays:null;
+  let oldestReturnDays=null,oldestReturnName='';
+  allReturned.forEach(function(i){
+    const r=(i.returnHistory||[]).slice().reverse().find(function(x){return x.type==='full_seller'||x.type==='full_ebay';});
+    const d=r&&r.loggedAt?daysBetween(r.loggedAt,today):null;
+    if(d!==null&&(oldestReturnDays===null||d>oldestReturnDays)){oldestReturnDays=d;oldestReturnName=(i.item||'Untitled').trim();}
+  });
+  const oldestReturnTrunc=oldestReturnName.length>18?oldestReturnName.slice(0,17)+'…':oldestReturnName;
 
   // Build 4 KPI cards based on active filter
   let kpis;
   if(isStockOnly){
     kpis=[
-      {cls:'b',label:'Capital tied up',  val:fmt(totalValue),
-       sub:'Cost of sourced items on hand'},
-      {cls:'', label:'Items to list',     val:allStock.length?String(allStock.length):'—',
-       sub:allStock.length===1?'1 item waiting':''+allStock.length+' items waiting to be listed'},
-      {cls:'g',label:'Est. potential',    val:cWithEstimate?fmt(estPotential):'—',
-       sub:cWithEstimate?((sourcedROI!=null?sourcedROI+'% ROI · ':'')+cWithEstimate+' item'+(cWithEstimate===1?'':'s')+' with estimate'):'No estimates set yet'},
-      {cls:'p',label:'Longest sitting',   val:longestSittingDays!==null?longestSittingDays+'d':'—',
-       sub:longestSittingDays!==null?longestTrunc:'Nothing sourced yet'}
+      {cls:'b',label:'Capital tied up',  val:fmt(sourcedCost), sub:'Cost of unlisted stock on hand'},
+      {cls:'', label:'Items to list',    val:allStock.length?String(allStock.length):'—', sub:allStock.length+' waiting to be listed'},
+      {cls:'g',label:'Est. potential',   val:cWithEstimate?fmt(estPotential):'—', sub:cWithEstimate?((sourcedROI!=null?sourcedROI+'% ROI · ':'')+cWithEstimate+' with estimate'):'No estimates set yet'},
+      {cls:'p',label:'Longest sitting',  val:longestSittingDays!==null?longestSittingDays+'d':'—', sub:longestSittingDays!==null?longestTrunc:'Nothing unlisted'}
+    ];
+  } else if(isReturnedOnly){
+    kpis=[
+      {cls:'r',label:'Returned items',   val:String(allReturned.length), sub:'Back in hand · action needed'},
+      {cls:'b',label:'Capital tied up',  val:fmt(returnedCost), sub:'Cost basis currently in returned stock'},
+      {cls:'p',label:'Oldest return',    val:oldestReturnDays!==null?oldestReturnDays+'d':'—', sub:oldestReturnDays!==null?oldestReturnTrunc:'No returned stock'},
+      {cls:'', label:'Next action',      val:allReturned.length?'Review':'—', sub:allReturned.length?'Relist, job lot, supplier return or dispose':'Nothing waiting'}
     ];
   } else if(isListedOnly){
     kpis=[
-      {cls:'b',label:'Capital in<br>listings', val:fmtK(listedCost),
-       sub:fmtK(totalValue)+' potential'+(listedMarkup>0?' · '+listedMarkup+'% markup':'')},
-      {cls:'g',label:'Estimated<br>profit',    val:fmtK(potentialProfit),
-       sub:listedROI!=null?listedROI+'% ROI if sold':'If every item sells'},
-      {cls:'p',label:'Aged<br>capital',        val:agedCount>0?fmtK(agedCost):'£0',
-       sub:agedCount>0?agedCount+' of '+allListed.length+' stale (90d+)':(allListed.length?'None stale — all moving':'—'),
-       click:cStale>0?"openDashboardStock('stale')":''},
-      {cls:'', label:'Sell-<br>through',       val:stSellThrough!=null?stSellThrough+'%':'—',
-       sub:stAvgDays!=null?stAvgDays+'d avg to sell':'Listed that sold'}
+      {cls:'b',label:'Capital in<br>listings', val:fmtK(listedCost), sub:fmtK(listedAsking)+' asking'+(listedMarkup>0?' · '+listedMarkup+'% markup':'')},
+      {cls:'g',label:'Estimated<br>profit',    val:fmtK(listedPotentialProfit), sub:listedROI!=null?listedROI+'% ROI if sold':'If every item sells'},
+      {cls:'p',label:'Aged<br>capital',        val:agedCount>0?fmtK(agedCost):'£0', sub:agedCount>0?agedCount+' of '+allListed.length+' stale (90d+)':(allListed.length?'None stale — all moving':'—'), click:cStale>0?"openDashboardStock('stale')":''},
+      {cls:'', label:'Sell-<br>through',       val:stSellThrough!=null?stSellThrough+'%':'—', sub:stAvgDays!=null?stAvgDays+'d avg to sell':'Listed that sold'}
     ];
   } else {
+    const totalCapital=listedCost+sourcedCost+returnedCost;
     kpis=[
-      {cls:'b',label:'Capital in<br>stock',     val:fmtK(listedCost+sourcedCost),
-       sub:fmtK(totalValue)+' at asking + cost'},
-      {cls:'g',label:'Estimated<br>profit',     val:fmtK(potentialProfit),
-       sub:listedROI!=null?listedROI+'% ROI if sold':'If every listed item sells'},
-      {cls:'p',label:'Aged<br>capital',         val:agedCount>0?fmtK(agedCost):'£0',
-       sub:agedCount>0?agedCount+' of '+allListed.length+' stale (90d+)':(allListed.length?'None stale — all moving':'—'),
-       click:cStale>0?"openDashboardStock('stale')":''},
-      {cls:'', label:'Sell-<br>through',        val:stSellThrough!=null?stSellThrough+'%':'—',
-       sub:stAvgDays!=null?stAvgDays+'d avg to sell':'Listed that sold'}
+      {cls:'b',label:'Stock on hand',    val:String(allOnHand.length), sub:cAllListed+' listed · '+cAllStock+' unlisted · '+cAllReturned+' returned'},
+      {cls:'', label:'Capital tied up',  val:fmtK(totalCapital), sub:'Cost basis across all physical stock'},
+      {cls:'g',label:'Listed asking',    val:fmtK(listedAsking), sub:cAllListed+' active listing'+(cAllListed===1?'':'s')},
+      {cls:'r',label:'Returned',         val:String(cAllReturned), sub:cAllReturned?'Need a decision':'Nothing waiting'}
     ];
   }
   const kpiHTML=kpis.map(k=>'<div class="card kpi'+(k.click?' clickable':'')+'"'+(k.click?' onclick="'+k.click+'"':'')+'>'+
     '<div class="kpi-label">'+String(k.label).replace(/<br>/g,' ')+'</div><div class="kpi-value num">'+k.val+'</div><div class="kpi-foot">'+k.sub+'</div>'+
   '</div>').join('');
+
+  const _stockSelectedRows=items.filter(function(i){return STOCK_SELECTED.has(i.id);});
+  const _stockCanBulkSell=_stockSelectedRows.length>0&&_stockSelectedRows.every(function(i){return i.state==='listed'&&!i.isReturned&&!i.dateSold&&!i.resaleSalePrice&&!i.scrappedAt;});
 
   const html=`
     <div class="page-header">
@@ -21262,10 +21619,11 @@ function renderStock(){
         <div style="min-width:0;flex:1;">
           ${_stockFromSummary?`<button class="btn btn-secondary" onclick="goToTab('summary',document.querySelector('[data-tab=\\'summary\\']'));_stockFromSummary=false;" style="margin-bottom:10px;font-size:13px">← Dashboard</button>`:''}
           <div class="page-title">Inventory</div>
-          <div class="page-subtitle">Sourced and listed stock, from buy to sale.</div>
+          <div class="page-subtitle">Listed, unlisted and returned stock — everything physically on hand.</div>
         </div>
         <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
-          <button class="btn btn-secondary${STOCK_GROUPED?' active':''}" style="padding:7px 10px;font-size:12px;white-space:nowrap;" onclick="toggleStockGrouped()" title="Group items by listing month">
+          <button class="btn btn-secondary" style="padding:7px 9px;font-size:12px;white-space:nowrap;" onclick="goToTab('scrapped',null)" title="Open disposed / archived stock">${icon('inbox',13)}<span class="btn-label-hide-xs"> Archive</span>${cAllRemoved?` <span style="font-size:10px;color:var(--muted)">${cAllRemoved}</span>`:''}</button>
+          <button class="btn btn-secondary${STOCK_GROUPED?' active':''}" style="padding:7px 10px;font-size:12px;white-space:nowrap;display:${isListedOnly?'inline-flex':'none'};" onclick="toggleStockGrouped()" title="Group listed items by listing month">
             <svg width="13" height="13" viewBox="0 0 15 15" fill="none" style="vertical-align:-1px;flex-shrink:0"><rect x="1" y="1" width="5.5" height="5.5" rx="1" stroke="currentColor" stroke-width="1.3"/><rect x="8.5" y="1" width="5.5" height="5.5" rx="1" stroke="currentColor" stroke-width="1.3"/><rect x="1" y="8.5" width="5.5" height="5.5" rx="1" stroke="currentColor" stroke-width="1.3"/><rect x="8.5" y="8.5" width="5.5" height="5.5" rx="1" stroke="currentColor" stroke-width="1.3"/></svg><span class="btn-label-hide-xs"> By month</span>
           </button>
           <div class="ddwrap" id="dd-stock-add" style="position:relative;">
@@ -21281,8 +21639,8 @@ function renderStock(){
     <div class="stock-kpis-v2 stock-kpis">${kpiHTML}</div>
     ${_stockSeg}
     ${cAll===0?`<div class="empty-state">
-      <div class="empty-state-text">${isStockOnly?'No sourced items':'No active listings'}</div>
-      <div class="empty-state-sub">${isStockOnly?'Tap + and choose Sourced item to add your first.':'Use Quick Add to list your first item.'}</div>
+      <div class="empty-state-text">${isStockOnly?'No unlisted items':isReturnedOnly?'No returned items':isAllView?'No stock on hand':'No active listings'}</div>
+      <div class="empty-state-sub">${isStockOnly?'Add stock or withdraw a listing to place it here.':isReturnedOnly?'Customer returns that come back into your possession appear here.':isAllView?'Add your first item to start tracking inventory.':'Use Add to create your first listing.'}</div>
     </div>`:`
       ${isStockOnly?(()=>{
         // ── Sourced view: age distribution bar + bucket chips + sort ──────
@@ -21343,7 +21701,7 @@ function renderStock(){
             </div>
             <select class="sort-select" onchange="setStockSort(this.value)">${sortHTML}</select>
           </div>`;
-      })():(()=>{
+      })():isListedOnly?(()=>{
         // ── Listed view: aging bar + chips + sort ──────────────────────────
         const segsBar=[
           {key:'fresh',  label:'Fresh',    sub:'0–30d',  count:ageBuckets.fresh,    val:ageBucketsValue.fresh,    col:'var(--green)'},
@@ -21395,7 +21753,7 @@ function renderStock(){
             </div>
             <select class="sort-select" onchange="setStockSort(this.value)">${sortHTML}</select>
           </div>`;
-      })()}
+      })():''}
       ${((window.__stockAll&&window.__stockAll.length)||STOCK_SEARCH)?_inlistSearchHTML('stock'):''}
       <div class="list-toolbar">
         ${STOCK_SELECTION_MODE?`
@@ -21408,9 +21766,9 @@ function renderStock(){
             </span>
           </button>
           ${STOCK_SELECTED.size>0?`
-            <button class="bulk-ctrl is-sold" onclick="stockBulkAction('sold',window.__stockItems||[])">${icon('sold',14)} Mark Sold</button>
-            <button class="bulk-ctrl" style="background:var(--accent);color:#000;font-weight:700;" onclick="openBundleSaleModal()">${icon('sold',14)} Bundle sale</button>
-            <select class="bulk-ctrl bulk-plat-sel" data-source="stock" onchange="if(this.value){bulkChangePlatform(this.value,'stock');this.value=''}"><option value="">Platform</option>${Object.values(PLATFORMS).filter(p=>p.live).map(p=>`<option value="${p.id}">${p.short}</option>`).join('')}</select>
+            ${_stockCanBulkSell?`<button class="bulk-ctrl is-sold" onclick="stockBulkAction('sold',window.__stockItems||[])">${icon('sold',14)} Mark Sold</button>
+            ${_stockSelectedRows.length>1?`<button class="bulk-ctrl" style="background:var(--accent);color:#000;font-weight:700;" onclick="openBundleSaleModal()">${icon('sold',14)} Bundle sale</button>`:''}
+            <select class="bulk-ctrl bulk-plat-sel" data-source="stock" onchange="if(this.value){bulkChangePlatform(this.value,'stock');this.value=''}"><option value="">Platform</option>${Object.values(PLATFORMS).filter(p=>p.live).map(p=>`<option value="${p.id}">${p.short}</option>`).join('')}</select>`:''}
             <button class="bulk-ctrl is-danger" onclick="stockBulkAction('delete',window.__stockItems||[])">${icon('trash',14)} Delete</button>
           `:''}
           <button class="sel-exit" onclick="toggleStockSelection()">\u2715 Done</button>
@@ -24474,7 +24832,7 @@ function _editStockItem(m,item){
     </div>
     <button class="btn btn-primary" style="width:100%;margin-top:14px" onclick="_saveStockEdit('${m}','${item.id}')">Save</button>
   `;
-  openPanel('Edit Sourced Item',html);
+  openPanel('Edit Unlisted Item',html);
   (function(){const t=document.getElementById('edit-stock-title');if(t)t.focus();})();
   setTimeout(function(){const t=document.getElementById('edit-stock-title');if(t&&document.activeElement!==t)t.focus();},50);
 }
