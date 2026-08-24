@@ -711,6 +711,8 @@ select.bulk-ctrl{padding-right:26px;-webkit-appearance:none;appearance:none;back
 .stock-group-header:hover{background:color-mix(in srgb,var(--border) 30%,var(--surface2) 70%);}
 .stock-group.collapsed .stock-group-body{display:none!important;}
 #p-stock .stock-group.collapsed .stock-group-body,#p-stock .item-table.stock-group-body.is-collapsed{display:none!important;}
+#p-stock .stock-group:not(.collapsed) .stock-group-body{animation:rtStockGroupReveal 200ms var(--ease-out) both;}
+@keyframes rtStockGroupReveal{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
 .stock-group-toggle{font-size:12px;color:var(--muted);transition:transform 0.2s;display:inline-block;}
 .expense-item{background:var(--surface);border-bottom:1px solid var(--border);padding:11px 12px;display:flex;align-items:center;gap:10px;transition:background 0.12s;cursor:default;}
 .expense-item:last-child{border-bottom:none;}
@@ -2326,13 +2328,13 @@ svg.cat-donut-draw circle.donut-seg-last{
   --ease-draw: cubic-bezier(0.4, 0.25, 0.6, 0.75);
   --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
   --ease-spring: cubic-bezier(0.34, 1.2, 0.64, 1);
-  --dur-fast: 120ms; --dur-base: 200ms; --dur-medium: 280ms; --dur-slow: 360ms;
+  --dur-fast: 120ms; --dur-base: 200ms; --dur-medium: 320ms; --dur-slow: 380ms;
   --dur-bounce: 440ms;     /* v2.19.17 -- the donut's closing bounce. Not --dur-draw
      even though they are close: they are different events and coupling them
      would mean tuning the ring's kick could not be done without retiming the
      chart line beside it. A damped bounce needs room -- it is four phases, and
      under ~350ms they smear into a twitch. */
-  --dur-draw: 460ms;       /* Chart line draw -- reveal AND period redraw. One
+  --dur-draw: 680ms;       /* Launch Audit v1.2 polish — chart line draw is intentionally visible without feeling slow. One
      value since v2.19.12; §8.2 collapsed the old --dur-draw-quick twin once it
      had been equal for four versions. The draw should feel the same on first
      load as on every redraw. v2.19.3-7 pushed the reveal to 1600ms, which is
@@ -4020,6 +4022,8 @@ svg.cat-donut-draw circle.donut-seg-last{
 .rt .account-group-body{padding:0 18px 16px;border-top:1px solid var(--border);}
 .rt .account-group-body>.metric-inline:first-child{padding-top:12px;}
 .rt .account-group.collapsed .account-group-body{display:none!important;}
+.rt .account-group:not(.collapsed) .account-group-body{animation:rtGroupReveal 210ms var(--ease-out) both;}
+@keyframes rtGroupReveal{from{opacity:0;transform:translateY(-5px)}to{opacity:1;transform:none}}
 @media(max-width:520px){.rt .account-group-head{padding:13px 14px}.rt .account-group-body{padding:0 14px 14px}}
 
 /* Group body: rounded bottom on container, flat rows inside */
@@ -10938,7 +10942,13 @@ function goToTab(name,sourceEl){
   window.scrollTo(0,0);
   if(typeof window._resetNavScrollState==='function')window._resetNavScrollState();
   if(name==='summary')renderSummary();
-  else if(name==='monthly'){SELECTED_MONTH=currentMonthKey();MONTHLY_VIEW='detail';MONTH_FILTER='all';MONTH_SORT='date-sold';renderMonthlyPage();}
+  else if(name==='monthly'){
+    // A genuine Sales-tab navigation starts at the live month and Back goes to
+    // the top of Calendar. goToMonth() sets _monthOpenFromContext while routing
+    // through this same tab switch so an explicit month/origin is not overwritten.
+    if(!_monthOpenFromContext){_monthOrigin='calendar-top';SELECTED_MONTH=currentMonthKey();MONTHLY_VIEW='detail';MONTH_FILTER='all';MONTH_SORT='date-sold';}
+    renderMonthlyPage();
+  }
   else if(name==='stock'){_stockFromSummary=false;renderStock();}
   else if(name==='expenses')renderExpenses();
   else if(name==='cash')renderCash();
@@ -10964,7 +10974,8 @@ function _openItemFromRun(m,id,runId){
 }
 let _preSearchPage='p-summary'; // page to return to when dismissing mobile search
 let _lastSearchQuery=''; // last search query — restored when back-navigating from item page
-let _monthOrigin='grid'; // 'grid' | 'summary' | other page id
+let _monthOrigin='calendar-top'; // 'grid' = opened from Calendar month; 'calendar-top' = entered Sales directly; summary/other page ids preserve true origin
+let _monthOpenFromContext=false; // guards explicit goToMonth() routing from being reset by goToTab('monthly')
 let _savedPanelState=null; // saved panel title+content+scroll for back-from-item-page
 
 function openItemPage(m,id,origin){
@@ -19466,7 +19477,11 @@ function goToMonth(m){
   if(cur&&cur.id==='p-monthly'){
     renderMonthlyPage();
   } else {
-    goToTab('monthly',document.querySelector('[data-tab="monthly"]'));
+    // Route through the normal tab switch for nav/UI syncing, but preserve the
+    // explicit month and true origin chosen above.
+    _monthOpenFromContext=true;
+    try{goToTab('monthly',document.querySelector('[data-tab="monthly"]'));}
+    finally{_monthOpenFromContext=false;}
   }
 }
 
@@ -19476,16 +19491,18 @@ function renderMonthlyPage(){
   else renderMonth();
 }
 
-function backToMonthlyGrid(){
+function backToMonthlyGrid(restoreMonth){
   MONTHLY_VIEW='grid';_saveUIState();
   document.querySelectorAll('.tab').forEach(t=>t.classList.remove('on'));
   const mt=document.querySelector('[data-tab="monthly"]');
   if(mt)mt.classList.add('on');
   handleNavResize();
-  // Return to the month the user was actually viewing, not the top of the page
-  // and not the current month (v2.12.6). renderMonthlyGrid() consumes this.
-  _monthlyScrollToKey=SELECTED_MONTH||currentMonthKey();
+  // Navigation rule: Back restores context only when the user explicitly opened
+  // this month FROM the Calendar grid. Direct Sales-tab entry returns to the
+  // top of Calendar, which is the predictable 'start of destination' behaviour.
+  _monthlyScrollToKey=restoreMonth?(SELECTED_MONTH||currentMonthKey()):null;
   renderMonthlyGrid();
+  if(!restoreMonth)requestAnimationFrame(function(){window.scrollTo(0,0);});
 }
 
 // Track collapsed state of FY sections — default: current year expanded, others collapsed
@@ -20502,11 +20519,13 @@ function renderMonth(){
   window.__monthAll=visible;                                 // pre-search (v2.21.18)
   if(MONTH_SEARCH){visible=visible.filter(function(e){return _selItemMatchesSearch(e.item,MONTH_SEARCH);});}
   window.__monthItems=visible;
-  const backLabel=_monthOrigin==='grid'?'← Calendar':_monthOrigin==='p-summary'?'← Dashboard':'← Back';
+  const backLabel=(_monthOrigin==='grid'||_monthOrigin==='calendar-top')?'← Calendar':_monthOrigin==='p-summary'?'← Dashboard':'← Back';
   const backAction=_monthOrigin==='grid'
-    ?`backToMonthlyGrid()`
+    ?`backToMonthlyGrid(true)`
+    :_monthOrigin==='calendar-top'
+      ?`backToMonthlyGrid(false)`
     :_monthOrigin==='p-summary'
-      ?`goToTab('summary',document.querySelector('[data-tab="summary"]'))`
+        ?`goToTab('summary',document.querySelector('[data-tab="summary"]'))`
       :`goToTab('${(_monthOrigin||'p-summary').replace('p-','')}',document.querySelector('[data-tab="${(_monthOrigin||'p-summary').replace('p-','')}"]'))`;
 
   // Refund rate display — items-based, sale-month attributed.
@@ -20578,7 +20597,7 @@ function renderMonth(){
       <div class="card kpi">
         <div class="kpi-label">Revenue${stats.returnsAmt>0?' (net)':''}</div>
         <div class="kpi-value num">${fmtK(stats.totalRev)}</div>
-        ${stats.returnsAmt>0?`<div class="kpi-foot" style="color:var(--warn)">${fmt(stats.grossRev)} gross − ${fmt(stats.returnsAmt)} returns</div>`:''}
+        ${stats.returnsAmt>0?`<div class="kpi-foot">${fmt(stats.grossRev)} gross − ${fmt(stats.returnsAmt)} returns</div>`:''}
         <div class="kpi-foot">${stats.soldCount} sale${stats.soldCount!==1?'s':''}${stats.returnedCount>0?' · '+stats.returnedCount+' returned':''}</div>
       </div>
       <div class="card kpi kpi-realised">
@@ -30729,11 +30748,11 @@ function _animateKPIs(root){
     // Where do we start? On reveal: 0. On change: whatever this key last showed.
     const from = reveal ? 0 : (isFinite(_kpiPrev[key]) ? _kpiPrev[key] : to);
     // v2.19.13 -- §8.3: reveal 1100 -> 700. The 1100 was tuned in v2.19.4 when
-    // the chart line took 1600ms. The line settled at 460ms in v2.19.8 and the
-    // numbers were left counting ~640ms after it had landed. 700ms puts the
-    // tail at ~240ms, which reads as a settle rather than a drag, and it
+    // the chart line took 1600ms. The line is now a restrained 680ms and the
+    // numbers were left counting long after it had landed. 700ms now lets the
+    // chart and values settle together, which reads as deliberate rather than dragged out, and it
     // restores the figure the boot cross-fade comment (~line 1663) was written
-    // against: the 280ms overlay dissolve ends with the count-up ~40% through,
+    // against: the 320ms overlay dissolve ends with the count-up already underway,
     // so the skeleton thins out over cards that are already moving.
     // Change tween stays 450: a value update is not a reveal.
     _countUp(el, from, to, reveal ? 700 : 450, fmtName, key);
