@@ -1243,22 +1243,49 @@ button .rt-icon,.btn .rt-icon{pointer-events:none;}
   .reconcile-mode-card strong{font-size:13px;color:var(--text);}
   .reconcile-mode-card small{font-size:11.5px;color:var(--text-secondary);font-weight:400;}
 
-  /* v2.21.51 — Activity / history feed */
-  .act-feed{max-width:760px;margin:0 auto;}
-  .act-day{font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);margin:18px 4px 8px;}
-  .act-row{display:flex;align-items:center;gap:12px;padding:12px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;margin-bottom:8px;}
+  /* v1.01 — Activity / history is an operational audit page, not a raw log. */
+  .act-shell{max-width:900px;margin:0 auto;}
+  .act-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:14px;}
+  .act-kpi{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:13px 14px;min-width:0;}
+  .act-kpi-label{font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;}
+  .act-kpi-val{font-size:22px;font-weight:800;letter-spacing:-.03em;margin-top:4px;font-variant-numeric:tabular-nums;}
+  .act-kpi-sub{font-size:11px;color:var(--text-secondary);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .act-toolbar{display:flex;align-items:center;gap:8px;margin-bottom:12px;flex-wrap:wrap;}
+  .act-filters{display:flex;gap:0;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:3px;overflow-x:auto;max-width:100%;scrollbar-width:none;}
+  .act-filters::-webkit-scrollbar{display:none;}
+  .act-filter{border:0;background:transparent;color:var(--text-secondary);padding:7px 11px;border-radius:7px;font:600 12px var(--font-body);white-space:nowrap;cursor:pointer;}
+  .act-filter.active{background:var(--surface);color:var(--text);box-shadow:0 1px 3px var(--shadow);}
+  .act-search{position:relative;flex:1;min-width:190px;}
+  .act-search input{width:100%;height:36px;padding:0 32px 0 34px;border:1px solid var(--border);border-radius:10px;background:var(--surface2);color:var(--text);font-family:var(--font-body);font-size:13px;}
+  .act-search input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-dim);}
+  .act-search svg{position:absolute;left:11px;top:10px;color:var(--muted);pointer-events:none;}
+  .act-search-clear{position:absolute;right:7px;top:6px;width:24px;height:24px;border:0;border-radius:7px;background:transparent;color:var(--muted);cursor:pointer;}
+  .act-feed{max-width:900px;margin:0 auto;}
+  .act-day{font-size:11px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);margin:18px 4px 8px;}
+  .act-row{display:flex;align-items:center;gap:12px;padding:12px 14px;background:var(--surface);border:1px solid var(--border);border-radius:10px;margin-bottom:8px;box-shadow:0 1px 2px var(--shadow);}
   .act-row.act-undone{opacity:.55;}
+  .act-row.act-review{border-color:color-mix(in srgb,var(--warn) 45%,var(--border));background:color-mix(in srgb,var(--warn) 5%,var(--surface));}
   .act-main{flex:1;min-width:0;}
-  .act-line{font-size:14px;line-height:1.35;}
-  .act-item{font-weight:700;cursor:pointer;text-decoration:underline;text-decoration-color:var(--border);text-underline-offset:2px;}
-  .act-item:hover{text-decoration-color:var(--muted);}
-  .act-sub{font-size:12px;color:var(--muted);margin-top:2px;}
+  .act-line{font-size:14px;line-height:1.35;display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
+  .act-item{font-weight:700;cursor:pointer;text-decoration:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;}
+  .act-item:hover{color:var(--accent);}
+  .act-sub{font-size:12px;color:var(--muted);margin-top:3px;}
   .act-undone-tag{color:var(--warn);font-weight:700;}
-  .act-badge{display:inline-block;font-size:11px;font-weight:700;padding:2px 8px;border-radius:6px;margin-right:6px;border:1px solid var(--border);background:var(--surface);color:var(--text);}
-  .act-badge.act-sold,.act-badge.act-resold,.act-badge.act-listed{border-color:var(--accent);color:var(--accent);}
-  .act-badge.act-returned,.act-badge.act-scrapped,.act-badge.act-deleted{border-color:var(--warn);color:var(--warn);}
+  .act-badge{display:inline-block;font-size:10.5px;font-weight:700;padding:2px 7px;border-radius:6px;border:1px solid var(--border);background:var(--surface2);color:var(--text-secondary);white-space:nowrap;}
+  .act-badge.act-sold,.act-badge.act-resold,.act-badge.act-listed{border-color:color-mix(in srgb,var(--green) 50%,var(--border));color:var(--green);}
+  .act-badge.act-returned{border-color:color-mix(in srgb,var(--red) 50%,var(--border));color:var(--red);}
+  .act-badge.act-scrapped,.act-badge.act-deleted,.act-badge.act-donated{border-color:color-mix(in srgb,var(--warn) 50%,var(--border));color:var(--warn);}
   .act-badge.act-joblot{border-color:var(--purple);color:var(--purple);}
-  .act-undo{flex:0 0 auto;display:inline-flex;align-items:center;gap:5px;padding:6px 12px!important;font-size:13px!important;white-space:nowrap;}
+  .act-review-tag{font-size:10px;font-weight:800;color:var(--warn);text-transform:uppercase;letter-spacing:.05em;}
+  .act-undo{flex:0 0 auto;display:inline-flex;align-items:center;gap:5px;padding:6px 10px!important;font-size:12px!important;white-space:nowrap;}
+  @media(max-width:600px){
+    .act-kpis{grid-template-columns:1fr 1fr;}
+    .act-toolbar{align-items:stretch;}
+    .act-filters{order:1;width:100%;}
+    .act-search{order:0;width:100%;flex-basis:100%;}
+    .act-row{padding:11px 12px;align-items:flex-start;}
+    .act-undo{padding:5px 8px!important;}
+  }
 
   /* Page padding consistency */
   .item-full-page{padding:14px 16px 80px;}
@@ -4747,7 +4774,7 @@ svg.cat-donut-draw circle.donut-seg-last{
   }
   /* v1.01 — mobile has no sidebar/top nav, so cloud state lives in one tiny
      corner badge instead of repetitive toasts. Hidden entirely when healthy. */
-  #mobile-sync-badge{display:none;position:fixed;left:12px;bottom:calc(62px + env(safe-area-inset-bottom,0px) + 10px);z-index:315;width:30px;height:30px;border-radius:50%;align-items:center;justify-content:center;background:var(--surface);border:1px solid var(--border);box-shadow:0 2px 10px var(--shadow);color:var(--text-secondary);pointer-events:none;opacity:.92;}
+  #mobile-sync-badge{display:none;position:fixed;left:12px;bottom:calc(62px + env(safe-area-inset-bottom,0px) + 10px);z-index:315;width:30px;height:30px;min-width:30px;min-height:30px;max-width:30px;max-height:30px;overflow:hidden;border-radius:50%;align-items:center;justify-content:center;background:var(--surface);border:1px solid var(--border);box-shadow:0 2px 10px var(--shadow);color:var(--text-secondary);pointer-events:none;opacity:.92;}
   #mobile-sync-badge svg{width:15px;height:15px;}
   #mobile-sync-badge.saving{display:flex;color:var(--accent);}
   #mobile-sync-badge.saving svg{animation:sideSyncSpin .9s linear infinite;}
@@ -9681,39 +9708,66 @@ function _actGoItem(id){
   toast('Item not found (it may have been deleted)','err');
 }
 const _UNDO_SVG='<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"/></svg>';
+let ACTIVITY_FILTER='all', ACTIVITY_SEARCH='';
+function _activityCategory(r){
+  const a=String((r&&r.action)||'').toLowerCase(),s=String((r&&r.toState)||'').toLowerCase();
+  if(a.indexOf('reconcil')>=0||a.indexOf('needs review')>=0)return 'review';
+  if(s==='returned'||a.indexOf('return')>=0)return 'returns';
+  if(['scrapped','deleted','donated','disposed'].includes(s)||/(scrap|delete|donat|dispos|recycl)/.test(a))return 'disposals';
+  if(['sold','resold'].includes(s)||/(sold|sale|resold)/.test(a))return 'sales';
+  return 'stock';
+}
+function setActivityFilter(f){ACTIVITY_FILTER=f||'all';renderActivity();}
+function setActivitySearch(v){ACTIVITY_SEARCH=String(v||'');renderActivity();}
 function renderActivity(){
   const el=document.getElementById('p-activity'); if(!el) return;
-  const rows=(DB.activityLog||[]).slice().sort(function(a,b){return b.ts-a.ts;});
-  // The only undoable entry per item is its most recent non-undone one.
+  const allRows=(DB.activityLog||[]).slice().sort(function(a,b){return (Number(b.ts)||0)-(Number(a.ts)||0);});
   const latestActive={};
-  rows.forEach(function(r){ if(!r.undone && latestActive[r.itemId]===undefined) latestActive[r.itemId]=r.id; });
+  allRows.forEach(function(r){ if(!r.undone && r.itemId && latestActive[r.itemId]===undefined) latestActive[r.itemId]=r.id; });
+  const q=ACTIVITY_SEARCH.trim().toLowerCase();
+  const rows=allRows.filter(function(r){
+    if(ACTIVITY_FILTER!=='all'&&_activityCategory(r)!==ACTIVITY_FILTER)return false;
+    if(!q)return true;
+    return ((r.itemName||'')+' '+(r.action||'')+' '+(r.fromState||'')+' '+(r.toState||'')+' '+(r.after||r.afterSummary||'')).toLowerCase().indexOf(q)!==-1;
+  });
+  const now=new Date(),todayKey=now.toDateString();
+  const todayCount=allRows.filter(function(r){return new Date(r.ts).toDateString()===todayKey;}).length;
+  const saleCount=allRows.filter(function(r){return _activityCategory(r)==='sales'&&!r.undone;}).length;
+  const returnCount=allRows.filter(function(r){return _activityCategory(r)==='returns'&&!r.undone;}).length;
+  const reviewCount=allRows.filter(function(r){return _activityCategory(r)==='review'&&!r.undone;}).length;
+  const filters=[['all','All'],['sales','Sales'],['stock','Stock'],['returns','Returns'],['disposals','Disposed'],['review','Review']];
+  const filterHTML=filters.map(function(f){const n=f[0]==='all'?allRows.length:allRows.filter(function(r){return _activityCategory(r)===f[0];}).length;return '<button class="act-filter'+(ACTIVITY_FILTER===f[0]?' active':'')+'" onclick="setActivityFilter(\''+f[0]+'\')">'+f[1]+' '+n+'</button>';}).join('');
   let body='';
   if(!rows.length){
-    body='<div style="text-align:center;padding:52px 16px;color:var(--muted)">'
-      +'<div style="font-size:15px;font-weight:600;color:var(--text)">No activity yet</div>'
-      +'<div style="font-size:13px;margin-top:6px;max-width:380px;margin-left:auto;margin-right:auto;line-height:1.5">Every change to an item — sold, returned, re-sold, relisted, scrapped or deleted — will show up here, newest first, and you can undo the latest change on any item.</div></div>';
-  } else {
+    body='<div style="text-align:center;padding:46px 16px;color:var(--muted);background:var(--surface);border:1px solid var(--border);border-radius:12px">'
+      +'<div style="font-size:15px;font-weight:700;color:var(--text)">'+(allRows.length?'No matching activity':'No activity yet')+'</div>'
+      +'<div style="font-size:13px;margin-top:6px;max-width:420px;margin-left:auto;margin-right:auto;line-height:1.5">'+(allRows.length?'Try another filter or search term.':'Changes to stock, sales, returns and disposals will appear here automatically.')+'</div></div>';
+  }else{
     let lastDay='';
     rows.forEach(function(r){
-      const d=new Date(r.ts); const dayKey=d.toDateString();
-      if(dayKey!==lastDay){ lastDay=dayKey; body+='<div class="act-day">'+_actDayLabel(d)+'</div>'; }
-      const hh=String(d.getHours()).padStart(2,'0'), mm=String(d.getMinutes()).padStart(2,'0');
-      const canUndo = r.undoable && !r.undone && latestActive[r.itemId]===r.id;
-      const sub = (r.fromState?esc(r.fromState)+' \u2192 '+esc(r.toState||''):esc(r.toState||''))
-                + ' \u00b7 '+hh+':'+mm + (r.undone?' \u00b7 <span class="act-undone-tag">undone</span>':'');
-      body+='<div class="act-row'+(r.undone?' act-undone':'')+'">'
-        +'<div class="act-main">'
-        +'<div class="act-line"><span class="act-badge act-'+esc(r.toState||'')+'">'+esc(r.action||'')+'</span>'
-        +'<span class="act-item" onclick="_actGoItem(\''+r.itemId+'\')">'+esc(r.itemName||'item')+'</span></div>'
-        +'<div class="act-sub">'+sub+'</div>'
-        +'</div>'
-        +(canUndo?'<button class="btn btn-secondary act-undo" onclick="undoActivity(\''+r.id+'\')">'+_UNDO_SVG+'Undo</button>':'')
-        +'</div>';
+      const d=new Date(r.ts),dayKey=d.toDateString();
+      if(dayKey!==lastDay){lastDay=dayKey;body+='<div class="act-day">'+_actDayLabel(d)+'</div>';}
+      const hh=String(d.getHours()).padStart(2,'0'),mm=String(d.getMinutes()).padStart(2,'0');
+      const canUndo=!!(r.undoable&&!r.undone&&r.itemId&&latestActive[r.itemId]===r.id);
+      const needsReview=_activityCategory(r)==='review'||/needs review/i.test(String(r.after||r.afterSummary||''));
+      const sub=(r.fromState?esc(r.fromState)+' \u2192 '+esc(r.toState||''):esc(r.toState||''))+' \u00b7 '+hh+':'+mm+(r.undone?' \u00b7 <span class="act-undone-tag">undone</span>':'');
+      body+='<div class="act-row'+(r.undone?' act-undone':'')+(needsReview?' act-review':'')+'">'
+        +'<div class="act-main"><div class="act-line"><span class="act-badge act-'+esc(r.toState||'')+'">'+esc(r.action||'Change')+'</span>'
+        +(needsReview?'<span class="act-review-tag">Needs review</span>':'')
+        +'<span class="act-item" '+(r.itemId?'onclick="_actGoItem(\''+r.itemId+'\')"':'')+'>'+esc(r.itemName||'Item')+'</span></div>'
+        +'<div class="act-sub">'+sub+'</div></div>'
+        +(canUndo?'<button class="btn btn-secondary act-undo" onclick="undoActivity(\''+r.id+'\')">'+_UNDO_SVG+'Undo</button>':'')+'</div>';
     });
   }
-  el.innerHTML='<div class="page-header"><div><div class="page-title">Activity &amp; history</div>'
-    +'<div class="page-sub">Every change to your stock, newest first \u2014 undo the latest change on any item.</div></div></div>'
-    +'<div class="act-feed">'+body+'</div>';
+  const searchIcon='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>';
+  el.innerHTML='<div class="act-shell"><div class="page-header"><div><div class="page-title">Activity &amp; History</div>'
+    +'<div class="page-subtitle">A clear audit trail of stock, sales, returns and corrections.</div></div></div>'
+    +'<div class="act-kpis"><div class="act-kpi"><div class="act-kpi-label">Today</div><div class="act-kpi-val">'+todayCount+'</div><div class="act-kpi-sub">changes recorded</div></div>'
+    +'<div class="act-kpi"><div class="act-kpi-label">Sales events</div><div class="act-kpi-val" style="color:var(--green)">'+saleCount+'</div><div class="act-kpi-sub">sold / resold changes</div></div>'
+    +'<div class="act-kpi"><div class="act-kpi-label">Returns</div><div class="act-kpi-val" style="color:var(--red)">'+returnCount+'</div><div class="act-kpi-sub">return changes logged</div></div>'
+    +'<div class="act-kpi"><div class="act-kpi-label">Needs review</div><div class="act-kpi-val" style="color:'+(reviewCount?'var(--warn)':'var(--text)')+'">'+reviewCount+'</div><div class="act-kpi-sub">legacy reconciliations</div></div></div>'
+    +'<div class="act-toolbar"><div class="act-filters">'+filterHTML+'</div><div class="act-search">'+searchIcon+'<input type="search" value="'+esc(ACTIVITY_SEARCH)+'" placeholder="Search activity…" oninput="setActivitySearch(this.value)">'+(ACTIVITY_SEARCH?'<button class="act-search-clear" onclick="ACTIVITY_SEARCH=\'\';renderActivity()">×</button>':'')+'</div></div>'
+    +'<div class="act-feed">'+body+'</div></div>';
 }
 
 function saveDB(){
@@ -14102,8 +14156,8 @@ function _refreshSideNavSync(state){
   const hh=String(now.getHours()).padStart(2,'0');
   const mm=String(now.getMinutes()).padStart(2,'0');
   const pending=(typeof _outboxPendingCount==='function')?_outboxPendingCount():0;
-  const syncSvg='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 7h-5V2"/><path d="M20 7a8 8 0 1 0 1 8"/></svg>';
-  const warnSvg='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l9 17H3z"/><path d="M12 9v5M12 17h.01"/></svg>';
+  const syncSvg='<svg width="15" height="15" style="display:block;width:15px;height:15px;max-width:15px;max-height:15px;flex:none" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 7h-5V2"/><path d="M20 7a8 8 0 1 0 1 8"/></svg>';
+  const warnSvg='<svg width="15" height="15" style="display:block;width:15px;height:15px;max-width:15px;max-height:15px;flex:none" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l9 17H3z"/><path d="M12 9v5M12 17h.01"/></svg>';
   if(wrap&&txt){
     wrap.classList.remove('saving','pending','error');
     if(state==='saving'){
@@ -15634,7 +15688,7 @@ function renderAccountsPage(){
       return '<div class="run-history-row" data-acctid="'+a.id+'" onclick="openAccountPage(this.dataset.acctid)">'
         +'<div class="rh-body">'
           +'<div class="rh-name" style="display:flex;align-items:center;gap:6px;">'+esc(a.name)+_tTag+'</div>'
-          +'<div class="rh-meta rh-meta-full">'+s.itemCount+' item'+(s.itemCount!==1?'s':'')+' \u00b7 '+s.activeCount+' active \u00b7 '+owedStr+'</div>'
+          +'<div class="rh-meta rh-meta-full">'+s.itemCount+' item'+(s.itemCount!==1?'s':'')+' \u00b7 '+s.stockOnHandCount+' stock on hand \u00b7 '+s.listedCount+' listed \u00b7 '+s.unlistedCount+' unlisted'+(s.returnedCount?' \u00b7 '+s.returnedCount+' returned':'')+' \u00b7 '+owedStr+'</div>'
           +'<div class="rh-meta rh-meta-compact">'+s.itemCount+' items \u00b7 '+owedStr+'</div>'
         +'</div>'
         +'<span class="rh-profit" style="color:'+(s.yourShare>=0?'var(--green)':'var(--red)')+';">'+fmt(s.yourShare)+'</span>'
@@ -20332,7 +20386,6 @@ function renderItemRow(m,i){
         '<button onclick="event.stopPropagation();toggleDD(\'dd-'+i.id+'\');openListFromSourced(\''+m+'\',\''+i.id+'\')" style="color:var(--accent);font-weight:600;">'+icon('list',14)+' List Item</button>'+
         '<button onclick="event.stopPropagation();editItem(\''+m+'\',\''+i.id+'\')">'+icon('edit',14)+' Edit</button>'+
         '<button onclick="event.stopPropagation();confirmDupeItem(\''+m+'\',\''+i.id+'\')">'+icon('dupe',14)+' Duplicate</button>'+
-        (_canAddToJobLot(i)?'<button onclick=\"event.stopPropagation();toggleDD(\'dd-'+i.id+'\');openAddToJobLot(\''+m+'\',\''+i.id+'\')\" style=\"color:var(--purple)\">'+icon('joblot',14)+' Add to Job Lot</button>':'')+
         (_canAddToJobLot(i)?'<button onclick="event.stopPropagation();toggleDD(\'dd-'+i.id+'\');openAddToJobLot(\''+m+'\',\''+i.id+'\')" style="color:var(--purple)">'+icon('joblot',14)+' Add to Job Lot</button>':'')+
       (_canScrap(i)?'<button onclick="event.stopPropagation();toggleDD(\'dd-'+i.id+'\');openScrapModal(\''+m+'\',\''+i.id+'\')" style="color:var(--warn)">'+icon('dispose',14)+' Dispose</button>':'')+
         '<button class="danger" onclick="event.stopPropagation();deleteItem(\''+m+'\',\''+i.id+'\')">'+icon('trash',14)+' Delete</button>'+
@@ -20466,6 +20519,7 @@ function renderItemRow(m,i){
       '<button onclick="event.stopPropagation();editItem(\''+m+'\',\''+i.id+'\')">'+icon('edit',14)+' Edit</button>'+
       (i.isReturned&&!i.resaleSalePrice&&!i.scrappedAt?'<button onclick="event.stopPropagation();toggleDD(\'dd-'+i.id+'\');openRelist(\''+m+'\',\''+i.id+'\')" style="color:var(--accent);font-weight:600;">'+icon('relist',14)+' Relist</button>':'')+
       (i.isReturned&&!i.resaleSalePrice&&!i.scrappedAt?'<button onclick="event.stopPropagation();toggleDD(\'dd-'+i.id+'\');moveReturnedToUnlisted(\''+m+'\',\''+i.id+'\')">'+icon('inbox',14)+' Move to Unlisted</button>':'')+
+      (_canAddToJobLot(i)?'<button onclick="event.stopPropagation();toggleDD(\'dd-'+i.id+'\');openAddToJobLot(\''+m+'\',\''+i.id+'\')" style="color:var(--purple)">'+icon('joblot',14)+' Add to Job Lot</button>':'')+
       (!i.isReturned&&!i.dateSold&&!i.resaleSalePrice?'<button onclick="event.stopPropagation();markSold(\''+m+'\',\''+i.id+'\')">' + '<svg width="14" height="14" viewBox="0 0 15 15" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M8.5 1.5h4a1 1 0 011 1v4a.5.5 0 01-.15.35l-6 6a1 1 0 01-1.41 0l-4-4a1 1 0 010-1.41l6-6A.5.5 0 018.5 1.5z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/><circle cx="11" cy="4" r="0.8" fill="currentColor"/></svg> Mark Sold</button>':'')+
       (!i.dateSold&&!i.resaleSalePrice&&i.state==='listed'?'<button onclick="event.stopPropagation();withdrawToSourced(\''+m+'\',\''+i.id+'\')" style="color:var(--warn)">'+icon('withdraw',14)+' Withdraw</button>':'')+
       ((i.dateSold||i.resaleSalePrice)&&!i.isReturned?'<button onclick="event.stopPropagation();openReturn(\''+m+'\',' + "'"+i.id+"'"+')">'+icon('return',14)+' Log Return</button>':'')+
@@ -21911,7 +21965,7 @@ function renderStock(){
   const _listedAgeEntities=allListed.concat(_listedLots.map(_jobLotPseudo));
   const _unlistedAgeEntities=allStock.concat(_buildingLots.map(_jobLotPseudo));
   const cAllListed=_listedAgeEntities.length, cAllStock=_unlistedAgeEntities.length, cAllReturned=allReturned.length;
-  const cAllRemoved=(typeof _scrappedItems==='function'?_scrappedItems().length:items.filter(function(i){return !!i.scrappedAt;}).length);
+  const cAllRemoved=allRemoved.length;
   const _stockSeg=(function(){
     const bk=[
       {key:'all',label:'All',count:allOnHand.length+_activeLotsNow.length},
@@ -22253,7 +22307,7 @@ function renderStock(){
           {key:'stale',  label:'Stale',    sub:'90d+',   count:ageBuckets.stale,    val:ageBucketsValue.stale,    col:'var(--red)'}
         ];
         const barSegs=segsBar.map(s=>{
-          const pct=(s.count/cAllListed)*100; if(pct===0)return '';
+          const pct=cAllListed?(s.count/cAllListed)*100:0; if(pct===0)return '';
           const isAct=STOCK_FILTER===s.key;
           return `<div class="age-bar-seg ${s.key}${isAct?' active':''}" style="width:${pct}%;background:${s.col};" title="${s.label} (${s.sub}): ${s.count} · ${fmt(s.val)}" onclick="setStockFilter('${s.key}')"></div>`;
         }).join('');
