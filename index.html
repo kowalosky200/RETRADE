@@ -10277,16 +10277,20 @@ async function initDB(){
     // never log as brand-new; the first real transition after boot logs cleanly.
     try{ _initActivityShadow(); }catch(e){ console.warn('[RETRADE] shadow seed failed',e); }
     _loadUIState();
-    hideLoadingScreen();
-    // _freshSession / _lastTab / _safeTab were resolved before the load (7B) --
-    // on a fresh session we always start on Summary (the natural home), ignoring
-    // whatever page was last open. _loadUIState() above already kept default
-    // filters for a new session, so this completes the clean-start behaviour.
+    // Render the remembered destination BEFORE dissolving the skeleton. Previously
+    // Returns/Cash/Archive/Activity were valid remembered tabs but had no boot
+    // renderer here: init removed the skeleton, activated an empty page, and the
+    // user saw a blank canvas. Boot now has one contract: every allowed tab must
+    // successfully render before the loading surface is allowed to leave.
     if(_safeTab==='summary')renderSummary();
     else if(_safeTab==='monthly')renderMonthlyPage();
     else if(_safeTab==='stock')renderStock();
     else if(_safeTab==='runs')renderRunsPage();
     else if(_safeTab==='expenses')renderExpenses();
+    else if(_safeTab==='cash')renderCash();
+    else if(_safeTab==='returns')renderReturns();
+    else if(_safeTab==='scrapped')renderScrapped();
+    else if(_safeTab==='activity')renderActivity();
     else if(_safeTab==='tax')renderTax();
     else if(_safeTab==='data')renderData();
     else renderSummary();
@@ -10304,18 +10308,39 @@ async function initDB(){
     const _bn=document.querySelector('#bottom-nav .bnt[data-tab="'+_safeTab+'"]');if(_bn)_bn.classList.add('on');
     handleNavResize();
     if(typeof _syncFabVisibility==='function')_syncFabVisibility();
+    // Destination is now rendered + active underneath the overlay; cross-fade only now.
+    hideLoadingScreen();
     // Stamp this session active now so a quick reload (even with no navigation)
     // is recognised as the same session and the next save extends it.
     try{localStorage.setItem(_SK.lastActive,String(Date.now()));}catch(e){}
   }catch(e){
     console.error('initDB error:', e);
-    hideLoadingScreen();
+    // Keep the boot surface in place. A failed load/render must never expose a
+    // blank app canvas; _showLoadError converts the skeleton into a retry state.
     _showLoadError(e.message);
   } finally {
     _dbLoading = false;
   }
 }
 function _showLoadError(msg){
+  const loading=document.getElementById('app-loading');
+  if(loading){
+    if(_bootFadeTimer){clearTimeout(_bootFadeTimer);_bootFadeTimer=null;}
+    loading.classList.remove('rt-boot-out');
+    loading.classList.add('rt-boot-error');
+    loading.style.opacity='1';
+    loading.style.pointerEvents='auto';
+    const safeMsg=String(msg||'Failed to load data.');
+    loading.innerHTML='<div style="min-height:100%;display:flex;align-items:center;justify-content:center;padding:28px;">'
+      +'<div style="width:min(420px,100%);background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:24px;box-shadow:0 12px 40px var(--shadow-md);text-align:center;">'
+      +'<div style="width:42px;height:42px;margin:0 auto 14px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--red-dim);color:var(--red);font-size:20px;font-weight:800;">!</div>'
+      +'<div style="font-size:18px;font-weight:800;margin-bottom:8px;">Couldn\'t load RETRADE</div>'
+      +'<div id="load-error-msg" style="font-size:13px;line-height:1.55;color:var(--text-secondary);margin-bottom:18px;"></div>'
+      +'<button onclick="retryAppLoad()" class="btn btn-primary" style="min-width:120px;">Retry</button>'
+      +'</div></div>';
+    const msgEl=loading.querySelector('#load-error-msg');if(msgEl)msgEl.textContent=safeMsg;
+    return;
+  }
   let el = document.getElementById('load-error-banner');
   if(!el){
     el = document.createElement('div');
@@ -10331,6 +10356,12 @@ function _showLoadError(msg){
   }
   document.getElementById('load-error-msg').textContent = '⚠️ ' + (msg || 'Failed to load data.');
   el.style.display = 'flex';
+}
+function retryAppLoad(){
+  const loading=document.getElementById('app-loading');
+  if(loading)loading.remove();
+  document.body.classList.remove('rt-boot-shell');
+  initDB();
 }
 
 // v2.17.0 — Boot skeleton. Rebuilt v2.19.18 (7B) as per-page + class-driven.
@@ -19554,7 +19585,13 @@ const _fyCollapsed={};
 
 
 function _getFYLabel(fyStart){
-  const long=fyStart+'–'+(fyStart+1);
+  // Plain-text FY label for exports, filenames, accessibility and any non-HTML context.
+  // Never return markup here: this value is also used in generated Excel/CSV titles.
+  return fyStart+'–'+(fyStart+1);
+}
+function _getFYLabelHTML(fyStart){
+  // Responsive UI-only label. Desktop shows 2026–2027; very narrow screens show 26–27.
+  const long=_getFYLabel(fyStart);
   const short=String(fyStart).slice(-2)+'–'+String(fyStart+1).slice(-2);
   return '<span class="fy-label-long">'+long+'</span><span class="fy-label-short">'+short+'</span>';
 }
@@ -19828,7 +19865,7 @@ function renderMonthlyGrid(){
     });
     const fyAvgROI=fyROICount>0?(fyROISum/fyROICount):null;
     const fyAvgMargin=fyMarginCount>0?(fyMarginSum/fyMarginCount):null;
-    const fyLabel=_getFYLabel(fy);
+    const fyLabel=_getFYLabelHTML(fy);
     const profitColor=fyProfit>0?'var(--green)':fyProfit<0?'var(--red)':'var(--muted)';
     const chevronRot=isCollapsed?'0deg':'180deg';
     const borderCol=isCurrentFY?'var(--accent)':'var(--border)';
@@ -20195,8 +20232,15 @@ function _styleReportSheet(ws,rows,opts){
       else if(isTotal){cell.s={font:{bold:true},fill:{fgColor:{rgb:'F5EBD8'}},border:{top:{style:'thin',color:{rgb:'A09880'}}}};}
       else if(isSection){cell.s={font:{bold:true,color:{rgb:'5A5040'}},fill:{fgColor:{rgb:'F5F0E8'}}};}
       if(typeof cell.v==='number'){
-        if(moneyCols.has(c)||/£/.test(String((rows[opts.headerRows&&opts.headerRows[0]]||[])[c]||'')))cell.z='£#,##0.00;[Red]-£#,##0.00';
-        else if(pctCols.has(c)||/%/.test(String((rows[opts.headerRows&&opts.headerRows[0]]||[])[c]||'')))cell.z='0.0%';
+        const _hdr=String((rows[opts.headerRows&&opts.headerRows[0]]||[])[c]||'');
+        const _isPctLabel=/(margin|roi|refund rate|rate %|margin %|roi %)/i.test(label)||/%/.test(_hdr)||pctCols.has(c);
+        const _isCountLabel=/^(items sold|returns|unsold items|sales|items|count)$/i.test(label)||/(items sold|returns|count|days held)$/i.test(_hdr);
+        // Percent values in RETRADE reports are stored as percentage points
+        // (e.g. 19.1 means 19.1%), not Excel fractions (0.191). Use a literal
+        // percent sign so Excel never turns 19.1 into 1,910%.
+        if(_isPctLabel)cell.z='0.0"%"';
+        else if(_isCountLabel)cell.z='0';
+        else if(moneyCols.has(c)||/£/.test(_hdr))cell.z='£#,##0.00;[Red]-£#,##0.00';
       }
     }
   }
@@ -20346,8 +20390,10 @@ function _writeMonthlyExcelBook(m,salesRows,expRows,summaryRows,pnl){
     });
     stockRows.push([]);
     stockRows.push(['TOTAL','','','',pnl.stock.cost]);
-    const ws3=XLSX.utils.aoa_to_sheet(meta.concat(stockRows));
+    const _stockAll=meta.concat(stockRows);
+    const ws3=XLSX.utils.aoa_to_sheet(_stockAll);
     ws3['!cols']=[{wch:14},{wch:36},{wch:12},{wch:12},{wch:14}];
+    _styleReportSheet(ws3,_stockAll,{headerRows:[3],freezeRow:4,autoFilterRow:3,moneyCols:[4]});
     XLSX.utils.book_append_sheet(wb,ws3,'Stock Tied Up');
   }
   const filename='RETRADE_'+m+'_Statement.xlsx';
@@ -20425,8 +20471,10 @@ function _writeAnnualExcelBook(fyStart,label,salesRows,expRows,summaryRows,pnl,s
   }
   if(pnl){
     const wsSA=XLSX.utils.aoa_to_sheet(_buildSA103Rows(pnl));
-    wsSA['!cols']=[{wch:12},{wch:52},{wch:16}];
-    _styleReportSheet(wsSA,_buildSA103Rows(pnl),{headerRows:[4],freezeRow:5,moneyCols:[2]});
+    wsSA['!cols']=[{wch:12},{wch:52},{wch:16},{wch:20}];
+    _styleReportSheet(wsSA,_buildSA103Rows(pnl),{headerRows:[4],freezeRow:5,moneyCols:[2,3]});
+    // HMRC filing column is deliberately whole pounds; the Books column retains pence.
+    if(wsSA['!ref']){const _rg=XLSX.utils.decode_range(wsSA['!ref']);for(let _r=_rg.s.r;_r<=_rg.e.r;_r++){const _c=wsSA[XLSX.utils.encode_cell({r:_r,c:3})];if(_c&&typeof _c.v==='number')_c.z='£#,##0;[Red]-£#,##0';}}
     XLSX.utils.book_append_sheet(wb,wsSA,'SA103 Tax Summary');
     const bc=_expensesByCategoryRows(pnl).rows;
     if(bc.length>2){
@@ -20450,8 +20498,10 @@ function _writeAnnualExcelBook(fyStart,label,salesRows,expRows,summaryRows,pnl,s
     XLSX.utils.book_append_sheet(wb,wsD,'Sales Detail');
   }
   if(expRows.length>1){
-    const ws2=XLSX.utils.aoa_to_sheet(meta.concat(expRows));
+    const _expAll=meta.concat(expRows);
+    const ws2=XLSX.utils.aoa_to_sheet(_expAll);
     ws2['!cols']=expRows[0]?expRows[0].map(function(){return{wch:20};}):[];
+    _styleReportSheet(ws2,_expAll,{headerRows:[3],freezeRow:4,autoFilterRow:3,moneyCols:[6,7,8,9]});
     XLSX.utils.book_append_sheet(wb,ws2,'Expenses & Mileage');
   }
   // Unsold stock sourced in FY
@@ -20462,8 +20512,10 @@ function _writeAnnualExcelBook(fyStart,label,salesRows,expRows,summaryRows,pnl,s
     });
     stockRows.push([]);
     stockRows.push(['TOTAL','','','',pnl.stock.cost]);
-    const ws3=XLSX.utils.aoa_to_sheet(meta.concat(stockRows));
+    const _stockAll=meta.concat(stockRows);
+    const ws3=XLSX.utils.aoa_to_sheet(_stockAll);
     ws3['!cols']=[{wch:14},{wch:36},{wch:12},{wch:12},{wch:14}];
+    _styleReportSheet(ws3,_stockAll,{headerRows:[3],freezeRow:4,autoFilterRow:3,moneyCols:[4]});
     XLSX.utils.book_append_sheet(wb,ws3,'Stock Tied Up');
   }
   const filename='RETRADE_FY'+label.replace('/','-')+'_Annual.xlsx';
@@ -20668,7 +20720,7 @@ function renderMonth(){
                   return {k,ms,hasActivity,isLiveMonth};
                 }).filter(Boolean);
                 if(visibleEntries.length===0)return; // skip empty FYs
-                out+='<div class="month-picker-fy-header">FY '+_getFYLabel(fy)+(isCur?' · Current':'')+'</div>';
+                out+='<div class="month-picker-fy-header">FY '+_getFYLabelHTML(fy)+(isCur?' · Current':'')+'</div>';
                 visibleEntries.forEach(({k,ms,hasActivity,isLiveMonth})=>{
                   const sub=hasActivity
                     ?'<span class="month-picker-option-sub">'+ms.soldCount+' sold · '+ms.listedCount+' active</span>'
@@ -29207,41 +29259,50 @@ function _buildSA103Rows(pnl){
   if(pnl&&/^\d{4}-04-06$/.test(pnl.from||'')&&/^\d{4}-04-05$/.test(pnl.to||''))pnl=_buildTaxCashSummary(pnl.from,pnl.to,pnl.label);
   const boxes=[17,20,21,22,23,24,25,26,28,30];
   const rows=[];
+  const incomeWhole=function(v){return Math.floor(Math.max(0,Number(v)||0));};
+  const expenseWhole=function(v){return Math.ceil(Math.max(0,Number(v)||0));};
   rows.push(['SA103 TAX RETURN SUMMARY (cash basis)']);
-  rows.push(['This maps your figures to HMRC Self-employment (SA103F) boxes.']);
+  rows.push(['Books retain pence. HMRC filing column shows whole-pound entry values: income rounded down; expenses/reliefs rounded up.']);
   rows.push(['Latest published SA103 layout: turnover below £90,000 can use SA103S; total allowable expenses may be entered in short-form box 20.']);
   rows.push([]);
-  rows.push(['SA103F Box','Heading','Amount (£)']);
-  rows.push(['15 / S9','Turnover / gross receipts',pnl.revenue.toFixed(2)]);
-  if((pnl.otherBusinessIncome||0)>0)rows.push(['16 / S10','Other business income (e.g. supplier refunds)',pnl.otherBusinessIncome.toFixed(2)]);
+  rows.push(['SA103F Box','Heading','Books (£)','HMRC filing (£ whole)']);
+  const turnover=Number(pnl.revenue)||0;
+  const otherIncome=Number(pnl.otherBusinessIncome)||0;
+  rows.push(['15 / S9','Turnover / gross receipts',turnover,incomeWhole(turnover)]);
+  if(otherIncome>0)rows.push(['16 / S10','Other business income (e.g. supplier refunds)',otherIncome,incomeWhole(otherIncome)]);
   rows.push([]);
   let totalExp=0;
   boxes.forEach(function(bx){
-    // Box 17 = COGS (always show, it's core to a reseller); others only if non-zero
     let amt=0;
     if(bx===17){amt=(pnl.box17!=null?pnl.box17:pnl.cogs);}
     else{amt=pnl.byBox[bx]||0;}
     if(bx===17||amt>0){
-      rows.push([String(bx),SA103_BOX_LABELS[bx]||('Box '+bx),amt.toFixed(2)]);
+      amt=Number(amt)||0;
+      rows.push([String(bx),SA103_BOX_LABELS[bx]||('Box '+bx),amt,expenseWhole(amt)]);
       totalExp+=amt;
     }
   });
+  totalExp=+totalExp.toFixed(2);
+  const filingIncome=incomeWhole(turnover)+incomeWhole(otherIncome);
+  const filingExpenses=expenseWhole(totalExp);
+  const filingProfit=Math.max(0,filingIncome-filingExpenses);
+  const filingLoss=Math.max(0,filingExpenses-filingIncome);
   rows.push([]);
-  rows.push(['','TOTAL ALLOWABLE EXPENSES',totalExp.toFixed(2)]);
-  rows.push(['','  → SA103S (short form) box 20 single figure',totalExp.toFixed(2)]);
+  rows.push(['','TOTAL ALLOWABLE EXPENSES',totalExp,filingExpenses]);
+  rows.push(['','  → SA103S (short form) box 20 single figure',totalExp,filingExpenses]);
   rows.push([]);
-  rows.push([pnl.netProfit>=0?'47 / S21':'48 / S22',pnl.netProfit>=0?'Net profit':'Net loss',Math.abs(pnl.netProfit).toFixed(2)]);
-  rows.push(['76 / S31','Total taxable profit (before any personal loss/capital-allowance adjustments)',Math.max(0,pnl.netProfit).toFixed(2)]);
+  rows.push([pnl.netProfit>=0?'47 / S21':'48 / S22',pnl.netProfit>=0?'Net profit':'Net loss',Math.abs(Number(pnl.netProfit)||0),pnl.netProfit>=0?filingProfit:filingLoss]);
+  rows.push(['76 / S31','Total taxable profit (before any personal loss/capital-allowance adjustments)',Math.max(0,Number(pnl.netProfit)||0),filingProfit]);
   if(pnl.mileage.miles>0){
     rows.push([]);
-    rows.push(['Mileage note',pnl.mileage.miles+' business miles claimed at HMRC simplified rates','']);
+    rows.push(['Mileage note',pnl.mileage.miles+' business miles claimed at HMRC simplified rates','','']);
   }
   if(pnl.motorDoubleClaim){
     rows.push([]);
-    rows.push(['Motor method',(pnl.motorMethod==='actual'?'Actual motor costs':'Simplified mileage')+' applied \u2014 '+pnl.motorExcludedLabel+' ('+pnl.motorExcluded.toFixed(2)+') excluded (one method per vehicle).','']);
+    rows.push(['Motor method',(pnl.motorMethod==='actual'?'Actual motor costs':'Simplified mileage')+' applied — '+pnl.motorExcludedLabel+' ('+pnl.motorExcluded.toFixed(2)+') excluded (one method per vehicle).','','']);
   }
   rows.push([]);
-  rows.push(['Disclaimer','Prepared on a cash basis as a record-keeping aid. Figures should be reviewed before filing. This is not tax advice.','']);
+  rows.push(['Disclaimer','Prepared on a cash basis as a record-keeping aid. Review against the current HMRC return before filing. This is not tax advice.','','']);
   return rows;
 }
 
