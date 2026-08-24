@@ -23283,14 +23283,54 @@ function _cashStockTied(){
       // (Excludes scrapped/donated even if state==='sourced' — the old sourced branch leaked those.)
       const onHand = !i.dateSold && !i.resaleSalePrice && !i.scrappedAt;
       if(!onHand)return;
-      c += (typeof calcPartsCost==='function'?(Number(calcPartsCost(i))||0):0); // parts: his cash regardless
-      const paid = (!i.accountId) || (i.accountSettled===true);
-      if(paid){
-        c += (i.accountPaidAmount!=null) ? (Number(i.accountPaidAmount)||0) : (Number(i.costPrice)||0);
+      c += (typeof calcPartsCost==='function'?(Number(calcPartsCost(i))||0):0); // parts: your cash regardless
+
+      // Acquisition cash follows the ACCOUNT TYPE, not one generic settled flag:
+      // - own stock: cost was paid when bought
+      // - supplier: cost only leaves cash once that supplier debt is settled
+      // - consignment: acquisition cost should be £0; partner share is handled on sale
+      // - hybrid: any costPrice is the agreed upfront cash component, so it is paid
+      //   independently of whether the later profit-share settlement is still open.
+      const typ=(typeof _itemAccountType==='function')?_itemAccountType(i):(i.accountId?'supplier':'supplier');
+      let acquisitionPaid=!i.accountId;
+      if(i.accountId){
+        if(typ==='supplier') acquisitionPaid=(i.accountSettled===true);
+        else if(typ==='hybrid') acquisitionPaid=true;
+        else acquisitionPaid=false; // consignment
+      }
+      if(acquisitionPaid){
+        const acquisition=(typ==='supplier'&&i.accountPaidAmount!=null)
+          ? (Number(i.accountPaidAmount)||0)
+          : (Number(i.costPrice)||0);
+        c += acquisition;
       }
     });
   });
   return +c.toFixed(2);
+}
+
+// Profit is an accrual-style measure: supplier COGS and partner shares reduce
+// profit when earned/owed. Cash must only reduce when those liabilities are
+// actually PAID. Add unsettled sold-account debt back to the trading cash base.
+// This is the missing bridge between P&L and the real bank/cash/marketplace pots.
+function _cashUnpaidSoldLiabilities(){
+  let supplier=0,partner=0,count=0;
+  (typeof allDBKeys==='function'?allDBKeys():[]).forEach(function(k){
+    (DB[k]||[]).forEach(function(i){
+      if(!i||!i.accountId||i.accountSettled===true||i.scrappedAt)return;
+      if((i.item||'').trim().toUpperCase()==='MONTH END')return;
+      if(typeof _accountItemIsSold==='function'&&!_accountItemIsSold(i))return;
+      const typ=(typeof _itemAccountType==='function')?_itemAccountType(i):'supplier';
+      if(typ==='supplier'){
+        const debt=(typeof _accountItemDebt==='function')?_accountItemDebt(i):((Number(i.costPrice)||0));
+        if(debt!=null&&Number(debt)>0){supplier+=Number(debt)||0;count++;}
+      }else{
+        const owed=(typeof _accountItemOwed==='function')?_accountItemOwed(i):null;
+        if(owed!=null&&Number(owed)>0){partner+=Number(owed)||0;count++;}
+      }
+    });
+  });
+  return {supplier:+supplier.toFixed(2),partner:+partner.toFixed(2),total:+(supplier+partner).toFixed(2),count:count};
 }
 
 // Combined v2.21.55 — cash actually lost when inventory leaves the business.
@@ -23301,8 +23341,18 @@ function _cashRemovedItemNet(i){
   if(!i||!i.scrappedAt)return 0;
   if((i.item||'').trim().toUpperCase()==='MONTH END')return 0;
   let paidCost=(typeof calcPartsCost==='function'?(Number(calcPartsCost(i))||0):0);
-  const paid=(!i.accountId)||(i.accountSettled===true);
-  if(paid) paidCost += (i.accountPaidAmount!=null)?(Number(i.accountPaidAmount)||0):(Number(i.costPrice)||0);
+  const typ=(typeof _itemAccountType==='function')?_itemAccountType(i):(i.accountId?'supplier':'supplier');
+  let acquisitionPaid=!i.accountId;
+  if(i.accountId){
+    if(typ==='supplier')acquisitionPaid=(i.accountSettled===true);
+    else if(typ==='hybrid')acquisitionPaid=true;
+    else acquisitionPaid=false;
+  }
+  if(acquisitionPaid){
+    paidCost += (typ==='supplier'&&i.accountPaidAmount!=null)
+      ? (Number(i.accountPaidAmount)||0)
+      : (Number(i.costPrice)||0);
+  }
   const recovered=(i.scrapReason==='supplier_return')?Math.max(0,Number(i.supplierRefund)||0):0;
   // Positive = cash permanently lost; negative = more cash recovered than paid.
   return +(paidCost-recovered).toFixed(2);
@@ -23328,8 +23378,13 @@ function calcCashSummary(){
     else if(m.type==='owner_draw'){draw+=amt;if(inFY(m.date))drawFY+=amt;}
     else if(m.type==='adjustment')adjust+=(m.direction==='out'?-amt:amt);
   });
-  const tradingCashMargin=+(Number(s.realisedProfit)||0).toFixed(2); // receipts − sold COGS − fees − postage − refunds − splits (all cash)
-  const stockTied=_cashStockTied();                                  // real cost of unsold stock (sourced + listed), cash already paid out
+  const accruedTradingProfit=+(Number(s.realisedProfit)||0).toFixed(2);
+  const unpaidLiabilities=_cashUnpaidSoldLiabilities();
+  // Cash trading margin = realised trading profit + costs/shares recognised in
+  // profit but not actually paid yet. eBay balance is part of business cash, so
+  // marketplace payout timing does not require a separate receivables deduction.
+  const tradingCashMargin=+(accruedTradingProfit+unpaidLiabilities.total).toFixed(2);
+  const stockTied=_cashStockTied();                                  // real cost of unsold stock, cash already paid out
   const cashOverheads=_cashOverheadsAllTime();
   const capitalLost=_cashCapitalNetLost();
   const operatingCash=+(tradingCashMargin-stockTied-cashOverheads-capitalLost).toFixed(2);
@@ -23338,8 +23393,8 @@ function calcCashSummary(){
   return {
     opening:+opening.toFixed(2),contrib:+contrib.toFixed(2),draw:+draw.toFixed(2),adjust:+adjust.toFixed(2),
     contribFY:+contribFY.toFixed(2),drawFY:+drawFY.toFixed(2),
-    tradingCashMargin,stockTied,cashOverheads,capitalLost,operatingCash,cashAvailable,
-    netProfit,grossProfit:tradingCashMargin,
+    accruedTradingProfit,tradingCashMargin,unpaidLiabilities,stockTied,cashOverheads,capitalLost,operatingCash,cashAvailable,
+    netProfit,grossProfit:accruedTradingProfit,
     netOwner:+(draw-contrib).toFixed(2),
     profitRetained:+(netProfit-draw+contrib).toFixed(2),
   };
@@ -23373,14 +23428,40 @@ function renderCash(){
     +'<div class="num" style="font-size:clamp(28px,7vw,40px);font-weight:800;line-height:1.05;margin-top:4px;'+(c.cashAvailable<0?'color:var(--red);':'')+'">'+fmt(c.cashAvailable)+'</div>'
     +'<div class="kpi-foot" style="margin-top:8px;line-height:1.5;">Opening '+fmt(c.opening)+' + operating cash '+fmt(c.operatingCash)+' + you added '+fmt(c.contrib)+' − you took '+fmt(c.draw)+(c.adjust?' '+(c.adjust<0?'−':'+')+' adj '+fmt(Math.abs(c.adjust)):'')+'. Not the same as profit — '+fmt(c.stockTied)+' is still tied up in unsold stock.</div>'
   +'</div>';
+  // Audit bridge: expose every cash leg so a real-balance mismatch can be traced
+  // instead of hidden behind a reconciliation adjustment.
+  html+='<details class="card" style="padding:0;margin:-6px 0 18px;overflow:hidden;">'
+    +'<summary style="cursor:pointer;padding:12px 15px;font-size:12px;font-weight:700;color:var(--text-secondary);list-style:none;display:flex;justify-content:space-between;align-items:center;gap:10px;">'
+      +'<span>Cash calculation audit</span><span class="num" style="color:var(--text);">'+fmt(c.cashAvailable)+'</span></summary>'
+    +'<div style="padding:0 15px 13px;border-top:1px solid var(--border);">'
+      +'<div class="pnl-row"><span>Opening balance</span><strong>+'+fmt(c.opening)+'</strong></div>'
+      +'<div class="pnl-row"><span>Accrued trading profit</span><strong>'+(c.grossProfit<0?'−':'+')+fmt(Math.abs(c.grossProfit))+'</strong></div>'
+      +'<div class="pnl-row"><span>Unpaid supplier / partner liabilities still in cash</span><strong>+'+fmt(c.unpaidLiabilities.total)+'</strong></div>'
+      +'<div class="pnl-row"><span>Cash tied up in stock</span><strong>−'+fmt(c.stockTied)+'</strong></div>'
+      +'<div class="pnl-row"><span>Cash-paid overheads</span><strong>−'+fmt(c.cashOverheads)+'</strong></div>'
+      +'<div class="pnl-row"><span>Capital lost on removed stock (net refunds)</span><strong>−'+fmt(c.capitalLost)+'</strong></div>'
+      +'<div class="pnl-row"><span>Owner contributions</span><strong>+'+fmt(c.contrib)+'</strong></div>'
+      +'<div class="pnl-row"><span>Owner withdrawals</span><strong>−'+fmt(c.draw)+'</strong></div>'
+      +'<div class="pnl-row"><span>Manual / reconcile adjustments</span><strong>'+(c.adjust<0?'−':'+')+fmt(Math.abs(c.adjust))+'</strong></div>'
+      +'<div class="pnl-row total"><span>Business cash available</span><strong>'+fmt(c.cashAvailable)+'</strong></div>'
+      +'<div style="font-size:11px;color:var(--text-secondary);line-height:1.45;margin-top:8px;">Sales sitting in eBay/platform balance are already included: moving money from eBay to bank is only an internal transfer and must not change this total.</div>'
+    +'</div></details>';
   // CASH group
   html+='<div class="sl" style="margin:20px 0 10px;">Cash</div>'
     +'<div class="kgrid">'
-      +kpi('Operating cash',c.operatingCash,'Profit '+fmt(c.grossProfit)+' less stock, overheads &amp; removed-stock losses')
-      +kpi('Cash tied up in stock',c.stockTied,'Cost of unsold stock')
-      +kpi('Gross profit (all-time)',c.grossProfit,'Realised · after returns · before overheads')
+      +kpi('Operating cash',c.operatingCash,'Accrued profit '+fmt(c.grossProfit)+' + unpaid account liabilities '+fmt(c.unpaidLiabilities.total)+' − stock, overheads &amp; removed-stock losses')
+      +kpi('Cash tied up in stock',c.stockTied,'Only acquisition/parts cash actually paid for stock still held')
+      +kpi('Gross profit (all-time)',c.grossProfit,'Accrued trading profit · after returns · before overheads')
       +kpi('Opening balance',c.opening,'Starting cash')
     +'</div>';
+  if(c.unpaidLiabilities.total>0){
+    html+='<div class="card" style="padding:13px 15px;margin-top:-6px;margin-bottom:16px;border-style:dashed;">'
+      +'<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">'
+        +'<div><div style="font-size:12px;font-weight:700;color:var(--text);">Recognised but not paid yet</div>'
+        +'<div style="font-size:11px;color:var(--text-secondary);margin-top:3px;line-height:1.45;">These amounts reduce profit but remain in business cash until you record settlement. Supplier '+fmt(c.unpaidLiabilities.supplier)+' · partner shares '+fmt(c.unpaidLiabilities.partner)+'.</div></div>'
+        +'<strong class="num" style="white-space:nowrap;color:var(--accent);">+'+fmt(c.unpaidLiabilities.total)+'</strong>'
+      +'</div></div>';
+  }
   // OWNER group
   html+='<div class="sl" style="margin:22px 0 10px;">Owner</div>'
     +'<div class="kgrid">'
@@ -30080,6 +30161,35 @@ function runFinancialRegressionTests(){
   // 15 — supplier return restores the refunded cash, while unrecovered parts remain lost.
   i={id:'CASH-RET',item:'Supplier return',scrappedAt:'2026-08-20',scrapReason:'supplier_return',supplierRefund:40,costPrice:40,parts:[{cost:5}]};
   check('Cash · supplier refund nets unrecovered parts',_cashRemovedItemNet(i),5);
+
+  // 16 — unpaid SOLD supplier debt is recognised in profit but must remain in cash.
+  i=base('ebay_biz');i.category='Laptops, Desktops & Tablets';i.accountId='SUP';i.accountType='supplier';i.accountSettled=false;i.costPrice=40;
+  const _oldKeys=typeof allDBKeys==='function'?allDBKeys:null;
+  const _oldDB=DB;
+  try{
+    DB={TEST:[i],expenses:[],trips:[],cashLedger:[]};
+    window.allDBKeys=function(){return ['TEST'];};
+    check('Cash · unpaid sold supplier liability stays in cash',_cashUnpaidSoldLiabilities().supplier,40);
+    i.accountSettled=true;
+    check('Cash · settled sold supplier liability leaves cash',_cashUnpaidSoldLiabilities().supplier,0);
+  }finally{
+    DB=_oldDB;
+    if(_oldKeys)window.allDBKeys=_oldKeys;
+  }
+
+  // 17 — unpaid consignment split likewise remains cash until settlement.
+  i=base('ebay_biz');i.category='Laptops, Desktops & Tablets';i.accountId='CON';i.accountType='consignment';i.accountSettled=false;i.costPrice=0;i.accountSplitPercent=50;
+  try{
+    DB={TEST:[i],expenses:[],trips:[],cashLedger:[]};
+    window.allDBKeys=function(){return ['TEST'];};
+    const owe=_accountItemOwed(i)||0;
+    check('Cash · unpaid consignment share stays in cash',_cashUnpaidSoldLiabilities().partner,owe);
+    i.accountSettled=true;
+    check('Cash · settled consignment share leaves cash',_cashUnpaidSoldLiabilities().partner,0);
+  }finally{
+    DB=_oldDB;
+    if(_oldKeys)window.allDBKeys=_oldKeys;
+  }
 
   const failed=results.filter(function(r){return !r.ok;});
   if(failed.length)console.error('[RETRADE financial regression] FAILED',failed);
