@@ -1291,6 +1291,67 @@ button .rt-icon,.btn .rt-icon{pointer-events:none;}
   .item-full-page{padding:14px 16px 80px;}
 }
 
+
+/* v1.01 RC — Activity & History.
+   Must be global: the first version was accidentally nested inside the
+   max-width:680px item-detail media query, leaving desktop as raw markup. */
+.rt #p-activity .act-shell{max-width:980px;margin:0 auto;}
+.rt #p-activity .act-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:14px;}
+.rt #p-activity .act-kpi{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:15px 16px;min-width:0;box-shadow:0 1px 2px var(--shadow);position:relative;overflow:hidden;}
+.rt #p-activity .act-kpi::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--border2);}
+.rt #p-activity .act-kpi:nth-child(2)::before{background:var(--green);}
+.rt #p-activity .act-kpi:nth-child(3)::before{background:var(--red);}
+.rt #p-activity .act-kpi:nth-child(4)::before{background:var(--warn);}
+.rt #p-activity .act-kpi-label{font-family:var(--font-display);font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;}
+.rt #p-activity .act-kpi-val{font-family:var(--font-body);font-size:24px;font-weight:800;letter-spacing:-.035em;margin-top:5px;font-variant-numeric:tabular-nums;}
+.rt #p-activity .act-kpi-sub{font-size:11px;color:var(--text-secondary);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.rt #p-activity .act-toolbar{display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap;}
+.rt #p-activity .act-filters{display:flex;gap:0;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:3px;overflow-x:auto;max-width:100%;scrollbar-width:none;}
+.rt #p-activity .act-filters::-webkit-scrollbar{display:none;}
+.rt #p-activity .act-filter{border:0;background:transparent;color:var(--text-secondary);padding:7px 11px;border-radius:7px;font:600 12px var(--font-body);white-space:nowrap;cursor:pointer;transition:background .15s,color .15s;}
+.rt #p-activity .act-filter:hover{color:var(--text);}
+.rt #p-activity .act-filter.active{background:var(--surface);color:var(--text);box-shadow:0 1px 3px var(--shadow);}
+.rt #p-activity .act-search{position:relative;flex:1;min-width:220px;}
+.rt #p-activity .act-search input{width:100%;height:38px;padding:0 34px 0 36px;border:1px solid var(--border);border-radius:10px;background:var(--surface2);color:var(--text);font-family:var(--font-body);font-size:13px;}
+.rt #p-activity .act-search input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-dim);background:var(--surface);}
+.rt #p-activity .act-search svg{position:absolute;left:12px;top:12px;color:var(--muted);pointer-events:none;}
+.rt #p-activity .act-search-clear{position:absolute;right:7px;top:7px;width:24px;height:24px;border:0;border-radius:7px;background:transparent;color:var(--muted);cursor:pointer;}
+.rt #p-activity .act-search-clear:hover{background:var(--surface);color:var(--text);}
+.rt #p-activity .act-feed{max-width:980px;margin:0 auto;}
+.rt #p-activity .act-day{display:flex;align-items:center;gap:10px;font-family:var(--font-display);font-size:10px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);margin:20px 4px 9px;}
+.rt #p-activity .act-day::after{content:'';height:1px;background:var(--border);flex:1;}
+.rt #p-activity .act-row{display:flex;align-items:center;gap:13px;padding:13px 14px;background:var(--surface);border:1px solid var(--border);border-radius:11px;margin-bottom:8px;box-shadow:0 1px 2px var(--shadow);transition:border-color .15s,background .15s;}
+.rt #p-activity .act-row:hover{border-color:var(--border2);background:color-mix(in srgb,var(--surface2) 30%,var(--surface));}
+.rt #p-activity .act-row.act-undone{opacity:.55;}
+.rt #p-activity .act-row.act-review{border-color:color-mix(in srgb,var(--warn) 45%,var(--border));background:color-mix(in srgb,var(--warn) 5%,var(--surface));}
+.rt #p-activity .act-main{flex:1;min-width:0;}
+.rt #p-activity .act-line{font-size:14px;line-height:1.35;display:flex;align-items:center;gap:7px;flex-wrap:wrap;}
+.rt #p-activity .act-item{font-weight:700;cursor:pointer;text-decoration:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:min(100%,520px);}
+.rt #p-activity .act-item:hover{color:var(--accent);}
+.rt #p-activity .act-sub{font-size:12px;color:var(--muted);margin-top:4px;}
+.rt #p-activity .act-undone-tag{color:var(--warn);font-weight:700;}
+.rt #p-activity .act-badge{display:inline-flex;align-items:center;font-size:10.5px;font-weight:700;padding:3px 7px;border-radius:6px;border:1px solid var(--border);background:var(--surface2);color:var(--text-secondary);white-space:nowrap;}
+.rt #p-activity .act-badge.act-sold,.rt #p-activity .act-badge.act-resold,.rt #p-activity .act-badge.act-listed{border-color:color-mix(in srgb,var(--green) 50%,var(--border));background:var(--green-dim);color:var(--green);}
+.rt #p-activity .act-badge.act-returned{border-color:color-mix(in srgb,var(--red) 50%,var(--border));background:var(--red-dim);color:var(--red);}
+.rt #p-activity .act-badge.act-sourced{border-color:color-mix(in srgb,var(--accent) 45%,var(--border));background:var(--accent-dim);color:var(--accent);}
+.rt #p-activity .act-badge.act-scrapped,.rt #p-activity .act-badge.act-deleted,.rt #p-activity .act-badge.act-donated{border-color:color-mix(in srgb,var(--warn) 50%,var(--border));color:var(--warn);}
+.rt #p-activity .act-badge.act-joblot{border-color:var(--purple);color:var(--purple);}
+.rt #p-activity .act-review-tag,.rt #p-activity .act-unverified-tag{font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;border-radius:5px;padding:2px 6px;}
+.rt #p-activity .act-review-tag{color:var(--warn);background:var(--accent-dim);}
+.rt #p-activity .act-unverified-tag{color:var(--muted);background:var(--surface2);border:1px solid var(--border);}
+.rt #p-activity .act-undo{flex:0 0 auto;display:inline-flex;align-items:center;gap:5px;padding:6px 10px!important;font-size:12px!important;white-space:nowrap;}
+@media(max-width:720px){
+  .rt #p-activity .act-kpis{grid-template-columns:1fr 1fr;}
+  .rt #p-activity .act-kpi{padding:12px 13px;}
+  .rt #p-activity .act-kpi-val{font-size:21px;}
+  .rt #p-activity .act-toolbar{align-items:stretch;}
+  .rt #p-activity .act-filters{order:1;width:100%;}
+  .rt #p-activity .act-search{order:0;width:100%;flex-basis:100%;min-width:0;}
+  .rt #p-activity .act-row{padding:11px 12px;align-items:flex-start;}
+  .rt #p-activity .act-undo{padding:5px 8px!important;}
+  .rt #p-activity .act-item{max-width:100%;}
+}
+
 /* ── RETRADE IDENTITY ───────────────────────────────────────────────────── */
 /* Ambient page glow — warms up the summary page */
 [data-theme="dark"] #p-summary{background-image:radial-gradient(ellipse 60% 30% at 50% 0%,rgba(245,166,35,0.04) 0%,transparent 60%);}
@@ -9702,7 +9763,7 @@ function _actStatus(i){
 }
 const _ACT_LABEL = { listed:'Listed', sold:'Marked sold', returned:'Returned', resold:'Re-sold', scrapped:'Scrapped', donated:'Donated', returned_supplier:'Returned to supplier', sourced:'Moved to unlisted', deleted:'Deleted' };
 function _findItemMonth(id){ const ks=allDBKeys(); for(const m of ks){ if((DB[m]||[]).some(x=>x.id===id)) return m; } return null; }
-function _pushActivity(itemId,itemName,fromState,toState,beforeObj,month){
+function _pushActivity(itemId,itemName,fromState,toState,beforeObj,month,origin){
   try{
     DB.activityLog = DB.activityLog || [];
     DB.activityLog.push({
@@ -9712,7 +9773,8 @@ function _pushActivity(itemId,itemName,fromState,toState,beforeObj,month){
       before: beforeObj ? JSON.parse(JSON.stringify(beforeObj)) : null,
       month: month||null,
       after:(itemName?itemName+' — ':'')+(_ACT_LABEL[toState]||toState),
-      ts:Date.now(), undoable: !!beforeObj, undone:false
+      ts:Date.now(), undoable: !!beforeObj, undone:false,
+      origin:origin||'user'
     });
   }catch(e){ console.warn('[RETRADE] pushActivity failed:', e && e.message); }
 }
@@ -9736,8 +9798,9 @@ function _captureActivity(){
     });
     Object.keys(_activityShadow).forEach(function(id){
       if(seen[id]) return;
-      const prev = _activityShadow[id];
-      _pushActivity(id, prev.name||'', prev.status, 'deleted', prev.snap?JSON.parse(prev.snap):null, prev.month);
+      // Never infer a user deletion from absence in the current in-memory
+      // dataset. Cross-device cloud refreshes rebuild the dataset and can
+      // temporarily remove/move rows. Genuine Delete actions log explicitly.
       delete _activityShadow[id];
     });
   }catch(e){ console.warn('[RETRADE] activity capture failed:', e && e.message); }
@@ -9831,10 +9894,12 @@ function renderActivity(){
       const hh=String(d.getHours()).padStart(2,'0'),mm=String(d.getMinutes()).padStart(2,'0');
       const canUndo=!!(r.undoable&&!r.undone&&r.itemId&&latestActive[r.itemId]===r.id);
       const needsReview=_activityCategory(r)==='review'||/needs review/i.test(String(r.after||r.afterSummary||''));
+      const unverifiedDelete=(r.toState==='deleted'&&!r.origin);
       const sub=(r.fromState?esc(r.fromState)+' \u2192 '+esc(r.toState||''):esc(r.toState||''))+' \u00b7 '+hh+':'+mm+(r.undone?' \u00b7 <span class="act-undone-tag">undone</span>':'');
       body+='<div class="act-row'+(r.undone?' act-undone':'')+(needsReview?' act-review':'')+'">'
         +'<div class="act-main"><div class="act-line"><span class="act-badge act-'+esc(r.toState||'')+'">'+esc(r.action||'Change')+'</span>'
         +(needsReview?'<span class="act-review-tag">Needs review</span>':'')
+        +(unverifiedDelete?'<span class="act-unverified-tag" title="Older Activity entries did not record whether deletion was user-initiated or generated during a sync/rebuild.">Legacy · unverified</span>':'')
         +'<span class="act-item" '+(r.itemId?'onclick="_actGoItem(\''+r.itemId+'\')"':'')+'>'+esc(r.itemName||'Item')+'</span></div>'
         +'<div class="act-sub">'+sub+'</div></div>'
         +(canUndo?'<button class="btn btn-secondary act-undo" onclick="undoActivity(\''+r.id+'\')">'+_UNDO_SVG+'Undo</button>':'')+'</div>';
@@ -10105,6 +10170,8 @@ async function _refreshCloudOnResume(force){
   const now=Date.now();
   if(!force && now-_lastCloudRefreshAt<8000)return false;
   _cloudRefreshBusy=true;
+  const _activityWasSuppressed=_suppressActivityCapture;
+  _suppressActivityCapture=true;
   try{
     // Give this device's own offline edits first chance to reach Supabase.
     if(_outboxPendingCount()>0){
@@ -10122,6 +10189,10 @@ async function _refreshCloudOnResume(force){
     console.warn('[RETRADE] background cloud refresh skipped:',e&&e.message);
     return false;
   }finally{
+    // Reseed from the final authoritative/replayed state before re-enabling
+    // capture. A passive sync must never become an Activity event.
+    try{_initActivityShadow();}catch(_e){}
+    _suppressActivityCapture=_activityWasSuppressed;
     _cloudRefreshBusy=false;
   }
 }
@@ -11323,7 +11394,7 @@ function _renderStockItemPage(m,i){
           const _net=_estPotentialNet(i);
           const _cut=_estPartnerCut(i);
           const _margin=i.estSalePrice>0?Math.round(((_net||0)/i.estSalePrice)*100):0;
-          const _sub=_cut!=null?('\u2248 '+fmt(_cut)+' to partner'):(_margin+'% margin est');
+          const _sub=_cut!=null?('after '+fmt(_cut)+' partner share'):(_margin+'% margin est');
           return `
         <div class="ip-token locked">
           <div class="ip-token-label">Est. Profit</div>
@@ -11388,31 +11459,27 @@ function _avgPromoRate(){
 // their actual charges (calcEstProfit). SOURCED items (only a guess) use a
 // conservative estimate: real fee model on the est price + estimated promo drag
 // + MEDIAN fulfilment drag. Always modest — never assumes zero fees/postage/promo.
-function _estPotentialNet(i){
-  // Listed with a real asking price -> realistic, real-charge estimate.
+function _estPotentialGross(i){
   if(i.salePrice&&!i.dateSold&&!i.isReturned){
-    const e=calcEstProfit(i);
+    const e=calcEstGrossProfit(i);
     if(e!=null)return e;
   }
   const est=i.estSalePrice||0;
   if(est<=0)return null;
   const bpf=calcPlatformBPF(i,est,0,_itemPlatform(i));
-  const promo=est*_avgPromoRate()*1.20; // estimated ad/boost drag (VAT-inc), modest
+  const promo=est*_avgPromoRate()*1.20;
   return +(est-bpf-promo-(i.costPrice||0)-calcPartsCost(i)-_medianFulfilmentDrag()).toFixed(2);
 }
-// Estimated partner cut of the potential net, for a non-supplier account item.
-// Supplier cost is already inside costPrice, so no profit cut applies there.
+function _estPotentialNet(i){
+  const gross=_estPotentialGross(i);
+  if(gross==null)return null;
+  return +(gross-_estimatedPartnerCutFromProfit(i,gross)).toFixed(2);
+}
 function _estPartnerCut(i){
-  if(_itemAccountType(i)==='supplier')return null;
-  const net=_estPotentialNet(i);
-  if(net==null)return null;
-  let pct=i.accountSplitPercent;
-  if(pct==null&&i.accountId){
-    const acct=(_accounts||[]).find(function(a){return a.id===i.accountId;});
-    pct=acct&&acct.defaultSplitPercent!=null?acct.defaultSplitPercent:null;
-  }
-  if(pct==null)return null;
-  return +(net*(pct/100)).toFixed(2);
+  const gross=_estPotentialGross(i);
+  if(gross==null)return null;
+  const cut=_estimatedPartnerCutFromProfit(i,gross);
+  return cut>0?cut:null;
 }
 
 function renderItemPage(m,id){
@@ -14584,7 +14651,7 @@ function _accountStats(accountId){
   let forecastProfitPool=0,forecastPartnerShare=0,forecastYourShare=0;
   active.forEach(function(i){
     const lot=_activeJobLotForItem(i.id);
-    const est=lot?_jobLotMemberPotentialShare(i,lot):calcEstProfit(i);
+    const est=lot?_jobLotMemberPotentialShare(i,lot):calcEstGrossProfit(i);
     if(est==null)return;
     const estNum=Number(est)||0;
     forecastProfitPool+=estNum;
@@ -15132,13 +15199,13 @@ function _renderAccountPage(acct){
   const heroHTML=_isConsignment
     ? '<div class="accounts-kpis-v2" style="margin-bottom:18px;">'
       +mc('Stock value',fmt(stats.forecastStockValue),
-        stats.stockOnHandCount+' on hand · '+stats.listedCount+' listed'+(stats.unlistedCount?' · '+stats.unlistedCount+' unlisted':''))
-      +mc('Projected profit pool',fmt(stats.forecastProfitPool),
-        'before split'+(_splitPct!=null?' · '+_splitPct+'% partner / '+(100-_splitPct)+'% you':''),stats.forecastProfitPool>=0?'var(--green)':'var(--red)')
-      +mc('Your projected total',fmt(stats.projectedYourTotal),
-        fmt(stats.yourShare)+' realised + '+fmt(stats.forecastYourShare)+' forecast',stats.projectedYourTotal>=0?'var(--green)':'var(--red)')
-      +mc('Partner projected total',fmt(stats.projectedPartnerTotal),
-        fmt(stats.totalOwed)+' earned + '+fmt(stats.forecastPartnerShare)+' forecast','var(--accent)')
+        stats.listedCount+' listed · '+stats.unlistedCount+' unlisted · '+stats.returnedCount+' returned')
+      +mc('Profit forecast',fmt(stats.forecastProfitPool),
+        'before partner share',stats.forecastProfitPool>=0?'var(--green)':'var(--red)')
+      +mc('Your projected',fmt(stats.projectedYourTotal),
+        fmt(stats.yourShare)+' realised · '+fmt(stats.forecastYourShare)+' forecast',stats.projectedYourTotal>=0?'var(--green)':'var(--red)')
+      +mc('Partner projected',fmt(stats.projectedPartnerTotal),
+        fmt(stats.totalOwed)+' realised · '+fmt(stats.forecastPartnerShare)+' forecast','var(--accent)')
       +'</div>'
     : '<div class="accounts-kpis-v2" style="margin-bottom:18px;">'
       +mc('Your realised profit','\u00a3'+stats.yourShare.toFixed(0),stats.soldCount+' sold',stats.yourShare>=0?'var(--green)':'var(--red)')
@@ -15146,14 +15213,11 @@ function _renderAccountPage(acct){
       +mc('Paid to partner','\u00a3'+stats.settledOwed.toFixed(0),(acct.settlements||[]).length+' settlement'+((acct.settlements||[]).length!==1?'s':''))
       +mc('Stock on hand',String(stats.stockOnHandCount),stats.listedCount+' listed · '+stats.unlistedCount+' unlisted · '+stats.returnedCount+' returned')
       +'</div>';
-  const stockSummaryHTML='<div style="display:flex;gap:10px;flex-wrap:wrap;margin:-6px 0 16px;padding:10px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;font-size:12px;color:var(--text-secondary);">'
-    +(_isConsignment
-      ? '<span><strong style="color:var(--text);">Forecast split '+(_splitPct!=null?(_splitPct+'% partner · '+(100-_splitPct)+'% you'):'set per item')+'</strong></span>'
-        +'<span>Your remaining forecast '+fmt(stats.forecastYourShare)+'</span>'
-        +'<span>Partner remaining forecast '+fmt(stats.forecastPartnerShare)+'</span>'
-      : '<span><strong style="color:var(--text);">Stock cost '+fmt(stats.stockCost)+'</strong></span>'
-        +'<span>Listed asking '+fmt(stats.activeStockValue)+'</span>'
-        +'<span>Est. potential '+fmt(stats.activePotential)+'</span>')
+  const stockSummaryHTML=_isConsignment?''
+    : '<div style="display:flex;gap:10px;flex-wrap:wrap;margin:-6px 0 16px;padding:10px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;font-size:12px;color:var(--text-secondary);">'
+      +'<span><strong style="color:var(--text);">Stock cost '+fmt(stats.stockCost)+'</strong></span>'
+      +'<span>Listed asking '+fmt(stats.activeStockValue)+'</span>'
+      +'<span>Est. potential '+fmt(stats.activePotential)+'</span>'
     +'</div>';
 
   const isSupplierAcct=(acct.accountType==='supplier');
@@ -15270,8 +15334,8 @@ function _renderAccountPage(acct){
     +'</div>';
   }).join('') : '<div style="padding:20px;text-align:center;color:var(--muted);font-size:13px;">No sales yet from this account</div>';
 
-  const activeRows=active.length?active.map(function(i){
-    const owed=_accountItemDebt(i); // non-null for supplier items with cost
+  const _activeAccountRow=function(i){
+    const owed=_accountItemDebt(i);
     const isSel=_acctSelected.has(i.id);
     const _jl=_activeJobLotForItem(i.id);
     const isUnlisted=_jl?_jl.status==='building':i.state==='sourced';
@@ -15281,46 +15345,67 @@ function _renderAccountPage(acct){
     const stockCostStr=fmt((Number(i.costPrice)||0)+(typeof calcPartsCost==='function'?(Number(calcPartsCost(i))||0):0));
     const badgeClass=_jl?'joblot':(isUnlisted?'sourced':'listed');
     const detailClick=_jl?("openJobLotPage('"+_jl.id+"')"):"openItemDetail(this.dataset.month,this.dataset.itemid)";
+    const estGross=_jl?_jobLotMemberPotentialShare(i,_jl):calcEstGrossProfit(i);
+    const estNet=_jl
+      ? (estGross==null?null:+(estGross-_estimatedPartnerCutFromProfit(i,estGross)).toFixed(2))
+      : calcEstProfit(i);
+    const partnerEst=estGross==null?null:_estimatedPartnerCutFromProfit(i,estGross);
+
     if(_acctSelectMode){
       return '<div class="metric-inline" style="align-items:center;cursor:pointer;" onclick="_acctToggleSelect(\''+i.id+'\')">'
         +_selCheckbox(isSel)
         +'<div style="min-width:0;flex:1;"><div style="font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(i.item||'Untitled')+'</div>'
-        +'<div style="font-size:11px;color:var(--text-secondary);"><span class="item-badge '+badgeClass+'" style="font-size:10px;padding:2px 6px;">'+stateLabel+'</span> \u00b7 '+_splitLine(i)+'</div></div>'
+        +'<div style="font-size:11px;color:var(--text-secondary);"><span class="item-badge '+badgeClass+'" style="font-size:10px;padding:2px 6px;">'+stateLabel+'</span> · '+_splitLine(i)+'</div></div>'
         +'<div style="text-align:right;flex-shrink:0;margin-left:8px;">'
-          +'<div style="font-size:14px;font-weight:700;">'+(isUnlisted?stockCostStr:askingStr)+'</div>'
-          +(owed!==null?'<div style="font-size:11px;color:var(--text-secondary);">owed '+fmt(owed)+'</div>':'')
+          +'<div style="font-size:14px;font-weight:700;">'+(isUnlisted?(i.estSalePrice?fmt(i.estSalePrice):'—'):askingStr)+'</div>'
+          +(estNet!=null?'<div style="font-size:11px;color:'+(estNet>=0?'var(--green)':'var(--red)')+';">you est '+fmt(estNet)+'</div>':'')
         +'</div></div>';
     }
-    // Active row right column — asking price + owed/settle for suppliers only
-    const activeRight='<div style="text-align:right;flex-shrink:0;min-width:105px;">'
-      +'<div style="font-size:13px;font-weight:700;color:var(--text-secondary);white-space:nowrap;">'+(isUnlisted?'Cost '+stockCostStr:(_jl?'Lot share '+askingStr:'Asking '+askingStr))+'</div>'
-      +(owed!==null?'<div style="font-size:12px;color:var(--text-secondary);margin-top:1px;">Owed '+fmt(owed)+' <span style="opacity:0.7;">(cost)</span></div>'+'<div style="margin-top:4px;">'+_settleControl(i,owed)+'</div>':'')
+
+    const rightHeadline=isUnlisted
+      ? (i.estSalePrice?('Est. sale '+fmt(i.estSalePrice)):'Needs estimate')
+      : (_jl?'Lot share '+askingStr:'Asking '+askingStr);
+    const activeRight='<div style="text-align:right;flex-shrink:0;min-width:120px;">'
+      +'<div style="font-size:13px;font-weight:700;color:var(--text-secondary);white-space:nowrap;">'+rightHeadline+'</div>'
+      +((!isSupplierAcct&&estNet!=null)
+        ? '<div style="font-size:12px;color:'+(estNet>=0?'var(--green)':'var(--red)')+';margin-top:2px;">You est. '+fmt(estNet)+'</div>'
+          +(partnerEst>0?'<div style="font-size:11px;color:var(--text-secondary);">Partner est. '+fmt(partnerEst)+'</div>':'')
+        : (owed!==null?'<div style="font-size:12px;color:var(--text-secondary);margin-top:1px;">Owed '+fmt(owed)+' <span style="opacity:0.7;">(cost)</span></div><div style="margin-top:4px;">'+_settleControl(i,owed)+'</div>':''))
     +'</div>';
+
     return '<div class="metric-inline" style="align-items:flex-start;">'
       +'<div style="min-width:0;flex:1;">'
         +'<div class="metric-k clickable" data-itemid="'+i.id+'" data-month="'+i._month+'" onclick="'+detailClick+'" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(i.item||'Untitled')+'</div>'
-        +'<div style="font-size:11px;color:var(--text-secondary);margin-top:2px;"><span class="item-badge '+badgeClass+'" style="font-size:10px;padding:2px 6px;">'+stateLabel+'</span> \u00b7 '+_splitLine(i)+'</div>'
+        +'<div style="font-size:11px;color:var(--text-secondary);margin-top:2px;"><span class="item-badge '+badgeClass+'" style="font-size:10px;padding:2px 6px;">'+stateLabel+'</span> · '+_splitLine(i)+'</div>'
         +_editSplitBtn(i)
       +'</div>'
       +activeRight
     +'</div>';
-  }).join('') : '<div style="padding:20px;text-align:center;color:var(--muted);font-size:13px;">No active stock from this account</div>';
+  };
+
+  const listedRows=listedStock.length
+    ? listedStock.map(_activeAccountRow).join('')
+    : '<div style="padding:18px;text-align:center;color:var(--muted);font-size:12px;">No listed stock</div>';
+  const unlistedRows=unlistedStock.length
+    ? unlistedStock.map(_activeAccountRow).join('')
+    : '<div style="padding:18px;text-align:center;color:var(--muted);font-size:12px;">No unlisted stock waiting to be listed</div>';
 
   const returnedRows=returned.length?returned.map(function(i){
     const isSel=_acctSelected.has(i.id);
     const rr=(i.returnHistory||[]).slice().reverse().find(function(r){return r.type==='full_seller'||r.type==='full_ebay';});
     const rd=(rr&&rr.loggedAt)||'';
     const cost=fmt((Number(i.costPrice)||0)+(typeof calcPartsCost==='function'?(Number(calcPartsCost(i))||0):0));
+    const returnRight=isSupplierAcct?('Cost '+cost):_splitLine(i);
     if(_acctSelectMode){
       return '<div class="metric-inline" style="align-items:center;cursor:pointer;" onclick="_acctToggleSelect(\''+i.id+'\')">'
         +_selCheckbox(isSel)+'<div style="min-width:0;flex:1;"><div style="font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(i.item||'Untitled')+'</div>'
         +'<div style="font-size:11px;color:var(--text-secondary);"><span class="item-badge returned" style="font-size:10px;padding:2px 6px;">Returned</span>'+(rd?' · '+rd:'')+'</div></div>'
-        +'<div style="font-size:13px;font-weight:700;">Cost '+cost+'</div></div>';
+        +'<div style="font-size:13px;font-weight:700;">'+returnRight+'</div></div>';
     }
     return '<div class="metric-inline" style="align-items:flex-start;">'
       +'<div style="min-width:0;flex:1;"><div class="metric-k clickable" data-itemid="'+i.id+'" data-month="'+i._month+'" onclick="openItemDetail(this.dataset.month,this.dataset.itemid)" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(i.item||'Untitled')+'</div>'
       +'<div style="font-size:11px;color:var(--text-secondary);margin-top:2px;"><span class="item-badge returned" style="font-size:10px;padding:2px 6px;">Returned</span>'+(rd?' · back '+rd:'')+' · action needed</div></div>'
-      +'<div style="text-align:right;flex-shrink:0;min-width:105px;"><div style="font-size:13px;font-weight:700;color:var(--text-secondary);">Cost '+cost+'</div>'
+      +'<div style="text-align:right;flex-shrink:0;min-width:105px;"><div style="font-size:13px;font-weight:700;color:var(--text-secondary);">'+returnRight+'</div>'
       +'<button class="btn btn-secondary" style="font-size:11px;padding:3px 9px;margin-top:5px;color:var(--accent);" onclick="openRelist(\''+i._month+'\',\''+i.id+'\')">Relist</button></div></div>';
   }).join(''):'<div style="padding:14px;text-align:center;color:var(--muted);font-size:12px;">No returned stock</div>';
 
@@ -15392,7 +15477,9 @@ function _renderAccountPage(acct){
     +(unsettledCount>0&&!_acctSelectMode?'<button class="btn btn-primary" style="width:100%;margin-bottom:14px;" onclick="'+(isSupplierAcct?'settleAllForAccount(\''+acct.id+'\')':'_openConsignmentSettlementBuilder(\''+acct.id+'\','+JSON.stringify(sold.filter(function(i){return !i.accountSettled;}).map(function(i){return i.id;}))+')')+'">'+(isSupplierAcct?'Mark all '+unsettledCount+' unsettled as paid':'Allocate & settle '+unsettledCount+' item'+(unsettledCount!==1?'s':''))+'</button>':'')
     +'<div class="panel-card" style="margin-bottom:14px;"><div class="sl">Sold items</div>'+soldRows+'</div>'
     +((acct.settlements||[]).length?'<div class="panel-card" style="margin-bottom:14px;"><div class="sl">Settlement history</div>'+(acct.settlements||[]).map(function(tx){return '<button type="button" class="metric-inline" style="width:100%;border:0;background:transparent;text-align:left;cursor:pointer;" onclick="_openSettlementDetail(\''+acct.id+'\',\''+tx.id+'\')"><div style="min-width:0;flex:1;"><div class="metric-k">'+(tx.paid?'Paid ':'Allocated ')+fmt(tx.partnerAmount||0)+'</div><div style="font-size:11px;color:var(--text-secondary);">'+esc(tx.date||'')+' · '+((tx.items||[]).length)+' item'+((tx.items||[]).length!==1?'s':'')+(tx.note?' · '+esc(tx.note):'')+'</div></div><span style="font-size:11px;color:'+(tx.paid?'var(--green)':'var(--warn)')+';">'+(tx.paid?'Paid ✓':'Unpaid')+'</span></button>';}).join('')+'</div>':'')
-    +'<div class="panel-card"><div class="sl">Stock on hand</div>'+activeRows+(returned.length?'<div class="sl" style="margin-top:16px;">Returned · action needed</div>'+returnedRows:'')+'</div>'
+    +'<div class="panel-card" style="margin-bottom:14px;"><div class="sl">Listed stock</div>'+listedRows+'</div>'
+    +'<div class="panel-card" style="margin-bottom:14px;"><div class="sl">Unlisted · needs listing</div>'+unlistedRows+'</div>'
+    +'<div class="panel-card"><div class="sl">Returned · action needed</div>'+returnedRows+'</div>'
   +'</div>';
   page.innerHTML=html;
 }
@@ -19897,7 +19984,7 @@ function downloadStockSnapshot(){
   _activeJobLots().forEach(function(lot){
     hasItems=true;
     const totalIn=_jobLotCost(lot.id,false),ask=Number(lot.salePrice)||0;
-    const estP=ask>0?_jobLotEstimatedProfit(lot):'';
+    const estP=ask>0?_jobLotEstimatedNetProfit(lot):'';
     const estROI=estP!==''&&estP!=null&&totalIn>0?((Number(estP)/totalIn)*100).toFixed(1):'';
     const days=lot.dateCreated?daysBetween(lot.dateCreated,today):'';
     rows.push([lot.name||'Job Lot','JL',lot.status==='listed'?'listed job lot':'unlisted job lot',totalIn.toFixed(2),'0.00',totalIn.toFixed(2),ask>0?ask.toFixed(2):'',estP!==''&&estP!=null?Number(estP).toFixed(2):'',estROI,days,'','Job Lot','JOB LOT']);
@@ -21108,7 +21195,12 @@ async function bulkAction(action){
     if(!ok)return;
     SELECTED_ITEMS.forEach(function(id){
       const rec=_findItemRecordById(id);
-      if(rec)DB[rec.month].splice(rec.index,1);
+      if(rec){
+        const snap=JSON.parse(JSON.stringify(rec.item));
+        _pushActivity(snap.id,snap.item||'',_actStatus(snap),'deleted',snap,rec.month,'user-delete');
+        const fresh=_findItemRecordById(id);
+        if(fresh)DB[fresh.month].splice(fresh.index,1);
+      }
     });
     saveDB();
     SELECTED_ITEMS.clear();SELECTION_MODE=false;
@@ -21270,6 +21362,11 @@ async function stockBulkAction(action,items){
     const ok=await showConfirm('Delete '+actionable.length+' items?','This cannot be undone.',{icon:'delete',okLabel:'Delete all'});
     if(!ok)return;
     actionable.forEach(function(id){
+      const rec=_findItemRecordById(id);
+      if(rec){
+        const snap=JSON.parse(JSON.stringify(rec.item));
+        _pushActivity(snap.id,snap.item||'',_actStatus(snap),'deleted',snap,rec.month,'user-delete');
+      }
       allDBKeys().forEach(function(k){
         const idx=(DB[k]||[]).findIndex(function(i){return i.id===id;});
         if(idx>-1)DB[k].splice(idx,1);
@@ -21340,6 +21437,18 @@ function _jobLotPseudo(lot){
 function _jobLotEstimatedProfit(lot){
   if(!lot||!(Number(lot.salePrice)>0))return null;
   try{return calcGrossProfit(_jobLotPseudo(lot));}catch(e){return +((Number(lot.salePrice)||0)-_jobLotCost(lot.id,false)).toFixed(2);}
+}
+function _jobLotEstimatedNetProfit(lot){
+  const gross=_jobLotEstimatedProfit(lot);
+  if(gross===null||gross===undefined)return null;
+  const members=_jobLotMembers(lot.id,false);
+  if(!members.length)return +Number(gross).toFixed(2);
+  let net=0;
+  members.forEach(function(x){
+    const share=+(Number(gross)*_jobLotMemberWeightShare(x.item,lot)).toFixed(2);
+    net+=share-_estimatedPartnerCutFromProfit(x.item,share);
+  });
+  return +net.toFixed(2);
 }
 function _jobLotAllocation(total,buyerPost,shipping,packaging,weights){
   const safe=(weights||[]).some(function(v){return Number(v)>0;})?(weights||[]):(weights||[]).map(function(){return 1;});
@@ -21594,7 +21703,7 @@ function confirmJobLotSale(lotId){
 }
 function renderJobLotCard(lot){
   const members=_jobLotMembers(lot.id,false),count=members.length,cost=_jobLotCost(lot.id,false),price=Number(lot.salePrice)||0;
-  const listed=lot.status==='listed',p=_jobLotEstimatedProfit(lot);
+  const listed=lot.status==='listed',p=_jobLotEstimatedNetProfit(lot);
   const badge=listed?'LISTED':'JOB LOT';
   const sub=(listed&&lot.dateListed?lot.dateListed+' · ':'')+count+' item'+(count===1?'':'s')+' · '+fmt(cost)+' cost';
   const right=listed
@@ -22530,7 +22639,7 @@ function _renderStockCore(){
   let estPotential=0;
   let cWithEstimate=0;
   allStock.forEach(function(i){ const _n=_estPotentialNet(i); if(_n!=null){estPotential+=_n;cWithEstimate++;} });
-  _buildingLots.forEach(function(l){const _n=_jobLotEstimatedProfit(l);if(_n!=null){estPotential+=_n;cWithEstimate++;}});
+  _buildingLots.forEach(function(l){const _n=_jobLotEstimatedNetProfit(l);if(_n!=null){estPotential+=_n;cWithEstimate++;}});
 
   // Value KPI: sourced items contribute cost; listed items contribute asking price
   let totalValue=0;
@@ -22544,7 +22653,7 @@ function _renderStockCore(){
   const sourcedCost=+(allStock.reduce(function(s,i){return s+_capCost(i);},0)+_buildingLots.reduce(function(s,l){return s+_jobLotCost(l.id,false);},0)).toFixed(2);
   const returnedCost=+allReturned.reduce(function(s,i){return s+_capCost(i);},0).toFixed(2);
   const listedAsking=+(allListed.reduce(function(s,i){return s+(Number(i.salePrice)||0);},0)+_listedLots.reduce(function(s,l){return s+(Number(l.salePrice)||0);},0)).toFixed(2);
-  const listedPotentialProfit=+(allListed.reduce(function(s,i){return s+(calcEstProfit(i)||0);},0)+_listedLots.reduce(function(s,l){return s+(_jobLotEstimatedProfit(l)||0);},0)).toFixed(2);
+  const listedPotentialProfit=+(allListed.reduce(function(s,i){return s+(calcEstProfit(i)||0);},0)+_listedLots.reduce(function(s,l){return s+(_jobLotEstimatedNetProfit(l)||0);},0)).toFixed(2);
   const listedMarkup=listedCost>0?Math.round((listedAsking/listedCost-1)*100):0;
   const listedROI=listedCost>0?Math.round(listedPotentialProfit/listedCost*100):null;
   const sourcedROI=sourcedCost>0?Math.round(estPotential/sourcedCost*100):null;
@@ -26194,6 +26303,7 @@ async function deleteItem(m,id){
     // Deep-copy into the session store WITH its month key, so restore knows
     // where to put it back. Deep copy so a later mutation of DB can't reach it.
     const _snapshot=JSON.parse(JSON.stringify(DB[m][idx]));
+    _pushActivity(_snapshot.id,_snapshot.item||name,_actStatus(_snapshot),'deleted',_snapshot,m,'user-delete');
     _deletedThisSession.unshift({month:m,deletedAt:Date.now(),item:_snapshot});
     if(_deletedThisSession.length>50)_deletedThisSession.length=50; // cap the session buffer
     DB[m].splice(idx,1);
@@ -29779,6 +29889,12 @@ function runFinancialRegressionTests(){
   expected=calcGrossProfit(i)*0.5;
   check('Consignment account · 50% split once',calcNetProfit(i),expected);
 
+  // 13b — pre-sale estimate deducts the partner share exactly once while
+  // costPrice stays at £0.
+  i=base('ebay_biz');i.category='Laptops, Desktops & Tablets';i.state='listed';i.dateSold=null;i.costPrice=0;i.accountId='CON';i.accountType='consignment';i.accountSplitPercent=50;
+  const estGross=calcEstGrossProfit(i);
+  check('Consignment estimate · partner split deducted once',calcEstProfit(i),estGross*0.5);
+
   // 14 — ordinary disposal permanently loses paid acquisition + parts cash.
   i={id:'CASH-SCRAP',item:'Cash scrap',scrappedAt:'2026-08-20',scrapReason:'scrapped',costPrice:40,parts:[{cost:5}]};
   check('Cash · scrapped stock capital loss',_cashRemovedItemNet(i),45);
@@ -29948,6 +30064,23 @@ function calcCOGSOnly(i){
   return +((i.costPrice||0)+calcPartsCost(i)).toFixed(2);
 }
 
+// Consignment/hybrid estimated partner economic cost.
+// costPrice remains £0 for consignment; the partner share is a separate
+// post-sale economic cost and is deducted from estimated profit here.
+function _estimatedPartnerCutFromProfit(i,profit){
+  if(i==null||profit==null)return 0;
+  if(_itemAccountType(i)==='supplier')return 0;
+  if(i.accountPaidAmount!=null)return +Math.max(0,Number(i.accountPaidAmount)||0).toFixed(2);
+  let pct=i.accountSplitPercent;
+  if(pct==null&&i.accountId){
+    const acct=(_accounts||[]).find(function(a){return a.id===i.accountId;});
+    if(acct&&acct.defaultSplitPercent!=null)pct=acct.defaultSplitPercent;
+  }
+  if(pct==null)return 0;
+  pct=Math.max(0,Math.min(100,Number(pct)||0));
+  return +(Math.max(0,Number(profit)||0)*(pct/100)).toFixed(2);
+}
+
 // Session E2 — Stock-list "estimated profit" semantics.
 // For most active items this equals calcGrossProfit. For relisted-after-return
 // items (no dateSold yet, full return logged), the gross profit is dominated by
@@ -29955,27 +30088,21 @@ function calcCOGSOnly(i){
 // — so we instead return the LIFETIME P&L if the relist sells at the current
 // ask price. Mirrors the relist projection on the item detail page so the
 // stock row "est. profit" matches that page's "Lifetime P&L if sold" line.
-function calcEstProfit(i){
+function calcEstGrossProfit(i){
   if(!i.salePrice)return null;
   const base=calcGrossProfit(i);
   if(base===null)return null;
   const _wasRelisted = !i.isReturned && !i.dateSold && !i.resaleSalePrice &&
     (i.returnHistory||[]).some(r=>r.type==='full_seller'||r.type==='full_ebay');
   if(!_wasRelisted)return base;
-  // base is the loss-so-far MINUS hypothetical sale-2 costs (relist shipping,
-  // packaging, promo) that calcGrossProfit subtracts even with rev=0. Compute
-  // the hypothetical sale-2 NET profit (revenue minus those same costs) and
-  // add it on. The relist costs cancel out, leaving:
-  //   est = costPrice-sunk + returnPostages + (relistRev - relistFees)
-  // v2.21.12 — MODEST relist projection. Value the resale at the user's
-  // estSalePrice when they've set one, else a 90% haircut of the original price
-  // (returned stock rarely resells at the full original figure), and recompute
-  // fees at that price. base = -(sunk cost + return postage) with the relist
-  // ship/pkg/promo already netted, so adding (resaleP + postage - fees) gives
-  // the lifetime-if-resold estimate without over-stating the resale.
   const _resaleP=(i.estSalePrice&&i.estSalePrice>0)?i.estSalePrice:+(((i.salePrice||0)*0.90).toFixed(2));
   const rlBPF=calcPlatformBPF(i,_resaleP,i.postage||0);
   return +(base+_resaleP+(i.postage||0)-rlBPF).toFixed(2);
+}
+function calcEstProfit(i){
+  const gross=calcEstGrossProfit(i);
+  if(gross===null)return null;
+  return +(gross-_estimatedPartnerCutFromProfit(i,gross)).toFixed(2);
 }
 
 function calcROI(i){
@@ -29990,7 +30117,7 @@ function calcROI(i){
     totalInvested+=(i.resaleShippingCost||0)+(i.resalePackagingCost||0);
   }
   if(totalInvested<=0)return null;
-  return+((calcGrossProfit(i)/totalInvested)*100).toFixed(1);
+  return+((calcNetProfit(i)/totalInvested)*100).toFixed(1);
 }
 
 // Net profit margin = net profit ÷ revenue (sale price), ×100.
@@ -30003,7 +30130,7 @@ function calcMargin(i){
   if(!i.dateSold&&!i.isReturned&&!i.resaleSalePrice&&!i.scrappedAt)return null;
   const rev=calcItemRevenue(i);
   if(!rev||rev<=0)return null;
-  const profit=calcGrossProfit(i);
+  const profit=calcNetProfit(i);
   if(profit===null)return null;
   return+((profit/rev)*100).toFixed(1);
 }
