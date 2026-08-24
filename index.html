@@ -1243,50 +1243,6 @@ button .rt-icon,.btn .rt-icon{pointer-events:none;}
   .reconcile-mode-card strong{font-size:13px;color:var(--text);}
   .reconcile-mode-card small{font-size:11.5px;color:var(--text-secondary);font-weight:400;}
 
-  /* v1.01 — Activity / history is an operational audit page, not a raw log. */
-  .act-shell{max-width:900px;margin:0 auto;}
-  .act-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:14px;}
-  .act-kpi{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:13px 14px;min-width:0;}
-  .act-kpi-label{font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;}
-  .act-kpi-val{font-size:22px;font-weight:800;letter-spacing:-.03em;margin-top:4px;font-variant-numeric:tabular-nums;}
-  .act-kpi-sub{font-size:11px;color:var(--text-secondary);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-  .act-toolbar{display:flex;align-items:center;gap:8px;margin-bottom:12px;flex-wrap:wrap;}
-  .act-filters{display:flex;gap:0;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:3px;overflow-x:auto;max-width:100%;scrollbar-width:none;}
-  .act-filters::-webkit-scrollbar{display:none;}
-  .act-filter{border:0;background:transparent;color:var(--text-secondary);padding:7px 11px;border-radius:7px;font:600 12px var(--font-body);white-space:nowrap;cursor:pointer;}
-  .act-filter.active{background:var(--surface);color:var(--text);box-shadow:0 1px 3px var(--shadow);}
-  .act-search{position:relative;flex:1;min-width:190px;}
-  .act-search input{width:100%;height:36px;padding:0 32px 0 34px;border:1px solid var(--border);border-radius:10px;background:var(--surface2);color:var(--text);font-family:var(--font-body);font-size:13px;}
-  .act-search input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-dim);}
-  .act-search svg{position:absolute;left:11px;top:10px;color:var(--muted);pointer-events:none;}
-  .act-search-clear{position:absolute;right:7px;top:6px;width:24px;height:24px;border:0;border-radius:7px;background:transparent;color:var(--muted);cursor:pointer;}
-  .act-feed{max-width:900px;margin:0 auto;}
-  .act-day{font-size:11px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);margin:18px 4px 8px;}
-  .act-row{display:flex;align-items:center;gap:12px;padding:12px 14px;background:var(--surface);border:1px solid var(--border);border-radius:10px;margin-bottom:8px;box-shadow:0 1px 2px var(--shadow);}
-  .act-row.act-undone{opacity:.55;}
-  .act-row.act-review{border-color:color-mix(in srgb,var(--warn) 45%,var(--border));background:color-mix(in srgb,var(--warn) 5%,var(--surface));}
-  .act-main{flex:1;min-width:0;}
-  .act-line{font-size:14px;line-height:1.35;display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
-  .act-item{font-weight:700;cursor:pointer;text-decoration:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;}
-  .act-item:hover{color:var(--accent);}
-  .act-sub{font-size:12px;color:var(--muted);margin-top:3px;}
-  .act-undone-tag{color:var(--warn);font-weight:700;}
-  .act-badge{display:inline-block;font-size:10.5px;font-weight:700;padding:2px 7px;border-radius:6px;border:1px solid var(--border);background:var(--surface2);color:var(--text-secondary);white-space:nowrap;}
-  .act-badge.act-sold,.act-badge.act-resold,.act-badge.act-listed{border-color:color-mix(in srgb,var(--green) 50%,var(--border));color:var(--green);}
-  .act-badge.act-returned{border-color:color-mix(in srgb,var(--red) 50%,var(--border));color:var(--red);}
-  .act-badge.act-scrapped,.act-badge.act-deleted,.act-badge.act-donated{border-color:color-mix(in srgb,var(--warn) 50%,var(--border));color:var(--warn);}
-  .act-badge.act-joblot{border-color:var(--purple);color:var(--purple);}
-  .act-review-tag{font-size:10px;font-weight:800;color:var(--warn);text-transform:uppercase;letter-spacing:.05em;}
-  .act-undo{flex:0 0 auto;display:inline-flex;align-items:center;gap:5px;padding:6px 10px!important;font-size:12px!important;white-space:nowrap;}
-  @media(max-width:600px){
-    .act-kpis{grid-template-columns:1fr 1fr;}
-    .act-toolbar{align-items:stretch;}
-    .act-filters{order:1;width:100%;}
-    .act-search{order:0;width:100%;flex-basis:100%;}
-    .act-row{padding:11px 12px;align-items:flex-start;}
-    .act-undo{padding:5px 8px!important;}
-  }
-
   /* Page padding consistency */
   .item-full-page{padding:14px 16px 80px;}
 }
@@ -4027,7 +3983,9 @@ svg.cat-donut-draw circle.donut-seg-last{
   color:var(--text-primary);margin-top:3px;
   font-variant-numeric:tabular-nums lining-nums;
 }
-.rt .accounts-kpis-v2 .kpi-foot{font-size:12px;color:var(--text-tertiary);margin-top:6px;}
+.rt .accounts-kpis-v2 .kpi-foot{font-size:12px;color:var(--text-tertiary);margin-top:6px;min-width:0;overflow-wrap:anywhere;}
+.rt .accounts-kpis-v2 .kpi{min-width:0;overflow:hidden;}
+.rt .accounts-kpis-v2 .kpi-value{max-width:100%;overflow:hidden;text-overflow:ellipsis;}
 @media(max-width:980px){
   .rt .accounts-kpis-v2{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;}
   .rt .accounts-kpis-v2 .kpi-value{font-size:24px;line-height:28px;}
@@ -4036,6 +3994,13 @@ svg.cat-donut-draw circle.donut-seg-last{
   .rt .accounts-kpis-v2{gap:10px;}
   .rt .accounts-kpis-v2 .kpi{padding:14px;}
   .rt .accounts-kpis-v2 .kpi-value{font-size:22px;line-height:26px;}
+}
+@media(max-width:390px){
+  .rt .accounts-kpis-v2{gap:8px;}
+  .rt .accounts-kpis-v2 .kpi{padding:12px;}
+  .rt .accounts-kpis-v2 .kpi-label{font-size:10px;line-height:13px;}
+  .rt .accounts-kpis-v2 .kpi-value{font-size:20px;line-height:24px;}
+  .rt .accounts-kpis-v2 .kpi-foot{font-size:11px;line-height:15px;}
 }
 
 /* Group body: rounded bottom on container, flat rows inside */
@@ -9663,6 +9628,19 @@ function _recoverOutbox(){
             console.info('[RETRADE] Discarded stale device outbox write; newer cloud item wins:',obj.id);
             return;
           }
+          // v1.01 — lifecycle records (job-lot membership, reconciliations) carry no
+          // server updated_at to compare, but a removed/superseded cloud row must not be
+          // resurrected by a stale local 'save' queued before that change on another device.
+          if(e.type === 'jmem'){
+            const cloudMem=(_jobLotItems||[]).find(function(x){return x.id===obj.id;});
+            if(cloudMem&&cloudMem.removedAt&&!obj.removedAt){ delete ob[k];pruned=true;
+              console.info('[RETRADE] Discarded stale job-lot membership; cloud removal wins:',obj.id); return; }
+          }
+          if(e.type === 'recon'){
+            const cloudR=(_saleReconciliations||[]).find(function(x){return x.id===obj.id;});
+            if(cloudR&&cloudR.status&&obj.status&&cloudR.status!==obj.status){ delete ob[k];pruned=true;
+              console.info('[RETRADE] Discarded stale reconciliation; cloud status wins:',obj.id); return; }
+          }
           if(e.type === 'item'){
             const m = e.month;
             // Remove the same id from any cloud month before applying the newer
@@ -15170,6 +15148,11 @@ function _renderAccountPage(acct){
     });
   const active=items.filter(function(i){return !_accountItemIsSold(i)&&!i.scrappedAt&&(!i.isReturned||!!_activeJobLotMembership(i.id));});
   const returned=items.filter(function(i){return i.isReturned&&!i.scrappedAt&&!i.resaleSalePrice&&!_activeJobLotMembership(i.id);});
+  // v1.01 fix — referenced below for the listed/unlisted stock rows but only defined
+  // in the KPI-summary helper's scope; the merge dropped them here, crashing the whole
+  // Partner page with "listedStock is not defined". Same logic as _accountStats.
+  const listedStock=active.filter(function(i){const l=_activeJobLotForItem(i.id);return l?l.status==='listed':i.state==='listed';});
+  const unlistedStock=active.filter(function(i){const l=_activeJobLotForItem(i.id);return l?l.status==='building':i.state==='sourced';});
 
   const mc=function(label,val,sub,valCol){
     // Keep semantic value colour (green/red/--warn); omit when neutral.
@@ -16425,6 +16408,54 @@ function _applyQuickAddAccount(item,accountId){
   return item;
 }
 
+// v1.01 — inline searchable partner picker for the normal create flow (List / Stock
+// Quick Add opened WITHOUT a partner context). Opened from a Partner page the account
+// is already stamped via _quickAddAccountId + the banner, so the picker hides itself.
+// Keeping _quickAddAccountId in sync is enough: both submit paths call _applyQuickAddAccount.
+function _quickAddPartnerOptions(){
+  return (_accounts||[]).slice().sort(function(a,b){return (a.name||'').localeCompare(b.name||'');});
+}
+function _quickAddPartnerPickerHTML(){
+  if(_quickAddAccountId)return ''; // opened from a partner — banner covers it
+  const accts=_quickAddPartnerOptions();
+  if(!accts.length)return '';
+  const opts=accts.map(function(a){
+    const t=(a.accountType||'supplier');
+    const meta=(t==='consignment')?('Consignment'+(a.defaultSplitPercent!=null?' \u00b7 '+a.defaultSplitPercent+'%':'')):(t==='hybrid'?'Hybrid':'Supplier');
+    return '<option value="'+esc(a.name||'')+'" label="'+esc(meta)+'"></option>';
+  }).join('');
+  return '<div class="fg">'
+    +'<label>Partner <span style="color:var(--text-secondary);font-weight:400;font-size:11px;">(optional)</span></label>'
+    +'<input type="text" id="qa-partner" list="qa-partner-list" placeholder="Own stock \u2014 type to find a partner" autocomplete="off" oninput="_quickAddPartnerPicked(this.value)">'
+    +'<datalist id="qa-partner-list">'+opts+'</datalist>'
+    +'<div id="qa-partner-note" class="fg-hint" style="font-size:11px;color:var(--text-secondary);margin-top:4px;">Leave blank for your own stock. Pick a partner to assign this item straight to their account.</div>'
+    +'</div>';
+}
+function _quickAddPartnerPicked(val){
+  const name=(val||'').trim().toLowerCase();
+  const a=name?(_accounts||[]).find(function(x){return (x.name||'').trim().toLowerCase()===name;}):null;
+  _quickAddAccountId=a?a.id:null;
+  const listCost=document.getElementById('qa-cost');
+  const costEl=listCost||document.getElementById('sqa-cost');
+  const isConsign=a&&((a.accountType||'supplier')==='consignment');
+  if(costEl){
+    if(isConsign){ costEl.value='0'; costEl.readOnly=true; costEl.title='Consignment stock uses \u00a30 acquisition cost'; }
+    else { costEl.readOnly=false; costEl.title=''; }
+  }
+  if(listCost&&typeof updateBPFPreview==='function')updateBPFPreview();
+  const note=document.getElementById('qa-partner-note');
+  if(note){
+    if(a){
+      const t=(a.accountType||'supplier');
+      note.innerHTML='Assigning to <strong style="color:var(--text)">'+esc(a.name||'')+'</strong> \u00b7 '
+        +esc(t.charAt(0).toUpperCase()+t.slice(1))
+        +((t!=='supplier'&&a.defaultSplitPercent!=null)?' \u00b7 partner share '+a.defaultSplitPercent+'%':'')
+        +(t==='consignment'?' \u00b7 cost set to \u00a30':'');
+    }else{
+      note.textContent='Leave blank for your own stock. Pick a partner to assign this item straight to their account.';
+    }
+  }
+}
 function openQuickAdd(accountId){
   _quickAddAccountId=accountId||null;
   _sourcedPartsCost = 0; // clear any carried-over parts cost from a sourced item
@@ -16435,6 +16466,7 @@ function openQuickAdd(accountId){
   }
   const html=`
     ${_quickAddAccountBanner(_quickAddAccountId)}
+    ${_quickAddPartnerPickerHTML()}
     ${formHTML()}
     <div id="qa-coming-soon-banner" class="qa-coming-soon-banner" style="display:none">
       <div class="qa-cs-icon">
@@ -16727,6 +16759,7 @@ function openStockQuickAdd(accountId){
   const today=new Date().toISOString().split('T')[0];
   const html=`
     ${_quickAddAccountBanner(_quickAddAccountId)}
+    ${_quickAddPartnerPickerHTML()}
     <div class="fg">
       <label>Date sourced</label>
       <input type="date" id="sqa-date" value="${today}">
