@@ -4003,6 +4003,25 @@ svg.cat-donut-draw circle.donut-seg-last{
   .rt .accounts-kpis-v2 .kpi-foot{font-size:11px;line-height:15px;}
 }
 
+
+/* ── Account detail groups — collapsible operational sections (Launch Audit v1.2) ── */
+.rt .account-group{padding:0!important;overflow:hidden;}
+.rt .account-group-head{
+  width:100%;display:flex;align-items:center;justify-content:space-between;gap:12px;
+  padding:15px 18px;border:0;background:transparent;color:var(--text);
+  cursor:pointer;text-align:left;font-family:var(--font-body);-webkit-tap-highlight-color:transparent;
+}
+.rt .account-group-head:hover{background:var(--surface2);}
+.rt .account-group-title{font-size:13px;font-weight:700;letter-spacing:-0.01em;}
+.rt .account-group-meta{display:flex;align-items:center;gap:9px;flex-shrink:0;}
+.rt .account-group-count{min-width:24px;height:22px;padding:0 7px;border-radius:999px;display:inline-flex;align-items:center;justify-content:center;background:var(--surface2);border:1px solid var(--border);color:var(--text-secondary);font-size:11px;font-weight:700;font-variant-numeric:tabular-nums;}
+.rt .account-group-chevron{width:20px;height:20px;display:inline-flex;align-items:center;justify-content:center;color:var(--text-tertiary);transition:transform .18s ease;}
+.rt .account-group.collapsed .account-group-chevron{transform:rotate(-90deg);}
+.rt .account-group-body{padding:0 18px 16px;border-top:1px solid var(--border);}
+.rt .account-group-body>.metric-inline:first-child{padding-top:12px;}
+.rt .account-group.collapsed .account-group-body{display:none!important;}
+@media(max-width:520px){.rt .account-group-head{padding:13px 14px}.rt .account-group-body{padding:0 14px 14px}}
+
 /* Group body: rounded bottom on container, flat rows inside */
 .rt #p-stock .stock-group .stock-group-body.item-table{
   border-radius:0 0 var(--r-m) var(--r-m)!important;
@@ -12014,6 +12033,8 @@ function _renderItemPageInner(m,id){
     +'<select class="ip-field ip-field-select" onchange="ipSave(\''+m+'\',\''+i.id+'\',\'source\',this.value)"><option value="">—</option>'+srcOpts+'</select></div>';
   db+='<div class="ip-row"><div class="ip-label">Category</div>'
     +'<select class="ip-field ip-field-select" onchange="ipSave(\''+m+'\',\''+i.id+'\',\'category\',this.value)"><option value="">—</option>'+catOpts+'</select></div>';
+  db+='<div class="ip-row" style="grid-column:1/-1"><div class="ip-label">Partner / Account</div>'
+    +'<select class="ip-field ip-field-select" onchange="ipAssignAccount(\''+m+'\',\''+i.id+'\',this.value)">'+_accountSelectOptionsHTML(i.accountId||null)+'</select></div>';
   db+='<div class="ip-row" style="grid-column:1/-1"><div class="ip-label">Notes</div>'
     +'<input class="ip-field" value="'+esc(i.notes||'')+'" placeholder="Any notes..." onchange="ipSave(\''+m+'\',\''+i.id+'\',\'notes\',this.value)" onkeydown="if(event.key===\'Enter\')this.blur()"></div>';
   db+='</div>';
@@ -15135,6 +15156,30 @@ function _migrateSupplierSettledOnce(){
   return n;
 }
 
+
+// Launch Audit v1.2 — collapsible Account detail groups.
+// Sales defaults collapsed because it is normally the largest section.
+let _accountGroupState={};
+function _accountGroupIsCollapsed(accountId,key,defaultCollapsed){
+  const sk=String(accountId||'')+':'+String(key||'');
+  return Object.prototype.hasOwnProperty.call(_accountGroupState,sk)?!!_accountGroupState[sk]:!!defaultCollapsed;
+}
+function _toggleAccountGroup(accountId,key,defaultCollapsed){
+  const sk=String(accountId||'')+':'+String(key||'');
+  _accountGroupState[sk]=!_accountGroupIsCollapsed(accountId,key,defaultCollapsed);
+  const acct=(_accounts||[]).find(function(a){return a.id===accountId;});
+  if(acct)_renderAccountPage(acct);
+}
+function _accountGroupHTML(acct,key,label,count,body,defaultCollapsed,extraStyle){
+  const collapsed=_accountGroupIsCollapsed(acct&&acct.id,key,defaultCollapsed);
+  return '<div class="panel-card account-group'+(collapsed?' collapsed':'')+'" style="margin-bottom:14px;'+(extraStyle||'')+'">'
+    +'<button type="button" class="account-group-head" aria-expanded="'+(collapsed?'false':'true')+'" onclick="_toggleAccountGroup(\''+esc(acct.id)+'\',\''+esc(key)+'\','+(defaultCollapsed?'true':'false')+')">'
+      +'<span class="account-group-title">'+label+'</span>'
+      +'<span class="account-group-meta"><span class="account-group-count">'+Number(count||0)+'</span>'
+      +'<span class="account-group-chevron" aria-hidden="true"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span></span>'
+    +'</button><div class="account-group-body">'+body+'</div></div>';
+}
+
 function _renderAccountPage(acct){
   const page=document.getElementById('p-item');
   if(!page)return;
@@ -15458,11 +15503,11 @@ function _renderAccountPage(acct){
     +selBar
     +((!isSupplierAcct&&hasDefault&&noSplitCount>0&&!_acctSelectMode)?'<button class="btn btn-secondary" style="width:100%;margin-bottom:10px;" onclick="applyDefaultSplitToAll(\''+acct.id+'\')">Apply '+acct.defaultSplitPercent+'% to '+noSplitCount+' item'+(noSplitCount!==1?'s':'')+' with no split</button>':'')
     +(unsettledCount>0&&!_acctSelectMode?'<button class="btn btn-primary" style="width:100%;margin-bottom:14px;" onclick="'+(isSupplierAcct?'settleAllForAccount(\''+acct.id+'\')':'_openConsignmentSettlementBuilder(\''+acct.id+'\','+JSON.stringify(sold.filter(function(i){return !i.accountSettled;}).map(function(i){return i.id;}))+')')+'">'+(isSupplierAcct?'Mark all '+unsettledCount+' unsettled as paid':'Allocate & settle '+unsettledCount+' item'+(unsettledCount!==1?'s':''))+'</button>':'')
-    +'<div class="panel-card" style="margin-bottom:14px;"><div class="sl">Sold items</div>'+soldRows+'</div>'
-    +((acct.settlements||[]).length?'<div class="panel-card" style="margin-bottom:14px;"><div class="sl">Settlement history</div>'+(acct.settlements||[]).map(function(tx){return '<button type="button" class="metric-inline" style="width:100%;border:0;background:transparent;text-align:left;cursor:pointer;" onclick="_openSettlementDetail(\''+acct.id+'\',\''+tx.id+'\')"><div style="min-width:0;flex:1;"><div class="metric-k">'+(tx.paid?'Paid ':'Allocated ')+fmt(tx.partnerAmount||0)+'</div><div style="font-size:11px;color:var(--text-secondary);">'+esc(tx.date||'')+' · '+((tx.items||[]).length)+' item'+((tx.items||[]).length!==1?'s':'')+(tx.note?' · '+esc(tx.note):'')+'</div></div><span style="font-size:11px;color:'+(tx.paid?'var(--green)':'var(--warn)')+';">'+(tx.paid?'Paid ✓':'Unpaid')+'</span></button>';}).join('')+'</div>':'')
-    +'<div class="panel-card" style="margin-bottom:14px;"><div class="sl">Listed stock</div>'+listedRows+'</div>'
-    +'<div class="panel-card" style="margin-bottom:14px;"><div class="sl">Unlisted · needs listing</div>'+unlistedRows+'</div>'
-    +'<div class="panel-card"><div class="sl">Returned · action needed</div>'+returnedRows+'</div>'
+    +_accountGroupHTML(acct,'sales','Sales',sold.length,soldRows,true)
+    +((acct.settlements||[]).length?_accountGroupHTML(acct,'settlements','Settlement history',(acct.settlements||[]).length,(acct.settlements||[]).map(function(tx){return '<button type="button" class="metric-inline" style="width:100%;border:0;background:transparent;text-align:left;cursor:pointer;" onclick="_openSettlementDetail(\''+acct.id+'\',\''+tx.id+'\')"><div style="min-width:0;flex:1;"><div class="metric-k">'+(tx.paid?'Paid ':'Allocated ')+fmt(tx.partnerAmount||0)+'</div><div style="font-size:11px;color:var(--text-secondary);">'+esc(tx.date||'')+' · '+((tx.items||[]).length)+' item'+((tx.items||[]).length!==1?'s':'')+(tx.note?' · '+esc(tx.note):'')+'</div></div><span style="font-size:11px;color:'+(tx.paid?'var(--green)':'var(--warn)')+';">'+(tx.paid?'Paid ✓':'Unpaid')+'</span></button>';}).join(''),false):'')
+    +_accountGroupHTML(acct,'listed','Listed stock',listedStock.length,listedRows,false)
+    +_accountGroupHTML(acct,'unlisted','Unlisted · needs listing',unlistedStock.length,unlistedRows,false)
+    +_accountGroupHTML(acct,'returned','Returned · action needed',returned.length,returnedRows,false,'margin-bottom:0;')
   +'</div>';
   page.innerHTML=html;
 }
@@ -16394,17 +16439,8 @@ function _quickAddAccountBanner(accountId){
     +'<div style="font-size:11px;color:var(--text-secondary);margin-top:2px;text-transform:capitalize;">'+esc(type)+split+'</div>'+costNote+'</div></div>';
 }
 function _applyQuickAddAccount(item,accountId){
-  const a=_quickAddAccount(accountId);
-  if(!item||!a)return item;
-  item.accountId=a.id;
-  item.accountType=a.accountType||'supplier';
-  item.accountSettled=false;
-  if(item.accountType==='consignment'){
-    item.costPrice=0;
-  }
-  if(item.accountType!=='supplier'&&a.defaultSplitPercent!=null){
-    item.accountSplitPercent=Math.max(0,Math.min(100,Number(a.defaultSplitPercent)||0));
-  }
+  if(!item||!accountId)return item;
+  _assignItemAccountCore(item,accountId);
   return item;
 }
 
@@ -16412,50 +16448,82 @@ function _applyQuickAddAccount(item,accountId){
 // Quick Add opened WITHOUT a partner context). Opened from a Partner page the account
 // is already stamped via _quickAddAccountId + the banner, so the picker hides itself.
 // Keeping _quickAddAccountId in sync is enough: both submit paths call _applyQuickAddAccount.
+
 function _quickAddPartnerOptions(){
   return (_accounts||[]).slice().sort(function(a,b){return (a.name||'').localeCompare(b.name||'');});
 }
+function _accountTypeDisplay(a){
+  const t=(a&&a.accountType)||'supplier';
+  if(t==='consignment')return 'Consignment'+(a.defaultSplitPercent!=null?' · '+a.defaultSplitPercent+'%':'');
+  if(t==='hybrid')return 'Hybrid'+(a.defaultSplitPercent!=null?' · '+a.defaultSplitPercent+'%':'');
+  return 'Supplier';
+}
+function _accountSelectOptionsHTML(selectedId){
+  let html='<option value="">Own stock — no partner</option>';
+  _quickAddPartnerOptions().forEach(function(a){
+    html+='<option value="'+esc(a.id)+'"'+(a.id===selectedId?' selected':'')+'>'+esc(a.name||'Partner')+' — '+esc(_accountTypeDisplay(a))+'</option>';
+  });
+  return html;
+}
+function _assignItemAccountCore(item,accountId){
+  if(!item)return {account:null,zeroed:false};
+  const a=accountId?(_accounts||[]).find(function(x){return x.id===accountId;}):null;
+  if(!a){
+    item.accountId=null;item.accountType=null;item.accountSplitPercent=null;item.accountPaidAmount=null;item.accountSettled=false;
+    return {account:null,zeroed:false};
+  }
+  item.accountId=a.id;item.accountType=a.accountType||'supplier';item.accountPaidAmount=null;item.accountSettled=false;
+  if(item.accountType==='supplier')item.accountSplitPercent=null;
+  else if(a.defaultSplitPercent!=null)item.accountSplitPercent=Math.max(0,Math.min(100,Number(a.defaultSplitPercent)||0));
+  else item.accountSplitPercent=null;
+  let zeroed=false;
+  if(item.accountType==='consignment'&&(Number(item.costPrice)||0)>0){item.costPrice=0;zeroed=true;}
+  return {account:a,zeroed:zeroed};
+}
+function _accountPickerCostMode(accountId,costInputId){
+  const a=accountId?(_accounts||[]).find(function(x){return x.id===accountId;}):null;
+  const cost=document.getElementById(costInputId);if(!cost)return;
+  const isConsign=!!(a&&((a.accountType||'supplier')==='consignment'));
+  if(isConsign){cost.value='0';cost.readOnly=true;cost.title='Consignment stock uses £0 acquisition cost';}
+  else{cost.readOnly=false;cost.title='';}
+  if(costInputId==='qa-cost'&&typeof updateBPFPreview==='function')updateBPFPreview();
+}
+function _saveExistingItemAccount(m,id,accountId,origin){
+  const item=(DB[m]||[]).find(function(x){return x.id===id;});if(!item)return;
+  const before=item.accountId||null;if(before===(accountId||null))return;
+  const result=_assignItemAccountCore(item,accountId||null);
+  saveDB();
+  toast((result.account?('Assigned to '+result.account.name):'Set as own stock')+(result.zeroed?' · cost set to £0 for consignment':''));
+  if(origin==='panel')openItemDetail(m,id,true);
+  else if(origin==='full'){
+    const y=window.scrollY||0;renderItemPage(m,id);requestAnimationFrame(function(){window.scrollTo(0,y);});
+  }else{
+    const cur=document.querySelector('.page.on');
+    if(cur&&cur.id==='p-stock')renderStock();else if(cur&&cur.id==='p-monthly')renderMonth();
+  }
+}
+function ipAssignAccount(m,id,accountId){_saveExistingItemAccount(m,id,accountId,'full');}
+function panelAssignAccount(m,id,accountId){_saveExistingItemAccount(m,id,accountId,'panel');}
 function _quickAddPartnerPickerHTML(){
-  if(_quickAddAccountId)return ''; // opened from a partner — banner covers it
+  if(_quickAddAccountId)return '';
   const accts=_quickAddPartnerOptions();
-  if(!accts.length)return '';
-  const opts=accts.map(function(a){
-    const t=(a.accountType||'supplier');
-    const meta=(t==='consignment')?('Consignment'+(a.defaultSplitPercent!=null?' \u00b7 '+a.defaultSplitPercent+'%':'')):(t==='hybrid'?'Hybrid':'Supplier');
-    return '<option value="'+esc(a.name||'')+'" label="'+esc(meta)+'"></option>';
-  }).join('');
-  return '<div class="fg">'
-    +'<label>Partner <span style="color:var(--text-secondary);font-weight:400;font-size:11px;">(optional)</span></label>'
-    +'<input type="text" id="qa-partner" list="qa-partner-list" placeholder="Own stock \u2014 type to find a partner" autocomplete="off" oninput="_quickAddPartnerPicked(this.value)">'
-    +'<datalist id="qa-partner-list">'+opts+'</datalist>'
-    +'<div id="qa-partner-note" class="fg-hint" style="font-size:11px;color:var(--text-secondary);margin-top:4px;">Leave blank for your own stock. Pick a partner to assign this item straight to their account.</div>'
-    +'</div>';
+  return '<div class="fg"><label>Partner / Account <span style="color:var(--text-secondary);font-weight:400;font-size:11px;">(optional)</span></label>'
+    +'<select id="qa-partner" onchange="_quickAddPartnerPicked(this.value)">'+_accountSelectOptionsHTML(null)+'</select>'
+    +'<div id="qa-partner-note" class="fg-hint" style="font-size:11px;color:var(--text-secondary);margin-top:4px;">'
+      +(accts.length?'Leave as own stock, or assign it to a partner account now.':'No partner accounts yet — this item will be your own stock.')
+    +'</div></div>';
 }
 function _quickAddPartnerPicked(val){
-  const name=(val||'').trim().toLowerCase();
-  const a=name?(_accounts||[]).find(function(x){return (x.name||'').trim().toLowerCase()===name;}):null;
+  const a=val?(_accounts||[]).find(function(x){return x.id===val;}):null;
   _quickAddAccountId=a?a.id:null;
-  const listCost=document.getElementById('qa-cost');
-  const costEl=listCost||document.getElementById('sqa-cost');
-  const isConsign=a&&((a.accountType||'supplier')==='consignment');
-  if(costEl){
-    if(isConsign){ costEl.value='0'; costEl.readOnly=true; costEl.title='Consignment stock uses \u00a30 acquisition cost'; }
-    else { costEl.readOnly=false; costEl.title=''; }
-  }
-  if(listCost&&typeof updateBPFPreview==='function')updateBPFPreview();
+  _accountPickerCostMode(_quickAddAccountId,document.getElementById('qa-cost')?'qa-cost':'sqa-cost');
   const note=document.getElementById('qa-partner-note');
   if(note){
-    if(a){
-      const t=(a.accountType||'supplier');
-      note.innerHTML='Assigning to <strong style="color:var(--text)">'+esc(a.name||'')+'</strong> \u00b7 '
-        +esc(t.charAt(0).toUpperCase()+t.slice(1))
-        +((t!=='supplier'&&a.defaultSplitPercent!=null)?' \u00b7 partner share '+a.defaultSplitPercent+'%':'')
-        +(t==='consignment'?' \u00b7 cost set to \u00a30':'');
-    }else{
-      note.textContent='Leave blank for your own stock. Pick a partner to assign this item straight to their account.';
-    }
+    if(a)note.innerHTML='Assigning to <strong style="color:var(--text)">'+esc(a.name||'')+'</strong> · '+esc(_accountTypeDisplay(a))+(((a.accountType||'supplier')==='consignment')?' · cost set to £0':'');
+    else note.textContent='Own stock — no partner account attached.';
   }
 }
+
 function openQuickAdd(accountId){
   _quickAddAccountId=accountId||null;
   _sourcedPartsCost = 0; // clear any carried-over parts cost from a sourced item
@@ -21037,6 +21105,10 @@ function openItemDetail(m,id,noHistory){
           <div class="ip-token-sub">✎ est ${(function(p){return (p>=0?'+':'')+fmt(p);})(i.estSalePrice-_panelTotalCapital)}</div>
         </div>`:''}
       </div>
+      <div class="fg" style="margin-bottom:14px">
+        <label style="margin-bottom:4px">Partner / Account</label>
+        <select onchange="panelAssignAccount('${m}','${id}',this.value)">${_accountSelectOptionsHTML(i.accountId||null)}</select>
+      </div>
       ${i.notes?`<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin-bottom:14px;font-size:13px;color:var(--text);line-height:1.5;white-space:pre-wrap">${esc(i.notes)}</div>`:''}
       <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin-bottom:14px">
         <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:8px">Parts &amp; Expenses${(i.parts||[]).length>0?' ('+i.parts.length+')':''}</div>
@@ -21136,12 +21208,16 @@ function openItemDetail(m,id,noHistory){
           <input type="date" id="${i.resaleSalePrice?'pd-resale-date-sold':'pd-date-sold'}" value="${i.resaleSalePrice?(i.resaleDateSold||''):(i.dateSold||'')}" onchange="savePanelQuickEdit('${m}','${id}')" onblur="savePanelQuickEdit('${m}','${id}')">
         </div>`}
       </div>
-      <div style="margin-top:10px">
+      <div class="form-grid-2" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px">
         <div class="fg" style="margin-bottom:0">
           <label style="margin-bottom:4px">Category</label>
           <select id="pd-category" onchange="savePanelQuickEdit('${m}','${id}')">
             ${ITEM_CATEGORIES.map(c=>`<option value="${c}"${c===i.category?' selected':''}>${c}</option>`).join('')}
           </select>
+        </div>
+        <div class="fg" style="margin-bottom:0">
+          <label style="margin-bottom:4px">Partner / Account</label>
+          <select onchange="panelAssignAccount('${m}','${id}',this.value)">${_accountSelectOptionsHTML(i.accountId||null)}</select>
         </div>
       </div>
       <div style="font-size:11px;color:var(--muted);margin-top:6px;text-align:right">Auto-saves on change</div>
@@ -21337,7 +21413,7 @@ async function openStockBulkDispose(){
       +'</select></div>'
     +'<div class="fg"><label>Note (optional)</label><input id="bulk-scrap-note" type="text" placeholder="Applied to all selected items"></div>'
     +'<div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px 12px;font-size:12px;color:var(--text-secondary);line-height:1.5;margin-bottom:14px">'
-      +'Each item keeps its own permanent Archive record and cost basis. Supplier returns are handled individually because each item can have a different refund amount.</div>'
+      +'Each item keeps its own permanent archived record and cost basis. Supplier returns are handled individually because each item can have a different refund amount.</div>'
     +'<div style="display:flex;gap:8px">'
       +'<button class="btn btn-destructive" style="flex:1" onclick="confirmStockBulkDispose()">Dispose '+ids.length+' item'+(ids.length===1?'':'s')+'</button>'
       +'<button class="btn btn-secondary" onclick="closePanel()">Cancel</button>'
@@ -22755,7 +22831,7 @@ function _renderStockCore(){
           <div class="page-subtitle">Listed, unlisted and returned stock — everything physically on hand.</div>
         </div>
         <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
-          <button class="btn btn-secondary" style="padding:7px 9px;font-size:12px;white-space:nowrap;" onclick="goToTab('scrapped',null)" title="Open disposed / archived stock">${icon('inbox',13)}<span class="btn-label-hide-xs"> Archive</span>${cAllRemoved?` <span style="font-size:10px;color:var(--muted)">${cAllRemoved}</span>`:''}</button>
+          <button class="btn btn-secondary" style="padding:7px 9px;font-size:12px;white-space:nowrap;" onclick="goToTab('scrapped',null)" title="Open archive">${icon('inbox',13)}<span class="btn-label-hide-xs"> Archive</span>${cAllRemoved?` <span style="font-size:10px;color:var(--muted)">${cAllRemoved}</span>`:''}</button>
           <button class="btn btn-secondary${STOCK_GROUPED?' active':''}" style="padding:7px 10px;font-size:12px;white-space:nowrap;display:${isListedOnly?'inline-flex':'none'};" onclick="toggleStockGrouped()" title="Group listed items by listing month">
             <svg width="13" height="13" viewBox="0 0 15 15" fill="none" style="vertical-align:-1px;flex-shrink:0"><rect x="1" y="1" width="5.5" height="5.5" rx="1" stroke="currentColor" stroke-width="1.3"/><rect x="8.5" y="1" width="5.5" height="5.5" rx="1" stroke="currentColor" stroke-width="1.3"/><rect x="1" y="8.5" width="5.5" height="5.5" rx="1" stroke="currentColor" stroke-width="1.3"/><rect x="8.5" y="8.5" width="5.5" height="5.5" rx="1" stroke="currentColor" stroke-width="1.3"/></svg><span class="btn-label-hide-xs"> By month</span>
           </button>
@@ -23549,12 +23625,12 @@ function _removedBodyHTML(rows, origin){
   };
   const reasonLabel={scrapped:'Scrapped',donated:'Donated',recycled:'Recycled',supplier_return:'Returned to supplier',other:'Other'};
   let html='<div class="kgrid" style="margin-bottom:16px;">'
-    +kpi('Net capital lost',fmt(netLost),rows.length+' archived item(s)',netLost>0?'var(--warn)':'')
+    +kpi('Net capital lost',fmt(netLost),rows.length+' removed item(s)',netLost>0?'var(--warn)':'')
     +kpi('Written off / donated',fmt(capWrittenOff+capDonated),((byReason.scrapped||0)+(byReason.recycled||0)+(byReason.other||0)+(byReason.donated||0))+' item(s)',(capWrittenOff+capDonated)>0?'var(--text)':'')
     +kpi('Supplier refunds',fmt(supplierRecovered),supplierCount+' return(s)'+(supplierShortfall>0?' · '+fmt(supplierShortfall)+' shortfall':''),supplierRecovered>0?'var(--green)':'')
   +'</div>';
   if(!rows.length){
-    html+='<div class="card" style="padding:20px;text-align:center;color:var(--text-secondary);line-height:1.5;">Nothing archived yet. Scrapped, donated, recycled and supplier-returned stock appears here.</div>';
+    html+='<div class="card" style="padding:20px;text-align:center;color:var(--text-secondary);line-height:1.5;">Nothing removed yet. Scrapped, donated, recycled and supplier-returned stock appears here.</div>';
     return html;
   }
   html+='<div class="section-card" style="padding:0;overflow:hidden;">';
@@ -23570,7 +23646,7 @@ function _removedBodyHTML(rows, origin){
       +'<div style="flex:1;min-width:0;">'
         +'<div style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(i.item||'Untitled')+'</div>'
         +'<div style="font-size:12px;color:var(--text-secondary);margin-top:2px;">'
-          +'<span style="color:'+(isSupplier?'var(--green)':isDon?'var(--accent)':'var(--muted)')+';font-weight:600;">'+esc(reasonLabel[rk]||'Archived')+'</span>'
+          +'<span style="color:'+(isSupplier?'var(--green)':isDon?'var(--accent)':'var(--muted)')+';font-weight:600;">'+esc(reasonLabel[rk]||'Removed')+'</span>'
           +' · '+esc(when||'—')+(i.scrapNote?' · '+esc(i.scrapNote):'')
         +'</div>'
       +'</div>'
@@ -23586,7 +23662,9 @@ function _removedBodyHTML(rows, origin){
 
 function renderScrapped(){
   const el=document.getElementById('p-scrapped');if(!el)return;
-  el.innerHTML='<div class="page-header"><div><div class="page-title">Archive</div></div></div>'+_removedBodyHTML(_scrappedItems(),'p-scrapped'); return;
+  el.innerHTML='<div style="margin-bottom:12px"><button class="btn btn-secondary" onclick="goToTab(\'stock\',null)">← Inventory</button></div>'
+    +'<div class="page-header"><div><div class="page-title">Archive</div><div class="page-subtitle">Items no longer in inventory — scrapped, donated, recycled or returned to a supplier.</div></div></div>'
+    +_removedBodyHTML(_scrappedItems(),'p-scrapped'); return;
   /* legacy body below (unreached) */
   const rows=_scrappedItems();
   let capScrapped=0,capDonated=0;const byReason={scrapped:0,donated:0,recycled:0,other:0};
@@ -25876,6 +25954,10 @@ function editItem(m,id){
       <input type="text" id="edit-item" value="${esc(item.item)}">
     </div>
     <div class="fg">
+      <label>Partner / Account <span style="color:var(--text-secondary);font-weight:400;font-size:11px;">(optional)</span></label>
+      <select id="edit-account" onchange="_accountPickerCostMode(this.value,'edit-cost')">${_accountSelectOptionsHTML(item.accountId||null)}</select>
+    </div>
+    <div class="fg">
       <label>Platform</label>
       <div class="qa-platform-row" id="edit-platform-row">
         ${Object.values(PLATFORMS).map(p=>`<button type="button"
@@ -25972,6 +26054,7 @@ function editItem(m,id){
     <button class="btn btn-primary" style="width:100%;margin-top:16px" onclick="saveEdit('${m}','${id}')">Save Changes</button>
   `;
   openPanel('Edit Item',html);
+  _accountPickerCostMode(item.accountId||null,'edit-cost');
   const _editPolicySel=document.getElementById('edit-shipping-policy');
   if(_editPolicySel)_populateShippingPolicySelect(_editPolicySel);
 }
@@ -26001,6 +26084,8 @@ function saveEdit(m,id){
   item.location=document.getElementById('edit-location').value;
   item.dateListed=document.getElementById('edit-date').value;
   item.costPrice=parseFloat(document.getElementById('edit-cost').value)||0;
+  const _editAcct=document.getElementById('edit-account');
+  if(_editAcct)_assignItemAccountCore(item,_editAcct.value||null);
   item.salePrice=parseFloat(document.getElementById('edit-price').value)||0;
   // Delivery mode + fields
   const editMode=document.getElementById('edit-postage-mode')?.value||'simple';
@@ -26037,6 +26122,10 @@ function _editStockItem(m,item){
       <input type="text" id="edit-stock-title" value="${esc(item.item||'')}" placeholder="e.g. Camera, Lego set">
     </div>
     <div class="fg">
+      <label>Partner / Account <span style="color:var(--text-secondary);font-weight:400;font-size:11px;">(optional)</span></label>
+      <select id="edit-stock-account" onchange="_accountPickerCostMode(this.value,'edit-stock-cost')">${_accountSelectOptionsHTML(item.accountId||null)}</select>
+    </div>
+    <div class="fg">
       <label>Cost <span style="color:var(--red);font-weight:600">*</span></label>
       <input type="number" id="edit-stock-cost" step="0.01" min="0" inputmode="decimal" value="${item.costPrice||0}">
     </div>
@@ -26066,6 +26155,7 @@ function _editStockItem(m,item){
     <button class="btn btn-primary" style="width:100%;margin-top:14px" onclick="_saveStockEdit('${m}','${item.id}')">Save</button>
   `;
   openPanel('Edit Unlisted Item',html);
+  _accountPickerCostMode(item.accountId||null,'edit-stock-cost');
   (function(){const t=document.getElementById('edit-stock-title');if(t)t.focus();})();
   setTimeout(function(){const t=document.getElementById('edit-stock-title');if(t&&document.activeElement!==t)t.focus();},50);
 }
@@ -26080,6 +26170,8 @@ function _saveStockEdit(m,id){
   }
   item.item=(document.getElementById('edit-stock-title').value||'').trim()||'Untitled stock item';
   item.costPrice=+cost.toFixed(2);
+  const _stockAcct=document.getElementById('edit-stock-account');
+  if(_stockAcct)_assignItemAccountCore(item,_stockAcct.value||null);
   const _estEl=document.getElementById('edit-stock-est');
   if(_estEl){
     const _estVal=_estEl.value.trim();
