@@ -497,6 +497,7 @@ nav:not(#bottom-nav){position:sticky;top:env(safe-area-inset-top,0px);z-index:20
 .item-badge.sourced{background:var(--accent-dim);color:var(--accent);border:1px solid rgba(212,136,10,0.22);}
 .item-badge.scrapped{background:var(--surface2);color:var(--muted);border:1px dashed var(--border);}
 .item-badge.donated{background:var(--accent-dim);color:var(--accent);border:1px dashed rgba(212,136,10,0.3);}
+.item-badge.joblot{display:inline-flex;align-items:center;gap:4px;background:rgba(167,139,250,0.13);color:var(--purple);border:1px solid rgba(167,139,250,0.28);}
 .chip.chip-state-sourced.active{background:var(--accent-dim);color:var(--accent);border-color:rgba(212,136,10,0.35);}
 .chip.chip-state-listed.active{background:rgba(96,165,250,0.13);color:var(--blue);border-color:rgba(96,165,250,0.35);}
 .chip.chip-state-all.active{background:var(--surface2);color:var(--text);border-color:var(--border);}
@@ -1256,6 +1257,7 @@ button .rt-icon,.btn .rt-icon{pointer-events:none;}
   .act-badge{display:inline-block;font-size:11px;font-weight:700;padding:2px 8px;border-radius:6px;margin-right:6px;border:1px solid var(--border);background:var(--surface);color:var(--text);}
   .act-badge.act-sold,.act-badge.act-resold,.act-badge.act-listed{border-color:var(--accent);color:var(--accent);}
   .act-badge.act-returned,.act-badge.act-scrapped,.act-badge.act-deleted{border-color:var(--warn);color:var(--warn);}
+  .act-badge.act-joblot{border-color:var(--purple);color:var(--purple);}
   .act-undo{flex:0 0 auto;display:inline-flex;align-items:center;gap:5px;padding:6px 12px!important;font-size:13px!important;white-space:nowrap;}
 
   /* Page padding consistency */
@@ -6310,6 +6312,7 @@ const _ICON_PATHS={
   edit:'<path d="M4 20h4L18.5 9.5a2.1 2.1 0 0 0-3-3L5 17v3z"/><path d="M13.5 6.5l3 3"/>',       // pencil
   trash:'<path d="M4 7h16"/><path d="M9 7V4h6v3"/><path d="M6 7l1 13a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-13"/><path d="M10 11v6M14 11v6"/>', // bin
   dispose:'<path d="M4 7h16"/><path d="M9 7V4h6v3"/><path d="M6 7l1 13a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-13"/><path d="M9.5 11.5l5 5M14.5 11.5l-5 5"/>', // bin + X = dispose / remove from stock
+  joblot:'<path d="M4 7l8-4 8 4-8 4z"/><path d="M4 7v10l8 4 8-4V7"/><path d="M12 11v10"/>', // grouped physical stock / Job Lot
   fullpage:'<path d="M14 4h6v6"/><path d="M20 4l-8 8"/><path d="M18 14v4a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4"/>', // open external
   list:'<path d="M3 6h18M3 12h18M3 18h18"/>',                                      // lines = list it
   add:'<path d="M12 5v14M5 12h14"/>',                                              // plus
@@ -8589,6 +8592,12 @@ function _rowToItem(row, parts, returns){
       bundleId:        row.bundle_id || null,
       bundleRef:       row.bundle_ref || null,
       bundleTotal:     row.bundle_total != null ? Number(row.bundle_total) : null,
+      // v1.01 — Sale 2 needs its own order identity. A single bundleId on the
+      // item makes a later resale retroactively tag Sale 1 as part of the new
+      // order. Keep the two sale events independent.
+      resaleBundleId:    row.resale_bundle_id || null,
+      resaleBundleRef:   row.resale_bundle_ref || null,
+      resaleBundleTotal: row.resale_bundle_total != null ? Number(row.resale_bundle_total) : null,
     dateSourced:     row.date_sourced || null,
     sourcingRunId:   row.sourcing_run_id || null,
     // E33/E36 — Accounts. accountType per-item overrides the account's default
@@ -8688,6 +8697,9 @@ function _itemToRow(i, month){
     bundle_id:        i.bundleId || null,
     bundle_ref:       i.bundleRef || null,
     bundle_total:     i.bundleTotal != null ? Number(i.bundleTotal) : null,
+    resale_bundle_id:    i.resaleBundleId || null,
+    resale_bundle_ref:   i.resaleBundleRef || null,
+    resale_bundle_total: i.resaleBundleTotal != null ? Number(i.resaleBundleTotal) : null,
     date_sourced:     i.dateSourced || null,
     sourcing_run_id:  i.sourcingRunId || null,
     // E33 — Accounts (partners), see _rowToItem note above.
@@ -8839,7 +8851,8 @@ async function loadFromSupabase(){
     _jobLots=(jobLotsRes.data||[]).map(function(r){return{
       id:r.id,name:r.name||'Job Lot',status:r.status||'building',dateCreated:r.date_created||null,
       dateListed:r.date_listed||null,dateSold:r.date_sold||null,salePrice:Number(r.sale_price)||0,
-      platform:r.platform||'ebay',notes:r.notes||'',createdAt:r.created_at||null,updatedAt:r.updated_at||null
+      platform:r.platform||'ebay',bundleId:r.bundle_id||null,bundleRef:r.bundle_ref||null,
+      notes:r.notes||'',createdAt:r.created_at||null,updatedAt:r.updated_at||null
     };});
     _jobLotItems=(jobLotItemsRes.data||[]).map(function(r){return{
       id:r.id,jobLotId:r.job_lot_id,itemId:r.item_id,addedAt:r.added_at||null,
@@ -9219,7 +9232,7 @@ async function deleteActivityFromSupabase(id){
 function _jobLotToRow(l){return{
   id:l.id,user_id:_currentUserId||null,name:l.name||'Job Lot',status:l.status||'building',
   date_created:l.dateCreated||null,date_listed:l.dateListed||null,date_sold:l.dateSold||null,
-  sale_price:Number(l.salePrice)||0,platform:l.platform||null,notes:l.notes||null,
+  sale_price:Number(l.salePrice)||0,platform:l.platform||null,bundle_id:l.bundleId||null,bundle_ref:l.bundleRef||null,notes:l.notes||null,
   created_at:l.createdAt||new Date().toISOString()
 };}
 function _jobLotItemToRow(m){return{
@@ -9515,6 +9528,18 @@ function _recoverOutbox(){
             DB.activityLog = DB.activityLog || [];
             const idx = DB.activityLog.findIndex(function(x){return x.id===obj.id;});
             if(idx>=0) DB.activityLog[idx]=obj; else DB.activityLog.push(obj);
+          } else if(e.type === 'jlot'){
+            _jobLots = _jobLots || [];
+            const idx = _jobLots.findIndex(function(x){return x.id===obj.id;});
+            if(idx>=0) _jobLots[idx]=obj; else _jobLots.push(obj);
+          } else if(e.type === 'jmem'){
+            _jobLotItems = _jobLotItems || [];
+            const idx = _jobLotItems.findIndex(function(x){return x.id===obj.id;});
+            if(idx>=0) _jobLotItems[idx]=obj; else _jobLotItems.push(obj);
+          } else if(e.type === 'recon'){
+            _saleReconciliations = _saleReconciliations || [];
+            const idx = _saleReconciliations.findIndex(function(x){return x.id===obj.id;});
+            if(idx>=0) _saleReconciliations[idx]=obj; else _saleReconciliations.push(obj);
           }
           applied++;
         } else if(e.op === 'delete'){
@@ -9527,6 +9552,9 @@ function _recoverOutbox(){
           else if(e.type === 'run'){ if(typeof _sourcingRuns!=='undefined' && _sourcingRuns) _sourcingRuns = _sourcingRuns.filter(function(x){return x.id!==id;}); }
           else if(e.type === 'acct'){ if(typeof _accounts!=='undefined' && _accounts) _accounts = _accounts.filter(function(x){return x.id!==id;}); }
           else if(e.type === 'log'){ if(DB.activityLog) DB.activityLog = DB.activityLog.filter(function(x){return x.id!==id;}); }
+          else if(e.type === 'jlot'){ if(_jobLots) _jobLots = _jobLots.filter(function(x){return x.id!==id;}); }
+          else if(e.type === 'jmem'){ if(_jobLotItems) _jobLotItems = _jobLotItems.filter(function(x){return x.id!==id;}); }
+          else if(e.type === 'recon'){ if(_saleReconciliations) _saleReconciliations = _saleReconciliations.filter(function(x){return x.id!==id;}); }
           applied++;
         }
       }catch(inner){ console.warn('[RETRADE] outbox replay failed', k, inner && inner.message); }
@@ -11620,16 +11648,18 @@ function _renderItemPageInner(m,id){
   html+='<div class="ip-topbar-row1">';
   html+='<button class="btn btn-secondary ip-back" onclick="exitItemPage()">'+icon('back',14)+'<span class="ip-back-label"> Back</span></button>';
 
-  if((!i.dateSold&&!i.resaleSalePrice)&&!i.isReturned&&!i.scrappedAt)html+='<button class="btn btn-primary ip-act-btn" onclick="markSold(\''+m+'\',\''+id+'\')">'+icon('sold',15)+'<span class="ip-act-label-always">Mark Sold</span></button>';
-  if(i.isReturned&&!i.resaleSalePrice&&!i.scrappedAt)html+='<button class="btn btn-primary ip-act-btn" onclick="openRelist(\''+m+'\',\''+id+'\')">'+icon('relist',15)+'<span class="ip-act-label-always">Relist</span></button>';
-  if(i.isReturned&&!i.resaleSalePrice&&!i.scrappedAt)html+='<button class="btn btn-secondary ip-act-btn" onclick="moveReturnedToUnlisted(\''+m+'\',\''+id+'\')" title="Keep the return history but move this unit to Unlisted">'+icon('inbox',15)+'<span class="ip-act-label">Unlisted</span></button>';
+  if((!i.dateSold&&!i.resaleSalePrice)&&!i.isReturned&&!i.scrappedAt&&!_activeJobLotMembership(id))html+='<button class="btn btn-primary ip-act-btn" onclick="markSold(\''+m+'\',\''+id+'\')">'+icon('sold',15)+'<span class="ip-act-label-always">Mark Sold</span></button>';
+  if(i.isReturned&&!i.resaleSalePrice&&!i.scrappedAt&&!_activeJobLotMembership(id))html+='<button class="btn btn-primary ip-act-btn" onclick="openRelist(\''+m+'\',\''+id+'\')">'+icon('relist',15)+'<span class="ip-act-label-always">Relist</span></button>';
+  if(i.isReturned&&!i.resaleSalePrice&&!i.scrappedAt&&!_activeJobLotMembership(id))html+='<button class="btn btn-secondary ip-act-btn" onclick="moveReturnedToUnlisted(\''+m+'\',\''+id+'\')" title="Keep the return history but move this unit to Unlisted">'+icon('inbox',15)+'<span class="ip-act-label">Unlisted</span></button>';
   if((i.dateSold||i.resaleSalePrice)&&!i.isReturned&&!i.scrappedAt)html+='<button class="btn btn-secondary ip-act-btn" onclick="openReturn(\''+m+'\',\''+id+'\')">'+icon('return',15)+'<span class="ip-act-label-always">Return</span></button>';
   if(_stepBackTitle(i))html+='<button class="btn btn-secondary ip-act-btn" onclick="stepBack(\''+m+'\',\''+id+'\')" title="'+_stepBackTitle(i)+' \u2014 step back one state" style="color:var(--accent)">'+icon('revert',15)+'<span class="ip-act-label">Undo</span></button>';
   html+='<button class="btn btn-secondary ip-act-btn" onclick="confirmDupeItem(\''+m+'\',\''+id+'\')">'+icon('dupe',15)+'<span class="ip-act-label">Dupe</span></button>';
-  if(!i.dateSold&&!i.resaleSalePrice&&!i.isReturned&&!i.scrappedAt&&(i.state==='sourced'||i.state==='listed'))html+='<button class="btn btn-secondary ip-act-btn" onclick="openSplitModal(\''+m+'\',\''+id+'\')" title="Split a multi-buy lot into separate units"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3v6a3 3 0 0 0 3 3h6a3 3 0 0 1 3 3v6"/><path d="M6 3v6a3 3 0 0 1-3 3"/><polyline points="15 9 18 12 15 15"/></svg><span class="ip-act-label">Split</span></button>';
+  if(!i.dateSold&&!i.resaleSalePrice&&!i.isReturned&&!i.scrappedAt&&!_activeJobLotMembership(id)&&(i.state==='sourced'||i.state==='listed'))html+='<button class="btn btn-secondary ip-act-btn" onclick="openSplitModal(\''+m+'\',\''+id+'\')" title="Split a multi-buy lot into separate units"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3v6a3 3 0 0 0 3 3h6a3 3 0 0 1 3 3v6"/><path d="M6 3v6a3 3 0 0 1-3 3"/><polyline points="15 9 18 12 15 15"/></svg><span class="ip-act-label">Split</span></button>';
 
+  if(_canAddToJobLot(i))html+='<button class="btn btn-secondary ip-act-btn" onclick="openAddToJobLot(\''+m+'\',\''+id+'\')" title="Group this physical item into a Job Lot" style="color:var(--purple)">'+icon('joblot',15)+'<span class="ip-act-label">Job Lot</span></button>';
+  {const _jl=_activeJobLotForItem(id);if(_jl)html+='<button class="btn btn-secondary ip-act-btn" onclick="openJobLotPage(\''+_jl.id+'\')" title="Managed through '+esc(_jl.name)+'" style="color:var(--purple)">'+icon('joblot',15)+'<span class="ip-act-label">'+esc(_jl.name)+'</span></button>';}
   if(_canScrap(i))html+='<button class="btn btn-secondary ip-act-btn" onclick="openScrapModal(\''+m+'\',\''+id+'\')" title="Dispose of item — scrap or donate" style="color:var(--warn)">'+icon('dispose',15)+'<span class="ip-act-label">Dispose</span></button>';
-  if(!i.bundleId&&!i.scrappedAt&&!i.resaleSalePrice&&(i.isReturned||!i.dateSold))html+='<button class="btn btn-secondary ip-act-btn" onclick="openLinkToSaleModal(\''+m+'\',\''+id+'\')" title="Reconcile this item with an existing historical sale" style="color:var(--accent)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 17H7A5 5 0 0 1 7 7h2"/><path d="M15 7h2a5 5 0 0 1 0 10h-2"/><line x1="8" y1="12" x2="16" y2="12"/></svg><span class="ip-act-label">Reconcile sale</span></button>';
+  if(!i.bundleId&&!i.scrappedAt&&!i.resaleSalePrice&&!_activeJobLotMembership(id)&&(i.isReturned||!i.dateSold))html+='<button class="btn btn-secondary ip-act-btn" onclick="openLinkToSaleModal(\''+m+'\',\''+id+'\')" title="Reconcile this item with an existing historical sale" style="color:var(--accent)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 17H7A5 5 0 0 1 7 7h2"/><path d="M15 7h2a5 5 0 0 1 0 10h-2"/><line x1="8" y1="12" x2="16" y2="12"/></svg><span class="ip-act-label">Reconcile sale</span></button>';
   html+='<button class="btn btn-secondary ip-act-btn ip-act-danger" onclick="deleteItem(\''+m+'\',\''+id+'\')">'+icon('trash',15)+'</button>';
   html+='</div>'; // close ip-topbar-row1
   html+='<div class="ip-topbar-row2">';
@@ -11639,6 +11669,7 @@ function _renderItemPageInner(m,id){
   if(i.gid)html+='<span class="ip-chip mono">'+esc(i.gid)+'</span>';
   html+='<span class="ip-chip">'+m+'</span>';
   html+='<div class="item-badge '+status+'">'+status+'</div>';
+  {const _jlMeta=_activeJobLotForItem(id);if(_jlMeta)html+='<span class="ip-chip" style="color:var(--purple);border-color:rgba(167,139,250,.35);cursor:pointer" onclick="openJobLotPage(\''+_jlMeta.id+'\')">'+icon('joblot',11)+' '+esc(_jlMeta.name)+'</span>';}
   {
     // Tappable platform selector — change & instantly see P&L impact. Available
     // on sold/returned items too (a sale can be recorded on the wrong platform;
@@ -14258,17 +14289,51 @@ function _accountPaysOnSale(acct){
 
 // Lifetime stats for one account: total items, sold count, your-side profit,
 // partner's total owed, and how much of that owed amount is still unsettled.
+// v1.01 — when an account item belongs to an active Job Lot, the lot owns
+// the operational asking price/profit while the child still owns its physical
+// cost and account relationship. Allocate the lot's operational values by the
+// frozen membership cost basis so account totals never count the full lot once
+// for every child.
+function _jobLotMemberWeightShare(item,lot){
+  if(!item||!lot)return 0;
+  const members=_jobLotMembers(lot.id,false);
+  if(!members.length)return 0;
+  const weights=members.map(function(x){
+    const raw=x.membership.costBasisAtAdd;
+    const snap=(raw===null||raw===undefined||raw==='')?NaN:Number(raw);
+    return isFinite(snap)&&snap>=0?snap:((Number(x.item.costPrice)||0)+calcPartsCost(x.item));
+  });
+  const total=weights.reduce(function(a,b){return a+b;},0);
+  const idx=members.findIndex(function(x){return x.item.id===item.id;});
+  if(idx<0)return 0;
+  return total>0?(weights[idx]/total):(1/members.length);
+}
+function _jobLotMemberAskingShare(item,lot){
+  return +((Number(lot&&lot.salePrice)||0)*_jobLotMemberWeightShare(item,lot)).toFixed(2);
+}
+function _jobLotMemberPotentialShare(item,lot){
+  const p=_jobLotEstimatedProfit(lot);
+  if(p===null||p===undefined)return null;
+  return +(Number(p)*_jobLotMemberWeightShare(item,lot)).toFixed(2);
+}
+
 function _accountStats(accountId){
   const _acctForTerms=_accounts.find(function(a){return a.id===accountId;});
   const _paysOnSale=_accountPaysOnSale(_acctForTerms);
   const items=_accountItems(accountId);
   const sold=items.filter(_accountItemIsSold);
-  const active=items.filter(function(i){return !_accountItemIsSold(i)&&!i.isReturned&&!i.scrappedAt;});
-  const returned=items.filter(function(i){return i.isReturned&&!i.scrappedAt&&!i.resaleSalePrice;});
-  const listedStock=active.filter(function(i){return i.state==='listed';});
-  const unlistedStock=active.filter(function(i){return i.state==='sourced';});
+  // Active Job Lot membership resolves a returned/listed/unlisted child into the
+  // lot's operational state without changing the child's historical flags.
+  const active=items.filter(function(i){return !_accountItemIsSold(i)&&!i.scrappedAt&&(!i.isReturned||!!_activeJobLotMembership(i.id));});
+  const returned=items.filter(function(i){return i.isReturned&&!i.scrappedAt&&!i.resaleSalePrice&&!_activeJobLotMembership(i.id);});
+  const listedStock=active.filter(function(i){const l=_activeJobLotForItem(i.id);return l?l.status==='listed':i.state==='listed';});
+  const unlistedStock=active.filter(function(i){const l=_activeJobLotForItem(i.id);return l?l.status==='building':i.state==='sourced';});
   const stockOnHand=active.concat(returned);
-  const _stockCost=function(i){return (Number(i.costPrice)||0)+(typeof calcPartsCost==='function'?(Number(calcPartsCost(i))||0):0);};
+  const _stockCost=function(i){
+    const mem=_activeJobLotMembership(i.id);
+    if(mem&&mem.costBasisAtAdd!==null&&mem.costBasisAtAdd!==undefined&&mem.costBasisAtAdd!==''&&isFinite(Number(mem.costBasisAtAdd)))return Number(mem.costBasisAtAdd);
+    return (Number(i.costPrice)||0)+(typeof calcPartsCost==='function'?(Number(calcPartsCost(i))||0):0);
+  };
   const grossProfit=sold.reduce(function(s,i){return s+(calcGrossProfit(i)||0);},0);
   let totalOwed=0,unsettledOwed=0,settledOwed=0,splitItemCount=0,partnerProfitCut=0,unsettledCount=0,unsettledSoldCount=0,unsettledUnsoldCount=0,unsettledUnsoldOwed=0,unsettledSoldOwed=0;
   // Iterate ALL items — supplier debt is per-purchase (returns non-null even when
@@ -14289,7 +14354,8 @@ function _accountStats(accountId){
   });
   const yourShare=grossProfit-partnerProfitCut;
   const activePotential=active.reduce(function(s,i){
-    const est=calcEstProfit(i);
+    const lot=_activeJobLotForItem(i.id);
+    const est=lot?_jobLotMemberPotentialShare(i,lot):calcEstProfit(i);
     if(est==null)return s;
     const pct=i.accountSplitPercent!=null?i.accountSplitPercent:((_accounts.find(function(a){return a.id===accountId;})||{}).defaultSplitPercent||0);
     return s+(est-(Math.max(0,est)*pct/100));
@@ -14299,7 +14365,7 @@ function _accountStats(accountId){
     listedCount:listedStock.length, unlistedCount:unlistedStock.length, returnedCount:returned.length,
     stockOnHandCount:stockOnHand.length,
     stockCost:+stockOnHand.reduce(function(s,i){return s+_stockCost(i);},0).toFixed(2),
-    activeStockValue:+listedStock.reduce(function(s,i){return s+(i.salePrice||0);},0).toFixed(2),
+    activeStockValue:+listedStock.reduce(function(s,i){const lot=_activeJobLotForItem(i.id);return s+(lot?_jobLotMemberAskingShare(i,lot):(i.salePrice||0));},0).toFixed(2),
     activePotential:+activePotential.toFixed(2),
     grossProfit:+grossProfit.toFixed(2), yourShare:+yourShare.toFixed(2),
     totalOwed:+totalOwed.toFixed(2), settledOwed:+settledOwed.toFixed(2),
@@ -14762,8 +14828,8 @@ function _renderAccountPage(acct){
       const db=(b.resaleSalePrice?b.resaleDateSold:b.dateSold)||'';
       return db.localeCompare(da);
     });
-  const active=items.filter(function(i){return !_accountItemIsSold(i)&&!i.isReturned&&!i.scrappedAt;});
-  const returned=items.filter(function(i){return i.isReturned&&!i.scrappedAt&&!i.resaleSalePrice;});
+  const active=items.filter(function(i){return !_accountItemIsSold(i)&&!i.scrappedAt&&(!i.isReturned||!!_activeJobLotMembership(i.id));});
+  const returned=items.filter(function(i){return i.isReturned&&!i.scrappedAt&&!i.resaleSalePrice&&!_activeJobLotMembership(i.id);});
 
   const mc=function(label,val,sub,valCol){
     // Keep semantic value colour (green/red/--warn); omit when neutral.
@@ -14917,15 +14983,19 @@ function _renderAccountPage(acct){
   const activeRows=active.length?active.map(function(i){
     const owed=_accountItemDebt(i); // non-null for supplier items with cost
     const isSel=_acctSelected.has(i.id);
-    const isUnlisted=i.state==='sourced';
-    const stateLabel=isUnlisted?'Unlisted':'Listed';
-    const askingStr=fmt(i.salePrice||0);
+    const _jl=_activeJobLotForItem(i.id);
+    const isUnlisted=_jl?_jl.status==='building':i.state==='sourced';
+    const stateLabel=_jl?('Job Lot · '+(_jl.name||'Job Lot')):(isUnlisted?'Unlisted':'Listed');
+    const askingValue=_jl?_jobLotMemberAskingShare(i,_jl):(Number(i.salePrice)||0);
+    const askingStr=fmt(askingValue);
     const stockCostStr=fmt((Number(i.costPrice)||0)+(typeof calcPartsCost==='function'?(Number(calcPartsCost(i))||0):0));
+    const badgeClass=_jl?'joblot':(isUnlisted?'sourced':'listed');
+    const detailClick=_jl?("openJobLotPage('"+_jl.id+"')"):"openItemDetail(this.dataset.month,this.dataset.itemid)";
     if(_acctSelectMode){
       return '<div class="metric-inline" style="align-items:center;cursor:pointer;" onclick="_acctToggleSelect(\''+i.id+'\')">'
         +_selCheckbox(isSel)
         +'<div style="min-width:0;flex:1;"><div style="font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(i.item||'Untitled')+'</div>'
-        +'<div style="font-size:11px;color:var(--text-secondary);"><span class="item-badge '+i.state+'" style="font-size:10px;padding:2px 6px;">'+stateLabel+'</span> \u00b7 '+_splitLine(i)+'</div></div>'
+        +'<div style="font-size:11px;color:var(--text-secondary);"><span class="item-badge '+badgeClass+'" style="font-size:10px;padding:2px 6px;">'+stateLabel+'</span> \u00b7 '+_splitLine(i)+'</div></div>'
         +'<div style="text-align:right;flex-shrink:0;margin-left:8px;">'
           +'<div style="font-size:14px;font-weight:700;">'+(isUnlisted?stockCostStr:askingStr)+'</div>'
           +(owed!==null?'<div style="font-size:11px;color:var(--text-secondary);">owed '+fmt(owed)+'</div>':'')
@@ -14933,13 +15003,13 @@ function _renderAccountPage(acct){
     }
     // Active row right column — asking price + owed/settle for suppliers only
     const activeRight='<div style="text-align:right;flex-shrink:0;min-width:105px;">'
-      +'<div style="font-size:13px;font-weight:700;color:var(--text-secondary);white-space:nowrap;">'+(isUnlisted?'Cost '+stockCostStr:'Asking '+askingStr)+'</div>'
+      +'<div style="font-size:13px;font-weight:700;color:var(--text-secondary);white-space:nowrap;">'+(isUnlisted?'Cost '+stockCostStr:(_jl?'Lot share '+askingStr:'Asking '+askingStr))+'</div>'
       +(owed!==null?'<div style="font-size:12px;color:var(--text-secondary);margin-top:1px;">Owed '+fmt(owed)+' <span style="opacity:0.7;">(cost)</span></div>'+'<div style="margin-top:4px;">'+_settleControl(i,owed)+'</div>':'')
     +'</div>';
     return '<div class="metric-inline" style="align-items:flex-start;">'
       +'<div style="min-width:0;flex:1;">'
-        +'<div class="metric-k clickable" data-itemid="'+i.id+'" data-month="'+i._month+'" onclick="openItemDetail(this.dataset.month,this.dataset.itemid)" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(i.item||'Untitled')+'</div>'
-        +'<div style="font-size:11px;color:var(--text-secondary);margin-top:2px;"><span class="item-badge '+i.state+'" style="font-size:10px;padding:2px 6px;">'+stateLabel+'</span> \u00b7 '+_splitLine(i)+'</div>'
+        +'<div class="metric-k clickable" data-itemid="'+i.id+'" data-month="'+i._month+'" onclick="'+detailClick+'" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(i.item||'Untitled')+'</div>'
+        +'<div style="font-size:11px;color:var(--text-secondary);margin-top:2px;"><span class="item-badge '+badgeClass+'" style="font-size:10px;padding:2px 6px;">'+stateLabel+'</span> \u00b7 '+_splitLine(i)+'</div>'
         +_editSplitBtn(i)
       +'</div>'
       +activeRight
@@ -15986,6 +16056,7 @@ function openQuickAdd(){
 // gid, parts, returnHistory, dateSourced, photo) rather than creating a new
 // one. This keeps all history intact and avoids duplicate GIDs.
 function openListFromSourced(m, id){
+  if(_jobLotActionGuard(id))return;
   const i=(DB[m]||[]).find(x=>x.id===id);
   if(!i||i.state!=='sourced'){toast('Item not found or already listed','error');return;}
   // Track parts cost so updateBPFPreview can include it in profit estimate
@@ -16436,6 +16507,7 @@ const _WITHDRAW_CLEAR_FIELDS = [
 ];
 
 function withdrawToSourced(m, id){
+  if(_jobLotActionGuard(id))return;
   // Find item — search all months (same pattern as submitListFromSourced)
   let srcMonth = m, item = null;
   allDBKeys().forEach(function(k){
@@ -16494,6 +16566,7 @@ function withdrawToSourced(m, id){
 // failed sale never happened. Full-return history stays intact, so when it
 // eventually sells markSold() correctly records Sale 2 rather than a new Sale 1.
 async function moveReturnedToUnlisted(m,id){
+  if(_jobLotActionGuard(id))return;
   const rec=_findItemRecordById(id),item=rec&&rec.item;
   if(!item||!item.isReturned||item.resaleSalePrice||item.scrappedAt){toast('This item is not waiting in Returned','err');return;}
   const ok=await showConfirm(
@@ -20128,7 +20201,7 @@ function renderSaleEventRow(ev){
           '<div class="item-row-meta">'+
             '<span class="item-badge '+status+'">'+badgeText+'</span>'+
             platBadgeHTML(i)+
-            (i.bundleId?'<span class="item-badge bundle" title="Sold as one bundle \u2014 tap for combined P&L" onclick="event.stopPropagation();openBundlePage(\''+i.bundleId+'\')">\u2ac5 bundle</span>':'')+
+            (_eventBundleId(ev)?'<span class="item-badge bundle" title="Sold as one bundle \u2014 tap for combined P&L" onclick="event.stopPropagation();openBundlePage(\''+_eventBundleId(ev)+'\')">\u2ac5 bundle</span>':'')+
             (metaStr?'<span class="item-row-meta-sep">·</span><span>'+metaStr+'</span>':'')+
           '</div>'+
         '</div>'+
@@ -20160,13 +20233,14 @@ function _toggleBundleSelect(bid){
 function renderBundleSaleRow(bid, members){
   let rev=0, profit=0, dateSold='';
   members.forEach(function(ev){
-    rev+=(ev.salePrice||0)+((ev.item&&ev.item.postage)||0);   // buyer paid = price + postage
+    const _evPost=(ev.sale==='2'&&ev.item)?Number(ev.item.resalePostage!=null?ev.item.resalePostage:(ev.item.postage||0)):Number((ev.item&&ev.item.postage)||0);
+    rev+=(ev.salePrice||0)+_evPost;   // buyer paid = event price + event-specific postage
     profit+=(ev.profit||0);
     if(!dateSold&&ev.saleDate)dateSold=ev.saleDate;
   });
   const n=members.length;
   const first=(members[0]&&members[0].item)||{};
-  const ref=first.bundleRef||'';
+  const ref=_eventBundleRef(members[0]||{});
   const allSel=_bundleAllSelected(bid);
   const metaParts=[];
   if(dateSold)metaParts.push('Sold '+dateSold);
@@ -20207,11 +20281,11 @@ function renderBundleSaleRow(bid, members){
 function _renderMonthList(events){
   const out=[], seen={};
   (events||[]).forEach(function(e){
-    const bid=(e && e.sale && !e.isReturned && !e.isReturnAdjustment && e.item && e.item.bundleId)?e.item.bundleId:null;
+    const bid=_eventBundleId(e);
     if(bid){
       if(seen[bid])return;
       seen[bid]=true;
-      const members=events.filter(function(x){return x && x.item && x.item.bundleId===bid && x.sale && !x.isReturned && !x.isReturnAdjustment;});
+      const members=events.filter(function(x){return _eventBundleId(x)===bid;});
       out.push(members.length>1?renderBundleSaleRow(bid,members):renderSaleEventRow(e));
     } else {
       out.push(renderSaleEventRow(e));
@@ -20258,7 +20332,9 @@ function renderItemRow(m,i){
         '<button onclick="event.stopPropagation();toggleDD(\'dd-'+i.id+'\');openListFromSourced(\''+m+'\',\''+i.id+'\')" style="color:var(--accent);font-weight:600;">'+icon('list',14)+' List Item</button>'+
         '<button onclick="event.stopPropagation();editItem(\''+m+'\',\''+i.id+'\')">'+icon('edit',14)+' Edit</button>'+
         '<button onclick="event.stopPropagation();confirmDupeItem(\''+m+'\',\''+i.id+'\')">'+icon('dupe',14)+' Duplicate</button>'+
-        (_canScrap(i)?'<button onclick="event.stopPropagation();toggleDD(\'dd-'+i.id+'\');openScrapModal(\''+m+'\',\''+i.id+'\')" style="color:var(--warn)">'+icon('dispose',14)+' Dispose</button>':'')+
+        (_canAddToJobLot(i)?'<button onclick=\"event.stopPropagation();toggleDD(\'dd-'+i.id+'\');openAddToJobLot(\''+m+'\',\''+i.id+'\')\" style=\"color:var(--purple)\">'+icon('joblot',14)+' Add to Job Lot</button>':'')+
+        (_canAddToJobLot(i)?'<button onclick="event.stopPropagation();toggleDD(\'dd-'+i.id+'\');openAddToJobLot(\''+m+'\',\''+i.id+'\')" style="color:var(--purple)">'+icon('joblot',14)+' Add to Job Lot</button>':'')+
+      (_canScrap(i)?'<button onclick="event.stopPropagation();toggleDD(\'dd-'+i.id+'\');openScrapModal(\''+m+'\',\''+i.id+'\')" style="color:var(--warn)">'+icon('dispose',14)+' Dispose</button>':'')+
         '<button class="danger" onclick="event.stopPropagation();deleteItem(\''+m+'\',\''+i.id+'\')">'+icon('trash',14)+' Delete</button>'+
       '</div></div>';
     const photoHTML=i.photo?'<div class="stock-row-thumb" style="width:38px;height:38px;border-radius:6px;background:#0007 center/cover no-repeat url(\''+i.photo+'\');flex-shrink:0;border:1px solid var(--border);"></div>':'';
@@ -20336,7 +20412,8 @@ function renderItemRow(m,i){
   // v2.21.17 — bundle chip: shows these items were ONE order to ONE buyer, and
   // opens the combined bundle P&L. The brace (added to the row below) ties the
   // grouped rows together visually.
-  const _bundleChip=i.bundleId?'<span class="item-badge bundle" title="Sold together as one bundle \u2014 tap for the combined P&L" onclick="event.stopPropagation();openBundlePage(\''+i.bundleId+'\')">\u2ac5 bundle</span>':'';
+  const _rowBundleId=(i.resaleSalePrice&&i.resaleBundleId)?i.resaleBundleId:i.bundleId;
+  const _bundleChip=_rowBundleId?'<span class="item-badge bundle" title="Sold together as one bundle \u2014 tap for the combined P&L" onclick="event.stopPropagation();openBundlePage(\''+_rowBundleId+'\')">\u2ac5 bundle</span>':'';
 
   const metaStr=metaParts.join(' · ');
 
@@ -20397,8 +20474,8 @@ function renderItemRow(m,i){
       '<button class="danger" onclick="event.stopPropagation();deleteItem(\''+m+'\',' + "'"+i.id+"'"+')">' + '<svg width="13" height="13" viewBox="0 0 15 15" fill="none"><path d="M5.5 1h4M1 3.5h13M2.5 3.5l1 9a1 1 0 001 .9h6a1 1 0 001-.9l1-9" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M6 6.5v4M9 6.5v4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg> Delete</button>'+
     '</div></div>';
 
-  return'<div class="item-row'+(selected?' selected':'')+' '+(isStale?' stale':'')+(i.bundleId?' in-bundle':'')+'" '+rowClick+'>'+
-    (i.bundleId?'<div class="bundle-brace" title="Sold together as one bundle"></div>':'')+
+  return'<div class="item-row'+(selected?' selected':'')+' '+(isStale?' stale':'')+(_rowBundleId?' in-bundle':'')+'" '+rowClick+'>'+
+    (_rowBundleId?'<div class="bundle-brace" title="Sold together as one bundle"></div>':'')+
     '<div class="item-main">'+
       '<div class="item-row-inner">'+
         leftSlot+
@@ -20746,23 +20823,29 @@ function selectAllStock(items){
 }
 
 async function stockBulkAction(action,items){
+  const selected=[...STOCK_SELECTED];
+  const protectedIds=selected.filter(function(id){return !!_activeJobLotMembership(id);});
+  const actionable=selected.filter(function(id){return !_activeJobLotMembership(id);});
   if(action==='sold'){
-    const today=new Date().toISOString().split('T')[0];
-    STOCK_SELECTED.forEach(function(id){
+    const today=new Date().toISOString().split('T')[0];let changed=0;
+    actionable.forEach(function(id){
       const rec=_findItemRecordById(id);const found=rec&&rec.item;
       if(found&&found.state==='listed'&&!found.isReturned&&!found.dateSold&&!found.resaleSalePrice&&!found.scrappedAt){
         found.dateSold=today;found.isReturned=false;found.state='sold';
         if(!found.soldOnPlatform)found.soldOnPlatform=_itemPlatform(found);
-        found.grossProfit=calcGrossProfit(found);
+        found.grossProfit=calcGrossProfit(found);changed++;
       }
     });
-    saveDB();STOCK_SELECTED.clear();STOCK_SELECTION_MODE=false;toast('Marked as sold');renderStock();
+    if(!changed){toast(protectedIds.length?'Selected item is managed through a Job Lot':'No selected listed items can be sold','err');return;}
+    saveDB();STOCK_SELECTED.clear();STOCK_SELECTION_MODE=false;toast('Marked '+changed+' item'+(changed===1?'':'s')+' as sold');renderStock();
   }else if(action==='delete'){
-    const ok=await showConfirm('Delete '+STOCK_SELECTED.size+' items?','This cannot be undone.',{icon:'delete',okLabel:'Delete all'});
+    if(protectedIds.length){toast('Remove Job Lot items from their lot before deleting them','err');return;}
+    if(!actionable.length)return;
+    const ok=await showConfirm('Delete '+actionable.length+' items?','This cannot be undone.',{icon:'delete',okLabel:'Delete all'});
     if(!ok)return;
-    STOCK_SELECTED.forEach(id=>{
-      allDBKeys().forEach(k=>{
-        const idx=(DB[k]||[]).findIndex(i=>i.id===id);
+    actionable.forEach(function(id){
+      allDBKeys().forEach(function(k){
+        const idx=(DB[k]||[]).findIndex(function(i){return i.id===id;});
         if(idx>-1)DB[k].splice(idx,1);
       });
     });
@@ -20770,16 +20853,438 @@ async function stockBulkAction(action,items){
   }
 }
 
-// ── Bundle helpers (v2.21.17) ────────────────────────────────────────────────
-// A bundle = several items sold to ONE buyer in ONE order. Items carry
-// bundleId (grouping key) + bundleRef (human label) + bundleTotal (order total).
+
+// ── Job Lots (Launch Audit v1.01) ────────────────────────────────────────────
+// A Job Lot is a PHYSICAL inventory grouping, not a sale bundle. Child items
+// keep their own immutable purchase/return history and cost basis. While a lot
+// is building/listed, active members are hidden from the ordinary item queues so
+// one physical unit never appears to have two operational owners.
+function _jobLotById(id){return (_jobLots||[]).find(function(l){return l&&l.id===id;})||null;}
+function _activeJobLots(){return (_jobLots||[]).filter(function(l){return l&&(l.status==='building'||l.status==='listed');});}
+function _activeJobLotMembership(itemId){
+  const activeIds=new Set(_activeJobLots().map(function(l){return l.id;}));
+  return (_jobLotItems||[]).find(function(m){return m&&m.itemId===itemId&&!m.removedAt&&activeIds.has(m.jobLotId);})||null;
+}
+function _latestJobLotMembership(itemId){
+  return (_jobLotItems||[]).filter(function(m){return m&&m.itemId===itemId;})
+    .sort(function(a,b){return String(b.addedAt||'').localeCompare(String(a.addedAt||''));})[0]||null;
+}
+function _activeJobLotForItem(itemId){
+  const m=_activeJobLotMembership(itemId);return m?_jobLotById(m.jobLotId):null;
+}
+function _jobLotActionGuard(itemId){
+  const lot=_activeJobLotForItem(itemId);
+  if(!lot)return false;
+  toast('Managed through '+lot.name);
+  setTimeout(function(){openJobLotPage(lot.id);},0);
+  return true;
+}
+function _jobLotMembers(lotId,includeRemoved){
+  return (_jobLotItems||[]).filter(function(m){return m&&m.jobLotId===lotId&&(includeRemoved||!m.removedAt);})
+    .map(function(mem){
+      const rec=_findItemRecordById(mem.itemId);
+      return rec?{membership:mem,item:rec.item,month:rec.month}:null;
+    }).filter(Boolean);
+}
+function _jobLotCost(lotId){
+  // The membership snapshot is the Job Lot's authoritative cost basis. Child
+  // cost edits are intentionally blocked while membership is active; to correct
+  // cost, remove the item, edit it, then add it back so ownership stays explicit.
+  return +_jobLotMembers(lotId,false).reduce(function(sum,x){
+    const raw=x.membership.costBasisAtAdd;
+    const snap=(raw===null||raw===undefined||raw==='')?NaN:Number(raw);
+    const live=(Number(x.item.costPrice)||0)+(typeof calcPartsCost==='function'?(Number(calcPartsCost(x.item))||0):0);
+    return sum+(isFinite(snap)?snap:live);
+  },0).toFixed(2);
+}
+function _jobLotPhysicalCount(lotId){return _jobLotMembers(lotId,false).length;}
+function _jobLotSearchText(lot){
+  const names=_jobLotMembers(lot.id,false).map(function(x){return x.item.item||'';}).join(' ');
+  return ((lot.name||'')+' '+names).toLowerCase();
+}
+function _jobLotPseudo(lot){
+  return {
+    id:'joblot:'+lot.id,item:lot.name||'Job Lot',state:lot.status==='listed'?'listed':'sourced',
+    costPrice:_jobLotCost(lot.id,false),salePrice:Number(lot.salePrice)||0,estSalePrice:Number(lot.salePrice)||0,
+    dateListed:lot.dateListed||null,dateSourced:lot.dateCreated||null,defaultPlatform:lot.platform||DEFAULT_PLATFORM,
+    category:'Wholesale & Job Lots',shippingCost:0,packagingCost:0,postage:0,promoPercent:0,parts:[],
+    _isJobLot:true,_jobLotId:lot.id
+  };
+}
+function _jobLotEstimatedProfit(lot){
+  if(!lot||!(Number(lot.salePrice)>0))return null;
+  try{return calcGrossProfit(_jobLotPseudo(lot));}catch(e){return +((Number(lot.salePrice)||0)-_jobLotCost(lot.id,false)).toFixed(2);}
+}
+function _jobLotAllocation(total,buyerPost,shipping,packaging,weights){
+  const safe=(weights||[]).some(function(v){return Number(v)>0;})?(weights||[]):(weights||[]).map(function(){return 1;});
+  return {
+    sale:_bundleSplit(Number(total)||0,safe),
+    postage:_bundleSplit(Number(buyerPost)||0,safe),
+    shipping:_bundleSplit(Number(shipping)||0,safe),
+    packaging:_bundleSplit(Number(packaging)||0,safe)
+  };
+}
+function _applyJobLotSaleLeg(i,leg){
+  const hasFull=(i.returnHistory||[]).some(function(r){return (r.type==='full_seller'||r.type==='full_ebay')&&r.saleNo!==2;});
+  if(hasFull){
+    // A returned physical unit is a Sale-2 leg. Never overwrite Sale 1 — and
+    // never reuse Sale 1's bundle fields for this new order. Otherwise the
+    // historical Sale 1 event would appear inside today's Job Lot.
+    i.resaleDateSold=leg.date;i.resaleSalePrice=leg.salePrice;i.resalePostage=leg.postage||0;
+    i.resaleShippingCost=leg.shipping||0;i.resalePackagingCost=leg.packaging||0;
+    i.resalePromoPercent=leg.promo||0;i.resalePlatform=leg.platform;i.isReturned=false;i.state='sold';
+    i.resaleBundleId=leg.bundleId;i.resaleBundleRef=leg.bundleRef;
+    i.resaleBundleTotal=+Number(leg.bundleTotal||0).toFixed(2);
+  }else{
+    i.dateSold=leg.date;i.salePrice=leg.salePrice;i.postage=leg.postage||0;
+    i.shippingCost=leg.shipping||0;i.packagingCost=leg.packaging||0;
+    i.promoPercent=leg.promo||0;i.soldOnPlatform=leg.platform;i.salePlatform=leg.platform;i.isReturned=false;i.state='sold';
+    i.bundleId=leg.bundleId;i.bundleRef=leg.bundleRef;i.bundleTotal=+Number(leg.bundleTotal||0).toFixed(2);
+  }
+  try{i.grossProfit=calcGrossProfit(i);}catch(e){}
+  return i;
+}
+function _canAddToJobLot(i){
+  if(!i||i.scrappedAt||_activeJobLotMembership(i.id))return false;
+  if((i.item||'').trim().toUpperCase()==='MONTH END')return false;
+  // Physical unit must be in hand: unsold first-sale stock OR a fully returned
+  // unit awaiting a second decision. A completed resale is not in inventory.
+  if(i.resaleSalePrice)return false;
+  if(i.isReturned)return true;
+  return !i.dateSold;
+}
+function _jobLotLog(item,action,lot,after){
+  DB.activityLog=DB.activityLog||[];
+  DB.activityLog.push({
+    id:_uuidLog(),itemId:item.id,itemName:item.item||'',action:action,
+    fromState:_actStatus(item),toState:'joblot',before:JSON.parse(JSON.stringify(item)),
+    month:(_findItemRecordById(item.id)||{}).month||null,
+    after:after||((lot&&lot.name)?lot.name:'Job Lot'),ts:Date.now(),undoable:false,undone:false
+  });
+}
+function _newJobLotName(){
+  const n=(_jobLots||[]).filter(function(l){return l&&l.status!=='archived';}).length+1;
+  return 'Job Lot '+n;
+}
+function _createJobLot(name,itemIds){
+  if(!_jobLotSchemaAvailable){toast('Job Lots need the v1.01 Supabase migration','err');return null;}
+  const lot={
+    id:_newId('jl'),name:(name||'').trim()||_newJobLotName(),status:'building',
+    dateCreated:new Date().toISOString().split('T')[0],dateListed:null,dateSold:null,
+    salePrice:0,platform:DEFAULT_PLATFORM||'ebay_biz',notes:'',createdAt:new Date().toISOString()
+  };
+  _jobLots.push(lot);
+  (itemIds||[]).forEach(function(id){
+    const rec=_findItemRecordById(id);if(!rec||!_canAddToJobLot(rec.item))return;
+    const c=(Number(rec.item.costPrice)||0)+(typeof calcPartsCost==='function'?(Number(calcPartsCost(rec.item))||0):0);
+    _jobLotItems.push({id:_newId('jm'),jobLotId:lot.id,itemId:id,addedAt:new Date().toISOString(),removedAt:null,costBasisAtAdd:+c.toFixed(2),notes:''});
+    _jobLotLog(rec.item,'Added to Job Lot',lot,'Cost ownership moved to '+lot.name+' · '+fmt(c)+' basis');
+  });
+  saveDB();
+  return lot;
+}
+function _addIdsToJobLot(lotId,itemIds){
+  const lot=_jobLotById(lotId);
+  if(!lot||lot.status!=='building'){toast('Only a building Job Lot can accept more items','err');return 0;}
+  let count=0;
+  (itemIds||[]).forEach(function(id){
+    const rec=_findItemRecordById(id);if(!rec||!_canAddToJobLot(rec.item))return;
+    const c=(Number(rec.item.costPrice)||0)+(typeof calcPartsCost==='function'?(Number(calcPartsCost(rec.item))||0):0);
+    _jobLotItems.push({id:_newId('jm'),jobLotId:lot.id,itemId:id,addedAt:new Date().toISOString(),removedAt:null,costBasisAtAdd:+c.toFixed(2),notes:''});
+    _jobLotLog(rec.item,'Added to Job Lot',lot,'Cost ownership moved to '+lot.name+' · '+fmt(c)+' basis');
+    count++;
+  });
+  if(count)saveDB();
+  return count;
+}
+function openAddToJobLot(m,id){
+  const rec=_findItemRecordById(id);if(!rec||!_canAddToJobLot(rec.item)){toast('This item cannot be added to a Job Lot','err');return;}
+  if(!_jobLotSchemaAvailable){toast('Job Lots need the v1.01 Supabase migration','err');return;}
+  const building=_activeJobLots().filter(function(l){return l.status==='building';});
+  const existing=building.length
+    ?'<div style="margin-bottom:16px"><div class="panel-section">Existing Job Lots</div>'
+      +building.map(function(l){
+        const n=_jobLotPhysicalCount(l.id),c=_jobLotCost(l.id,false);
+        return '<button class="btn btn-secondary" style="width:100%;justify-content:space-between;margin-bottom:7px;padding:10px 12px" onclick="_confirmAddSingleToJobLot(\''+l.id+'\',\''+id+'\')">'
+          +'<span style="display:flex;align-items:center;gap:8px">'+icon('joblot',15)+esc(l.name||'Job Lot')+'</span>'
+          +'<span style="font-size:11px;color:var(--muted)">'+n+' item'+(n===1?'':'s')+' · '+fmt(c)+'</span></button>';
+      }).join('')+'</div>'
+    :'';
+  const html='<div class="info-box" style="margin-bottom:14px"><strong>Cost ownership stays exact.</strong> The item keeps its own purchase and return history, but while it belongs to an active Job Lot it is managed through the lot instead of appearing as separate stock.</div>'
+    +existing
+    +'<div class="panel-section">Create new Job Lot</div>'
+    +'<div class="fg"><label>Name</label><input id="jl-new-name" type="text" value="'+esc(_newJobLotName())+'" autocomplete="off"></div>'
+    +'<button class="btn btn-primary" style="width:100%" onclick="_confirmCreateJobLotSingle(\''+id+'\')">'+icon('joblot',15)+' Create & add item</button>';
+  openPanel('Add to Job Lot',html);
+}
+function _confirmAddSingleToJobLot(lotId,itemId){
+  const n=_addIdsToJobLot(lotId,[itemId]);if(!n)return;
+  closePanel();toast('Added to '+(_jobLotById(lotId)||{}).name);renderStock();
+}
+function _confirmCreateJobLotSingle(itemId){
+  const e=document.getElementById('jl-new-name');const lot=_createJobLot(e?e.value:'',[itemId]);if(!lot)return;
+  closePanel();toast(lot.name+' created');renderStock();
+}
+function openNewJobLot(){
+  if(!_jobLotSchemaAvailable){toast('Job Lots need the v1.01 Supabase migration','err');return;}
+  const html='<div class="info-box" style="margin-bottom:14px">Create the container first, then add returned, unlisted or listed stock to it. Nothing is sold or written off when you make a Job Lot.</div>'
+    +'<div class="fg"><label>Job Lot name</label><input id="jl-empty-name" value="'+esc(_newJobLotName())+'" autocomplete="off"></div>'
+    +'<button class="btn btn-primary" style="width:100%" onclick="confirmNewJobLot()">'+icon('joblot',15)+' Create Job Lot</button>';
+  openPanel('New Job Lot',html);
+}
+function confirmNewJobLot(){
+  const e=document.getElementById('jl-empty-name');const lot=_createJobLot(e?e.value:'',[]);if(!lot)return;
+  closePanel();toast(lot.name+' created');renderStock();setTimeout(function(){openJobLotPage(lot.id);},0);
+}
+function openCreateJobLotFromSelection(){
+  const ids=[...STOCK_SELECTED].filter(function(id){const r=_findItemRecordById(id);return r&&_canAddToJobLot(r.item);});
+  if(!ids.length){toast('Select stock that is physically on hand','err');return;}
+  if(!_jobLotSchemaAvailable){toast('Job Lots need the v1.01 Supabase migration','err');return;}
+  const cost=ids.reduce(function(s,id){const r=_findItemRecordById(id);return s+(r?((Number(r.item.costPrice)||0)+calcPartsCost(r.item)):0);},0);
+  const html='<div class="info-box" style="margin-bottom:14px"><strong>'+ids.length+' item'+(ids.length===1?'':'s')+'</strong> · '+fmt(cost)+' total cost basis. They will stop appearing as separate Inventory rows while this Job Lot is active.</div>'
+    +'<div class="fg"><label>Job Lot name</label><input id="jl-bulk-name" value="'+esc(_newJobLotName())+'" autocomplete="off"></div>'
+    +'<button class="btn btn-primary" style="width:100%" onclick="_confirmCreateJobLotSelection()">'+icon('joblot',15)+' Create Job Lot</button>';
+  openPanel('Create Job Lot',html);
+}
+function _confirmCreateJobLotSelection(){
+  const ids=[...STOCK_SELECTED].filter(function(id){const r=_findItemRecordById(id);return r&&_canAddToJobLot(r.item);});
+  const e=document.getElementById('jl-bulk-name');const lot=_createJobLot(e?e.value:'',ids);if(!lot)return;
+  STOCK_SELECTED.clear();STOCK_SELECTION_MODE=false;closePanel();toast(lot.name+' created with '+ids.length+' items');renderStock();
+}
+function openJobLotAddItems(lotId){
+  const lot=_jobLotById(lotId);if(!lot||lot.status!=='building')return;
+  const rows=[];
+  allDBKeys().forEach(function(k){(DB[k]||[]).forEach(function(i){if(_canAddToJobLot(i))rows.push({m:k,item:i});});});
+  rows.sort(function(a,b){return String(a.item.item||'').localeCompare(String(b.item.item||''));});
+  if(!rows.length){toast('No other on-hand items are available','err');return;}
+  const list=rows.map(function(x){
+    const c=(Number(x.item.costPrice)||0)+calcPartsCost(x.item);
+    const st=x.item.isReturned?'Returned':(x.item.state==='sourced'?'Unlisted':'Listed');
+    return '<label style="display:flex;align-items:center;gap:10px;padding:9px 10px;border-bottom:1px solid var(--border);cursor:pointer">'
+      +'<input type="checkbox" class="jl-add-check" value="'+x.item.id+'" style="width:16px;height:16px;accent-color:var(--accent)">'
+      +'<span style="flex:1;min-width:0"><span style="display:block;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(x.item.item||'Item')+'</span>'
+      +'<span style="font-size:11px;color:var(--muted)">'+st+' · '+fmt(c)+' cost</span></span></label>';
+  }).join('');
+  const html='<div style="max-height:52vh;overflow:auto;border:1px solid var(--border);border-radius:10px;margin-bottom:12px">'+list+'</div>'
+    +'<button class="btn btn-primary" style="width:100%" onclick="_confirmJobLotAddItems(\''+lotId+'\')">Add selected items</button>';
+  openPanel('Add items to '+esc(lot.name),html);
+}
+function _confirmJobLotAddItems(lotId){
+  const ids=Array.from(document.querySelectorAll('.jl-add-check:checked')).map(function(e){return e.value;});
+  if(!ids.length){toast('Select at least one item','err');return;}
+  const n=_addIdsToJobLot(lotId,ids);closePanel();toast(n+' item'+(n===1?'':'s')+' added');renderStock();
+}
+async function removeFromJobLot(lotId,itemId){
+  const lot=_jobLotById(lotId),mem=_activeJobLotMembership(itemId),rec=_findItemRecordById(itemId);
+  if(!lot||!mem||mem.jobLotId!==lotId||!rec)return;
+  const ok=await showConfirm('Remove from '+lot.name+'?','The item returns to its previous operational queue. Its purchase, listing and return history are unchanged.',{okLabel:'Remove'});
+  if(!ok)return;
+  mem.removedAt=new Date().toISOString();
+  _jobLotLog(rec.item,'Removed from Job Lot',lot,'Returned to '+(rec.item.isReturned?'Returned':rec.item.state==='sourced'?'Unlisted':'Listed'));
+  saveDB();toast('Removed from '+lot.name);openJobLotPage(lotId);
+}
+async function breakApartJobLot(lotId){
+  const lot=_jobLotById(lotId);if(!lot||!(lot.status==='building'||lot.status==='listed'))return;
+  const members=_jobLotMembers(lotId,false);
+  const ok=await showConfirm('Break apart '+lot.name+'?','All '+members.length+' items return to their previous queues. No cost, revenue or historical sale data is changed.',{okLabel:'Break apart'});
+  if(!ok)return;
+  const now=new Date().toISOString();
+  members.forEach(function(x){x.membership.removedAt=now;_jobLotLog(x.item,'Removed from Job Lot',lot,'Job Lot broken apart');});
+  lot.status='broken_apart';
+  saveDB();closePanel();toast(lot.name+' broken apart');renderStock();
+}
+function openJobLotListing(lotId){
+  const lot=_jobLotById(lotId);if(!lot||!(lot.status==='building'||lot.status==='listed'))return;
+  const today=new Date().toISOString().split('T')[0];
+  const html='<div class="info-box" style="margin-bottom:14px">'+_jobLotPhysicalCount(lotId)+' physical items · '+fmt(_jobLotCost(lotId,false))+' cost basis. Listing the lot does not rewrite any child item history.</div>'
+    +'<div class="fg"><label>Lot name</label><input id="jl-list-name" value="'+esc(lot.name||'Job Lot')+'"></div>'
+    +'<div class="form-grid-2" style="display:grid;grid-template-columns:1fr 1fr;gap:12px">'
+      +'<div class="fg"><label>Listing date</label><input type="date" id="jl-list-date" value="'+esc(lot.dateListed||today)+'"></div>'
+      +'<div class="fg"><label>Asking price (£)</label><input type="number" min="0" step="0.01" id="jl-list-price" value="'+(Number(lot.salePrice)||0)+'"></div>'
+    +'</div>'
+    +'<div class="fg"><label>Platform</label><select id="jl-list-platform">'+Object.values(PLATFORMS).filter(function(p){return p.live;}).map(function(p){return '<option value="'+p.id+'"'+((lot.platform||DEFAULT_PLATFORM)===p.id?' selected':'')+'>'+esc(p.label||p.short)+'</option>';}).join('')+'</select></div>'
+    +'<div class="fg"><label>Notes (optional)</label><textarea id="jl-list-notes" rows="2">'+esc(lot.notes||'')+'</textarea></div>'
+    +'<button class="btn btn-primary" style="width:100%" onclick="confirmJobLotListing(\''+lotId+'\')">'+icon('list',15)+' '+(lot.status==='listed'?'Save listing':'Mark Job Lot listed')+'</button>';
+  openPanel((lot.status==='listed'?'Edit ':'List ')+esc(lot.name),html);
+}
+function confirmJobLotListing(lotId){
+  const lot=_jobLotById(lotId);if(!lot)return;
+  const price=Math.max(0,parseFloat((document.getElementById('jl-list-price')||{}).value)||0);
+  if(!(price>0)){toast('Enter an asking price','err');return;}
+  lot.name=((document.getElementById('jl-list-name')||{}).value||lot.name||'Job Lot').trim();
+  lot.dateListed=(document.getElementById('jl-list-date')||{}).value||new Date().toISOString().split('T')[0];
+  lot.salePrice=+price.toFixed(2);lot.platform=(document.getElementById('jl-list-platform')||{}).value||DEFAULT_PLATFORM;
+  lot.notes=((document.getElementById('jl-list-notes')||{}).value||'').trim();lot.status='listed';
+  saveDB();closePanel();toast(lot.name+' listed');renderStock();
+}
+function openJobLotSale(lotId){
+  const lot=_jobLotById(lotId);if(!lot||!(lot.status==='building'||lot.status==='listed'))return;
+  const members=_jobLotMembers(lotId,false);if(!members.length){toast('This Job Lot has no items','err');return;}
+  const today=new Date().toISOString().split('T')[0];
+  const html='<div class="info-box" style="margin-bottom:14px"><strong>One buyer, one order.</strong> RETRADE allocates the order total across the child items by their frozen cost basis only for internal accounting. Combined Job Lot P&amp;L remains the authoritative view.</div>'
+    +'<div class="form-grid-2" style="display:grid;grid-template-columns:1fr 1fr;gap:12px">'
+      +'<div class="fg"><label>Sale date</label><input type="date" id="jl-sale-date" value="'+today+'"></div>'
+      +'<div class="fg"><label>Order total (£)</label><input type="number" min="0" step="0.01" id="jl-sale-total" value="'+(Number(lot.salePrice)||0)+'"></div>'
+    +'</div>'
+    +'<div class="fg"><label>Platform</label><select id="jl-sale-platform">'+Object.values(PLATFORMS).filter(function(p){return p.live;}).map(function(p){return '<option value="'+p.id+'"'+((lot.platform||DEFAULT_PLATFORM)===p.id?' selected':'')+'>'+esc(p.label||p.short)+'</option>';}).join('')+'</select></div>'
+    +'<div class="form-grid-2" style="display:grid;grid-template-columns:1fr 1fr;gap:12px">'
+      +'<div class="fg"><label>Buyer postage (£)</label><input type="number" min="0" step="0.01" id="jl-sale-postage" value="0"></div>'
+      +'<div class="fg"><label>Your shipping cost (£)</label><input type="number" min="0" step="0.01" id="jl-sale-shipping" value="0"></div>'
+      +'<div class="fg"><label>Packaging cost (£)</label><input type="number" min="0" step="0.01" id="jl-sale-packaging" value="0"></div>'
+      +'<div class="fg"><label>Promoted / ad rate (%)</label><input type="number" min="0" max="100" step="0.1" id="jl-sale-promo" value="0"></div>'
+    +'</div>'
+    +'<div style="font-size:11px;color:var(--muted);margin:-4px 0 14px">'+members.length+' child item'+(members.length===1?'':'s')+' · '+fmt(_jobLotCost(lotId,false))+' cost basis</div>'
+    +'<button class="btn btn-primary" style="width:100%" onclick="confirmJobLotSale(\''+lotId+'\')">'+icon('sold',15)+' Mark Job Lot sold</button>';
+  openPanel('Sell '+esc(lot.name),html);
+}
+function confirmJobLotSale(lotId){
+  const lot=_jobLotById(lotId);if(!lot)return;
+  const members=_jobLotMembers(lotId,false);if(!members.length){toast('No active Job Lot members','err');return;}
+  const date=(document.getElementById('jl-sale-date')||{}).value||new Date().toISOString().split('T')[0];
+  const total=Math.max(0,parseFloat((document.getElementById('jl-sale-total')||{}).value)||0);
+  if(!(total>0)){toast('Enter the order total','err');return;}
+  const platform=(document.getElementById('jl-sale-platform')||{}).value||lot.platform||DEFAULT_PLATFORM;
+  const buyerPost=Math.max(0,parseFloat((document.getElementById('jl-sale-postage')||{}).value)||0);
+  const ship=Math.max(0,parseFloat((document.getElementById('jl-sale-shipping')||{}).value)||0);
+  const packaging=Math.max(0,parseFloat((document.getElementById('jl-sale-packaging')||{}).value)||0);
+  const promo=Math.max(0,Math.min(100,parseFloat((document.getElementById('jl-sale-promo')||{}).value)||0))/100;
+  const weights=members.map(function(x){
+    const s=Number(x.membership.costBasisAtAdd);return s>0?s:((Number(x.item.costPrice)||0)+calcPartsCost(x.item));
+  });
+  const alloc=_jobLotAllocation(total,buyerPost,ship,packaging,weights);
+  const saleShares=alloc.sale,postShares=alloc.postage,shipShares=alloc.shipping,packShares=alloc.packaging;
+  const bundleId=_newId('b'),bundleRef='JOB-'+String(date).replace(/-/g,'').slice(2)+'-'+members.length;
+  members.forEach(function(x,idx){
+    _applyJobLotSaleLeg(x.item,{
+      date:date,salePrice:saleShares[idx],postage:postShares[idx]||0,shipping:shipShares[idx]||0,
+      packaging:packShares[idx]||0,promo:promo,platform:platform,bundleId:bundleId,bundleRef:bundleRef,bundleTotal:total
+    });
+    x.membership.removedAt=new Date().toISOString();
+  });
+  lot.status='sold';lot.dateSold=date;lot.salePrice=+total.toFixed(2);lot.platform=platform;
+  lot.bundleId=bundleId;lot.bundleRef=bundleRef;
+  saveDB();closePanel();toast(lot.name+' sold for '+fmt(total));renderStock();
+  if(typeof openBundlePage==='function')openBundlePage(bundleId);
+}
+function renderJobLotCard(lot){
+  const members=_jobLotMembers(lot.id,false),count=members.length,cost=_jobLotCost(lot.id,false),price=Number(lot.salePrice)||0;
+  const listed=lot.status==='listed',p=_jobLotEstimatedProfit(lot);
+  const badge=listed?'LISTED':'JOB LOT';
+  const sub=(listed&&lot.dateListed?lot.dateListed+' · ':'')+count+' item'+(count===1?'':'s')+' · '+fmt(cost)+' cost';
+  const right=listed
+    ?'<div class="item-row-price">'+fmt(price)+'</div>'+(p!=null?'<div class="item-row-profit '+(p>=0?'pos':'neg')+'">est '+(p>=0?'+':'')+fmt(p)+'</div>':'')
+    :'<div class="item-row-price">'+fmt(cost)+'</div><div class="item-row-roi">combined cost</div>';
+  return '<div class="item-row joblot-row" onclick="openJobLotPage(\''+lot.id+'\')">'
+    +'<div class="item-main"><div class="item-row-inner"><div class="status-dot '+(listed?'listed':'sourced')+'"></div>'
+    +'<div class="item-row-body"><div class="item-row-name">'+esc(lot.name||'Job Lot')+'</div>'
+    +'<div class="item-row-meta"><span class="item-badge joblot">'+icon('joblot',11)+' '+badge+'</span><span class="item-row-meta-sep">·</span><span>'+sub+'</span></div></div>'
+    +'<div class="item-row-right">'+right+'</div></div></div>'
+    +'<div class="item-actions"><button class="ddbtn" onclick="event.stopPropagation();openJobLotPage(\''+lot.id+'\')" title="Manage Job Lot">⋮</button></div></div>';
+}
+function _jobLotSoldBundleId(lot){
+  if(!lot)return null;
+  if(lot.bundleId)return lot.bundleId;
+  // Backwards-compatible inference for a lot sold before bundle_id was stored
+  // on job_lots. Only consider sale legs on the lot's recorded sale date, then
+  // choose the bundle id shared by the largest number of physical members.
+  const counts={};
+  _jobLotMembers(lot.id,true).forEach(function(x){
+    const i=x.item||{};
+    if(i.resaleBundleId&&(!lot.dateSold||i.resaleDateSold===lot.dateSold))counts[i.resaleBundleId]=(counts[i.resaleBundleId]||0)+1;
+    if(i.bundleId&&(!lot.dateSold||i.dateSold===lot.dateSold))counts[i.bundleId]=(counts[i.bundleId]||0)+1;
+  });
+  const ids=Object.keys(counts).sort(function(a,b){return counts[b]-counts[a];});
+  return ids[0]||null;
+}
+function openJobLotPage(lotId){
+  const lot=_jobLotById(lotId);if(!lot){toast('Job Lot not found','err');return;}
+  const active=(lot.status==='building'||lot.status==='listed');
+  const members=_jobLotMembers(lotId,!active),cost=(active?_jobLotCost(lotId,false):members.reduce(function(s,x){return s+(Number(x.membership.costBasisAtAdd)||0);},0));
+  const soldBundleId=lot.status==='sold'?_jobLotSoldBundleId(lot):null;
+  const soldSummary=soldBundleId?_bundleSummary(soldBundleId):null;
+  const p=lot.status==='sold'?(soldSummary&&soldSummary.count?soldSummary.profit:members.reduce(function(s,x){return s+(_bundleMemberProfit(x.item,(x.item.resaleBundleId||x.item.bundleId))||0);},0)):_jobLotEstimatedProfit(lot);
+  const rows=members.length?members.map(function(x){
+    const currentActive=!x.membership.removedAt&&active;
+    const state=x.item.isReturned?'Returned':x.item.resaleSalePrice||x.item.dateSold?'Sold':x.item.state==='sourced'?'Unlisted':'Listed';
+    return '<div style="display:flex;align-items:center;gap:9px;padding:10px 12px;border-top:1px solid var(--border)">'
+      +'<button style="flex:1;min-width:0;text-align:left;background:none;border:none;color:var(--text);cursor:pointer" onclick="closePanel();openItemPage(\''+x.month+'\',\''+x.item.id+'\',\'p-stock\')">'
+        +'<span style="display:block;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(x.item.item||'Item')+'</span>'
+        +'<span style="font-size:11px;color:var(--muted)">'+state+' · '+fmt(Number(x.membership.costBasisAtAdd)||0)+' basis</span></button>'
+      +(currentActive?'<button class="btn btn-secondary" style="padding:5px 8px;font-size:11px" onclick="removeFromJobLot(\''+lotId+'\',\''+x.item.id+'\')">Remove</button>':'')
+      +'</div>';
+  }).join(''):'<div style="padding:18px;color:var(--muted);text-align:center">No items in this Job Lot</div>';
+  const statusLabel=lot.status==='building'?'Building':lot.status==='listed'?'Listed':lot.status==='sold'?'Sold':lot.status==='broken_apart'?'Broken apart':'Archived';
+  const html='<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">'
+      +'<div class="ip-token" style="flex:1;min-width:115px"><div class="ip-token-label">Status</div><div class="ip-token-val">'+statusLabel+'</div></div>'
+      +'<div class="ip-token" style="flex:1;min-width:115px"><div class="ip-token-label">Items</div><div class="ip-token-val">'+members.length+'</div></div>'
+      +'<div class="ip-token" style="flex:1;min-width:115px"><div class="ip-token-label">Cost basis</div><div class="ip-token-val">'+fmt(cost)+'</div></div>'
+      +'<div class="ip-token" style="flex:1;min-width:115px"><div class="ip-token-label">'+(lot.status==='sold'?'Current net profit':'Est. profit')+'</div><div class="ip-token-val" style="color:'+((p||0)>=0?'var(--green)':'var(--red)')+'">'+(p==null?'—':fmt(p))+'</div></div>'
+    +'</div>'
+    +'<div style="border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:14px"><div style="padding:8px 12px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)">Physical members</div>'+rows+'</div>'
+    +(lot.status==='sold'&&soldBundleId?'<div style="display:flex;gap:7px;flex-wrap:wrap;margin-bottom:10px"><button class="btn btn-secondary" onclick="closePanel();openBundlePage(\''+soldBundleId+'\')">'+icon('sold',14)+' View order P&amp;L</button></div>':'')
+    +(active?'<div style="display:flex;gap:7px;flex-wrap:wrap">'
+      +(lot.status==='building'?'<button class="btn btn-secondary" onclick="openJobLotAddItems(\''+lotId+'\')">'+icon('add',14)+' Add items</button>':'')
+      +'<button class="btn btn-secondary" onclick="openJobLotListing(\''+lotId+'\')">'+icon('list',14)+' '+(lot.status==='listed'?'Edit listing':'List lot')+'</button>'
+      +'<button class="btn btn-primary" onclick="openJobLotSale(\''+lotId+'\')">'+icon('sold',14)+' Mark sold</button>'
+      +'<button class="btn btn-secondary" style="color:var(--warn)" onclick="breakApartJobLot(\''+lotId+'\')">'+icon('revert',14)+' Break apart</button>'
+      +'</div>':'');
+  openPanel(esc(lot.name||'Job Lot'),html);
+}
+
+// ── Bundle helpers (v2.21.17 / v1.01 sale-event hardening) ──────────────────
+// A bundle = several items sold to ONE buyer in ONE order. Sale 1 and Sale 2
+// have independent bundle identities so a later resale can never rewrite the
+// grouping of an earlier historical sale.
+function _eventBundleId(ev){
+  if(!ev||!ev.item||ev.isReturnAdjustment||ev.isReturned)return null;
+  return ev.sale==='2'?(ev.item.resaleBundleId||null):(ev.item.bundleId||null);
+}
+function _eventBundleRef(ev){
+  if(!ev||!ev.item)return '';
+  return ev.sale==='2'?(ev.item.resaleBundleRef||''):(ev.item.bundleRef||'');
+}
+function _eventBundleTotal(ev){
+  if(!ev||!ev.item)return 0;
+  return Number(ev.sale==='2'?ev.item.resaleBundleTotal:ev.item.bundleTotal)||0;
+}
+function _bundleMemberIsResale(i,bid){
+  if(!i)return false;
+  if(bid){
+    if(i.resaleBundleId===bid)return true;
+    if(i.bundleId===bid)return false;
+  }
+  // Legacy fallback for pre-v1.01 data that has no sale-2 bundle fields.
+  return !!(i.resaleSalePrice&&(i.returnHistory||[]).some(function(r){return (r.type==='full_seller'||r.type==='full_ebay')&&r.saleNo!==2;}));
+}
+function _bundleMemberSalePrice(i,bid){return _bundleMemberIsResale(i,bid)?(Number(i.resaleSalePrice)||0):(Number(i&&i.salePrice)||0);}
+function _bundleMemberPostage(i,bid){return _bundleMemberIsResale(i,bid)?Number(i.resalePostage!=null?i.resalePostage:(i.postage||0)):(Number(i&&i.postage)||0);}
+function _bundleMemberShipping(i,bid){return _bundleMemberIsResale(i,bid)?(Number(i.resaleShippingCost)||0):(Number(i&&i.shippingCost)||0);}
+function _bundleMemberSoldDate(i,bid){return _bundleMemberIsResale(i,bid)?(i.resaleDateSold||i.dateSold||''):(i.dateSold||'');}
+function _bundleMemberRef(i,bid){return _bundleMemberIsResale(i,bid)?(i.resaleBundleRef||''):(i.bundleRef||'');}
+function _bundleMemberTotal(i,bid){return Number(_bundleMemberIsResale(i,bid)?i.resaleBundleTotal:i.bundleTotal)||0;}
+function _bundleMemberProfit(i,bid){
+  // Current economics of THIS order leg: sale-date profit plus any later
+  // refunds/returns belonging to the same sale number. This keeps an old Sale 1
+  // bundle correct after a return/resale, and a Job Lot Sale 2 equally isolated.
+  try{
+    const p=_reconciledItemEventProfits(i),is2=_bundleMemberIsResale(i,bid),target=is2?2:1;
+    let total=Number(is2?p.s2:p.s1)||0;
+    (i.returnHistory||[]).forEach(function(r,idx){
+      const rn=(r.saleNo===2)?2:1;
+      if(rn===target)total+=Number((p.returns||[])[idx])||0;
+    });
+    return +total.toFixed(2);
+  }catch(e){return 0;}
+}
 function _bundleItems(bid){
   if(!bid)return [];
   const out=[];
   allDBKeys().forEach(function(k){
-    (DB[k]||[]).forEach(function(i){ if(i.bundleId===bid)out.push(Object.assign({},i,{_month:k})); });
+    (DB[k]||[]).forEach(function(i){
+      if(i.bundleId===bid||i.resaleBundleId===bid)out.push(Object.assign({},i,{_month:k}));
+    });
   });
-  return out.sort(function(a,b){return (b.salePrice||0)-(a.salePrice||0);});
+  return out.sort(function(a,b){return _bundleMemberSalePrice(b,bid)-_bundleMemberSalePrice(a,bid);});
 }
 // Split a total pro-rata by each item's listed (ask) price, using
 // largest-remainder so the allocated parts sum to the total EXACTLY (no penny
@@ -20802,25 +21307,26 @@ function _bundleSummary(bid){
   const its=_bundleItems(bid);
   let revenue=0,cost=0,profit=0,shipping=0;
   its.forEach(function(i){
-    revenue+=(i.salePrice||0)+(i.postage||0);
+    revenue+=_bundleMemberSalePrice(i,bid)+_bundleMemberPostage(i,bid);
     cost+=(i.costPrice||0)+calcPartsCost(i);
-    shipping+=(i.shippingCost||0);
-    const p=calcGrossProfit(i); if(typeof p==='number')profit+=p;
+    shipping+=_bundleMemberShipping(i,bid);
+    profit+=_bundleMemberProfit(i,bid);
   });
+  const first=its[0]||{};
   return {items:its,count:its.length,revenue:+revenue.toFixed(2),cost:+cost.toFixed(2),
           shipping:+shipping.toFixed(2),profit:+profit.toFixed(2),
-          ref:(its[0]||{}).bundleRef||'',date:(its[0]||{}).dateSold||'',
-          total:(its[0]||{}).bundleTotal||0,
+          ref:_bundleMemberRef(first,bid),date:_bundleMemberSoldDate(first,bid),
+          total:_bundleMemberTotal(first,bid),
           margin:revenue>0?+(profit/revenue*100).toFixed(1):null};
 }
 function openBundlePage(bid){
   const b=_bundleSummary(bid);
   if(!b.count){toast('Bundle not found','error');return;}
   const rows=b.items.map(function(i){
-    const p=calcGrossProfit(i);
+    const p=_bundleMemberProfit(i,bid);
     return '<div style="display:flex;align-items:center;gap:8px;padding:10px 14px;border-top:1px solid var(--border);font-size:13px;cursor:pointer" onclick="closePanel();openItemPage(\''+i._month+'\',\''+i.id+'\',document.querySelector(\'.page.on\').id)">'
       +'<span style="flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(i.item||'Item')+'</span>'
-      +'<span style="color:var(--text-secondary);flex-shrink:0">'+fmt(i.salePrice||0)+'</span>'
+      +'<span style="color:var(--text-secondary);flex-shrink:0">'+fmt(_bundleMemberSalePrice(i,bid))+'</span>'
       +'<span style="font-weight:700;flex-shrink:0;color:'+((p||0)>=0?'var(--green)':'var(--red)')+'">'+fmt(p||0)+'</span></div>';
   }).join('');
   const kpi=function(l,v,c){return '<div style="flex:1;min-width:120px;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 14px">'
@@ -20829,9 +21335,9 @@ function openBundlePage(bid){
   const html='<div style="font-size:12px;color:var(--text-secondary);margin-bottom:12px">'
       +b.count+' items \u00b7 one buyer \u00b7 '+(b.date?esc(b.date):'\u2014')+(b.ref?' \u00b7 '+esc(b.ref):'')+'</div>'
     +'<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px">'
-      +kpi('Order total',fmt(b.revenue))
-      +kpi('Item cost',fmt(b.cost))
-      +kpi('Net profit',fmt(b.profit),b.profit>=0?'var(--green)':'var(--red)')
+      +kpi('Original order',fmt(b.revenue))
+      +kpi('Item cost basis',fmt(b.cost))
+      +kpi('Current net profit',fmt(b.profit),b.profit>=0?'var(--green)':'var(--red)')
       +kpi('Margin',b.margin===null?'\u2014':b.margin+'%')
     +'</div>'
     +'<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden">'
@@ -21377,33 +21883,45 @@ function renderStock(){
   const today=new Date().toISOString().split('T')[0];
   // v1.01 — Inventory means physical stock on hand. A returned unit is its own
   // operational queue; it is never silently folded back into Unlisted.
+  // Active Job Lot members have exactly one operational owner: the Job Lot.
+  // They remain auditable as child items but are hidden from individual queues.
+  const _activeLotsNow=_jobLotSchemaAvailable?_activeJobLots():[];
+  const _activeLotMemberIds=new Set();
+  _activeLotsNow.forEach(function(l){_jobLotMembers(l.id,false).forEach(function(x){_activeLotMemberIds.add(x.item.id);});});
   let allListed=[], allStock=[], allReturned=[], allRemoved=[];
   allDBKeys().forEach(k=>(DB[k]||[]).forEach(i=>{
     if((i.item||'').trim().toUpperCase()==='MONTH END')return;
     const row={...i,month:k};
     if(i.scrappedAt){ allRemoved.push(row); return; }
+    if(_activeLotMemberIds.has(i.id))return;
     if((i.isReturned||i.state==='returned')&&!i.resaleSalePrice){ allReturned.push(row); return; }
     if(i.state==='sourced'&&!i.dateSold&&!i.resaleSalePrice){ allStock.push(row); return; }
     if(!i.dateSold&&!i.resaleSalePrice){ allListed.push(row); }
   }));
+  const _listedLots=_activeLotsNow.filter(function(l){return l.status==='listed';});
+  const _buildingLots=_activeLotsNow.filter(function(l){return l.status==='building';});
   const allOnHand=[...allListed,...allStock,...allReturned];
   const isAllView=STOCK_STATE_FILTER==='all';
   const isStockOnly=STOCK_STATE_FILTER==='sourced'; // UI label: Unlisted
   const isListedOnly=STOCK_STATE_FILTER==='listed';
   const isReturnedOnly=STOCK_STATE_FILTER==='returned';
   let pop=isAllView?allOnHand:(isStockOnly?allStock:(isReturnedOnly?allReturned:allListed));
-  const cAll=pop.length;
-  const cAllListed=allListed.length, cAllStock=allStock.length, cAllReturned=allReturned.length;
+  let visibleLots=isAllView?_activeLotsNow:(isStockOnly?_buildingLots:(isListedOnly?_listedLots:[]));
+  const cAll=pop.length+visibleLots.length;
+  const _listedAgeEntities=allListed.concat(_listedLots.map(_jobLotPseudo));
+  const _unlistedAgeEntities=allStock.concat(_buildingLots.map(_jobLotPseudo));
+  const cAllListed=_listedAgeEntities.length, cAllStock=_unlistedAgeEntities.length, cAllReturned=allReturned.length;
+  const cAllRemoved=(typeof _scrappedItems==='function'?_scrappedItems().length:items.filter(function(i){return !!i.scrappedAt;}).length);
   const _stockSeg=(function(){
     const bk=[
-      {key:'all',label:'All',count:allOnHand.length},
+      {key:'all',label:'All',count:allOnHand.length+_activeLotsNow.length},
       {key:'listed',label:'Listed',count:cAllListed},
       {key:'sourced',label:'Unlisted',count:cAllStock},
       {key:'returned',label:'Returned',count:cAllReturned}
     ];
     return '<div class="segmented stock-state-seg">'+bk.map(function(b){return '<button class="'+(STOCK_STATE_FILTER===b.key?'is-active':'')+'" onclick="setStockStateFilter(\''+b.key+'\')">'+b.label+'<span class="count">'+b.count+'</span></button>';}).join('')+'</div>';
   })();
-  const cStale=allListed.filter(i=>{const d=i.dateListed;return d&&daysBetween(d,today)>=90;}).length;
+  const cStale=_listedAgeEntities.filter(i=>{const d=i.dateListed;return d&&daysBetween(d,today)>=90;}).length;
 
   // Sourced age buckets: New 0–3d · List soon 4–7d · Overdue 8–14d · Stagnant 15d+
   // Used for both the filter chips and the per-row colour dot.
@@ -21428,6 +21946,24 @@ function renderStock(){
     else if(STOCK_FILTER==='slow')items=pop.filter(i=>{const d=i.dateListed;if(!d)return false;const n=daysBetween(d,today);return n>60&&n<90;});
     else if(STOCK_FILTER==='maturing')items=pop.filter(i=>{if(!i.dateListed)return false;const d=daysBetween(i.dateListed,today);return d>30&&d<=60;});
     else if(STOCK_FILTER==='fresh')items=pop.filter(i=>i.dateListed&&daysBetween(i.dateListed,today)<=30);
+  }
+  // Apply the same operational age/search filters to Job Lots. A lot counts as
+  // one saleable inventory unit while its card shows the physical child count.
+  if(isStockOnly&&STOCK_SOURCED_FILTER!=='all'){
+    visibleLots=visibleLots.filter(function(l){return _sourcedBucket(_jobLotPseudo(l))===STOCK_SOURCED_FILTER;});
+  }else if(isListedOnly&&STOCK_FILTER!=='all'){
+    visibleLots=visibleLots.filter(function(l){
+      if(!l.dateListed)return false;const n=daysBetween(l.dateListed,today);
+      if(STOCK_FILTER==='fresh')return n<=30;
+      if(STOCK_FILTER==='maturing')return n>30&&n<=60;
+      if(STOCK_FILTER==='slow')return n>60&&n<90;
+      if(STOCK_FILTER==='stale')return n>=90;
+      return true;
+    });
+  }
+  if(STOCK_SEARCH){
+    const _jq=String(STOCK_SEARCH).trim().toLowerCase();
+    if(_jq)visibleLots=visibleLots.filter(function(l){return _jobLotSearchText(l).indexOf(_jq)!==-1;});
   }
   // Sort comparator — profit/roi/price for listed; cost-desc/days for sourced.
   const sortCmp=(a,b)=>{
@@ -21507,9 +22043,10 @@ function renderStock(){
   }
 
   // Avg listing age (listed items only — sourced items have no dateListed)
-  const avgListingAge=allListed.length?Math.round(allListed.reduce((s,i)=>s+daysBetween(i.dateListed,today),0)/allListed.length):0;
-  // Capital tied up in 90d+ listings
-  const capitalStale=allListed.filter(i=>daysBetween(i.dateListed,today)>=90).reduce((s,i)=>s+(i.salePrice||0),0);
+  const _datedListedAgeEntities=_listedAgeEntities.filter(function(i){return !!i.dateListed;});
+  const avgListingAge=_datedListedAgeEntities.length?Math.round(_datedListedAgeEntities.reduce((s,i)=>s+daysBetween(i.dateListed,today),0)/_datedListedAgeEntities.length):0;
+  // Capital tied up in 90d+ listings, including listed Job Lots as one unit.
+  const capitalStale=_datedListedAgeEntities.filter(i=>daysBetween(i.dateListed,today)>=90).reduce((s,i)=>s+(i.salePrice||0),0);
   // Avg days to list — rolling historical avg across items that have transitioned
   const ttlValues=[];
   allDBKeys().forEach(k=>(DB[k]||[]).forEach(i=>{
@@ -21521,7 +22058,7 @@ function renderStock(){
   const avgDaysToList=ttlValues.length?Math.round(ttlValues.reduce((s,v)=>s+v,0)/ttlValues.length):null;
   // Longest sitting sourced item
   let longestSittingDays=null,longestSittingName='';
-  allStock.forEach(i=>{
+  _unlistedAgeEntities.forEach(i=>{
     const d=_daysInStock(i);
     if(d!==null&&(longestSittingDays===null||d>longestSittingDays)){longestSittingDays=d;longestSittingName=(i.item||'Untitled').trim();}
   });
@@ -21529,7 +22066,8 @@ function renderStock(){
   // Aging buckets — always from allListed; chips hidden on sourced-only filter
   const ageBuckets={fresh:0,maturing:0,slow:0,stale:0};
   const ageBucketsValue={fresh:0,maturing:0,slow:0,stale:0};
-  allListed.forEach(i=>{
+  _listedAgeEntities.forEach(i=>{
+    if(!i.dateListed)return;
     const d=daysBetween(i.dateListed,today);
     const v=i.salePrice||0;
     if(d<=30){ageBuckets.fresh++;ageBucketsValue.fresh+=v;}
@@ -21543,6 +22081,7 @@ function renderStock(){
   let estPotential=0;
   let cWithEstimate=0;
   allStock.forEach(function(i){ const _n=_estPotentialNet(i); if(_n!=null){estPotential+=_n;cWithEstimate++;} });
+  _buildingLots.forEach(function(l){const _n=_jobLotEstimatedProfit(l);if(_n!=null){estPotential+=_n;cWithEstimate++;}});
 
   // Value KPI: sourced items contribute cost; listed items contribute asking price
   let totalValue=0;
@@ -21552,11 +22091,11 @@ function renderStock(){
 
   // v2.20.5 — companion numbers so each KPI card carries a second metric (cost / ROI / velocity)
   const _capCost=function(i){return (Number(i.costPrice)||0)+(typeof calcPartsCost==='function'?(Number(calcPartsCost(i))||0):0);};
-  const listedCost=+allListed.reduce(function(s,i){return s+_capCost(i);},0).toFixed(2);
-  const sourcedCost=+allStock.reduce(function(s,i){return s+_capCost(i);},0).toFixed(2);
+  const listedCost=+(allListed.reduce(function(s,i){return s+_capCost(i);},0)+_listedLots.reduce(function(s,l){return s+_jobLotCost(l.id,false);},0)).toFixed(2);
+  const sourcedCost=+(allStock.reduce(function(s,i){return s+_capCost(i);},0)+_buildingLots.reduce(function(s,l){return s+_jobLotCost(l.id,false);},0)).toFixed(2);
   const returnedCost=+allReturned.reduce(function(s,i){return s+_capCost(i);},0).toFixed(2);
-  const listedAsking=+allListed.reduce(function(s,i){return s+(Number(i.salePrice)||0);},0).toFixed(2);
-  const listedPotentialProfit=+allListed.reduce(function(s,i){return s+(calcEstProfit(i)||0);},0).toFixed(2);
+  const listedAsking=+(allListed.reduce(function(s,i){return s+(Number(i.salePrice)||0);},0)+_listedLots.reduce(function(s,l){return s+(Number(l.salePrice)||0);},0)).toFixed(2);
+  const listedPotentialProfit=+(allListed.reduce(function(s,i){return s+(calcEstProfit(i)||0);},0)+_listedLots.reduce(function(s,l){return s+(_jobLotEstimatedProfit(l)||0);},0)).toFixed(2);
   const listedMarkup=listedCost>0?Math.round((listedAsking/listedCost-1)*100):0;
   const listedROI=listedCost>0?Math.round(listedPotentialProfit/listedCost*100):null;
   const sourcedROI=sourcedCost>0?Math.round(estPotential/sourcedCost*100):null;
@@ -21579,7 +22118,7 @@ function renderStock(){
   if(isStockOnly){
     kpis=[
       {cls:'b',label:'Capital tied up',  val:fmt(sourcedCost), sub:'Cost of unlisted stock on hand'},
-      {cls:'', label:'Items to list',    val:allStock.length?String(allStock.length):'—', sub:allStock.length+' waiting to be listed'},
+      {cls:'', label:'Items to list',    val:cAllStock?String(cAllStock):'—', sub:cAllStock+' inventory unit'+(cAllStock===1?'':'s')+' waiting'},
       {cls:'g',label:'Est. potential',   val:cWithEstimate?fmt(estPotential):'—', sub:cWithEstimate?((sourcedROI!=null?sourcedROI+'% ROI · ':'')+cWithEstimate+' with estimate'):'No estimates set yet'},
       {cls:'p',label:'Longest sitting',  val:longestSittingDays!==null?longestSittingDays+'d':'—', sub:longestSittingDays!==null?longestTrunc:'Nothing unlisted'}
     ];
@@ -21599,8 +22138,10 @@ function renderStock(){
     ];
   } else {
     const totalCapital=listedCost+sourcedCost+returnedCost;
+    const _lotPhysical=_activeLotsNow.reduce(function(s,l){return s+_jobLotPhysicalCount(l.id);},0);
+    const _physicalStock=allOnHand.length+_lotPhysical;
     kpis=[
-      {cls:'b',label:'Stock on hand',    val:String(allOnHand.length), sub:cAllListed+' listed · '+cAllStock+' unlisted · '+cAllReturned+' returned'},
+      {cls:'b',label:'Stock on hand',    val:String(_physicalStock), sub:cAllListed+' listed unit'+(cAllListed===1?'':'s')+' · '+cAllStock+' unlisted · '+cAllReturned+' returned'},
       {cls:'', label:'Capital tied up',  val:fmtK(totalCapital), sub:'Cost basis across all physical stock'},
       {cls:'g',label:'Listed asking',    val:fmtK(listedAsking), sub:cAllListed+' active listing'+(cAllListed===1?'':'s')},
       {cls:'r',label:'Returned',         val:String(cAllReturned), sub:cAllReturned?'Need a decision':'Nothing waiting'}
@@ -21612,6 +22153,7 @@ function renderStock(){
 
   const _stockSelectedRows=items.filter(function(i){return STOCK_SELECTED.has(i.id);});
   const _stockCanBulkSell=_stockSelectedRows.length>0&&_stockSelectedRows.every(function(i){return i.state==='listed'&&!i.isReturned&&!i.dateSold&&!i.resaleSalePrice&&!i.scrappedAt;});
+  const _stockCanJobLot=_stockSelectedRows.length>0&&_stockSelectedRows.every(function(i){return _canAddToJobLot(i);});
 
   const html=`
     <div class="page-header">
@@ -21631,6 +22173,7 @@ function renderStock(){
             <div class="ddmenu" style="right:0;min-width:160px;">
               <button onclick="toggleDD('dd-stock-add');openQuickAdd()">${icon('list',14)} List Item</button>
               <button onclick="toggleDD('dd-stock-add');openStockQuickAdd()">${icon('cat_other',14)} Add to Stock</button>
+              <button onclick="toggleDD('dd-stock-add');openNewJobLot()" style="color:var(--purple)">${icon('joblot',14)} New Job Lot</button>
             </div>
           </div>
         </div>
@@ -21653,12 +22196,12 @@ function renderStock(){
         ];
         const sCounts={new:0,soon:0,overdue:0,stagnant:0};
         const sCostVal={new:0,soon:0,overdue:0,stagnant:0};
-        allStock.forEach(i=>{
+        _unlistedAgeEntities.forEach(i=>{
           const b=_sourcedBucket(i);
           sCounts[b]++;
           sCostVal[b]+=(i.costPrice||0);
         });
-        const tot=allStock.length||1;
+        const tot=_unlistedAgeEntities.length||1;
         const barHTML=sBuckets.map(s=>{
           const pct=(sCounts[s.key]/tot)*100;
           if(pct===0)return '';
@@ -21676,7 +22219,7 @@ function renderStock(){
         const ddOpts=['all',...sBuckets.map(b=>b.key)].map(k=>{
           const meta=k==='all'?{label:'All',col:'var(--muted)'}:sBuckets.find(b=>b.key===k);
           const isAct=STOCK_SOURCED_FILTER===k;
-          const cnt=k==='all'?allStock.length:(sCounts[k]||0);
+          const cnt=k==='all'?_unlistedAgeEntities.length:(sCounts[k]||0);
           const isEmpty=k!=='all'&&cnt===0;
           return `<button class="filter-pill-dd-opt${isAct?' active':''}${isEmpty?' filter-pill-dd-opt-empty':''}" ${isEmpty?'disabled':''} onclick="${isEmpty?'':("setStockSourcedFilter('"+k+"');closeFilterPill('sfp-sourced')")}"><span class="filter-pill-dd-opt-dot" style="background:${meta.col||'var(--muted)'}"></span>${meta.label}<span class="filter-pill-dd-opt-count">${cnt}</span></button>`;
         }).join('');
@@ -21689,7 +22232,7 @@ function renderStock(){
         return `<div class="age-bar-wrap"><div class="age-bar">${barHTML}</div></div>
           <div class="filter-row stock-filter-row" style="margin-bottom:14px;gap:8px;flex-wrap:nowrap;align-items:center;">
             <div class="filter-chips">
-              <button class="chip${STOCK_SOURCED_FILTER==='all'?' active':''}" onclick="setStockSourcedFilter('all')">All <span class="chip-count">${allStock.length}</span></button>${chips}
+              <button class="chip${STOCK_SOURCED_FILTER==='all'?' active':''}" onclick="setStockSourcedFilter('all')">All <span class="chip-count">${_unlistedAgeEntities.length}</span></button>${chips}
             </div>
             <div class="filter-pill-dd" id="sfp-sourced">
               <div class="filter-pill-dd-backdrop" onclick="closeFilterPill('sfp-sourced')"></div>
@@ -21754,6 +22297,7 @@ function renderStock(){
             <select class="sort-select" onchange="setStockSort(this.value)">${sortHTML}</select>
           </div>`;
       })():''}
+      ${visibleLots.length?`<div class="sl" style="margin-top:14px">${icon('joblot',13)} Job Lots</div><div class="item-table" style="margin-bottom:14px">${visibleLots.map(function(l){return renderJobLotCard(l);}).join('')}</div>`:''}
       ${((window.__stockAll&&window.__stockAll.length)||STOCK_SEARCH)?_inlistSearchHTML('stock'):''}
       <div class="list-toolbar">
         ${STOCK_SELECTION_MODE?`
@@ -21769,6 +22313,7 @@ function renderStock(){
             ${_stockCanBulkSell?`<button class="bulk-ctrl is-sold" onclick="stockBulkAction('sold',window.__stockItems||[])">${icon('sold',14)} Mark Sold</button>
             ${_stockSelectedRows.length>1?`<button class="bulk-ctrl" style="background:var(--accent);color:#000;font-weight:700;" onclick="openBundleSaleModal()">${icon('sold',14)} Bundle sale</button>`:''}
             <select class="bulk-ctrl bulk-plat-sel" data-source="stock" onchange="if(this.value){bulkChangePlatform(this.value,'stock');this.value=''}"><option value="">Platform</option>${Object.values(PLATFORMS).filter(p=>p.live).map(p=>`<option value="${p.id}">${p.short}</option>`).join('')}</select>`:''}
+            ${_stockCanJobLot?`<button class="bulk-ctrl" style="color:var(--purple)" onclick="openCreateJobLotFromSelection()">${icon('joblot',14)} Job Lot</button>`:''}
             <button class="bulk-ctrl is-danger" onclick="stockBulkAction('delete',window.__stockItems||[])">${icon('trash',14)} Delete</button>
           `:''}
           <button class="sel-exit" onclick="toggleStockSelection()">\u2715 Done</button>
@@ -22260,6 +22805,7 @@ function _returnTypeMeta(t){
 // pre-stages the job-lot merge (built separately).
 function _canScrap(i){
   if(!i||i.scrappedAt)return false;
+  if(_activeJobLotMembership(i.id))return false;
   if((i.item||'').trim().toUpperCase()==='MONTH END')return false;
   // Removable unless it's currently sold/resold AND not back in your hands. isReturned always
   // wins (a returned item is on hand regardless of prior sale/resale or an odd leftover state).
@@ -22272,6 +22818,7 @@ function _scrapReasonToggle(){
   const btn=document.getElementById('scrap-confirm-btn');if(btn)btn.textContent=isReturn?'Record supplier return':'Remove from stock';
 }
 function openScrapModal(m,id){
+  if(_jobLotActionGuard(id))return;
   const i=(DB[m]||[]).find(function(x){return x.id===id;});
   if(!i)return;
   const cost=(Number(i.costPrice)||0)+((typeof calcPartsCost==='function')?(Number(calcPartsCost(i))||0):0);
@@ -24626,6 +25173,7 @@ async function clearAllData(){
 function editItem(m,id){
   const item=(DB[m]||[]).find(i=>i.id===id);
   if(!item)return;
+  if(_jobLotActionGuard(id))return;
   // Patch A — stock items get a minimal edit panel (no platform/price/fees)
   if(item.state==='sourced'){ return _editStockItem(m,item); }
   const _editPlat=item.defaultPlatform||DEFAULT_PLATFORM;
@@ -24945,6 +25493,7 @@ document.addEventListener('keydown',function(e){
 });
 
 function markSold(m,id){
+  if(_jobLotActionGuard(id))return;
   const item=(DB[m]||[]).find(i=>i.id===id);
   if(!item)return;
   const hasFullReturn=(item.returnHistory||[]).some(r=>r.type==='full_seller'||r.type==='full_ebay');
@@ -25092,6 +25641,7 @@ function closeResaleModal(){_closeSaleModal('resale-modal');}
 let _deletedThisSession = [];
 
 async function deleteItem(m,id){
+  if(_jobLotActionGuard(id))return;
   const item=(DB[m]||[]).find(i=>i.id===id);
   const name=item?item.item:'this item';
   const ok=await showConfirm('Delete item?',esc(name)+' will be removed. You can restore it from Data \u2192 Recently deleted until you reload.',{icon:'delete',okLabel:'Delete'});
@@ -25399,6 +25949,7 @@ function duplicateItem(m,id,context){
 }
 
 function openRelist(m,id){
+  if(_jobLotActionGuard(id))return;
   const i=(DB[m]||[]).find(x=>x.id===id);
   if(!i)return;
   if(i.resaleSalePrice){
@@ -25642,6 +26193,7 @@ function _currentSaleForReturn(i){
 }
 
 function openReturn(m,id){
+  if(_jobLotActionGuard(id))return;
   const i=(DB[m]||[]).find(x=>x.id===id);
   if(!i)return;
   const cur=_currentSaleForReturn(i);
@@ -28684,6 +29236,63 @@ if(PREVIEW_MODE_ENABLED){
   setTimeout(function(){try{window.__RETRADE_FINANCIAL_TESTS__=runFinancialRegressionTests();}catch(e){console.error('[RETRADE financial regression] test runner error',e);}},0);
 }
 
+// Launch Audit v1.01 — stock lifecycle regression fixtures.
+// Pure/in-memory only: verifies Job Lot allocation and, critically, that a
+// returned child becomes Sale 2 rather than having Sale 1 overwritten.
+function runStockLifecycleRegressionTests(){
+  const results=[];
+  const check=function(name,ok,detail){results.push({name:name,ok:!!ok,detail:detail||''});};
+  const cents=function(xs){return Math.round((xs||[]).reduce(function(s,v){return s+(Number(v)||0);},0)*100);};
+
+  let a=_jobLotAllocation(99.99,4.25,6.17,1.03,[10,20,30]);
+  check('Job Lot · sale allocation exact',cents(a.sale)===9999,a.sale.join(', '));
+  check('Job Lot · buyer postage allocation exact',cents(a.postage)===425,a.postage.join(', '));
+  check('Job Lot · shipping allocation exact',cents(a.shipping)===617,a.shipping.join(', '));
+  check('Job Lot · packaging allocation exact',cents(a.packaging)===103,a.packaging.join(', '));
+
+  const first={
+    id:'JL-FIRST',item:'First-sale child',state:'listed',salePrice:80,costPrice:30,
+    dateSold:null,isReturned:false,returnHistory:[],parts:[],defaultPlatform:'ebay_biz',
+    shippingCost:0,packagingCost:0,postage:0,promoPercent:0
+  };
+  _applyJobLotSaleLeg(first,{date:'2026-08-23',salePrice:55,postage:2,shipping:3,packaging:.5,promo:0,platform:'ebay_biz',bundleId:'B1',bundleRef:'JOB-1',bundleTotal:95});
+  check('Job Lot · first-sale child uses Sale 1',first.dateSold==='2026-08-23'&&first.salePrice===55&&!first.resaleSalePrice,
+    JSON.stringify({dateSold:first.dateSold,salePrice:first.salePrice,resaleSalePrice:first.resaleSalePrice||0}));
+
+  const returned={
+    id:'JL-RETURN',item:'Returned child',state:'returned',salePrice:100,costPrice:40,
+    dateSold:null,isReturned:true,parts:[],defaultPlatform:'ebay_biz',soldOnPlatform:'ebay_biz',
+    shippingCost:4,packagingCost:1,postage:5,promoPercent:0,
+    returnHistory:[{type:'full_seller',saleNo:1,refundAmount:105,returnPostage:2,loggedAt:'2026-08-10',
+      _salePriceAtReturn:100,_dateSoldAtReturn:'2026-08-01',_postageAtReturn:5,_platformAtReturn:'ebay_biz',
+      _salePriceAtRelist:100,_postageAtRelist:5,_shippingCostAtRelist:4,_packagingCostAtRelist:1,_promoPercentAtRelist:0}]
+  };
+  _applyJobLotSaleLeg(returned,{date:'2026-08-23',salePrice:40,postage:1,shipping:2,packaging:.5,promo:0,platform:'ebay_biz',bundleId:'B1',bundleRef:'JOB-1',bundleTotal:95});
+  check('Job Lot · returned child preserves Sale 1',returned.salePrice===100&&returned.resaleSalePrice===40&&returned.resaleDateSold==='2026-08-23'&&!returned.isReturned,
+    JSON.stringify({sale1:returned.salePrice,sale2:returned.resaleSalePrice,resaleDate:returned.resaleDateSold}));
+  check('Job Lot · Sale 2 bundle identity isolated',!returned.bundleId&&returned.resaleBundleId==='B1',
+    JSON.stringify({sale1Bundle:returned.bundleId||null,sale2Bundle:returned.resaleBundleId||null}));
+
+  check('Bundle helpers · mixed resale price',_bundleMemberSalePrice(returned,'B1')===40,'price '+_bundleMemberSalePrice(returned,'B1'));
+  check('Bundle helpers · mixed resale postage',_bundleMemberPostage(returned,'B1')===1,'postage '+_bundleMemberPostage(returned,'B1'));
+  const oldSaleEvent={item:returned,sale:'1',isReturned:false,isReturnAdjustment:false};
+  const newSaleEvent={item:returned,sale:'2',isReturned:false,isReturnAdjustment:false};
+  check('Bundle events · old Sale 1 not regrouped',_eventBundleId(oldSaleEvent)===null,'bundle '+(_eventBundleId(oldSaleEvent)||'none'));
+  check('Bundle events · Sale 2 groups correctly',_eventBundleId(newSaleEvent)==='B1','bundle '+(_eventBundleId(newSaleEvent)||'none'));
+  const legacyBundle={bundleId:'OLD',salePrice:75,postage:3,resaleSalePrice:90,resalePostage:4,returnHistory:[{type:'full_seller',saleNo:1}]};
+  check('Bundle events · old bundle stays Sale 1 after later standalone resale',_bundleMemberSalePrice(legacyBundle,'OLD')===75&&_bundleMemberPostage(legacyBundle,'OLD')===3,
+    JSON.stringify({price:_bundleMemberSalePrice(legacyBundle,'OLD'),postage:_bundleMemberPostage(legacyBundle,'OLD')}));
+
+  const failed=results.filter(function(r){return !r.ok;});
+  if(failed.length)console.error('[RETRADE stock lifecycle regression] FAILED',failed);
+  else console.info('[RETRADE stock lifecycle regression] '+results.length+' checks passed');
+  return {ok:failed.length===0,passed:results.length-failed.length,failed:failed.length,results:results};
+}
+
+if(PREVIEW_MODE_ENABLED){
+  setTimeout(function(){try{window.__RETRADE_STOCK_TESTS__=runStockLifecycleRegressionTests();}catch(e){console.error('[RETRADE stock lifecycle regression] test runner error',e);}},0);
+}
+
 // calcCOGSOnly: the pure accounting "cost of goods sold" for an item — what the
 // stock actually cost to acquire and make saleable (item cost + parts). This is
 // deliberately NARROWER than calcGrossProfit's internal cost: it EXCLUDES
@@ -29405,8 +30014,15 @@ function partsHTML(m,id,context){
   if(!i)return'';
   const parts=i.parts||[];
   const total=calcPartsCost(i);
+  const activeLot=_activeJobLotForItem(id);
 
   const rows=parts.map(function(p,idx){
+    if(activeLot){
+      return'<div class="part-row">'
+        +'<span class="part-desc">'+esc(p.description||p.desc||'')+'</span>'
+        +(p.date?'<span class="part-date">'+p.date+'</span>':'')
+        +'<span class="part-cost">−'+fmt(p.cost)+'</span></div>';
+    }
     const editFn='editPart(\''+m+'\',\''+id+'\','+idx+',\''+context+'\')';
     const delFn=context==='page'
       ?'deletePart(\''+m+'\',\''+id+'\','+idx+')'
@@ -29425,11 +30041,13 @@ function partsHTML(m,id,context){
 
   const addFn='addPart(\''+m+'\',\''+id+'\',\''+context+'\')';
 
-  const addForm='<div class="add-part-row">'
-    +'<div class="fg" style="margin-bottom:0"><input type="text" id="part-desc-'+context+'" placeholder="e.g. Charging cable, battery…"></div>'
-    +'<div class="fg" style="margin-bottom:0"><input type="number" id="part-cost-'+context+'" step="0.01" placeholder="£0.00" style="width:90px"></div>'
-    +'<button class="btn btn-secondary" style="padding:9px 12px;font-size:13px" onclick="'+addFn+'">+ Add</button>'
-    +'</div>';
+  const addForm=activeLot
+    ?'<div class="info-box" style="margin-top:8px;margin-bottom:0">Cost basis is locked while this item is in <strong>'+esc(activeLot.name||'a Job Lot')+'</strong>. Remove it from the Job Lot before changing parts or costs.</div>'
+    :'<div class="add-part-row">'
+      +'<div class="fg" style="margin-bottom:0"><input type="text" id="part-desc-'+context+'" placeholder="e.g. Charging cable, battery…"></div>'
+      +'<div class="fg" style="margin-bottom:0"><input type="number" id="part-cost-'+context+'" step="0.01" placeholder="£0.00" style="width:90px"></div>'
+      +'<button class="btn btn-secondary" style="padding:9px 12px;font-size:13px" onclick="'+addFn+'">+ Add</button>'
+      +'</div>';
 
   return'<div class="parts-list" id="parts-list-'+id+'-'+context+'">'+rows+totalRow+'</div>'+addForm;
 }
