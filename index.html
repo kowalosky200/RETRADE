@@ -3526,17 +3526,38 @@ svg.cat-donut-draw circle.donut-seg-last{
 .rt .stock-state-seg{width:100%;margin-bottom:16px;}
 @media(max-width:420px){.rt .stock-state-seg button{padding:0 5px;font-size:11px;gap:3px}.rt .stock-state-seg button .count{font-size:9px}}
 @media(max-width:720px){
-  /* Launch hardening: keep Inventory metrics useful without forcing a 2x2 card
-     wall before the stock list. Horizontal scroll preserves all four KPIs while
-     cutting the above-the-fold height roughly in half on phones. */
+  /* v1.01 mobile regression fix — restore the compact 2×2 KPI layout.
+     Horizontal KPI cards could widen Inventory beyond the visual viewport in
+     Safari/PWA. minmax(0,1fr) keeps money/subtext inside each card. */
   .rt #p-stock .stock-kpis-v2{
-    display:flex;overflow-x:auto;gap:8px;margin-bottom:12px;padding-bottom:2px;
-    -webkit-overflow-scrolling:touch;scroll-snap-type:x proximity;scrollbar-width:none;
+    display:grid!important;
+    grid-template-columns:repeat(2,minmax(0,1fr))!important;
+    gap:8px!important;
+    width:100%!important;
+    max-width:100%!important;
+    overflow:visible!important;
+    margin-bottom:12px!important;
+    padding-bottom:0!important;
   }
-  .rt #p-stock .stock-kpis-v2::-webkit-scrollbar{display:none;}
   .rt #p-stock .stock-kpis-v2 .kpi{
-    flex:0 0 min(68vw,190px);min-height:70px;scroll-snap-align:start;
+    width:auto!important;min-width:0!important;max-width:100%!important;
+    min-height:72px!important;overflow:hidden!important;
   }
+  .rt #p-stock .stock-kpis-v2 .kpi-value,
+  .rt #p-stock .stock-kpis-v2 .kpi-foot{
+    min-width:0;max-width:100%;overflow:hidden;text-overflow:ellipsis;
+  }
+  .rt #p-stock .stock-state-seg{
+    display:grid!important;
+    grid-template-columns:repeat(4,minmax(0,1fr))!important;
+    width:100%!important;max-width:100%!important;overflow:hidden!important;
+  }
+  .rt #p-stock .stock-state-seg button{
+    min-width:0!important;width:100%!important;
+    padding-left:6px!important;padding-right:6px!important;
+    overflow:hidden!important;
+  }
+  .rt #p-stock .stock-state-seg button .count{flex-shrink:0;}
 }
 
 /* ============================================================================
@@ -6370,6 +6391,7 @@ const _ICON_PATHS={
   inbox:'<path d="M3 12l3-7h12l3 7v6a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z"/><path d="M3 12h5l1 2h6l1-2h5"/>',            // inbox
   warn:'<path d="M12 3l9 16H3z"/><path d="M12 10v4M12 17h.01"/>',                                                  // warning triangle
   lock:'<rect x="5" y="11" width="14" height="9" rx="1.5"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>',                   // padlock
+  account:'<path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><path d="M19 8v6M16 11h6"/>',                    // partner/account
   settings:'<circle cx="12" cy="12" r="3.2"/><path d="M19.4 13a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-2.7 1.1V21a2 2 0 0 1-4 0v-.1a1.6 1.6 0 0 0-2.7-1.1l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0-1.1-2.7H3a2 2 0 0 1 0-4h.1A1.6 1.6 0 0 0 4.6 7l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.6 1.6 0 0 0 2.7-1.1V3a2 2 0 0 1 4 0v.1a1.6 1.6 0 0 0 2.7 1.1l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-1.1 2.7H21a2 2 0 0 1 0 4h-.1a1.6 1.6 0 0 0-1.5 1z"/>' // gear
 };
 function icon(name,size,extraStyle){
@@ -7860,7 +7882,7 @@ const ALLOW_SCHEMA_FALLBACK = PREVIEW_MODE_ENABLED;
 // stay outside the service worker; only same-origin app-shell assets are cached.
 if(!PREVIEW_MODE_ENABLED && 'serviceWorker' in navigator && /^https?:$/.test(location.protocol)){
   window.addEventListener('load',function(){
-    navigator.serviceWorker.register('./sw.js').catch(function(err){console.warn('[RETRADE] service worker registration failed:',err&&err.message);});
+    navigator.serviceWorker.register('./sw.js',{updateViaCache:'none'}).then(function(reg){try{reg.update();}catch(e){}}).catch(function(err){console.warn('[RETRADE] service worker registration failed:',err&&err.message);});
   });
 }
 const RETRADE_SCHEMA_VERSION = '2026-08-23-v2';
@@ -10391,7 +10413,7 @@ function _bootSkeletonHTML(tab){
   // ID rule on any page has a selector waiting for it.
   const _t = ['summary','monthly','stock','expenses','cash','returns','scrapped','tax','data','runs','activity'].includes(tab) ? tab : 'summary';
   return '<div class="page rt-skel rt-skel-' + _t + '">' + body
-    + '<div style="text-align:center;margin-top:20px;font-size:13px;color:var(--text-secondary);" id="app-loading-msg"></div>'
+    + '<div id="app-loading-msg" role="status" aria-live="polite" style="position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0;"></div>'
     + '</div>';
 }
 // v2.19.0 -- 7C boot cross-fade.
@@ -12636,84 +12658,114 @@ function initMoreSheetSwipe(){
 initMoreSheetSwipe();
 
 
-// Patch A — Page-aware FAB.
-// Per-page option sets (top of stack = most-used / closest to FAB).
-// Page → option ids (in order). Option specs are in _FAB_OPTION_DEFS below.
-// Pages not listed here suppress the speed-dial entirely (single-tap = primary).
-// Patch A — Uniform FAB options across all pages.
-// Same 5 options everywhere — more intuitive than page-specific sets.
-// Exception: pages where FAB is hidden entirely (item detail, search, tax, data).
+// v1.01 — Context-aware FAB.
+// Home keeps the universal action launcher. Operational pages prioritise the
+// thing the user is most likely to add *in that context*. Read-only/history
+// pages suppress the FAB rather than presenting unrelated creation actions.
 const _FAB_ALL_OPTIONS = ['list','sourced','sourcerun','expense','trip'];
 const _FAB_PAGE_OPTIONS = {
-  'p-summary':     _FAB_ALL_OPTIONS,
-  'p-stock':       _FAB_ALL_OPTIONS,
-  'p-monthly':     _FAB_ALL_OPTIONS,
-  'p-expenses':    _FAB_ALL_OPTIONS,
-  'p-active-run':  _FAB_ALL_OPTIONS,
-  'p-runs':        _FAB_ALL_OPTIONS,
-  // p-item, p-search, p-tax, p-data → no FAB, see _FAB_HIDDEN_PAGES
+  'p-summary':     _FAB_ALL_OPTIONS,       // Command Centre: universal launcher
+  'p-stock':       ['sourced','list'],     // Inventory: acquire first, list second
+  'p-monthly':     ['list'],               // Sales: add a new listing
+  'p-expenses':    ['expense','trip'],     // Costs: record business spend/mileage
+  'p-cash':        ['cash'],               // Cashflow: owner contribution/draw/adjustment
+  'p-runs':        ['sourcerun'],          // Sourcing: start run; dynamic when active
+  'p-active-run':  ['sourced','endrun'],   // Active run: add finds without losing context
+  'p-accounts':    ['account']             // Partners: create a partner/account
 };
-const _FAB_HIDDEN_PAGES = new Set(['p-search']); // v2.21.19 — FAB is uniform across the whole app; only the transient search overlay (which has its own search-fab) stays FAB-less
+const _FAB_HIDDEN_PAGES = new Set([
+  'p-search','p-returns','p-scrapped','p-activity','p-tax','p-data','p-run'
+]);
 
-// Patch C-2: per-page FAB single-tap override. Returns 'speed-dial' or a specific action.
+function _fabAccountContext(){
+  const active=(document.querySelector('.page.on')||{id:''}).id;
+  if(active!=='p-item'||typeof _acctCurrentAcct!=='function')return null;
+  try{return _acctCurrentAcct()||null;}catch(e){return null;}
+}
+function _fabOptionsForPage(pageId){
+  const acct=_fabAccountContext();
+  if(pageId==='p-item') return acct?['account-sourced','account-list']:[];
+  if(pageId==='p-runs'&&_activeSourcingRun)return ['sourced','endrun'];
+  return (_FAB_PAGE_OPTIONS[pageId]||[]).slice();
+}
+
+// Single tap may fire the sole primary action immediately. Multi-action pages
+// open the compact dial so relevant alternatives remain one thumb movement away.
 function getFabTapAction(pageId){
-  if(pageId==='p-active-run') return 'stock-quick-add';
-  // Patch C-3: p-runs FAB single-tap → stock quick add when run is active
-  if(pageId==='p-runs'&&_activeSourcingRun) return 'stock-quick-add';
+  const ids=_fabOptionsForPage(pageId);
+  if(ids.length===1)return ids[0];
+  if(pageId==='p-active-run')return 'sourced';
   return 'speed-dial';
 }
 
-// Option defs — label, click handler, button class colour, SVG icon.
-// Class colours map to existing tokens: accent (amber), green, blue, purple.
+// Option defs — label, colour and icon only. runFabOption owns execution so
+// contextual actions never rely on eval/string handlers.
 const _FAB_OPTION_DEFS = {
   list: {
     label:'List item', cls:'list',
-    onClick:'closeFabDial();openQuickAdd()',
     title:'Quick add a listed item',
     svg:'<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><line x1="7" y1="9" x2="17" y2="9"/><line x1="7" y1="13" x2="17" y2="13"/><line x1="7" y1="17" x2="13" y2="17"/></svg>'
   },
   sourced: {
     label:'Unlisted stock', cls:'sourced',
-    onClick:'closeFabDial();openStockQuickAdd()',
     title:'Add unlisted stock (pre-listing)',
     svg:'<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="14" width="18" height="6" rx="1.5"/><rect x="5" y="9" width="14" height="5" rx="1.5"/><rect x="7.5" y="4" width="9" height="5" rx="1.5"/></svg>'
   },
+  'account-list': {
+    label:'List for partner', cls:'list',
+    title:'Add a listed item directly to this partner',
+    svg:'<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M19 8v6M16 11h6"/></svg>'
+  },
+  'account-sourced': {
+    label:'Stock for partner', cls:'sourced',
+    title:'Add unlisted stock directly to this partner',
+    svg:'<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="13" width="12" height="7" rx="1.5"/><path d="M18 5v6M15 8h6"/></svg>'
+  },
   sourcerun: {
     label:'Start sourcing run', cls:'sourcerun',
-    onClick:'closeFabDial();openStartRunModal()',
     title:'Begin a sourcing run — auto-tags items you add',
     svg:'<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="10" r="3"/><path d="M12 2a8 8 0 0 1 8 8c0 5.5-8 12-8 12S4 15.5 4 10a8 8 0 0 1 8-8z"/></svg>'
   },
   endrun: {
     label:'End sourcing run', cls:'sourcerun',
-    onClick:'closeFabDial();endSourcingRun()',
     title:'End the active sourcing run',
     svg:'<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 9l6 6M15 9l-6 6"/></svg>'
   },
   expense: {
     label:'Add expense', cls:'expense',
-    onClick:'closeFabDial();addExpense()',
     title:'Log an expense',
     svg:'<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16l3-2 2 2 3-2 3 2 2-2 3 2V4a2 2 0 0 0-2-2z"/><line x1="9" y1="9" x2="15" y2="9"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="12" y2="17"/></svg>'
   },
   trip: {
     label:'Add trip', cls:'trip',
-    onClick:'closeFabDial();addTrip()',
     title:'Log a sourcing trip / mileage',
     svg:'<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 17H3a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2h11l4 4v4a2 2 0 0 1-2 2h-1"/><path d="M14 17a2 2 0 1 0 4 0 2 2 0 0 0-4 0"/><path d="M5 17a2 2 0 1 0 4 0 2 2 0 0 0-4 0"/><line x1="3" y1="9" x2="14" y2="9"/></svg>'
+  },
+  cash: {
+    label:'Money entry', cls:'expense',
+    title:'Add a cashflow entry',
+    svg:'<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/><path d="M7 9h.01M17 15h.01"/></svg>'
+  },
+  account: {
+    label:'Add partner', cls:'sourced',
+    title:'Create a new partner account',
+    svg:'<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><path d="M19 8v6M16 11h6"/></svg>'
   }
 };
 
-// Explicit action dispatcher. Keeping actions as function calls (rather than
-// evaluating handler strings) removes an unnecessary dynamic-code execution path.
 function runFabOption(id){
   closeFabDial();
+  const acct=_fabAccountContext();
   if(id==='list') return openQuickAdd();
   if(id==='sourced') return openStockQuickAdd();
+  if(id==='account-list') return acct?openQuickAdd(acct.id):openQuickAdd();
+  if(id==='account-sourced') return acct?openStockQuickAdd(acct.id):openStockQuickAdd();
   if(id==='sourcerun') return openStartRunModal();
   if(id==='endrun') return endSourcingRun();
   if(id==='expense') return addExpense();
   if(id==='trip') return addTrip();
+  if(id==='cash') return addCashMove();
+  if(id==='account') return openAddAccountModal();
   console.warn('Unknown FAB action:', id);
 }
 
@@ -12725,7 +12777,7 @@ function buildFabOptions(){
   if(!wrap)return;
   const activePage=(document.querySelector('.page.on')||{id:''}).id;
   if(_FAB_HIDDEN_PAGES.has(activePage)){ wrap.innerHTML=''; return; }
-  let ids=(_FAB_PAGE_OPTIONS[activePage]||_FAB_ALL_OPTIONS).slice();
+  let ids=_fabOptionsForPage(activePage);
   // Patch C: swap sourcerun↔endrun depending on whether a run is active
   if(_activeSourcingRun){
     ids=ids.map(function(id){return id==='sourcerun'?'endrun':id;});
@@ -12733,12 +12785,12 @@ function buildFabOptions(){
   // Horizontal row layout: render each option as an icon button with a short
   // label beneath. --i drives the staggered reveal (see .fab-dial-item CSS).
   // Short labels keep the row compact; full label stays as title/aria-label.
-  const SHORT={list:'List',sourced:'Stock',sourcerun:'Run',endrun:'End run',expense:'Expense',trip:'Trip'};
+  const SHORT={list:'List',sourced:'Stock','account-list':'List','account-sourced':'Stock',sourcerun:'Run',endrun:'End run',expense:'Expense',trip:'Trip',cash:'Money',account:'Partner'};
   // Canonical left→right order, tuned for thumb reach from the centre FAB:
   // most-used (List) sits centre, frequent actions (Stock, Run) to the right,
   // occasional ones (Expense, Trip) to the left. Pages with fewer options keep
   // this relative order. endrun shares Run's slot.
-  const DISPLAY_ORDER=['trip','expense','list','sourced','sourcerun','endrun'];
+  const DISPLAY_ORDER=['trip','expense','cash','list','account-list','sourced','account-sourced','account','sourcerun','endrun'];
   const ordered=ids.slice().sort(function(a,b){
     return DISPLAY_ORDER.indexOf(a)-DISPLAY_ORDER.indexOf(b);
   });
@@ -12758,12 +12810,12 @@ function onFabClick(){
   if(_FAB_HIDDEN_PAGES.has(activePage))return;
   // Patch C-2: per-page single-tap override
   const _fabAction=getFabTapAction(activePage);
-  if(_fabAction==='stock-quick-add'){ closeFabDial(); openStockQuickAdd(); return; }
-  const ids=_FAB_PAGE_OPTIONS[activePage]||_FAB_ALL_OPTIONS;
+  if(_fabAction!=='speed-dial'){ runFabOption(_fabAction); return; }
+  const ids=_fabOptionsForPage(activePage);
+  if(!ids.length)return;
   // If only one option, fire it directly — no dial needed for single actions.
   if(ids.length<=1){
-    const onlyId=ids[0]||'list';
-    runFabOption(onlyId);
+    runFabOption(ids[0]);
     return;
   }
   // Multi-option: build options for current page, then toggle dial open.
@@ -12812,7 +12864,9 @@ function _syncFabVisibility(){
   // so hide it alongside the dial. CSS shows it via display:flex!important on
   // mobile, so we override with visibility (which beats the !important rule).
   const searchFab=document.getElementById('search-fab');
-  if(_FAB_HIDDEN_PAGES.has(activePage)){
+  const noContextActions=_fabOptionsForPage(activePage).length===0;
+  const hidden=_FAB_HIDDEN_PAGES.has(activePage)||noContextActions;
+  if(hidden){
     dial.classList.remove('open');
     dial.style.visibility='hidden';
     dial.setAttribute('aria-hidden','true');
@@ -14442,8 +14496,8 @@ function openAccountPage(accountId){
   document.querySelectorAll('.tab').forEach(function(t){t.classList.remove('on');});
   document.querySelectorAll('.bnt').forEach(function(b){b.classList.remove('on');});
   document.getElementById('p-item').classList.add('on');
-  _syncFabVisibility();
   _renderAccountPage(acct);
+  _syncFabVisibility();
 }
 
 function backToAccountsList(){
@@ -16067,7 +16121,43 @@ function openBulkAssignModal(runId){
   setTimeout(function(){ window._baRenderTabs(runId); },40);
 }
 
-function openQuickAdd(){
+var _quickAddAccountId=null;
+function _quickAddAccount(accountId){
+  if(!accountId)return null;
+  return (_accounts||[]).find(function(a){return a.id===accountId;})||null;
+}
+function _quickAddAccountBanner(accountId){
+  const a=_quickAddAccount(accountId);
+  if(!a)return '';
+  const type=(a.accountType||'supplier');
+  const split=(type!=='supplier'&&a.defaultSplitPercent!=null)
+    ? ' · default partner share '+a.defaultSplitPercent+'%'
+    : '';
+  const costNote=type==='consignment'
+    ? '<div style="font-size:11px;color:var(--text-secondary);margin-top:3px;">Consignment stock is recorded at £0 acquisition cost; the partner share is recognised when it sells.</div>'
+    : '';
+  return '<div style="display:flex;align-items:flex-start;gap:9px;padding:10px 12px;margin-bottom:14px;border:1px solid var(--accent);background:var(--accent-dim);border-radius:10px;">'
+    +'<span style="display:inline-flex;flex-shrink:0;margin-top:1px">'+icon('account',16)+'</span>'
+    +'<div style="min-width:0"><div style="font-size:12px;font-weight:700;color:var(--text)">Adding to '+esc(a.name)+'</div>'
+    +'<div style="font-size:11px;color:var(--text-secondary);margin-top:2px;text-transform:capitalize;">'+esc(type)+split+'</div>'+costNote+'</div></div>';
+}
+function _applyQuickAddAccount(item,accountId){
+  const a=_quickAddAccount(accountId);
+  if(!item||!a)return item;
+  item.accountId=a.id;
+  item.accountType=a.accountType||'supplier';
+  item.accountSettled=false;
+  if(item.accountType==='consignment'){
+    item.costPrice=0;
+  }
+  if(item.accountType!=='supplier'&&a.defaultSplitPercent!=null){
+    item.accountSplitPercent=Math.max(0,Math.min(100,Number(a.defaultSplitPercent)||0));
+  }
+  return item;
+}
+
+function openQuickAdd(accountId){
+  _quickAddAccountId=accountId||null;
   _sourcedPartsCost = 0; // clear any carried-over parts cost from a sourced item
   // If not on a monthly page, pre-select current month rather than SELECTED_MONTH
   const activePage=(document.querySelector('.page.on')||{id:''}).id;
@@ -16075,6 +16165,7 @@ function openQuickAdd(){
     SELECTED_MONTH=currentMonthKey();
   }
   const html=`
+    ${_quickAddAccountBanner(_quickAddAccountId)}
     ${formHTML()}
     <div id="qa-coming-soon-banner" class="qa-coming-soon-banner" style="display:none">
       <div class="qa-cs-icon">
@@ -16088,7 +16179,7 @@ function openQuickAdd(){
     </div>
     <button class="btn btn-primary" id="qa-submit-btn" style="width:100%;margin-top:20px" onclick="submitQuickAdd()">Add Item</button>
   `;
-  openPanel('Quick Add — New Item',html);
+  openPanel(_quickAddAccount(_quickAddAccountId)?('Add to '+_quickAddAccount(_quickAddAccountId).name):'Quick Add — New Item',html);
   // Session D1.6 — initialise price label + submit state for the default
   // platform (eBay). This is a no-op cosmetically since eBay is the default,
   // but ensures the helper text + button state are consistent if the user's
@@ -16098,6 +16189,12 @@ function openQuickAdd(){
   if(typeof _refreshQuickAddDelivery==='function')_refreshQuickAddDelivery();
   // Populate shipping policy dropdown
   const _qaPolicySel=document.getElementById('qa-shipping-policy');if(_qaPolicySel)_populateShippingPolicySelect(_qaPolicySel);
+  const _ctxQuickAcct=_quickAddAccount(_quickAddAccountId);
+  if(_ctxQuickAcct&&(_ctxQuickAcct.accountType||'supplier')==='consignment'){
+    const _cost=document.getElementById('qa-cost');
+    if(_cost){_cost.value='0';_cost.readOnly=true;_cost.title='Consignment stock uses £0 acquisition cost';}
+    if(typeof updateBPFPreview==='function')updateBPFPreview();
+  }
   // Focus the item name field immediately — must be synchronous within the
   // tap gesture chain for mobile keyboard to fire reliably.
   const qaItem=document.getElementById('qa-item');
@@ -16333,6 +16430,7 @@ function submitQuickAdd(){
     defaultPlatform:(document.getElementById('qa-platform')?.value)||DEFAULT_PLATFORM,
     dateSold:null,grossProfit:null,isReturned:false
   };
+  _applyQuickAddAccount(item,_quickAddAccountId);
   _stampListingFee(item); // v2.19.26 — new listing = insertion fee
   item.category=item.category||autoCategory(item.item);
   if(!item.notes)item.notes='';if(!item.parts)item.parts=[];
@@ -16343,7 +16441,9 @@ function submitQuickAdd(){
   DB[m].push(item);saveDB();closePanel();
   SELECTED_MONTH=m;MONTH_SORT='date-listed';MONTH_FILTER='all';
   SELECTION_MODE=false;SELECTED_ITEMS.clear();
-  openItemPage(m,item.id,'p-monthly');
+  const _ctxAcct=_quickAddAccount(_quickAddAccountId);
+  if(_ctxAcct){_renderAccountPage(_ctxAcct);}
+  else openItemPage(m,item.id,'p-monthly');
 }
 
 // Patch A — Stock Quick Add (pre-listing flow)
@@ -16352,10 +16452,12 @@ function submitQuickAdd(){
 // They contribute to inventory cost (capital tied up) but not to revenue or
 // profit KPIs — financial calc functions short-circuit cleanly when salePrice
 // is absent (see calcGrossProfit, calcItemRevenue, calcROI).
-function openStockQuickAdd(){
+function openStockQuickAdd(accountId){
+  _quickAddAccountId=accountId||null;
   _sqaParts=[];
   const today=new Date().toISOString().split('T')[0];
   const html=`
+    ${_quickAddAccountBanner(_quickAddAccountId)}
     <div class="fg">
       <label>Date sourced</label>
       <input type="date" id="sqa-date" value="${today}">
@@ -16406,11 +16508,11 @@ function openStockQuickAdd(){
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:5px;vertical-align:-2px"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
         Add another
       </button>
-      <button class="btn btn-secondary" onclick="closePanel();_goToSourcedStock()" style="flex:1;justify-content:center;">Done</button>
+      <button class="btn btn-secondary" onclick="closePanel();_afterContextQuickAddDone()" style="flex:1;justify-content:center;">Done</button>
     </div>
     <button class="btn btn-primary" id="sqa-submit-btn" style="width:100%;margin-top:18px" onclick="submitStockQuickAdd()">Save Unlisted Item</button>
   `;
-  openPanel('Quick Add — Unlisted Stock',html);
+  openPanel(_quickAddAccount(_quickAddAccountId)?('Add stock to '+_quickAddAccount(_quickAddAccountId).name):'Quick Add — Unlisted Stock',html);
   // Wire a local preview only; the actual file uploads on Save
   const photoInput=document.getElementById('sqa-photo');
   if(photoInput){
@@ -16427,6 +16529,11 @@ function openStockQuickAdd(){
     });
   }
   // Focus title field first — most likely thing to fill in at point of sourcing
+  const _ctxAcct=_quickAddAccount(_quickAddAccountId);
+  if(_ctxAcct&&(_ctxAcct.accountType||'supplier')==='consignment'){
+    const _ce=document.getElementById('sqa-cost');
+    if(_ce){_ce.value='0';_ce.readOnly=true;_ce.title='Consignment stock uses £0 acquisition cost';}
+  }
   const titleEl2=document.getElementById('sqa-title');
   if(titleEl2)titleEl2.focus();
 }
@@ -16486,6 +16593,7 @@ async function submitStockQuickAdd(){
     promoPercent:0,
     grossProfit:null
   };
+  _applyQuickAddAccount(item,_quickAddAccountId);
   if(photoUpload){ item.photoPath=photoUpload.path||null; item.photo=photoUpload.url||null; }
   const _saveBtnAfterPhoto=document.getElementById('sqa-submit-btn');
   const _nextBtnAfterPhoto=document.getElementById('sqa-next-btn');
@@ -16535,6 +16643,12 @@ async function submitStockQuickAdd(){
 
 // "Add another" — reopen Stock Quick Add with cost cleared, ready for next.
 // "Done" after saving a sourced item — if a run is active go to run page; else Stock → Sourced.
+function _afterContextQuickAddDone(){
+  const acct=_quickAddAccount(_quickAddAccountId);
+  if(acct){_renderAccountPage(acct);return;}
+  _goToSourcedStock();
+}
+
 function _goToSourcedStock(){
   if(_activeSourcingRun){
     openActiveRunPage();
@@ -17202,7 +17316,8 @@ function showCategoryItems(cat,_fromBack){
       const daysToSell=!i.isReturned&&(i.dateSold||i.resaleSalePrice)?calcDaysToSell(i):null;
       const _eld=_effectiveListDate(i);
       const daysListed=!i.dateSold&&!i.isReturned&&!i.resaleSalePrice&&!i.scrappedAt&&_eld?daysBetween(_eld,_today):null;
-      const returnedAt=i.isReturned&&i.returnHistory&&i.returnHistory.length?i.returnHistory[i.returnHistory.length-1].loggedAt:null;
+      const _catFullReturn=i.isReturned?(i.returnHistory||[]).slice().reverse().find(function(r){return r.type==='full_seller'||r.type==='full_ebay';}):null;
+      const returnedAt=_catFullReturn?_catFullReturn.loggedAt:null;
       const daysSinceReturn=i.isReturned&&(returnedAt||i.dateListed)?daysBetween(returnedAt||i.dateListed,_today):null;
       const isStale=daysListed!==null&&daysListed>=90;
       const isStaleReturn=daysSinceReturn!==null&&daysSinceReturn>=90;
@@ -17487,15 +17602,15 @@ function showFilteredItems(filter){
         if(filter==='revenue'){
           // Revenue: two real cash transactions — show both (net of any partial refunds on sale 1)
           const s1PartialRefunds=(i.returnHistory||[])
-            .filter(r=>r.type==='partial_seller'||r.type==='partial_ebay')
+            .filter(function(r){return (r.type==='partial_seller'||r.type==='partial_ebay')&&r.saleNo!==2;})
             .reduce((s,r)=>s+(r.refundAmount||0),0);
           const s1NetPrice=Math.max(0,(i.salePrice||0)-s1PartialRefunds);
-          items.push({...i,month:k,_entryType:'sale1',_displayPrice:s1NetPrice,_displayDate:i.dateSold||(i.returnHistory&&i.returnHistory[0]?i.returnHistory[0].loggedAt:'')||'',_entryProfit:sale1Profit});
+          items.push({...i,month:k,_entryType:'sale1',_displayPrice:s1NetPrice,_displayDate:_originalSale1Date(i)||'',_entryProfit:sale1Profit});
           items.push({...i,month:k,_entryType:'sale2',_displayPrice:i.resaleSalePrice,_displayDate:i.resaleDateSold||'',_entryProfit:sale2Profit});
         }else{
           // Realised P&L: one lifetime entry — the full story
           const lifetimeProfit=calcNetProfit(i);
-          const saleDate=i.resaleDateSold||(i.returnHistory&&i.returnHistory[0]?i.returnHistory[0].loggedAt:'')||'';
+          const saleDate=i.resaleDateSold||_originalSale1Date(i)||'';
           items.push({...i,month:k,_entryType:'resold',_displayPrice:i.resaleSalePrice,_displayDate:saleDate,_entryProfit:lifetimeProfit});
         }
       } else {
@@ -19563,24 +19678,31 @@ function downloadStockSnapshot(){
   const today=new Date().toISOString().split('T')[0];
   const rows=[['Item','GID','State','Cost (£)','Parts Cost (£)','Total In (£)','Est Sale (£)','Est Profit (£)','Est ROI %','Days Held','Run ID','Source','Month']];
   let hasItems=false;
+  const activeLotMemberIds=new Set();
+  _activeJobLots().forEach(function(l){_jobLotMembers(l.id,false).forEach(function(x){activeLotMemberIds.add(x.item.id);});});
   allDBKeys().forEach(function(k){
     (DB[k]||[]).forEach(function(i){
       if((i.item||'').trim().toUpperCase()==='MONTH END') return;
-      if(i.dateSold||i.isReturned||i.resaleSalePrice) return; // sold/returned — skip
+      if(i.scrappedAt||activeLotMemberIds.has(i.id))return;
+      const inHand=!!i.isReturned||(!i.dateSold&&!i.resaleSalePrice);
+      if(!inHand)return;
       hasItems=true;
       const parts=calcPartsCost(i);
       const totalIn=(i.costPrice||0)+parts;
-      const estP=i.estSalePrice!=null?i.estSalePrice-(totalIn+(i.shippingCost||0)+(i.packagingCost||0)):'';
+      const ask=i.isReturned?(i.estSalePrice!=null?i.estSalePrice:i.salePrice):(i.estSalePrice!=null?i.estSalePrice:i.salePrice);
+      const estP=ask!=null?Number(ask)-(totalIn+(i.shippingCost||0)+(i.packagingCost||0)):'';
       const estROI=estP!==''&&totalIn>0?((estP/totalIn)*100).toFixed(1):'';
-      const days=i.dateSourced||i.dateListed?daysBetween(i.dateSourced||i.dateListed,today):'';
+      const _fr=i.isReturned?(i.returnHistory||[]).slice().reverse().find(function(r){return r.type==='full_seller'||r.type==='full_ebay';}):null;
+      const heldFrom=i.isReturned?((_fr&&_fr.loggedAt)||i.dateSold||i.dateSourced||i.dateListed):(i.dateSourced||i.dateListed);
+      const days=heldFrom?daysBetween(heldFrom,today):'';
       rows.push([
-        (i.item||'').replace(/,/g,' '),
+        i.item||'',
         i.gid||'',
-        i.state||'listed',
+        i.isReturned?'returned':(i.state==='sourced'?'unlisted':'listed'),
         (i.costPrice||0).toFixed(2),
         parts.toFixed(2),
         totalIn.toFixed(2),
-        i.estSalePrice!=null?i.estSalePrice.toFixed(2):i.salePrice!=null?i.salePrice.toFixed(2):'',
+        ask!=null?Number(ask).toFixed(2):'',
         estP!==''?Number(estP).toFixed(2):'',
         estROI,
         days,
@@ -19589,6 +19711,14 @@ function downloadStockSnapshot(){
         k
       ]);
     });
+  });
+  _activeJobLots().forEach(function(lot){
+    hasItems=true;
+    const totalIn=_jobLotCost(lot.id,false),ask=Number(lot.salePrice)||0;
+    const estP=ask>0?_jobLotEstimatedProfit(lot):'';
+    const estROI=estP!==''&&estP!=null&&totalIn>0?((Number(estP)/totalIn)*100).toFixed(1):'';
+    const days=lot.dateCreated?daysBetween(lot.dateCreated,today):'';
+    rows.push([lot.name||'Job Lot','JL',lot.status==='listed'?'listed job lot':'unlisted job lot',totalIn.toFixed(2),'0.00',totalIn.toFixed(2),ask>0?ask.toFixed(2):'',estP!==''&&estP!=null?Number(estP).toFixed(2):'',estROI,days,'','Job Lot','JOB LOT']);
   });
   if(!hasItems){toast('No active stock to export','error');return;}
   const csv=_rowsToCsv(rows);
@@ -20876,6 +21006,66 @@ function selectAllStock(items){
   renderStock();
 }
 
+async function openStockBulkDispose(){
+  const ids=[...STOCK_SELECTED].filter(function(id){
+    const r=_findItemRecordById(id);
+    return r&&_canScrap(r.item)&&!_activeJobLotMembership(id);
+  });
+  if(!ids.length){toast('No selected on-hand items can be disposed','err');return;}
+  const skipped=STOCK_SELECTED.size-ids.length;
+  const totalCost=ids.reduce(function(sum,id){
+    const r=_findItemRecordById(id);
+    return sum+(r?((Number(r.item.costPrice)||0)+calcPartsCost(r.item)):0);
+  },0);
+  const html=''
+    +'<div class="info-box" style="margin-bottom:14px"><strong>'+ids.length+' selected item'+(ids.length===1?'':'s')+'</strong> · '+fmt(totalCost)+' cost basis will leave active inventory.'
+      +(skipped?'<br><span style="color:var(--warn)">'+skipped+' selected item'+(skipped===1?' is':'s are')+' not disposable here and will be left unchanged.</span>':'')
+    +'</div>'
+    +'<div class="fg"><label>What are you doing with them?</label>'
+      +'<select id="bulk-scrap-reason">'
+        +'<option value="scrapped">Scrapped — faulty / binned</option>'
+        +'<option value="donated">Donated — given away</option>'
+        +'<option value="recycled">Recycled</option>'
+        +'<option value="other">Other</option>'
+      +'</select></div>'
+    +'<div class="fg"><label>Note (optional)</label><input id="bulk-scrap-note" type="text" placeholder="Applied to all selected items"></div>'
+    +'<div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px 12px;font-size:12px;color:var(--text-secondary);line-height:1.5;margin-bottom:14px">'
+      +'Each item keeps its own permanent Archive record and cost basis. Supplier returns are handled individually because each item can have a different refund amount.</div>'
+    +'<div style="display:flex;gap:8px">'
+      +'<button class="btn btn-destructive" style="flex:1" onclick="confirmStockBulkDispose()">Dispose '+ids.length+' item'+(ids.length===1?'':'s')+'</button>'
+      +'<button class="btn btn-secondary" onclick="closePanel()">Cancel</button>'
+    +'</div>';
+  openPanel('Dispose selected stock',html);
+}
+async function confirmStockBulkDispose(){
+  const reasonEl=document.getElementById('bulk-scrap-reason');
+  const noteEl=document.getElementById('bulk-scrap-note');
+  const reason=(reasonEl&&reasonEl.value)||'scrapped';
+  const note=((noteEl&&noteEl.value)||'').trim();
+  const ids=[...STOCK_SELECTED].filter(function(id){
+    const r=_findItemRecordById(id);
+    return r&&_canScrap(r.item)&&!_activeJobLotMembership(id);
+  });
+  if(!ids.length){closePanel();toast('Nothing to dispose','err');return;}
+  const now=new Date().toISOString();
+  let changed=0;
+  ids.forEach(function(id){
+    const r=_findItemRecordById(id);if(!r)return;
+    const i=r.item;
+    i.scrapReason=reason;
+    if(note)i.scrapNote=note;else delete i.scrapNote;
+    delete i.supplierRefund;
+    i.scrappedAt=now;
+    i.resalePostage=null;i.resaleShippingCost=null;i.resalePackagingCost=null;i.resalePromoPercent=null;
+    changed++;
+  });
+  await saveDB();
+  STOCK_SELECTED.clear();STOCK_SELECTION_MODE=false;
+  closePanel();
+  toast(changed+' item'+(changed===1?'':'s')+' moved to Archive');
+  renderStock();
+}
+
 async function stockBulkAction(action,items){
   const selected=[...STOCK_SELECTED];
   const protectedIds=selected.filter(function(id){return !!_activeJobLotMembership(id);});
@@ -21723,6 +21913,29 @@ async function confirmLinkToSale(targetId){
     if(mode==='included')res=_applyIncludedReconcile(existing,orphan,recorded,dateSold,platform,target);
     else if(mode==='additional')res=_applyAdditionalReconcile(existing,orphan,additional,dateSold,platform,target);
     _pushSaleReconcileActivity(orphanRec,before,target,mode,res);
+    // v1.01 hardening — Activity is the human audit trail, but the structured
+    // reconciliation decision must also persist in sale_reconciliations so a
+    // backup/reload can distinguish an applied correction from a link-only
+    // item that still needs review. saveDB's fingerprint/outbox handles cloud
+    // persistence and offline replay for this record.
+    _saleReconciliations=_saleReconciliations||[];
+    const _beforeAlloc=existing.map(function(i){return {itemId:i.id,amount:+(Number(i.salePrice)||0).toFixed(2)};});
+    const _afterMembers=mode==='link_only'?existing:existing.concat([orphan]);
+    const _afterAlloc=_afterMembers.map(function(i){return {itemId:i.id,amount:+(Number(i.salePrice)||0).toFixed(2)};});
+    const _targetBundleId=(res&&res.bundleId)||target.bundleId||null;
+    const _targetBundleRef=(res&&res.bundleRef)||_linkOrderRef(target)||null;
+    _saleReconciliations.push({
+      id:_uuidLog(),attachedItemId:orphan.id,targetSaleItemId:target.id,
+      targetBundleId:_targetBundleId,targetBundleRef:_targetBundleRef,
+      treatment:mode,status:mode==='link_only'?'needs_review':'applied',
+      priorOrderTotal:+recorded.toFixed(2),
+      resultingOrderTotal:mode==='link_only'?+recorded.toFixed(2):+Number(res&&res.total||recorded).toFixed(2),
+      additionalRevenue:mode==='additional'?+additional.toFixed(2):0,
+      priorAllocation:_beforeAlloc,resultingAllocation:_afterAlloc,pnlDelta:null,
+      beforeSnapshot:before,afterSnapshot:mode==='link_only'?before:JSON.parse(JSON.stringify(orphan)),
+      note:mode==='link_only'?'Linked for review only; no accounting values changed.':null,
+      createdAt:new Date().toISOString()
+    });
     _initActivityShadow();
     saveDB();
     closePanel();
@@ -21933,7 +22146,7 @@ function _inlistSearchHTML(ctx){
     +'</div>';
 }
 
-function renderStock(){
+function _renderStockCore(){
   const today=new Date().toISOString().split('T')[0];
   // v1.01 — Inventory means physical stock on hand. A returned unit is its own
   // operational queue; it is never silently folded back into Unlisted.
@@ -22368,6 +22581,7 @@ function renderStock(){
             ${_stockSelectedRows.length>1?`<button class="bulk-ctrl" style="background:var(--accent);color:#000;font-weight:700;" onclick="openBundleSaleModal()">${icon('sold',14)} Bundle sale</button>`:''}
             <select class="bulk-ctrl bulk-plat-sel" data-source="stock" onchange="if(this.value){bulkChangePlatform(this.value,'stock');this.value=''}"><option value="">Platform</option>${Object.values(PLATFORMS).filter(p=>p.live).map(p=>`<option value="${p.id}">${p.short}</option>`).join('')}</select>`:''}
             ${_stockCanJobLot?`<button class="bulk-ctrl" style="color:var(--purple)" onclick="openCreateJobLotFromSelection()">${icon('joblot',14)} Job Lot</button>`:''}
+            <button class="bulk-ctrl" style="color:var(--warn)" onclick="openStockBulkDispose()">${icon('dispose',14)} Dispose</button>
             <button class="bulk-ctrl is-danger" onclick="stockBulkAction('delete',window.__stockItems||[])">${icon('trash',14)} Delete</button>
           `:''}
           <button class="sel-exit" onclick="toggleStockSelection()">\u2715 Done</button>
@@ -22404,6 +22618,30 @@ function renderStock(){
 //   - Sums of all per-trip totalCost reconcile EXACTLY to the existing
 //     L5826-style year-aggregate formula (sum_year(min(M,10k)*0.45 +
 //     max(0,M-10k)*0.25)) when ratePerMile=0.45 across the board.
+// Launch hardening — Inventory is a high-frequency operational page. Keep a
+// local render boundary so one malformed legacy row cannot blank the entire
+// page or break mobile navigation. The underlying exception is still captured
+// by Diagnostics and logged to console; this only keeps the UI recoverable.
+function renderStock(){
+  const el=document.getElementById('p-stock');
+  try{
+    _renderStockCore();
+  }catch(err){
+    console.error('[RETRADE] renderStock failed',err);
+    try{ _diagRecord('render',err,{location:'Inventory'}); }catch(e){}
+    if(el){
+      const msg=(err&&err.message)?String(err.message):'Unknown rendering error';
+      el.innerHTML='<div class="page-header"><div><div class="page-title">Inventory</div><div class="page-subtitle">Listed, unlisted and returned stock.</div></div></div>'
+        +'<div class="section-card" style="border-color:color-mix(in srgb,var(--red) 35%,var(--border));">'
+        +'<div class="section-card-title">Inventory needs a refresh</div>'
+        +'<div class="section-card-desc">A stock record could not be rendered. Your data has not been deleted. Retry first; if it repeats, copy Diagnostics from Reports &amp; Data.</div>'
+        +'<div style="font-size:11px;color:var(--muted);margin:-6px 0 14px;overflow-wrap:anywhere">'+esc(msg)+'</div>'
+        +'<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-primary" onclick="renderStock()">Retry Inventory</button>'
+        +'<button class="btn btn-secondary" onclick="goToTab(\'data\',null)">Open Diagnostics</button></div></div>';
+    }
+  }
+}
+
 function calcTieredTrips(trips){
   const _tyOf=function(ds){
     if(!ds)return null;
@@ -23994,7 +24232,7 @@ function renderData(){
           <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
             <div>
               <div style="font-size:14px;font-weight:600;margin-bottom:2px;">Export full backup</div>
-              <div style="font-size:12px;color:var(--text-secondary);">Portable JSON data backup including items, returns, partners, settlements, cash ledger, runs, activity and settings. Photo files stay in secure cloud storage; their paths are preserved.</div>
+              <div style="font-size:12px;color:var(--text-secondary);">Portable JSON data backup including items, returns, job lots, sale reconciliations, partners, settlements, cash ledger, runs, activity and settings. Photo files stay in secure cloud storage; their paths are preserved.</div>
             </div>
             <div class="ddwrap" id="dd-export-backup" style="position:relative;">
               <button class="btn btn-primary" style="font-size:13px;display:flex;align-items:center;gap:6px;" onclick="event.stopPropagation();toggleDD('dd-export-backup',this)">
@@ -24476,7 +24714,7 @@ function _backupSettings(){
   };
 }
 function exportDB(){
-  // V3 portable DATA backup. Unlike the old v2 export, this includes every
+  // V4 portable DATA backup. Extends V3 with Job Lots and sale-reconciliation records while retaining every
   // durable business record needed to rebuild relationships/cashflow/history:
   // items + child history, trips, expenses, cash ledger, sourcing runs,
   // partners/settlements, activity log and user settings. Photo *files* remain
@@ -24492,9 +24730,12 @@ function exportDB(){
   exportData.sourcing_runs=_backupClean(typeof _sourcingRuns!=='undefined'?_sourcingRuns:[]);
   exportData.accounts=_backupClean(typeof _accounts!=='undefined'?_accounts:[]);
   exportData.activity_log=_backupClean(DB.activityLog||[]);
+  exportData.job_lots=_backupClean(typeof _jobLots!=='undefined'?_jobLots:[]);
+  exportData.job_lot_items=_backupClean(typeof _jobLotItems!=='undefined'?_jobLotItems:[]);
+  exportData.sale_reconciliations=_backupClean(typeof _saleReconciliations!=='undefined'?_saleReconciliations:[]);
   exportData.user_settings=_backupSettings();
   exportData._exportedAt=new Date().toISOString();
-  exportData._version=3;
+  exportData._version=4;
   exportData._schemaVersion=RETRADE_SCHEMA_VERSION;
   exportData._photoFilesEmbedded=false;
   const json=JSON.stringify(exportData,null,2);
@@ -24591,7 +24832,7 @@ function importDB(e){
       });
 
       // A backup can be valid even when it contains no item changes (e.g. an
-      // account with only partners/cash history). V3 therefore recognises every
+      // account with only partners/cash history). V4 therefore recognises every
       // durable support collection rather than using "has items" as validity.
       const _hasAnyValidItems=Object.keys(imported||{}).some(function(k){
         const arr=imported[k];
@@ -24605,6 +24846,9 @@ function importDB(e){
         runs:Array.isArray(imported.sourcing_runs)?imported.sourcing_runs.length:0,
         accounts:Array.isArray(imported.accounts)?imported.accounts.length:0,
         activity:Array.isArray(imported.activity_log)?imported.activity_log.length:0,
+        jobLots:Array.isArray(imported.job_lots)?imported.job_lots.length:0,
+        jobLotItems:Array.isArray(imported.job_lot_items)?imported.job_lot_items.length:0,
+        reconciliations:Array.isArray(imported.sale_reconciliations)?imported.sale_reconciliations.length:0,
         settings:(imported.user_settings&&typeof imported.user_settings==='object')?1:0
       };
       const _hasSupport=Object.values(supportCounts).some(function(n){return n>0;});
@@ -24678,7 +24922,7 @@ function importDB(e){
         <div style="font-size:12px;color:var(--text-secondary);margin-bottom:16px;padding:10px 12px;background:var(--surface2);border-radius:8px;line-height:1.6">
           This will <strong style="color:var(--text)">merge into</strong> your current database. New items are added automatically. Items only in your DB are never deleted.
           ${dupeItems.length>0 ? `<br><span style="color:var(--accent)">⚠️ ${dupeItems.length} duplicate${dupeItems.length!==1?'s':''} found — choose Replace or Skip for each below. Defaults to Skip.</span>` : ''}
-          ${_hasSupport ? `<br><span style="color:var(--text-secondary)">Also restores/merges: ${supportCounts.accounts} partner${supportCounts.accounts===1?'':'s'}, ${supportCounts.runs} run${supportCounts.runs===1?'':'s'}, ${supportCounts.cash} cash entr${supportCounts.cash===1?'y':'ies'}, ${supportCounts.trips} trip${supportCounts.trips===1?'':'s'}, ${supportCounts.expenses} expense${supportCounts.expenses===1?'':'s'}${supportCounts.settings?' and app settings':''}.</span>` : ''}
+          ${_hasSupport ? `<br><span style="color:var(--text-secondary)">Also restores/merges: ${supportCounts.accounts} partner${supportCounts.accounts===1?'':'s'}, ${supportCounts.runs} run${supportCounts.runs===1?'':'s'}, ${supportCounts.cash} cash entr${supportCounts.cash===1?'y':'ies'}, ${supportCounts.trips} trip${supportCounts.trips===1?'':'s'}, ${supportCounts.expenses} expense${supportCounts.expenses===1?'':'s'}, ${supportCounts.jobLots||0} job lot${supportCounts.jobLots===1?'':'s'} and ${supportCounts.reconciliations||0} reconciliation${supportCounts.reconciliations===1?'':'s'}${supportCounts.settings?' plus app settings':''}.</span>` : ''}
         </div>
 
         ${nothingToShow ? (_validBackup
@@ -24763,7 +25007,7 @@ async function _confirmJSONImport(){
   });
 
   DB._userOwned=true;
-  // V3 support data: merge by durable id, with the backup row winning on an id
+  // V4 support data: merge by durable id, with the backup row winning on an id
   // collision. This matches an actual restore better than v2's "new rows only"
   // behaviour, which silently ignored updated trips/runs from the backup.
   DB.trips=_mergeBackupRows(DB.trips||[],imported.trips||[],'trip');
@@ -24772,6 +25016,9 @@ async function _confirmJSONImport(){
   DB.activityLog=_mergeBackupRows(DB.activityLog||[],imported.activity_log||[],'log');
   if(typeof _sourcingRuns!=='undefined')_sourcingRuns=_mergeBackupRows(_sourcingRuns||[],imported.sourcing_runs||[],'run');
   if(typeof _accounts!=='undefined')_accounts=_mergeBackupRows(_accounts||[],imported.accounts||[],'acct');
+  if(typeof _jobLots!=='undefined')_jobLots=_mergeBackupRows(_jobLots||[],imported.job_lots||[],'jlot');
+  if(typeof _jobLotItems!=='undefined')_jobLotItems=_mergeBackupRows(_jobLotItems||[],imported.job_lot_items||[],'jmem');
+  if(typeof _saleReconciliations!=='undefined')_saleReconciliations=_mergeBackupRows(_saleReconciliations||[],imported.sale_reconciliations||[],'recon');
   const restoredSettings=_applyBackupSettings(imported.user_settings);
   _activeSourcingRun=(typeof _sourcingRuns!=='undefined'?_sourcingRuns:[]).find(function(r){return r.status==='active';})||null;
   try{_refreshNav();}catch(e){}
@@ -24786,7 +25033,7 @@ async function _confirmJSONImport(){
   if(replacedCount)msg+=`, replaced ${replacedCount}`;
   if(skippedCount)msg+=`, skipped ${skippedCount} duplicate${skippedCount!==1?'s':''}`;
   const sc=pending.supportCounts||{};
-  const supporting=(sc.accounts||0)+(sc.runs||0)+(sc.cash||0)+(sc.trips||0)+(sc.expenses||0);
+  const supporting=(sc.accounts||0)+(sc.runs||0)+(sc.cash||0)+(sc.trips||0)+(sc.expenses||0)+(sc.activity||0)+(sc.jobLots||0)+(sc.jobLotItems||0)+(sc.reconciliations||0);
   if(supporting)msg+=`, merged supporting data`;
   toast(msg);
 
@@ -25187,6 +25434,9 @@ async function clearAllData(){
     };
     // Child rows first; then parent/business tables. Attempt every table so one
     // stale optional table cannot stop cleanup of all the others.
+    if(_jobLotSchemaAvailable)await del('job_lot_items');
+    if(_reconciliationSchemaAvailable)await del('sale_reconciliations');
+    if(_jobLotSchemaAvailable)await del('job_lots');
     await del('item_parts');
     await del('item_returns');
     await del('items');
@@ -25207,7 +25457,7 @@ async function clearAllData(){
     if(keepTaxYear!=null)DB._taxYear=keepTaxYear;
     if(keepTaxRegion!=null)DB._taxRegion=keepTaxRegion;
     if(keepTaxOther!=null)DB._taxOtherIncome=keepTaxOther;
-    _sourcingRuns=[];_activeSourcingRun=null;_accounts=[];_deletedThisSession=[];
+    _sourcingRuns=[];_activeSourcingRun=null;_accounts=[];_jobLots=[];_jobLotItems=[];_saleReconciliations=[];_deletedThisSession=[];
     _ensureDBShape();
     // A queued pre-clear write must never resurrect deleted cloud rows.
     try{_outboxSave({});}catch(e){}
@@ -26164,17 +26414,15 @@ function confirmRelist(m,id){
   // path. Items that were relisted before this fix don't have the snapshot;
   // they fall back to the live (now-overwritten) values, so older relisted
   // items are still slightly wrong but new relists from this point are correct.
-  if(i.returnHistory&&i.returnHistory.length){
-    const _lastEntry=i.returnHistory[i.returnHistory.length-1];
-    if(_lastEntry&&(_lastEntry.type==='full_seller'||_lastEntry.type==='full_ebay')){
-      if(_lastEntry._shippingCostAtRelist===undefined)_lastEntry._shippingCostAtRelist=i.shippingCost||0;
-      if(_lastEntry._postageAtRelist===undefined)_lastEntry._postageAtRelist=i.postage||0;
-      if(_lastEntry._packagingCostAtRelist===undefined)_lastEntry._packagingCostAtRelist=i.packagingCost||0;
-      if(_lastEntry._promoPercentAtRelist===undefined)_lastEntry._promoPercentAtRelist=i.promoPercent||0;
-      if(_lastEntry._sdRateIdxAtRelist===undefined)_lastEntry._sdRateIdxAtRelist=(i._sdRateIdx!=null?i._sdRateIdx:1);
-      if(_lastEntry._sdBuyerPaysAtRelist===undefined)_lastEntry._sdBuyerPaysAtRelist=!!i._sdBuyerPays;
-      if(_lastEntry._salePriceAtRelist===undefined)_lastEntry._salePriceAtRelist=i.salePrice||0;
-    }
+  const _relistReturnEntry=(i.returnHistory||[]).slice().reverse().find(function(r){return (r.type==='full_seller'||r.type==='full_ebay')&&r.saleNo!==2;})||null;
+  if(_relistReturnEntry){
+    if(_relistReturnEntry._shippingCostAtRelist===undefined)_relistReturnEntry._shippingCostAtRelist=i.shippingCost||0;
+    if(_relistReturnEntry._postageAtRelist===undefined)_relistReturnEntry._postageAtRelist=i.postage||0;
+    if(_relistReturnEntry._packagingCostAtRelist===undefined)_relistReturnEntry._packagingCostAtRelist=i.packagingCost||0;
+    if(_relistReturnEntry._promoPercentAtRelist===undefined)_relistReturnEntry._promoPercentAtRelist=i.promoPercent||0;
+    if(_relistReturnEntry._sdRateIdxAtRelist===undefined)_relistReturnEntry._sdRateIdxAtRelist=(i._sdRateIdx!=null?i._sdRateIdx:1);
+    if(_relistReturnEntry._sdBuyerPaysAtRelist===undefined)_relistReturnEntry._sdBuyerPaysAtRelist=!!i._sdBuyerPays;
+    if(_relistReturnEntry._salePriceAtRelist===undefined)_relistReturnEntry._salePriceAtRelist=i.salePrice||0;
   }
   // Apply postage settings
   i._postageMode=postMode;
@@ -26204,10 +26452,10 @@ function confirmRelist(m,id){
   i.condition=condition==='working'?undefined:'spares';
   i.grossProfit=null;
   // Log relist in returnHistory for audit trail
-  if(i.returnHistory&&i.returnHistory.length){
+  if(_relistReturnEntry){
     const relistDate=document.getElementById('relist-date').value||new Date().toISOString().split('T')[0];
-    i.returnHistory[i.returnHistory.length-1]._relistedAt=relistDate;
-    i.returnHistory[i.returnHistory.length-1]._relistCondition=condition;
+    _relistReturnEntry._relistedAt=relistDate;
+    _relistReturnEntry._relistCondition=condition;
     // v2.15.0 — register the relist in the maintenance log. Two reasons:
     //  1. The item-page relist COUNTER only reads refreshHistory, so a
     //     relist-after-return never registered. That's why it was being logged
@@ -27147,6 +27395,17 @@ function _periodDateRange(period){
   return{from:null,to:null}; // all time
 }
 
+function _originalSale1Date(i){
+  if(!i)return null;
+  if(i.dateSold)return i.dateSold;
+  const full=(i.returnHistory||[]).find(function(r){
+    return (r.type==='full_seller'||r.type==='full_ebay')&&r.saleNo!==2;
+  });
+  return (full&&full._dateSoldAtReturn)
+    ||(full&&full.loggedAt?String(full.loggedAt).slice(0,10):null)
+    ||null;
+}
+
 function calcYearlyStats(period){
   const range=_periodDateRange(period||SUMMARY_PERIOD);
   const inRange=function(dateStr){
@@ -27177,12 +27436,7 @@ function calcYearlyStats(period){
       // _retSaleDate: original sale date for items whose dateSold was wiped.
       // Applies to BOTH currently-returned items AND items that were returned+resold
       // (isReturned=false but returnHistory has a full return entry and dateSold is null).
-      const _retSaleDate=(!i.dateSold)?(function(){
-        const fe=(i.returnHistory||[]).find(r=>(r.type==='full_seller'||r.type==='full_ebay')&&r.saleNo!==2);
-        // Fallback: use loggedAt if _dateSoldAtReturn snapshot is missing (pre-E4 data)
-        return (fe&&fe._dateSoldAtReturn)||(fe&&fe.loggedAt?fe.loggedAt.slice(0,10):null)||null;
-      })():null;
-      const saleDate=i.resaleSalePrice?i.resaleDateSold:(i.dateSold||_retSaleDate);
+      const saleDate=i.resaleSalePrice?i.resaleDateSold:_originalSale1Date(i);
       // Fix B (B3): an item with no resolvable sale date is NOT realised. For a
       // date-bounded period inRange(null) is already false; but for all-time
       // (range.from=null) inRange(null) returned true, wrongly folding unsold
@@ -27460,11 +27714,7 @@ function _statsForRange(range){
   allDBKeys().forEach(function(k){
     (DB[k]||[]).forEach(function(i){
       if((i.item||'').trim().toUpperCase()==='MONTH END')return;
-      const _retSaleDate=(!i.dateSold)?(function(){
-        const fe=(i.returnHistory||[]).find(r=>(r.type==='full_seller'||r.type==='full_ebay')&&r.saleNo!==2);
-        return (fe&&fe._dateSoldAtReturn)||(fe&&fe.loggedAt?fe.loggedAt.slice(0,10):null)||null;
-      })():null;
-      const saleDate=i.resaleSalePrice?i.resaleDateSold:(i.dateSold||_retSaleDate);
+      const saleDate=i.resaleSalePrice?i.resaleDateSold:_originalSale1Date(i);
       if(!inRange(saleDate))return;
       const rh=i.returnHistory||[];
       const periodRh=rh.filter(function(r){return inRange(_returnEventDate(r));});
