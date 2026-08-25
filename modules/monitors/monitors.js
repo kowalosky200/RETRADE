@@ -1,6 +1,6 @@
-(() => {
-  const STORAGE_KEY = 'retrade.monitor.configs.v1';
-  const DEALS_KEY = 'retrade.monitor.demoDeals.v1';
+(async () => {
+  const store = window.RETRADE_MONITOR_STORE;
+  if (!store) throw new Error('RETRADE monitor data store failed to load');
 
   const defaultMonitors = [
     { id: crypto.randomUUID(), name: 'Canon DSLR £0–100', category: 'Canon DSLR', search: 'Canon EOS DSLR', maxPrice: 100, minProfit: 40, minRoi: 25, reject: 'spares, broken, water damage', discord: true, enabled: true },
@@ -16,25 +16,9 @@
     { id: 'demo-5', title: 'MacBook Air M1 16GB 256GB', platform: 'Vinted', price: 275, landed: 289, resale: 449, profit: 110, score: 97, category: 'MacBook', age: '11 min', risk: 'Low' }
   ];
 
-  let monitors = readJson(STORAGE_KEY, defaultMonitors);
-  let deals = readJson(DEALS_KEY, []);
-
-  function readJson(key, fallback) {
-    try {
-      const value = localStorage.getItem(key);
-      return value ? JSON.parse(value) : structuredClone(fallback);
-    } catch {
-      return structuredClone(fallback);
-    }
-  }
-
-  function saveMonitors() {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(monitors));
-  }
-
-  function saveDeals() {
-    localStorage.setItem(DEALS_KEY, JSON.stringify(deals));
-  }
+  let monitors = [];
+  let deals = [];
+  let persistence = { mode: 'local', reason: 'Starting…' };
 
   function money(value) {
     return new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP', maximumFractionDigits: 0 }).format(Number(value) || 0);
@@ -51,8 +35,40 @@
     return 'CHECK';
   }
 
+  function escapeHtml(value) {
+    return String(value ?? '').replace(/[&<>'"]/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[ch]));
+  }
+
+  function showNotice(message, type = 'info') {
+    const notice = document.getElementById('appNotice');
+    notice.textContent = message;
+    notice.className = `notice ${type}`;
+    window.clearTimeout(showNotice.timer);
+    showNotice.timer = window.setTimeout(() => notice.classList.add('hidden'), 4500);
+  }
+
+  function renderPersistenceStatus() {
+    const cloud = persistence.mode === 'supabase';
+    const mode = document.getElementById('storageMode');
+    const detail = document.getElementById('storageDetail');
+    const storage = document.getElementById('healthStorage');
+    const supabase = document.getElementById('healthSupabase');
+    const dot = document.getElementById('storageDot');
+
+    mode.textContent = cloud ? 'Supabase persistence' : 'Local development storage';
+    detail.textContent = cloud ? 'Authenticated cloud sync active' : persistence.reason;
+    storage.textContent = cloud ? 'Cloud' : 'Local fallback';
+    storage.className = cloud ? 'ok' : 'pending';
+    supabase.textContent = cloud ? 'Connected' : 'Awaiting app client';
+    supabase.className = cloud ? 'ok' : 'pending';
+    dot.classList.toggle('connected', cloud);
+  }
+
   function dealCard(deal) {
     const label = scoreLabel(deal.score);
+    const listingAction = deal.url
+      ? `<a class="mini-button link-button" href="${escapeHtml(deal.url)}" target="_blank" rel="noopener noreferrer">Open listing</a>`
+      : '';
     return `<article class="deal-card">
       <div class="monitor-top">
         <span class="deal-score ${deal.score >= 90 ? 'snipe' : ''}">${deal.score}</span>
@@ -62,6 +78,7 @@
       <div class="deal-meta"><span>${escapeHtml(deal.platform)}</span><span>${escapeHtml(deal.category)}</span><span>${escapeHtml(deal.age)}</span></div>
       <div class="deal-profit">${money(deal.price)} buy · ${money(deal.profit)} est. profit</div>
       <div class="deal-meta" style="margin-top:8px"><span>Resale ${money(deal.resale)}</span><span>Risk ${escapeHtml(deal.risk)}</span></div>
+      ${listingAction ? `<div class="monitor-actions">${listingAction}</div>` : ''}
     </article>`;
   }
 
@@ -106,10 +123,6 @@
     </article>`).join('') : '<div class="panel empty-state">No monitors yet. Create your first monitor.</div>';
   }
 
-  function escapeHtml(value) {
-    return String(value ?? '').replace(/[&<>'"]/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[ch]));
-  }
-
   function openModal() {
     document.getElementById('monitorModal').classList.remove('hidden');
   }
@@ -119,55 +132,115 @@
     document.getElementById('monitorForm').reset();
   }
 
+  async function refreshMonitors() {
+    monitors = await store.listMonitors();
+    renderMonitors();
+  }
+
+  async function refreshDeals() {
+    deals = await store.listDeals();
+    renderDeals();
+  }
+
+  async function initialise() {
+    persistence = await store.init();
+    renderPersistenceStatus();
+
+    monitors = await store.listMonitors();
+    if (persistence.mode === 'local' && monitors.length === 0) {
+      await store.replaceLocalMonitors(defaultMonitors);
+      monitors = await store.listMonitors();
+    }
+
+    deals = await store.listDeals();
+    renderMonitors();
+    renderDeals();
+  }
+
   document.querySelectorAll('.nav-item[data-tab]').forEach(btn => btn.addEventListener('click', () => activeTab(btn.dataset.tab)));
   document.querySelectorAll('[data-jump]').forEach(btn => btn.addEventListener('click', () => activeTab(btn.dataset.jump)));
 
   ['newMonitorBtn', 'newMonitorBtnSecondary'].forEach(id => document.getElementById(id).addEventListener('click', openModal));
   ['closeMonitorModal', 'cancelMonitorModal'].forEach(id => document.getElementById(id).addEventListener('click', closeModal));
-  document.getElementById('monitorModal').addEventListener('click', e => { if (e.target.id === 'monitorModal') closeModal(); });
+  document.getElementById('monitorModal').addEventListener('click', event => { if (event.target.id === 'monitorModal') closeModal(); });
 
-  document.getElementById('monitorForm').addEventListener('submit', event => {
+  document.getElementById('monitorForm').addEventListener('submit', async event => {
     event.preventDefault();
-    const form = new FormData(event.currentTarget);
-    monitors.unshift({
-      id: crypto.randomUUID(),
-      name: form.get('name'),
-      category: form.get('category'),
-      search: form.get('search'),
-      maxPrice: Number(form.get('maxPrice')),
-      minProfit: Number(form.get('minProfit')),
-      minRoi: Number(form.get('minRoi')),
-      reject: form.get('reject'),
-      discord: form.get('discord') === 'on',
-      enabled: form.get('enabled') === 'on'
-    });
-    saveMonitors();
-    renderMonitors();
-    closeModal();
-    activeTab('monitors');
+    const submit = event.currentTarget.querySelector('button[type="submit"]');
+    submit.disabled = true;
+    try {
+      const form = new FormData(event.currentTarget);
+      await store.createMonitor({
+        name: form.get('name'),
+        category: form.get('category'),
+        search: form.get('search'),
+        maxPrice: Number(form.get('maxPrice')),
+        minProfit: Number(form.get('minProfit')),
+        minRoi: Number(form.get('minRoi')),
+        reject: form.get('reject'),
+        discord: form.get('discord') === 'on',
+        enabled: form.get('enabled') === 'on'
+      });
+      await refreshMonitors();
+      closeModal();
+      activeTab('monitors');
+      showNotice('Monitor saved.', 'success');
+    } catch (error) {
+      console.error(error);
+      showNotice(`Could not save monitor: ${error.message || 'Unknown error'}`, 'error');
+    } finally {
+      submit.disabled = false;
+    }
   });
 
-  document.getElementById('monitorGrid').addEventListener('click', event => {
+  document.getElementById('monitorGrid').addEventListener('click', async event => {
     const button = event.target.closest('[data-action]');
     const card = event.target.closest('[data-id]');
     if (!button || !card) return;
-    const index = monitors.findIndex(m => m.id === card.dataset.id);
-    if (index < 0) return;
-    if (button.dataset.action === 'toggle') monitors[index].enabled = !monitors[index].enabled;
-    if (button.dataset.action === 'duplicate') monitors.splice(index + 1, 0, { ...monitors[index], id: crypto.randomUUID(), name: `${monitors[index].name} copy`, enabled: false });
-    if (button.dataset.action === 'delete') monitors.splice(index, 1);
-    saveMonitors();
-    renderMonitors();
+    const monitor = monitors.find(item => item.id === card.dataset.id);
+    if (!monitor) return;
+
+    button.disabled = true;
+    try {
+      if (button.dataset.action === 'toggle') {
+        await store.updateMonitor(monitor.id, { enabled: !monitor.enabled });
+      }
+      if (button.dataset.action === 'duplicate') {
+        await store.createMonitor({ ...monitor, id: undefined, name: `${monitor.name} copy`, enabled: false });
+      }
+      if (button.dataset.action === 'delete') {
+        await store.deleteMonitor(monitor.id);
+      }
+      await refreshMonitors();
+    } catch (error) {
+      console.error(error);
+      showNotice(`Monitor action failed: ${error.message || 'Unknown error'}`, 'error');
+    } finally {
+      button.disabled = false;
+    }
   });
 
   document.getElementById('dealFilter').addEventListener('change', renderDeals);
-  document.getElementById('seedDemoBtn').addEventListener('click', () => {
-    deals = structuredClone(demoDeals);
-    saveDeals();
-    renderDeals();
-    activeTab('live');
+  document.getElementById('seedDemoBtn').addEventListener('click', async () => {
+    try {
+      await store.setDemoDeals(demoDeals);
+      deals = [...demoDeals];
+      renderDeals();
+      activeTab('live');
+      showNotice('Demo deals loaded locally for preview. They are never written to Supabase.', 'info');
+    } catch (error) {
+      console.error(error);
+      showNotice('Could not load demo deals.', 'error');
+    }
   });
 
-  renderMonitors();
-  renderDeals();
+  try {
+    await initialise();
+  } catch (error) {
+    console.error('[RETRADE Monitors] Initialisation failed:', error);
+    showNotice(`Monitors could not initialise: ${error.message || 'Unknown error'}`, 'error');
+    renderPersistenceStatus();
+    renderMonitors();
+    renderDeals();
+  }
 })();
