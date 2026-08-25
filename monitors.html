@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>RETRADE | Monitors</title>
+  <link rel="stylesheet" href="modules/monitors/monitors.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark">R</div>
+        <div>
+          <div class="brand-name">RETRADE</div>
+          <div class="brand-subtitle">Resale Operations</div>
+        </div>
+      </div>
+
+      <nav class="side-nav" aria-label="RETRADE navigation">
+        <a href="index.html" class="nav-item">
+          <span class="nav-icon">←</span>
+          <span>Back to RETRADE</span>
+        </a>
+        <div class="nav-divider"></div>
+        <button class="nav-item active" data-tab="overview"><span class="nav-icon">◫</span><span>Overview</span></button>
+        <button class="nav-item" data-tab="live"><span class="nav-icon">◉</span><span>Live Feed</span></button>
+        <button class="nav-item" data-tab="monitors"><span class="nav-icon">⌁</span><span>Monitors</span></button>
+        <button class="nav-item" data-tab="rules"><span class="nav-icon">⚙</span><span>Rules</span></button>
+        <button class="nav-item" data-tab="history"><span class="nav-icon">↺</span><span>History</span></button>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="status-dot-row"><span class="status-dot"></span><span>Monitor engine scaffold</span></div>
+        <div class="muted small">Live Vinted connection not enabled yet</div>
+      </div>
+    </aside>
+
+    <main class="main-content">
+      <header class="page-header">
+        <div>
+          <div class="eyebrow">AUTOMATED SOURCING</div>
+          <h1>Monitors</h1>
+          <p>Build, score and manage automated deal searches without mixing them into sourcing runs.</p>
+        </div>
+        <div class="header-actions">
+          <button class="button secondary" id="seedDemoBtn">Load demo deals</button>
+          <button class="button primary" id="newMonitorBtn">+ New monitor</button>
+        </div>
+      </header>
+
+      <section class="tab-panel active" id="tab-overview">
+        <div class="stats-grid">
+          <article class="stat-card"><span>Active monitors</span><strong id="statActive">0</strong><small>Running rules</small></article>
+          <article class="stat-card"><span>Deals detected</span><strong id="statDeals">0</strong><small>Current local demo session</small></article>
+          <article class="stat-card"><span>Strong buys</span><strong id="statStrong">0</strong><small>Score 85+</small></article>
+          <article class="stat-card"><span>Projected profit</span><strong id="statProfit">£0</strong><small>Open opportunities</small></article>
+        </div>
+
+        <div class="content-grid">
+          <section class="panel wide">
+            <div class="panel-heading">
+              <div><h2>Recent opportunities</h2><p>Highest-value matches from all active monitors.</p></div>
+              <button class="text-button" data-jump="live">View live feed →</button>
+            </div>
+            <div id="overviewDeals" class="deal-list empty-state">No deal data yet. Load demo deals to preview the scoring experience.</div>
+          </section>
+
+          <section class="panel">
+            <div class="panel-heading"><div><h2>Monitor health</h2><p>Foundation for the future worker.</p></div></div>
+            <div class="health-list">
+              <div><span>Dashboard</span><strong class="ok">Ready</strong></div>
+              <div><span>Rule storage</span><strong class="ok">Local</strong></div>
+              <div><span>Vinted worker</span><strong class="pending">Not connected</strong></div>
+              <div><span>Discord alerts</span><strong class="pending">Not connected</strong></div>
+              <div><span>Supabase sync</span><strong class="pending">Next stage</strong></div>
+            </div>
+          </section>
+        </div>
+      </section>
+
+      <section class="tab-panel" id="tab-live">
+        <div class="toolbar">
+          <div>
+            <h2>Live deal feed</h2>
+            <p>Eventually this will update as listings are detected by the worker.</p>
+          </div>
+          <div class="filter-row">
+            <select id="dealFilter"><option value="all">All deals</option><option value="snipe">Snipe 90+</option><option value="buy">Buy 80+</option><option value="check">Check</option></select>
+          </div>
+        </div>
+        <div id="liveDeals" class="deal-grid empty-state">No listings detected yet.</div>
+      </section>
+
+      <section class="tab-panel" id="tab-monitors">
+        <div class="toolbar">
+          <div><h2>Your monitors</h2><p>Each monitor references reusable category intelligence and its own price/profit rules.</p></div>
+          <button class="button primary" id="newMonitorBtnSecondary">+ New monitor</button>
+        </div>
+        <div id="monitorGrid" class="monitor-grid"></div>
+      </section>
+
+      <section class="tab-panel" id="tab-rules">
+        <div class="toolbar"><div><h2>Category intelligence</h2><p>Reusable model values, aliases, allowed faults and rejection rules.</p></div></div>
+        <div class="rules-grid">
+          <article class="rule-card">
+            <div class="rule-card-top"><span class="category-pill">CAMERAS</span><strong>Canon DSLR</strong></div>
+            <p>Model recognition, Rebel aliases, bundle logic, lens/accessory uplift and fault keywords.</p>
+            <div class="rule-meta"><span>15+ target models</span><span>Bundle aware</span></div>
+          </article>
+          <article class="rule-card">
+            <div class="rule-card-top"><span class="category-pill">LAPTOPS</span><strong>MacBook</strong></div>
+            <p>Chip/RAM/storage recognition, battery adjustments and high-risk lock/MDM screening.</p>
+            <div class="rule-meta"><span>M1/M2 focus</span><span>Lock aware</span></div>
+          </article>
+          <article class="rule-card dashed"><strong>+ Add category intelligence</strong><p>Future categories can reuse the same monitor engine.</p></article>
+        </div>
+      </section>
+
+      <section class="tab-panel" id="tab-history">
+        <div class="toolbar"><div><h2>Monitor history</h2><p>Deal detections, ignored listings, purchases and eventual performance learning will live here.</p></div></div>
+        <div class="panel empty-state">History will populate once the live monitor worker is connected.</div>
+      </section>
+    </main>
+  </div>
+
+  <div class="modal-backdrop hidden" id="monitorModal" role="dialog" aria-modal="true" aria-labelledby="monitorModalTitle">
+    <div class="modal">
+      <div class="modal-header">
+        <div><div class="eyebrow">MONITOR BUILDER</div><h2 id="monitorModalTitle">Create monitor</h2></div>
+        <button class="icon-button" id="closeMonitorModal" aria-label="Close">×</button>
+      </div>
+      <form id="monitorForm">
+        <div class="form-grid">
+          <label>Monitor name<input name="name" required placeholder="e.g. Canon DSLR £0–100" /></label>
+          <label>Category<select name="category"><option>Canon DSLR</option><option>MacBook</option><option>Custom</option></select></label>
+          <label>Search terms<input name="search" placeholder="Canon EOS, DSLR" /></label>
+          <label>Maximum item price (£)<input name="maxPrice" type="number" min="0" step="1" value="100" /></label>
+          <label>Minimum expected profit (£)<input name="minProfit" type="number" min="0" step="1" value="40" /></label>
+          <label>Minimum ROI (%)<input name="minRoi" type="number" min="0" step="1" value="25" /></label>
+        </div>
+        <label class="full-label">Reject keywords<textarea name="reject" rows="3" placeholder="broken, spares, water damage, activation lock"></textarea></label>
+        <div class="toggle-row"><label><input type="checkbox" name="discord" checked /> Discord alerts</label><label><input type="checkbox" name="enabled" checked /> Start enabled</label></div>
+        <div class="modal-actions"><button type="button" class="button secondary" id="cancelMonitorModal">Cancel</button><button type="submit" class="button primary">Save monitor</button></div>
+      </form>
+    </div>
+  </div>
+
+  <script src="modules/monitors/monitors.js"></script>
+</body>
+</html>
