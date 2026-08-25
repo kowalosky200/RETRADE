@@ -31,8 +31,8 @@
       </nav>
 
       <div class="sidebar-footer">
-        <div class="status-dot-row"><span class="status-dot"></span><span>Monitor engine scaffold</span></div>
-        <div class="muted small">Live Vinted connection not enabled yet</div>
+        <div class="status-dot-row"><span class="status-dot" id="storageDot"></span><span id="storageMode">Starting monitor data layer…</span></div>
+        <div class="muted small" id="storageDetail">Checking persistence</div>
       </div>
     </aside>
 
@@ -49,10 +49,12 @@
         </div>
       </header>
 
+      <div class="notice hidden" id="appNotice" role="status"></div>
+
       <section class="tab-panel active" id="tab-overview">
         <div class="stats-grid">
           <article class="stat-card"><span>Active monitors</span><strong id="statActive">0</strong><small>Running rules</small></article>
-          <article class="stat-card"><span>Deals detected</span><strong id="statDeals">0</strong><small>Current local demo session</small></article>
+          <article class="stat-card"><span>Deals detected</span><strong id="statDeals">0</strong><small>Current feed</small></article>
           <article class="stat-card"><span>Strong buys</span><strong id="statStrong">0</strong><small>Score 85+</small></article>
           <article class="stat-card"><span>Projected profit</span><strong id="statProfit">£0</strong><small>Open opportunities</small></article>
         </div>
@@ -70,10 +72,10 @@
             <div class="panel-heading"><div><h2>Monitor health</h2><p>Foundation for the future worker.</p></div></div>
             <div class="health-list">
               <div><span>Dashboard</span><strong class="ok">Ready</strong></div>
-              <div><span>Rule storage</span><strong class="ok">Local</strong></div>
+              <div><span>Monitor storage</span><strong id="healthStorage" class="pending">Checking…</strong></div>
+              <div><span>Supabase sync</span><strong id="healthSupabase" class="pending">Checking…</strong></div>
               <div><span>Vinted worker</span><strong class="pending">Not connected</strong></div>
               <div><span>Discord alerts</span><strong class="pending">Not connected</strong></div>
-              <div><span>Supabase sync</span><strong class="pending">Next stage</strong></div>
             </div>
           </section>
         </div>
@@ -83,7 +85,7 @@
         <div class="toolbar">
           <div>
             <h2>Live deal feed</h2>
-            <p>Eventually this will update as listings are detected by the worker.</p>
+            <p>This will update as listings are detected by the monitor worker.</p>
           </div>
           <div class="filter-row">
             <select id="dealFilter"><option value="all">All deals</option><option value="snipe">Snipe 90+</option><option value="buy">Buy 80+</option><option value="check">Check</option></select>
@@ -146,6 +148,7 @@
     </div>
   </div>
 
+  <script src="modules/monitors/monitor-api.js"></script>
   <script src="modules/monitors/monitors.js"></script>
 </body>
 </html>
