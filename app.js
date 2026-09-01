@@ -19033,12 +19033,73 @@ function _backupSettings(){
     taxOtherIncome:_taxOtherIncome()
   };
 }
+
+function _backupMonthKeysFromObject(obj){
+  return Object.keys(obj||{}).filter(function(k){
+    return /^(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)-\d{2}$/.test(k)&&Array.isArray(obj[k]);
+  });
+}
+function _backupBuildManifest(data){
+  const months=_backupMonthKeysFromObject(data);
+  let items=0,monthEndRows=0;
+  months.forEach(function(k){
+    (data[k]||[]).forEach(function(row){
+      if(!row||typeof row!=='object')return;
+      if(String(row.item||'').trim().toUpperCase()==='MONTH END')monthEndRows++;
+      else items++;
+    });
+  });
+  const count=function(k){return Array.isArray(data&&data[k])?data[k].length:0;};
+  const manifest={
+    format:'RETRADE_FULL_BACKUP_V5',
+    items:items,
+    monthEndRows:monthEndRows,
+    monthBuckets:months.length,
+    trips:count('trips'),
+    expenses:count('expenses'),
+    cashLedger:count('cash_ledger'),
+    sourcingRuns:count('sourcing_runs'),
+    accounts:count('accounts'),
+    activityLog:count('activity_log'),
+    jobLots:count('job_lots'),
+    jobLotItems:count('job_lot_items'),
+    saleReconciliations:count('sale_reconciliations'),
+    settings:(data&&data.user_settings&&typeof data.user_settings==='object')?1:0
+  };
+  manifest.totalDurableRecords=manifest.items+manifest.monthEndRows+manifest.trips+manifest.expenses+
+    manifest.cashLedger+manifest.sourcingRuns+manifest.accounts+manifest.activityLog+
+    manifest.jobLots+manifest.jobLotItems+manifest.saleReconciliations;
+  return manifest;
+}
+function _backupManifestMatches(expected,actual){
+  if(!expected||typeof expected!=='object')return true; // legacy backup
+  const keys=['items','monthEndRows','monthBuckets','trips','expenses','cashLedger','sourcingRuns',
+    'accounts','activityLog','jobLots','jobLotItems','saleReconciliations','settings','totalDurableRecords'];
+  return keys.every(function(k){
+    return expected[k]==null || Number(expected[k])===Number(actual[k]);
+  });
+}
+function _backupCanonical(value){
+  const clean=function(v){
+    if(Array.isArray(v))return v.map(clean);
+    if(v&&typeof v==='object'){
+      const out={};
+      Object.keys(v).sort().forEach(function(k){
+        // Cloud-only/transient metadata is not business backup content.
+        if(k==='user_id'||k==='access_token'||k==='refresh_token'||k==='_cloudRevision'||k==='_cloudUpdatedAt')return;
+        out[k]=clean(v[k]);
+      });
+      return out;
+    }
+    return v;
+  };
+  try{return JSON.stringify(clean(value));}catch(e){return String(value);}
+}
+
 function exportDB(){
-  // V4 portable DATA backup. Extends V3 with Job Lots and sale-reconciliation records while retaining every
-  // durable business record needed to rebuild relationships/cashflow/history:
-  // items + child history, trips, expenses, cash ledger, sourcing runs,
-  // partners/settlements, activity log and user settings. Photo *files* remain
-  // in Supabase Storage; item photo_path references are preserved in the JSON.
+  // V5 verified full DATA backup. Every durable in-app business collection is
+  // exported losslessly. Photo binaries stay in Supabase Storage; photo_path
+  // references remain inside each item record.
   const exportData={};
   allDBKeys().forEach(function(k){
     if(!(DB[k]||[]).length)return;
@@ -19055,10 +19116,28 @@ function exportDB(){
   exportData.sale_reconciliations=_backupClean(typeof _saleReconciliations!=='undefined'?_saleReconciliations:[]);
   exportData.user_settings=_backupSettings();
   exportData._exportedAt=new Date().toISOString();
-  exportData._version=4;
+  exportData._version=5;
   exportData._schemaVersion=RETRADE_SCHEMA_VERSION;
+  exportData._backupFormat='RETRADE_FULL_BACKUP_V5';
   exportData._photoFilesEmbedded=false;
+  exportData._manifest=_backupBuildManifest(exportData);
+
   const json=JSON.stringify(exportData,null,2);
+
+  // Verify the exact JSON about to be downloaded can be parsed and contains the
+  // same durable record counts. Refuse to create a backup RETRADE cannot verify.
+  try{
+    const parsed=JSON.parse(json);
+    const actual=_backupBuildManifest(parsed);
+    if(!_backupManifestMatches(exportData._manifest,actual)){
+      throw new Error('Backup verification count mismatch');
+    }
+  }catch(e){
+    console.error('[RETRADE] backup verification failed',e);
+    toast('Backup verification failed — nothing was downloaded','err');
+    return;
+  }
+
   const blob=new Blob([json],{type:'application/json'});
   const url=URL.createObjectURL(blob);
   const a=document.createElement('a');
@@ -19066,7 +19145,8 @@ function exportDB(){
   a.download=`retrade_backup_${new Date().toISOString().split('T')[0]}.json`;
   document.body.appendChild(a);a.click();a.remove();
   setTimeout(function(){URL.revokeObjectURL(url);},1000);
-  toast('Data backup exported');
+  const m=exportData._manifest;
+  toast('Verified backup exported · '+m.items+' items · '+m.totalDurableRecords+' records','success');
 }
 
 function _mergeBackupRows(target,incoming,prefix){
@@ -19121,35 +19201,67 @@ function importDB(e){
       if(!imported||typeof imported!=='object'||Array.isArray(imported))throw new Error('Not a RETRADE backup');
       imported._userOwned=true;
 
-      const TRACKED=['salePrice','costPrice','dateSold','shippingCost','postage','packagingCost','promoPercent','location','item'];
-
-      // New   = in file, not in DB            → always added, no prompt
-      // Dupe  = in both (matched by id or name+date) → shown with Replace/Skip
-      // Untouched = in DB only                → never deleted (merge mode)
-      const newItems=[], dupeItems=[];
-      // Scan months present in EITHER the current DB or the backup. Without
-      // this, restoring an older historical backup into a fresh account could
-      // silently skip years outside the current ±1 FY window.
-      const _importMonthKeys=Object.keys(imported||{}).filter(function(k){
-        return /^(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)-\d{2}$/.test(k)&&Array.isArray(imported[k]);
-      });
+      // V5 restore classification:
+      // - modern backups match globally by durable id, even if an item moved month
+      // - legacy id-less rows fall back to item name + date listed
+      // - compare the FULL durable item object, including state/Sale-N/returns/
+      //   parts/account data, not a short list of visible fields
+      // - matching changed rows default to REPLACE because this is a backup restore
+      const newItems=[], dupeItems=[], identicalItems=[], specialRows=[];
+      const _importMonthKeys=_backupMonthKeysFromObject(imported);
       const _importScanMonths=Array.from(new Set(allDBKeys().concat(_importMonthKeys)));
-
-      _importScanMonths.forEach(m=>{
-        const inc=(imported[m]||[]).filter(i=>(i.item||'').trim().toUpperCase()!=='MONTH END');
-        const cur=(DB[m]||[]).filter(i=>(i.item||'').trim().toUpperCase()!=='MONTH END');
-        inc.forEach(a=>{
-          if(!a.id)a.id=_newId('imp');
-          if(!a.gid)a.gid='R-'+String(getNextGID()).padStart(4,'0');
-          const b=cur.find(c=>(a.id&&c.id===a.id)||(c.item===a.item&&c.dateListed===a.dateListed));
-          if(!b){
-            newItems.push({m, item:a.item, dateListed:a.dateListed, data:a});
-          } else if(TRACKED.some(f=>String(b[f]??'')!==String(a[f]??''))){
-            dupeItems.push({m, item:a.item, dateListed:a.dateListed, incoming:a, existing:b, replace:false});
-          }
-          // identical match → no action needed
+      const currentById=new Map(),currentLegacy=new Map();
+      allDBKeys().forEach(function(m){
+        (DB[m]||[]).forEach(function(row){
+          if(!row||typeof row!=='object')return;
+          const isMonthEnd=String(row.item||'').trim().toUpperCase()==='MONTH END';
+          if(isMonthEnd)return;
+          if(row.id!=null&&String(row.id).trim()!=='')currentById.set(String(row.id),{m:m,item:row});
+          currentLegacy.set(String(row.item||'')+'\u0000'+String(row.dateListed||''),{m:m,item:row});
         });
       });
+
+      _importMonthKeys.forEach(function(m){
+        (imported[m]||[]).forEach(function(a){
+          if(!a||typeof a!=='object')return;
+          if(String(a.item||'').trim().toUpperCase()==='MONTH END'){
+            specialRows.push({m:m,data:a});
+            return;
+          }
+          const hadId=a.id!=null&&String(a.id).trim()!=='';
+          if(!hadId)a.id=_newId('imp');
+          if(!a.gid)a.gid='R-'+String(getNextGID()).padStart(4,'0');
+
+          let match=hadId?currentById.get(String(a.id)):null;
+          if(!match&&!hadId)match=currentLegacy.get(String(a.item||'')+'\u0000'+String(a.dateListed||''));
+
+          if(!match){
+            newItems.push({m:m,item:a.item,dateListed:a.dateListed,data:a});
+            return;
+          }
+
+          if(_backupCanonical(match.item)!==_backupCanonical(a)){
+            dupeItems.push({
+              m:m,
+              existingMonth:match.m,
+              item:a.item,
+              dateListed:a.dateListed,
+              incoming:a,
+              existing:match.item,
+              replace:true
+            });
+          }else{
+            identicalItems.push({m:m,item:a.item,id:a.id});
+          }
+        });
+      });
+
+      // V5 backups contain a manifest. Validate it before showing the confirm
+      // panel so a truncated/corrupted file can never be partially restored.
+      const _actualManifest=_backupBuildManifest(imported);
+      if(imported._manifest&&!_backupManifestMatches(imported._manifest,_actualManifest)){
+        throw new Error('Backup is incomplete or corrupted — record count verification failed');
+      }
 
       // A backup can be valid even when it contains no item changes (e.g. an
       // account with only partners/cash history). V4 therefore recognises every
@@ -19175,7 +19287,7 @@ function importDB(e){
       const _validBackup=_hasAnyValidItems||_hasSupport;
 
       // Store on window for confirm to access
-      window._pendingImport={imported:imported,newItems:newItems,dupeItems:dupeItems,supportCounts:supportCounts,validBackup:_validBackup};
+      window._pendingImport={imported:imported,newItems:newItems,dupeItems:dupeItems,identicalItems:identicalItems,specialRows:specialRows,supportCounts:supportCounts,manifest:_actualManifest,validBackup:_validBackup};
 
       const isMob = window.innerWidth < 600;
 
@@ -19195,7 +19307,7 @@ function importDB(e){
         // Bulk toggle row
         const bulk = `
           <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0 10px;border-bottom:2px solid var(--border);margin-bottom:4px">
-            <span style="font-size:12px;font-weight:600;color:var(--text-secondary)">All duplicates:</span>
+            <span style="font-size:12px;font-weight:600;color:var(--text-secondary)">Matching backup items:</span>
             <div style="display:flex;gap:6px">
               <button onclick="_importBulkDupe('replace')" style="padding:4px 10px;font-size:11px;font-weight:700;border-radius:6px;border:1px solid var(--border);background:var(--surface2);color:var(--text);cursor:pointer">Replace all</button>
               <button onclick="_importBulkDupe('skip')" style="padding:4px 10px;font-size:11px;font-weight:700;border-radius:6px;border:1px solid var(--border);background:var(--surface2);color:var(--text);cursor:pointer">Skip all</button>
@@ -19206,12 +19318,12 @@ function importDB(e){
             <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">⚠️ ${esc(r.item)}<span style="color:var(--muted);margin-left:6px">${r.m} · ${r.dateListed||'—'}</span></span>
             <div style="display:flex;gap:4px;flex-shrink:0">
               <button id="dupe-replace-${i}" onclick="_importToggleDupe(${i},'replace')"
-                style="padding:3px 8px;font-size:11px;font-weight:700;border-radius:5px;border:1px solid var(--border);background:var(--surface2);color:var(--muted);cursor:pointer;transition:all 0.1s">
-                Replace
+                style="padding:3px 8px;font-size:11px;font-weight:700;border-radius:5px;border:1px solid var(--blue);background:rgba(59,130,246,0.12);color:var(--blue);cursor:pointer;transition:all 0.1s">
+                Replace ✓
               </button>
               <button id="dupe-skip-${i}" onclick="_importToggleDupe(${i},'skip')"
-                style="padding:3px 8px;font-size:11px;font-weight:700;border-radius:5px;border:1px solid var(--accent);background:var(--accent-dim);color:var(--accent);cursor:pointer;transition:all 0.1s">
-                Skip ✓
+                style="padding:3px 8px;font-size:11px;font-weight:700;border-radius:5px;border:1px solid var(--border);background:var(--surface2);color:var(--muted);cursor:pointer;transition:all 0.1s">
+                Skip
               </button>
             </div>
           </div>`).join('');
@@ -19268,7 +19380,8 @@ function importDB(e){
 
       openPanel('Review Import', html);
     }catch(err){
-      toast("Couldn't read file — invalid JSON",'err');
+      console.error('[RETRADE] JSON backup import rejected',err);
+      toast((err&&err.message)||"Couldn't read file — invalid JSON",'err');
     }
   };
   // E3 P2 #9 — Handle low-level FileReader failures (permission denied, file
@@ -19306,24 +19419,47 @@ async function _confirmJSONImport(){
 
   const { imported, newItems, dupeItems } = pending;
 
-  // Add each new item into DB — strip user_id, auto-categorise
+  // Restore every item present in the backup. Current-only items are left
+  // untouched (safe merge restore), but the backup wins for matching durable ids.
   newItems.forEach(({m, data}) => {
-    delete data.user_id;
-    (data.parts||[]).forEach(p=>delete p.user_id);
-    (data.returnHistory||[]).forEach(r=>delete r.user_id);
-    data.category = autoCategory(data.item);
-    if(!DB[m]) DB[m] = [];
-    // Guard: don't add if somehow already present
-    if(!DB[m].find(x=>x.id===data.id)) DB[m].push(data);
+    const row=_backupClean(data);
+    delete row.user_id;
+    (row.parts||[]).forEach(p=>delete p.user_id);
+    (row.returnHistory||[]).forEach(r=>delete r.user_id);
+    if(!row.category)row.category=autoCategory(row.item);
+    if(!DB[m])DB[m]=[];
+    if(!DB[m].find(x=>String(x.id)===String(row.id)))DB[m].push(row);
   });
 
-  dupeItems.filter(d=>d.replace).forEach(({m, incoming, existing}) => {
-    delete incoming.user_id;
-    (incoming.parts||[]).forEach(p=>delete p.user_id);
-    (incoming.returnHistory||[]).forEach(r=>delete r.user_id);
-    incoming.category = autoCategory(incoming.item);
-    const idx = (DB[m]||[]).findIndex(x=>x.id===existing.id);
-    if(idx > -1) DB[m][idx] = incoming;
+  dupeItems.filter(d=>d.replace).forEach(({m, existingMonth, incoming, existing}) => {
+    const row=_backupClean(incoming);
+    delete row.user_id;
+    (row.parts||[]).forEach(p=>delete p.user_id);
+    (row.returnHistory||[]).forEach(r=>delete r.user_id);
+    if(!row.category)row.category=autoCategory(row.item);
+
+    // Remove the old copy wherever it currently lives, then restore the backup
+    // copy into the backup's original month. This prevents cross-month duplicate
+    // IDs when date/month changed after the backup was made.
+    const targetId=String(existing&&existing.id!=null?existing.id:row.id);
+    allDBKeys().forEach(function(k){
+      if(!Array.isArray(DB[k]))return;
+      DB[k]=DB[k].filter(function(x){return String(x&&x.id)!=targetId;});
+    });
+    if(!DB[m])DB[m]=[];
+    DB[m].push(row);
+  });
+
+  // Preserve legacy MONTH END rows too. They are excluded from inventory UI but
+  // are still part of a lossless historical JSON backup.
+  (pending.specialRows||[]).forEach(function(entry){
+    const row=_backupClean(entry.data),m=entry.m;
+    if(!DB[m])DB[m]=[];
+    const idx=DB[m].findIndex(function(x){
+      if(row.id!=null&&x&&x.id!=null)return String(x.id)===String(row.id);
+      return String(x&&x.item||'').trim().toUpperCase()==='MONTH END';
+    });
+    if(idx>-1)DB[m][idx]=row; else DB[m].push(row);
   });
 
   DB._userOwned=true;
@@ -19359,7 +19495,19 @@ async function _confirmJSONImport(){
 
   goToTab('summary', document.querySelector('[data-tab="summary"]'));
   renderSummary();
+
+  // Stage the whole restore durably, then flush immediately rather than waiting
+  // for the normal edit debounce. Import is not reported as cloud-complete until
+  // the writer has had a chance to drain the restored records.
   saveDB();
+  clearTimeout(_saveTimer);_saveTimer=null;
+  await _persistChanges();
+  const remaining=_outboxPendingCount();
+  if(remaining>0||_lastSyncError){
+    toast('Backup restored locally · '+remaining+' cloud change'+(remaining===1?'':'s')+' still pending','err');
+  }else{
+    toast('Backup restore verified and synced','success');
+  }
 }
 
 // ── Universal Excel template — single "Items" sheet, RETRADE column schema ──
@@ -24802,3 +24950,5 @@ console.info('[RETRADE] v1.4.3 persistence serialization + immediate write-ahead
 
 // RETRADE v1.4.6 lifecycle hardening marker
 (function(){window.RETRADE_V146={version:'1.4.6-2026-09-01',lifecycleState:typeof _itemLifecycleState==='function'?_itemLifecycleState:null};console.info('[RETRADE] v1.4.6 lifecycle state machine + safe timeline undo loaded');})();
+
+console.log('[RETRADE] v1.4.7 verified full-backup export/import loaded');
