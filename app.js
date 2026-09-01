@@ -2593,6 +2593,7 @@ async function doSignOut(){
   // Cancel any pending (not yet started) save timer
   clearTimeout(_saveTimer);
   _saveTimer = null;
+  try{_stopRealtimeSync();}catch(e){}
   _currentUserId = null;
   DB = {};
   _dbSnapshot = {};
@@ -4186,8 +4187,10 @@ function saveDB(){
   try{ _stageDurableOutboxNow(); }catch(e){ console.warn('[RETRADE] write-ahead stage failed',e); }
   refreshActivePage();
   // Debounce network traffic only. Durability no longer depends on this timer.
+  // v1.4.4 — 200ms keeps typing/batch edits coalesced but gets confirmed writes
+  // to Supabase quickly enough for near-live cross-device propagation.
   clearTimeout(_saveTimer);
-  _saveTimer = setTimeout(_persistChanges, 400);
+  _saveTimer = setTimeout(_persistChanges, 200);
 }
 
 // Build a flat map of id → JSON for all items + trips + expenses + runs
@@ -4471,8 +4474,8 @@ async function _refreshCloudOnResume(force){
   _suppressActivityCapture=true;
   try{
     // Give this device's own offline edits first chance to reach Supabase.
-    if(_outboxPendingCount()>0){
-      await _persistChanges();
+    if(_outboxPendingCount()>0||_persistPromise){
+      await _waitForSync();
       if(_outboxPendingCount()>0)return false; // remain local-first until upload succeeds
     }
     await loadFromSupabase();
@@ -4493,15 +4496,132 @@ async function _refreshCloudOnResume(force){
     _cloudRefreshBusy=false;
   }
 }
+
+// ============================================================
+// v1.4.4 — RAPID CROSS-DEVICE SYNC
+// A tiny server-side retrade_sync_clock row is bumped by database triggers after
+// confirmed writes. Every signed-in device subscribes to that row through
+// Supabase Realtime. The signal contains no business data: it only tells this
+// client to pull the authoritative dataset. A 5s one-row poll is the reconnect/
+// missed-websocket safety net; a 15s full refresh is used only if the sync-clock
+// migration/realtime subscription is unavailable.
+// ============================================================
+let _realtimeSyncChannel=null;
+let _realtimeSyncUid=null;
+let _realtimeSyncConnected=false;
+let _syncClockAvailable=null;
+let _syncClockAppliedRevision=0;
+let _syncClockTargetRevision=0;
+let _syncClockRefreshTimer=null;
+let _syncClockPollTimer=null;
+let _syncClockPollBusy=false;
+
+function _syncClockSignalRevision(payload){
+  try{
+    const row=(payload&&payload.new&&Object.keys(payload.new).length)?payload.new:(payload&&payload.old)||{};
+    return Math.max(0,Number(row.revision)||0);
+  }catch(e){return 0;}
+}
+function _queueSyncClockRefresh(revision,reason){
+  revision=Math.max(0,Number(revision)||0);
+  if(revision>_syncClockTargetRevision)_syncClockTargetRevision=revision;
+  if(_syncClockTargetRevision<=_syncClockAppliedRevision)return;
+  clearTimeout(_syncClockRefreshTimer);
+  _syncClockRefreshTimer=setTimeout(async function(){
+    _syncClockRefreshTimer=null;
+    if(!_currentUserId||document.visibilityState==='hidden')return;
+    const wanted=_syncClockTargetRevision;
+    const ok=await _refreshCloudOnResume(true);
+    if(ok){
+      _syncClockAppliedRevision=Math.max(_syncClockAppliedRevision,wanted);
+      console.info('[RETRADE] cross-device sync applied',reason||'signal','rev',_syncClockAppliedRevision);
+    }else if(_currentUserId&&_syncClockTargetRevision>_syncClockAppliedRevision){
+      // Local unsynced edits or an in-flight refresh may temporarily block the
+      // pull. Retry; never discard the remote revision signal.
+      _syncClockRefreshTimer=setTimeout(function(){_queueSyncClockRefresh(_syncClockTargetRevision,'retry');},900);
+    }
+  },650);
+}
+async function _readSyncClockRevision(prime){
+  if(!_currentUserId||_syncClockPollBusy)return null;
+  _syncClockPollBusy=true;
+  try{
+    const uid=_currentUserId;
+    const res=await _sbCall(()=>_sb.from('retrade_sync_clock').select('revision,updated_at').eq('user_id',uid).maybeSingle());
+    if(res&&res.error){
+      const msg=String(res.error.message||res.error);
+      if(/retrade_sync_clock|does not exist|schema cache|PGRST205|42P01/i.test(msg))_syncClockAvailable=false;
+      return null;
+    }
+    _syncClockAvailable=true;
+    const rev=Math.max(0,Number(res&&res.data&&res.data.revision)||0);
+    if(prime){
+      _syncClockAppliedRevision=rev;
+      _syncClockTargetRevision=rev;
+    }else if(rev>_syncClockAppliedRevision){
+      _queueSyncClockRefresh(rev,'poll');
+    }
+    return rev;
+  }catch(e){
+    console.warn('[RETRADE] sync-clock poll failed:',e&&e.message);
+    return null;
+  }finally{_syncClockPollBusy=false;}
+}
+function _stopRealtimeSync(){
+  clearTimeout(_syncClockRefreshTimer);_syncClockRefreshTimer=null;
+  if(_syncClockPollTimer){clearInterval(_syncClockPollTimer);_syncClockPollTimer=null;}
+  if(_realtimeSyncChannel){
+    try{if(typeof _sb.removeChannel==='function')_sb.removeChannel(_realtimeSyncChannel);
+        else if(typeof _realtimeSyncChannel.unsubscribe==='function')_realtimeSyncChannel.unsubscribe();}catch(e){}
+  }
+  _realtimeSyncChannel=null;_realtimeSyncUid=null;_realtimeSyncConnected=false;
+  _syncClockAvailable=null;_syncClockAppliedRevision=0;_syncClockTargetRevision=0;
+}
+async function _startRealtimeSync(){
+  if(_previewMode||!_currentUserId||typeof _sb.channel!=='function')return false;
+  const uid=_currentUserId;
+  if(_realtimeSyncChannel&&_realtimeSyncUid===uid)return true;
+  _stopRealtimeSync();
+  _realtimeSyncUid=uid;
+  await _readSyncClockRevision(true);
+  if(_currentUserId!==uid)return false;
+  try{
+    _realtimeSyncChannel=_sb.channel('retrade-sync-'+uid)
+      .on('postgres_changes',{event:'*',schema:'public',table:'retrade_sync_clock',filter:'user_id=eq.'+uid},function(payload){
+        const rev=_syncClockSignalRevision(payload);
+        if(rev>_syncClockAppliedRevision)_queueSyncClockRefresh(rev,'realtime');
+      })
+      .subscribe(function(status){
+        _realtimeSyncConnected=status==='SUBSCRIBED';
+        if(status==='SUBSCRIBED')console.info('[RETRADE] realtime cross-device sync connected');
+        else if(status==='CHANNEL_ERROR'||status==='TIMED_OUT')console.warn('[RETRADE] realtime sync unavailable; poll fallback active:',status);
+      });
+  }catch(e){
+    _realtimeSyncConnected=false;
+    console.warn('[RETRADE] realtime sync start failed; poll fallback active:',e&&e.message);
+  }
+  // Lightweight safety net: one tiny row, only while visible. This catches a
+  // websocket reconnect gap without repeatedly reloading every business table.
+  _syncClockPollTimer=setInterval(function(){
+    if(document.visibilityState==='visible'&&_currentUserId===uid)_readSyncClockRevision(false);
+  },5000);
+  return true;
+}
+
+console.info('[RETRADE] v1.4.4 rapid cross-device sync loaded');
+
 document.addEventListener('visibilitychange',function(){
-  if(document.visibilityState==='visible')setTimeout(function(){_refreshCloudOnResume(true);},250);
+  if(document.visibilityState==='visible')setTimeout(function(){
+    _refreshCloudOnResume(true).then(function(ok){if(ok)_readSyncClockRevision(true);});
+  },250);
 });
 window.addEventListener('focus',function(){setTimeout(function(){_refreshCloudOnResume(false);},150);});
-// While both devices remain open side-by-side, refresh once per minute. This is
-// deliberately low-frequency: normal device switching refreshes immediately.
+// Emergency fallback only. With the v1.4.4 migration, Realtime is normally
+// sub-second and the 5s clock poll catches missed websocket signals. If the
+// clock/table/publication is unavailable, keep legacy clients convergent anyway.
 setInterval(function(){
-  if(document.visibilityState==='visible')_refreshCloudOnResume(false);
-},60000);
+  if(document.visibilityState==='visible'&&(!_realtimeSyncConnected||_syncClockAvailable===false))_refreshCloudOnResume(false);
+},15000);
 
 // DATABASE (entry point — called on app init after auth confirmed)
 async function initDB(){
@@ -22671,6 +22791,7 @@ function _restoreAuthInputs(){
     await initDB();
     _dbSnapshot = _dbFingerprint();
     await _hydrateUserSettings(_currentUserId); // F6: sync settings from cloud on login
+    await _startRealtimeSync();
   } else {
     showLogin();
   }
@@ -22695,6 +22816,7 @@ function _restoreAuthInputs(){
         await initDB();
         _dbSnapshot = _dbFingerprint();
         await _hydrateUserSettings(_currentUserId); // F6: sync settings from cloud on login
+        await _startRealtimeSync();
       }
       // else: page-load SIGNED_IN echo — already loaded, do nothing
     } else if(event === 'PASSWORD_RECOVERY'){
@@ -22707,6 +22829,7 @@ function _restoreAuthInputs(){
     } else if(event === 'SIGNED_OUT' || (!sess && event !== 'INITIAL_SESSION')){
       clearTimeout(_saveTimer);
       _saveTimer = null;
+      try{_stopRealtimeSync();}catch(e){}
       _initialLoadDone = false;
       _currentUserId = null;
       DB = {};
