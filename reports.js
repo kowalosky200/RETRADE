@@ -189,7 +189,7 @@ function downloadStockSnapshot(){
 function _csvRowsToExcel(rows, sheetName, filename, opts){
   if(!window.XLSX){
     const s=document.createElement('script');
-    s.src='https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+    s.src='https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';s.integrity='sha512-r22gChDnGvBylk90+2e/ycr3RVrDi8DIOkIGNhJlKfuyQM4tIRAI062MaV8sfjQKYVGjOBaZBOA87z+IhZE9DA==';s.crossOrigin='anonymous';s.referrerPolicy='no-referrer';
     s.onload=function(){_writeExcel(rows,sheetName,filename,opts);};
     s.onerror=function(){toast('Failed to load Excel library','error');};
     document.head.appendChild(s);
@@ -327,7 +327,7 @@ function downloadMonthlyExcel(m){
 
   // Build multi-sheet workbook
   if(!window.XLSX){
-    const s=document.createElement('script');s.src='https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+    const s=document.createElement('script');s.src='https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';s.integrity='sha512-r22gChDnGvBylk90+2e/ycr3RVrDi8DIOkIGNhJlKfuyQM4tIRAI062MaV8sfjQKYVGjOBaZBOA87z+IhZE9DA==';s.crossOrigin='anonymous';s.referrerPolicy='no-referrer';
     s.onload=function(){_writeMonthlyExcelBook(m,salesRows,expRows,summaryRows,pnl);};
     s.onerror=function(){toast('Failed to load Excel library','error');};
     document.head.appendChild(s);
@@ -437,7 +437,7 @@ function downloadAnnualExcel(fyStart){
   }
 
   if(!window.XLSX){
-    const s=document.createElement('script');s.src='https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+    const s=document.createElement('script');s.src='https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';s.integrity='sha512-r22gChDnGvBylk90+2e/ycr3RVrDi8DIOkIGNhJlKfuyQM4tIRAI062MaV8sfjQKYVGjOBaZBOA87z+IhZE9DA==';s.crossOrigin='anonymous';s.referrerPolicy='no-referrer';
     s.onload=function(){_writeAnnualExcelBook(fyStart,label,salesRows,expRows,summaryRows,pnl,salesDetailRows);};
     s.onerror=function(){toast('Failed to load Excel library','error');};
     document.head.appendChild(s);
@@ -1034,7 +1034,7 @@ function downloadRangeExcel(from,to){
     toast('Downloaded '+filename);
   };
   if(!window.XLSX){
-    const s=document.createElement('script');s.src='https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+    const s=document.createElement('script');s.src='https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';s.integrity='sha512-r22gChDnGvBylk90+2e/ycr3RVrDi8DIOkIGNhJlKfuyQM4tIRAI062MaV8sfjQKYVGjOBaZBOA87z+IhZE9DA==';s.crossOrigin='anonymous';s.referrerPolicy='no-referrer';
     s.onload=build;s.onerror=function(){toast('Failed to load Excel library','error');};
     document.head.appendChild(s);
   }else{build();}

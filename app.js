@@ -658,7 +658,9 @@ function setCountry(countryId,silent){
   if(typeof refreshMoreSheetPlatformTrigger==='function')refreshMoreSheetPlatformTrigger();
   // Toast only on an actual user change — not on load-time restore.
   if(!silent&&typeof toast==='function')toast('Country set to '+COUNTRIES[countryId].label);
-  _syncUserSettingsToCloud();
+  // Hydration/restores must never echo-write the cloud row and advance its
+  // concurrency token. Only an actual user change schedules a settings save.
+  if(!silent)_syncUserSettingsToCloud();
 }
 
 function refreshCountrySubmenu(){
@@ -4583,7 +4585,7 @@ async function _startRealtimeSync(){
   if(_realtimeSyncChannel&&_realtimeSyncUid===uid)return true;
   _stopRealtimeSync();
   _realtimeSyncUid=uid;
-  await _readSyncClockRevision(true);
+  await _readSyncClockRevision(false);
   if(_currentUserId!==uid)return false;
   try{
     _realtimeSyncChannel=_sb.channel('retrade-sync-'+uid)
@@ -4612,7 +4614,7 @@ console.info('[RETRADE] v1.4.4 rapid cross-device sync loaded');
 
 document.addEventListener('visibilitychange',function(){
   if(document.visibilityState==='visible')setTimeout(function(){
-    _refreshCloudOnResume(true).then(function(ok){if(ok)_readSyncClockRevision(true);});
+    _refreshCloudOnResume(true).then(function(ok){if(ok)_readSyncClockRevision(false);});
   },250);
 });
 window.addEventListener('focus',function(){setTimeout(function(){_refreshCloudOnResume(false);},150);});
@@ -24952,3 +24954,446 @@ console.info('[RETRADE] v1.4.3 persistence serialization + immediate write-ahead
 (function(){window.RETRADE_V146={version:'1.4.6-2026-09-01',lifecycleState:typeof _itemLifecycleState==='function'?_itemLifecycleState:null};console.info('[RETRADE] v1.4.6 lifecycle state machine + safe timeline undo loaded');})();
 
 console.log('[RETRADE] v1.4.7 verified full-backup export/import loaded');
+
+/* ========================================================================
+ * RETRADE-UK v1.4.8 — MULTI-DEVICE CONVERGENCE + DURABLE SETTINGS
+ * 2026-09-01
+ *
+ * Hardens the remaining cross-device race windows without changing accounting:
+ *  - subscribe BEFORE reading the sync clock; never "prime away" an unseen rev;
+ *  - before uploading a pending outbox, rebase it on the latest cloud snapshot
+ *    when another device has advanced the server sync clock;
+ *  - non-item outbox saves carry their cloud base and use recursive three-way
+ *    merge so unrelated edits from two devices survive together;
+ *  - stale non-item deletes are cancelled when the cloud row changed since the
+ *    delete was staged;
+ *  - user_settings gains a synchronous local outbox + updated_at CAS and
+ *    field-level conflict merge, so tax/settings changes survive suspend/offline.
+ *
+ * Item rows keep the stronger server-owned per-item revision/CAS guard.
+ * ======================================================================== */
+(function(){
+  'use strict';
+  var VERSION='1.4.8-2026-09-01';
+
+  function _v148Delay(ms){return new Promise(function(resolve){setTimeout(resolve,ms);});}
+  function _v148Eq(a,b){try{return JSON.stringify(a)===JSON.stringify(b);}catch(e){return a===b;}}
+  function _v148Clone(v){try{return JSON.parse(JSON.stringify(v));}catch(e){return v;}}
+  function _v148IsObj(v){return !!v&&typeof v==='object'&&!Array.isArray(v);}
+  function _v148ArrayById(arr){return Array.isArray(arr)&&arr.every(function(x){return _v148IsObj(x)&&x.id!=null;});}
+
+  // Recursive three-way merge. Local wins only where it actually diverged from
+  // its saved cloud base; untouched fields take the current server value.
+  // Arrays of durable records (e.g. account settlements) merge by id so two
+  // devices appending different rows do not erase one another.
+  function _v148ThreeWay(base,local,remote){
+    if(_v148Eq(local,base))return _v148Clone(remote);
+    if(_v148Eq(remote,base))return _v148Clone(local);
+    if(Array.isArray(local)&&Array.isArray(remote)&&Array.isArray(base)&&
+       _v148ArrayById(local)&&_v148ArrayById(remote)&&_v148ArrayById(base)){
+      var bm=new Map(base.map(function(x){return [String(x.id),x];}));
+      var lm=new Map(local.map(function(x){return [String(x.id),x];}));
+      var rm=new Map(remote.map(function(x){return [String(x.id),x];}));
+      var ids=new Set(Array.from(bm.keys()).concat(Array.from(lm.keys()),Array.from(rm.keys())));
+      var out=[];
+      ids.forEach(function(id){
+        var hasB=bm.has(id),hasL=lm.has(id),hasR=rm.has(id);
+        var bv=bm.get(id),lv=lm.get(id),rv=rm.get(id);
+        if(hasB&&!hasL){
+          // Local explicitly removed the base row. Preserve a concurrently
+          // changed remote row rather than silently deleting somebody's edit.
+          if(hasR&&!_v148Eq(rv,bv))out.push(_v148Clone(rv));
+          return;
+        }
+        if(!hasB&&hasL&&!hasR){out.push(_v148Clone(lv));return;}
+        if(!hasB&&!hasL&&hasR){out.push(_v148Clone(rv));return;}
+        if(!hasB&&hasL&&hasR){out.push(_v148ThreeWay({},lv,rv));return;}
+        if(hasL&&hasR){out.push(_v148ThreeWay(bv,lv,rv));return;}
+        if(hasL)out.push(_v148Clone(lv));
+        else if(hasR)out.push(_v148Clone(rv));
+      });
+      return out;
+    }
+    if(_v148IsObj(local)&&_v148IsObj(remote)&&_v148IsObj(base)){
+      var outObj={};
+      var keys=new Set(Object.keys(base).concat(Object.keys(local),Object.keys(remote)));
+      keys.forEach(function(k){
+        var hb=Object.prototype.hasOwnProperty.call(base,k),hl=Object.prototype.hasOwnProperty.call(local,k),hr=Object.prototype.hasOwnProperty.call(remote,k);
+        if(hb&&!hl){
+          if(hr&&!_v148Eq(remote[k],base[k]))outObj[k]=_v148Clone(remote[k]);
+          return;
+        }
+        if(!hb&&hl&&!hr){outObj[k]=_v148Clone(local[k]);return;}
+        if(!hb&&!hl&&hr){outObj[k]=_v148Clone(remote[k]);return;}
+        if(!hb&&hl&&hr){outObj[k]=_v148ThreeWay({},local[k],remote[k]);return;}
+        if(hl&&hr){outObj[k]=_v148ThreeWay(base[k],local[k],remote[k]);return;}
+        if(hl)outObj[k]=_v148Clone(local[k]);
+        else if(hr)outObj[k]=_v148Clone(remote[k]);
+      });
+      return outObj;
+    }
+    // Same scalar/opaque value changed on both sides: this device's explicit
+    // edit wins, but only after the remote snapshot has first been loaded.
+    return _v148Clone(local);
+  }
+
+  function _v148CurrentEntity(type,id){
+    var arr=null;
+    try{
+      if(type==='trip')arr=DB.trips||[];
+      else if(type==='exp')arr=DB.expenses||[];
+      else if(type==='cash')arr=DB.cashLedger||[];
+      else if(type==='log')arr=DB.activityLog||[];
+      else if(type==='run')arr=_sourcingRuns||[];
+      else if(type==='acct')arr=_accounts||[];
+      else if(type==='jlot')arr=_jobLots||[];
+      else if(type==='jmem')arr=_jobLotItems||[];
+      else if(type==='recon')arr=_saleReconciliations||[];
+      if(arr)return arr.find(function(x){return x&&String(x.id)===String(id);})||null;
+    }catch(e){}
+    return null;
+  }
+
+  // New non-item outbox entries remember exactly which cloud object the user
+  // edited from. This is the missing ingredient for safe offline/device merge.
+  if(typeof _outboxEntry==='function'){
+    var _v148BaseOutboxEntry=_outboxEntry;
+    _outboxEntry=function(key,fp){
+      var e=_v148BaseOutboxEntry.apply(this,arguments);
+      try{
+        if(e&&e.type!=='item'){
+          var base=_dbSnapshot&&_dbSnapshot[key];
+          if(base!==undefined)e.baseJson=base;
+        }
+      }catch(_e){}
+      return e;
+    };
+  }
+  if(typeof _outboxDeleteEntry==='function'){
+    var _v148BaseOutboxDelete=_outboxDeleteEntry;
+    _outboxDeleteEntry=function(key){
+      var e=_v148BaseOutboxDelete.apply(this,arguments);
+      try{
+        if(e&&e.type!=='item'){
+          var base=_dbSnapshot&&_dbSnapshot[key];
+          if(base!==undefined)e.baseJson=base;
+        }
+      }catch(_e){}
+      return e;
+    };
+  }
+
+  // Before normal recovery applies a non-item pending save over the freshly
+  // loaded cloud state, merge it against the cloud object using its saved base.
+  // Stale deletes become cloud-wins when the row was edited elsewhere.
+  if(typeof _recoverOutbox==='function'){
+    var _v148BaseRecover=_recoverOutbox;
+    _recoverOutbox=function(){
+      try{
+        var ob=_outboxRead()||{},changed=false;
+        Object.keys(ob).forEach(function(k){
+          var e=ob[k];if(!e||e.type==='item')return;
+          var id=e.id;
+          if(e.op==='save'){
+            var local=null;try{local=JSON.parse(e.json);}catch(_e){return;}
+            id=local&&local.id;
+            if(id==null||!e.baseJson)return;
+            var remote=_v148CurrentEntity(e.type,id);
+            if(!remote)return;
+            var base=null;try{base=JSON.parse(e.baseJson);}catch(_e2){return;}
+            var merged=_v148ThreeWay(base,local,remote);
+            e.json=JSON.stringify(merged);
+            e.baseJson=JSON.stringify(remote);
+            ob[k]=e;changed=true;
+          }else if(e.op==='delete'&&id!=null&&e.baseJson){
+            var cloud=_v148CurrentEntity(e.type,id);
+            if(!cloud)return;
+            var baseDel=null;try{baseDel=JSON.parse(e.baseJson);}catch(_e3){return;}
+            if(!_v148Eq(cloud,baseDel)){
+              // Destructive intent from a stale device is never replayed over a
+              // newer cloud edit. The latest cloud row is already in memory.
+              delete ob[k];changed=true;
+              console.warn('[RETRADE] stale '+e.type+' delete cancelled; cloud row changed on another device:',id);
+            }
+          }
+        });
+        if(changed)_outboxSave(ob);
+      }catch(e){console.warn('[RETRADE] v1.4.8 outbox merge preflight skipped:',e&&e.message);}
+      return _v148BaseRecover.apply(this,arguments);
+    };
+  }
+
+  async function _v148ClockRaw(){
+    if(!_currentUserId)return null;
+    try{
+      var uid=_currentUserId;
+      var rr=await _sbCall(function(){return _sb.from('retrade_sync_clock').select('revision,updated_at').eq('user_id',uid).maybeSingle();});
+      if(rr&&rr.error){
+        var msg=String(rr.error.message||rr.error);
+        if(/retrade_sync_clock|does not exist|schema cache|PGRST205|42P01/i.test(msg)){_syncClockAvailable=false;return null;}
+        throw rr.error;
+      }
+      _syncClockAvailable=true;
+      return Math.max(0,Number(rr&&rr.data&&rr.data.revision)||0);
+    }catch(e){throw new Error('Sync-clock preflight failed: '+(e&&e.message?e.message:String(e)));}
+  }
+
+  // Never mark an unseen server revision as "already applied". The old prime
+  // path could read rev N before the Realtime subscription existed and then
+  // permanently miss the business changes represented by N.
+  _readSyncClockRevision=async function(){
+    if(!_currentUserId||_syncClockPollBusy)return null;
+    _syncClockPollBusy=true;
+    try{
+      var rev=await _v148ClockRaw();
+      if(rev!=null&&rev>_syncClockAppliedRevision)_queueSyncClockRefresh(rev,'poll');
+      return rev;
+    }catch(e){console.warn('[RETRADE] sync-clock poll failed:',e&&e.message);return null;}
+    finally{_syncClockPollBusy=false;}
+  };
+
+  // Subscribe first, then read the clock. A revision that landed during startup
+  // is therefore either observed by Realtime, the post-subscribe read, or both.
+  _startRealtimeSync=async function(){
+    if(_previewMode||!_currentUserId||typeof _sb.channel!=='function')return false;
+    var uid=_currentUserId;
+    if(_realtimeSyncChannel&&_realtimeSyncUid===uid)return true;
+    _stopRealtimeSync();
+    _realtimeSyncUid=uid;
+    var readyResolve=null,ready=new Promise(function(resolve){readyResolve=resolve;});
+    try{
+      _realtimeSyncChannel=_sb.channel('retrade-sync-'+uid)
+        .on('postgres_changes',{event:'*',schema:'public',table:'retrade_sync_clock',filter:'user_id=eq.'+uid},function(payload){
+          var rev=_syncClockSignalRevision(payload);
+          if(rev>_syncClockAppliedRevision)_queueSyncClockRefresh(rev,'realtime');
+        })
+        .subscribe(function(status){
+          _realtimeSyncConnected=status==='SUBSCRIBED';
+          if(status==='SUBSCRIBED'){
+            console.info('[RETRADE] realtime cross-device sync connected');
+            if(readyResolve){readyResolve(true);readyResolve=null;}
+          }else if(status==='CHANNEL_ERROR'||status==='TIMED_OUT'||status==='CLOSED'){
+            console.warn('[RETRADE] realtime sync unavailable; poll fallback active:',status);
+            if(readyResolve){readyResolve(false);readyResolve=null;}
+          }
+        });
+    }catch(e){
+      _realtimeSyncConnected=false;
+      if(readyResolve){readyResolve(false);readyResolve=null;}
+      console.warn('[RETRADE] realtime sync start failed; poll fallback active:',e&&e.message);
+    }
+    await Promise.race([ready,_v148Delay(2500)]);
+    if(_currentUserId!==uid)return false;
+    await _readSyncClockRevision(false);
+    if(_syncClockPollTimer){clearInterval(_syncClockPollTimer);_syncClockPollTimer=null;}
+    _syncClockPollTimer=setInterval(function(){
+      if(document.visibilityState==='visible'&&_currentUserId===uid)_readSyncClockRevision(false);
+    },5000);
+    return true;
+  };
+
+  var _v148RebaseBusy=false;
+  async function _v148RebasePendingIfNeeded(){
+    if(_v148RebaseBusy||!_currentUserId||typeof _outboxPendingCount!=='function'||_outboxPendingCount()<=0)return true;
+    _v148RebaseBusy=true;
+    var oldSuppress=(typeof _suppressActivityCapture!=='undefined')?_suppressActivityCapture:false;
+    try{
+      if(typeof _suppressActivityCapture!=='undefined')_suppressActivityCapture=true;
+      var remoteRev=null;
+      try{remoteRev=await _v148ClockRaw();}
+      catch(e){
+        _lastSyncError=e.message;
+        return false; // safest failure mode: keep local outbox; do not blind-write
+      }
+      var needFull=(_syncClockAvailable===false)||remoteRev==null||_syncClockAppliedRevision===0||remoteRev>_syncClockAppliedRevision;
+      if(!needFull)return true;
+
+      // Pull latest server baseline first, then replay/merge durable local intent.
+      // This reverses the old "upload local before pull" ordering that allowed a
+      // stale non-item object to clobber a newer row from another device.
+      await loadFromSupabase();
+      _dbSnapshot=_dbFingerprint();
+      var recovered=_recoverOutbox();
+      try{_initActivityShadow();}catch(_e){}
+      if(remoteRev!=null){
+        _syncClockAppliedRevision=Math.max(_syncClockAppliedRevision,remoteRev);
+        _syncClockTargetRevision=Math.max(_syncClockTargetRevision,remoteRev);
+      }
+      if(recovered>0)console.info('[RETRADE] rebased '+recovered+' pending local change(s) on latest cloud state');
+      try{refreshActivePage();}catch(_e2){}
+      return true;
+    }catch(e){
+      _lastSyncError='Cross-device rebase pending: '+(e&&e.message?e.message:String(e));
+      console.warn('[RETRADE] '+_lastSyncError);
+      return false;
+    }finally{
+      if(typeof _suppressActivityCapture!=='undefined'){
+        try{_initActivityShadow();}catch(_e3){}
+        _suppressActivityCapture=oldSuppress;
+      }
+      _v148RebaseBusy=false;
+    }
+  }
+
+  // Every cloud writer with a durable outbox now performs the remote-change
+  // preflight before capturing/sending its batch. The remaining race window is
+  // only the milliseconds between this check and the individual non-item write;
+  // item writes remain fully atomic through their server revision CAS.
+  if(typeof _persistChangesPass==='function'){
+    var _v148BasePersistPass=_persistChangesPass;
+    _persistChangesPass=async function(){
+      if(typeof _outboxPendingCount==='function'&&_outboxPendingCount()>0){
+        var ok=await _v148RebasePendingIfNeeded();
+        if(!ok){
+          setTimeout(function(){try{if(_currentUserId&&_outboxPendingCount()>0)_persistChanges();}catch(e){}},2500);
+          return {failed:_outboxPendingCount()};
+        }
+      }
+      return _v148BasePersistPass.apply(this,arguments);
+    };
+  }
+
+  // -------------------- Durable + CAS-protected user settings ----------------
+  var SETTINGS_OUTBOX_KEY='retrade_settings_outbox_v2';
+  var _settingsCloudUpdatedAt=null;
+  var _settingsCloudBase=null;
+
+  function _v148SettingsValues(){
+    return {
+      default_platform:_getDefaultPlatform(),
+      shipping_policies:getShippingPolicies(),
+      theme:(function(){try{return localStorage.getItem('retrade_theme')||'dark';}catch(e){return'dark';}})(),
+      country:COUNTRY||'uk',
+      tax_region:_taxRegion(),
+      tax_other_income:_taxOtherIncome()
+    };
+  }
+  function _v148CloudSettingsValues(row){
+    row=row||{};
+    return {
+      default_platform:row.default_platform||'ebay',
+      shipping_policies:Array.isArray(row.shipping_policies)?row.shipping_policies:[],
+      theme:row.theme||'dark',country:row.country||'uk',
+      tax_region:row.tax_region==='scotland'?'scotland':'rUK',
+      tax_other_income:Math.max(0,Number(row.tax_other_income)||0)
+    };
+  }
+  function _v148SettingsOutboxRead(uid){
+    try{
+      var raw=localStorage.getItem(SETTINGS_OUTBOX_KEY);if(!raw)return null;
+      var e=JSON.parse(raw);if(!e||!e.uid||e.uid!==uid)return null;return e;
+    }catch(e){return null;}
+  }
+  function _v148SettingsOutboxWrite(e){try{localStorage.setItem(SETTINGS_OUTBOX_KEY,JSON.stringify(e));}catch(_e){}}
+  function _v148SettingsOutboxClear(uid,stamp){
+    try{var e=_v148SettingsOutboxRead(uid);if(e&&(!stamp||e.stamp===stamp))localStorage.removeItem(SETTINGS_OUTBOX_KEY);}catch(_e){}
+  }
+  function _v148ChangedKeys(base,now){
+    var out=[];Object.keys(now).forEach(function(k){if(!base||!_v148Eq(now[k],base[k]))out.push(k);});return out;
+  }
+  function _v148StageSettings(){
+    if(!_currentUserId)return null;
+    var uid=_currentUserId,now=_v148SettingsValues(),old=_v148SettingsOutboxRead(uid);
+    var changed=new Set((old&&old.changedKeys)||_v148ChangedKeys(_settingsCloudBase,now));
+    _v148ChangedKeys(_settingsCloudBase,now).forEach(function(k){changed.add(k);});
+    var e={uid:uid,values:now,baseUpdatedAt:(old&&old.baseUpdatedAt)||_settingsCloudUpdatedAt||null,
+      changedKeys:Array.from(changed),stamp:Date.now()+'-'+Math.random().toString(36).slice(2),stagedAt:new Date().toISOString()};
+    _v148SettingsOutboxWrite(e);return e;
+  }
+  async function _v148FetchSettings(uid){
+    var rr=await _sbCall(function(){return _sb.from('user_settings').select('*').eq('user_id',uid).maybeSingle();});
+    if(rr&&rr.error)throw rr.error;return (rr&&rr.data)||null;
+  }
+  async function _v148FlushSettingsEntry(entry){
+    if(!entry||!entry.uid||entry.uid!==_currentUserId)return false;
+    var uid=entry.uid,cloud=await _v148FetchSettings(uid),cloudVals=_v148CloudSettingsValues(cloud||{});
+    var values=entry.values||{},changed=new Set(entry.changedKeys||Object.keys(values));
+    var merged=Object.assign({},cloudVals);
+    changed.forEach(function(k){if(Object.prototype.hasOwnProperty.call(values,k))merged[k]=_v148Clone(values[k]);});
+    var writeRow=Object.assign({user_id:uid},merged,{updated_at:new Date().toISOString()});
+    var res;
+    if(cloud){
+      var token=cloud.updated_at||null;
+      if(!token)throw new Error('user_settings.updated_at is required for safe multi-device settings sync.');
+      res=await _sbCall(function(){return _sb.from('user_settings').update(writeRow).eq('user_id',uid).eq('updated_at',token).select('*');});
+      if(res&&res.error)throw res.error;
+      if(!res||!res.data||!res.data.length){
+        // Another device changed settings between our read and CAS. Refetch and
+        // retry once, reapplying only the fields this device actually changed.
+        cloud=await _v148FetchSettings(uid);if(!cloud)throw new Error('Settings row changed during save.');
+        cloudVals=_v148CloudSettingsValues(cloud);merged=Object.assign({},cloudVals);
+        changed.forEach(function(k){if(Object.prototype.hasOwnProperty.call(values,k))merged[k]=_v148Clone(values[k]);});
+        writeRow=Object.assign({user_id:uid},merged,{updated_at:new Date().toISOString()});
+        res=await _sbCall(function(){return _sb.from('user_settings').update(writeRow).eq('user_id',uid).eq('updated_at',cloud.updated_at).select('*');});
+        if(res&&res.error)throw res.error;
+        if(!res||!res.data||!res.data.length)throw new Error('Settings changed again on another device; local settings remain safely queued.');
+      }
+    }else{
+      res=await _sbCall(function(){return _sb.from('user_settings').insert(writeRow).select('*');});
+      if(res&&res.error){
+        // Likely a concurrent first-row insert: refetch, then CAS merge once.
+        cloud=await _v148FetchSettings(uid);if(!cloud)throw res.error;
+        cloudVals=_v148CloudSettingsValues(cloud);merged=Object.assign({},cloudVals);
+        changed.forEach(function(k){if(Object.prototype.hasOwnProperty.call(values,k))merged[k]=_v148Clone(values[k]);});
+        writeRow=Object.assign({user_id:uid},merged,{updated_at:new Date().toISOString()});
+        res=await _sbCall(function(){return _sb.from('user_settings').update(writeRow).eq('user_id',uid).eq('updated_at',cloud.updated_at).select('*');});
+        if(res&&res.error)throw res.error;
+        if(!res||!res.data||!res.data.length)throw new Error('Settings changed on another device; local settings remain safely queued.');
+      }
+    }
+    var saved=res&&res.data&&res.data[0];
+    if(saved){_settingsCloudUpdatedAt=saved.updated_at||writeRow.updated_at;_settingsCloudBase=_v148CloudSettingsValues(saved);}
+    _v148SettingsOutboxClear(uid,entry.stamp);
+    return true;
+  }
+
+  _syncUserSettingsToCloud=function(){
+    if(!_currentUserId||typeof _sb==='undefined')return;
+    var entry=_v148StageSettings();
+    clearTimeout(_settingsSyncTimer);
+    _settingsSyncTimer=setTimeout(async function(){
+      var pending=_v148SettingsOutboxRead(_currentUserId);if(!pending)return;
+      try{
+        await _v148FlushSettingsEntry(pending);
+        if(_lastSyncError&&/^Settings sync:/.test(_lastSyncError))_lastSyncError=null;
+      }catch(e){
+        _lastSyncError='Settings sync: '+(e&&e.message?e.message:String(e));
+        console.warn('[RETRADE] '+_lastSyncError);
+        try{if(typeof _refreshSideNavSync==='function')_refreshSideNavSync('pending');}catch(_e){}
+      }
+    },350);
+    return entry;
+  };
+
+  var _v148BaseHydrateSettings=_hydrateUserSettings;
+  _hydrateUserSettings=async function(uid){
+    if(!uid||typeof _sb==='undefined')return;
+    // A settings edit staged before a suspend/reload is local durable intent.
+    // Flush/rebase it BEFORE allowing an older cloud row to overwrite cache.
+    var pending=_v148SettingsOutboxRead(uid);
+    if(pending){
+      try{await _v148FlushSettingsEntry(pending);}catch(e){
+        _lastSyncError='Settings sync: '+(e&&e.message?e.message:String(e));
+        console.warn('[RETRADE] pending settings preserved locally; cloud hydration deferred:',e&&e.message);
+        return;
+      }
+    }
+    var cloud=null;
+    try{cloud=await _v148FetchSettings(uid);}catch(e){console.warn('[RETRADE] settings hydrate failed:',e&&e.message);return;}
+    if(!cloud){_settingsCloudUpdatedAt=null;_settingsCloudBase=_v148SettingsValues();return;}
+    _settingsCloudUpdatedAt=cloud.updated_at||null;
+    _settingsCloudBase=_v148CloudSettingsValues(cloud);
+    await _v148BaseHydrateSettings(uid);
+    // Base must reflect the values actually accepted from the cloud after
+    // hydration/validation (country/platform may reject unsupported values).
+    _settingsCloudBase=_v148SettingsValues();
+  };
+
+  window.RETRADE_V148={
+    version:VERSION,
+    threeWayMerge:_v148ThreeWay,
+    rebasePending:_v148RebasePendingIfNeeded,
+    settingsPending:function(){return _currentUserId?_v148SettingsOutboxRead(_currentUserId):null;}
+  };
+  console.info('[RETRADE] '+VERSION+' multi-device convergence + durable settings loaded');
+})();
