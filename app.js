@@ -47,26 +47,105 @@ function keyYear(k){
 function keyName(k){ return (MONTH_NAMES[keyCode(k)]||keyCode(k))+' '+keyYear(k); }
 
 // All DB keys that should exist: current FY + previous FY + any FY with data + next FY
-// Launch hardening — one-time backfill for legacy return rows that pre-date
-// saleNo tagging. On a resold item, an untagged refund/return logged on or after
-// the Sale 2 date belongs to Sale 2; earlier rows remain Sale 1 by convention.
-// Only fills missing tags, so deliberate/user-reviewed tags are never changed.
+// v1.4.2 — repair legacy Sale-N return attribution.
+//
+// Older builds could leave two different completed resale returns tagged to the
+// same sale number (most commonly Sale 1). That makes the P&L engine do exactly
+// what the bad data says: charge multiple full refunds against one sale and can
+// turn a small fulfilment loss into a huge fictional lifetime loss.
+//
+// Full returns already contain an immutable `_dateSoldAtReturn` snapshot. When
+// there are 2+ full returns with distinct sold dates, chronological sold dates
+// are authoritative: first completed sale = Sale 1, next = Sale 2, etc. This is
+// safer than refund/log dates because a historical return can be entered later.
+// Same-day/ambiguous records are deliberately NOT auto-renumbered.
+function _returnSaleSnapshotDate(r){
+  const d=r&&r._dateSoldAtReturn;
+  return d?String(d).slice(0,10):null;
+}
+function _repairSaleNoSequenceForItem(it){
+  if(!it||!Array.isArray(it.returnHistory))return 0;
+  const rh=it.returnHistory;
+  const fulls=[];
+  rh.forEach(function(r,idx){
+    if(r&&(r.type==='full_seller'||r.type==='full_ebay')){
+      fulls.push({r:r,idx:idx,sold:_returnSaleSnapshotDate(r)});
+    }
+  });
+  if(!fulls.length)return 0;
+
+  let touched=0;
+  // A single full return is always Sale 1 unless it was explicitly tagged.
+  if(fulls.length===1){
+    if(fulls[0].r.saleNo==null){fulls[0].r.saleNo=1;touched++;}
+  }else{
+    const allDated=fulls.every(function(x){return !!x.sold;});
+    const uniqueDates=allDated?(new Set(fulls.map(function(x){return x.sold;}))).size:0;
+    if(allDated&&uniqueDates===fulls.length){
+      const ordered=fulls.slice().sort(function(a,b){
+        return a.sold.localeCompare(b.sold)
+          ||String(a.r.loggedAt||'').localeCompare(String(b.r.loggedAt||''))
+          ||a.idx-b.idx;
+      });
+      ordered.forEach(function(x,pos){
+        const target=pos+1;
+        if((Number(x.r.saleNo)||0)!==target){
+          x.r.saleNo=target;
+          touched++;
+        }
+      });
+    }
+  }
+
+  // Partials that carry the same immutable sold-date snapshot belong to the
+  // same sale as that full return. This only changes an untagged/mistagged
+  // partial when the mapping is exact.
+  const saleBySoldDate=new Map();
+  fulls.forEach(function(x){
+    const n=Math.max(1,Number(x.r.saleNo)||1);
+    if(x.sold&&!saleBySoldDate.has(x.sold))saleBySoldDate.set(x.sold,n);
+  });
+  rh.forEach(function(r){
+    if(!r||(r.type!=='partial_seller'&&r.type!=='partial_ebay'))return;
+    const sold=_returnSaleSnapshotDate(r);
+    if(!sold||!saleBySoldDate.has(sold))return;
+    const target=saleBySoldDate.get(sold);
+    if((Number(r.saleNo)||0)!==target){r.saleNo=target;touched++;}
+  });
+  return touched;
+}
+
+// Launch migration entry point. First repair reliable full-return sequences,
+// then retain the old conservative fallback for any genuinely untagged rows
+// whose historical snapshots are too old to reconstruct safely.
 function _migrateSaleNoTags(){
   let touched=0;
   try{
     (typeof allDBKeys==='function'?allDBKeys():[]).forEach(function(k){
       (Array.isArray(DB[k])?DB[k]:[]).forEach(function(it){
-        if(!it||!it.resaleSalePrice||!Array.isArray(it.returnHistory))return;
+        if(!it||!Array.isArray(it.returnHistory)||!it.returnHistory.length)return;
+        let itemTouched=_repairSaleNoSequenceForItem(it);
         const rd=it.resaleDateSold?String(it.resaleDateSold).slice(0,10):null;
+        const fullNos=it.returnHistory.filter(function(r){return r&&(r.type==='full_seller'||r.type==='full_ebay')&&r.saleNo!=null;})
+          .map(function(r){return Math.max(1,Number(r.saleNo)||1);});
+        const maxFullNo=fullNos.length?Math.max.apply(null,fullNos):1;
+        // If the item is currently fully returned, the latest full-return row
+        // already represents the current sale. Otherwise the live resale (if
+        // any) is the cycle after the latest completed full return.
+        const currentResaleNo=(it.isReturned&&maxFullNo>=2)?maxFullNo:Math.max(2,maxFullNo+1);
         it.returnHistory.forEach(function(r){
           if(!r||r.saleNo!=null)return;
           const logged=r.loggedAt?String(r.loggedAt).slice(0,10):null;
-          if(rd&&logged&&logged>=rd){r.saleNo=2;touched++;}
-          else {r.saleNo=1;touched++;}
+          if(rd&&logged&&logged>=rd){r.saleNo=currentResaleNo;itemTouched++;}
+          else {r.saleNo=1;itemTouched++;}
         });
+        if(itemTouched){
+          touched+=itemTouched;
+          try{if(typeof calcGrossProfit==='function')it.grossProfit=calcGrossProfit(it);}catch(e){}
+        }
       });
     });
-  }catch(e){}
+  }catch(e){console.warn('[RETRADE] Sale-N history repair failed',e);}
   return touched;
 }
 function allDBKeys(){
@@ -3569,8 +3648,11 @@ let _dbSnapshot = null;   // last-known-saved state (JSON string per item id)
 let _saveTimer = null;
 let _currentUserId = null; // set on SIGNED_IN, cleared on SIGNED_OUT
 let _schemaVerified = false; // production handshake status for RC diagnostics
-let _syncing = false;      // true while _persistChanges is actively running
-let _syncResolvers = [];   // resolve callbacks waiting for sync to finish
+let _syncing = false;      // true while the serialized persistence queue is active
+let _syncResolvers = [];   // resolve callbacks waiting for ALL queued sync work to finish
+let _persistPromise = null; // one serialized cloud writer; never run two persistence passes concurrently
+let _persistQueued = false; // mutation arrived while a persistence pass was in flight
+let _persistActiveCurrent = null; // fingerprint captured by the active pass; used by write-ahead staging
 let _lastSyncError = null; // routine retries stay silent; detail available via status/Diagnostics
 let _lastSyncDiagMessage = null; // de-dupe persistent background sync errors
 
@@ -3597,6 +3679,17 @@ function _setSyncing(val){
 // Returns a promise that resolves immediately if not syncing,
 // or waits until the current sync finishes before resolving.
 function _waitForSync(){
+  // If a debounce is still waiting, promote it to an immediate durable/cloud
+  // flush before claiming there is nothing to wait for. This matters on mobile
+  // sign-out/background paths where a 400ms timer may never get CPU time again.
+  if(_saveTimer){
+    clearTimeout(_saveTimer);
+    _saveTimer=null;
+    try{ _stageDurableOutboxNow(); }catch(e){}
+    return _persistChanges();
+  }
+  if(_persistPromise) return _persistPromise;
+  if(_currentUserId && typeof _hasDirtyDurableState==='function' && _hasDirtyDurableState()) return _persistChanges();
   if(!_syncing) return Promise.resolve();
   return new Promise(res => _syncResolvers.push(res));
 }
@@ -3625,6 +3718,51 @@ function _outboxSave(obj){
   }catch(e){ console.warn('[RETRADE] outbox write failed (quota?):', e && e.message); return false; }
 }
 function _outboxPendingCount(){ try{ return Object.keys(_outboxRead()).length; }catch(e){ return 0; } }
+
+// v1.4.3 — synchronous write-ahead durability.
+// saveDB() used to wait until the 400ms debounced cloud pass before placing the
+// mutation in localStorage. iOS can freeze/evict a PWA before that timer runs,
+// and a mutation made while another cloud pass was in flight could also be
+// absorbed into that pass's final snapshot without ever being uploaded.
+// Stage the FULL changed entity immediately, before any render/await/timer.
+function _stageDurableOutboxNow(){
+  if(_previewMode || !_currentUserId) return 0;
+  try{
+    const now=_dbFingerprint();
+    // During an active pass compare against the exact state that pass is writing,
+    // not merely _dbSnapshot. This preserves even a quick "change then revert"
+    // made while the first version is still in flight.
+    const ref=_persistActiveCurrent || _dbSnapshot || {};
+    const ob=_outboxRead();
+    const keys=new Set(Object.keys(now).concat(Object.keys(ref)));
+    let staged=0;
+    keys.forEach(function(k){
+      if(now[k]===ref[k]) return;
+      ob[k]=(now[k]!==undefined)?_outboxEntry(k,now[k]):_outboxDeleteEntry(k);
+      staged++;
+    });
+    if(staged && _persistPromise) _persistQueued=true;
+    if(staged && !_outboxSave(ob)){
+      _lastSyncError='Local safety save failed — keep RETRADE open and export a backup';
+      console.error('[RETRADE] CRITICAL: durable outbox could not be written');
+      try{toast('Could not make a local safety save — keep RETRADE open','err');}catch(e){}
+    }
+    return staged;
+  }catch(e){
+    console.error('[RETRADE] immediate outbox stage failed:',e&&e.message);
+    return 0;
+  }
+}
+
+function _hasDirtyDurableState(){
+  try{
+    const now=_dbFingerprint(), prev=_dbSnapshot||{};
+    const ks=new Set(Object.keys(now).concat(Object.keys(prev)));
+    for(const k of ks){ if(now[k]!==prev[k]) return true; }
+    return _outboxPendingCount()>0;
+  }catch(e){ return _outboxPendingCount()>0; }
+}
+
 // Build a save entry from a fingerprint value. Item fp = JSON+'|'+monthKey;
 // every other entity fp = plain JSON.
 function _outboxEntry(key, fpVal){
@@ -4042,8 +4180,12 @@ function saveDB(){
   }
   DB._userOwned = true;
   try{ _captureActivity(); }catch(e){ console.warn('[RETRADE] capture hook failed',e); }
+  // v1.4.3 P1: make the mutation durable synchronously BEFORE refresh/render
+  // and before the debounce. Cloud sync may happen later; the user's change
+  // must already survive a phone suspend/reload at this point.
+  try{ _stageDurableOutboxNow(); }catch(e){ console.warn('[RETRADE] write-ahead stage failed',e); }
   refreshActivePage();
-  // Debounce: wait 400ms of quiet before persisting (handles rapid edits)
+  // Debounce network traffic only. Durability no longer depends on this timer.
   clearTimeout(_saveTimer);
   _saveTimer = setTimeout(_persistChanges, 400);
 }
@@ -4068,16 +4210,19 @@ function _dbFingerprint(){
   return fp;
 }
 
-async function _persistChanges(){
+async function _persistChangesPass(){
   // Never persist if no user is logged in — prevents ghost saves after sign-out
   if(!_currentUserId){ console.warn('_persistChanges: no user, skipping'); return; }
   // Snapshot the user at sync start. If the user changes mid-sync (sign-out
   // during debounce, token refresh race), abort — don't upsert rows with the
   // wrong owner. RLS would reject it, but this prevents partial writes too.
   const _uidAtStart = _currentUserId;
-  _setSyncing(true);
   try{
+    // Freeze the exact batch this pass is responsible for. Never use a later
+    // live fingerprint to mark this pass as synced: the UI is allowed to mutate
+    // DB while network awaits are in progress.
     const current = _dbFingerprint();
+    _persistActiveCurrent = current;
     const prev    = _dbSnapshot || {};
     const errors  = [];
     // Drop-1 follow-up fix: track which keys FAILED to save/delete so we
@@ -4095,16 +4240,19 @@ async function _persistChanges(){
     // await, so a tab eviction mid-sync cannot lose a write. Pruned to only the
     // failures at the end. Wrapped so an outbox hiccup never breaks the sync.
     try{
-      const _stage = {};
+      const _stage = _outboxRead();
+      let _stagedCount=0;
       for(const k of Object.keys(current)){
         if(current[k] === prev[k]) continue;
         _stage[k] = _outboxEntry(k, current[k]);
+        _stagedCount++;
       }
       for(const k of Object.keys(prev)){
         if(current[k] !== undefined) continue;
         _stage[k] = _outboxDeleteEntry(k);
+        _stagedCount++;
       }
-      if(Object.keys(_stage).length) _outboxSave(_stage);
+      if(_stagedCount) _outboxSave(_stage);
     }catch(e){ console.warn('[RETRADE] outbox stage failed:', e && e.message); }
 
     // Detect changed / new items
@@ -4113,44 +4261,31 @@ async function _persistChanges(){
       if(_currentUserId !== _uidAtStart){ console.warn('_persistChanges: user changed mid-sync, aborting'); return; }
       try{
         if(key.startsWith('item:')){
-          const id = key.slice(5);
-          const parts = current[key].split('|');
-          const month = parts[parts.length - 1];
-          const item = (DB[month]||[]).find(i => i.id === id);
-          if(item) await saveItemToSupabase(month, item);
+          // Persist the immutable object captured at pass start, not the live DB
+          // reference (which the user can edit again while network awaits run).
+          const fpVal=current[key];
+          const p=fpVal.lastIndexOf('|');
+          const month=fpVal.slice(p+1);
+          const item=JSON.parse(fpVal.slice(0,p));
+          await saveItemToSupabase(month,item);
         } else if(key.startsWith('trip:')){
-          const id = key.slice(5);
-          const trip = (DB.trips||[]).find(t => t.id === id);
-          if(trip) await saveTripToSupabase(trip);
+          await saveTripToSupabase(JSON.parse(current[key]));
         } else if(key.startsWith('exp:')){
-          const id = key.slice(4);
-          const exp = (DB.expenses||[]).find(e => e.id === id);
-          if(exp) await saveExpenseToSupabase(exp);
+          await saveExpenseToSupabase(JSON.parse(current[key]));
         } else if(key.startsWith('cash:')){
-          const id = key.slice(5);
-          const m = (DB.cashLedger||[]).find(x => x.id === id);
-          if(m) await saveCashMoveToSupabase(m);
+          await saveCashMoveToSupabase(JSON.parse(current[key]));
         } else if(key.startsWith('run:')){
-          const id = key.slice(4);
-          const run = (_sourcingRuns||[]).find(r => r.id === id);
-          if(run) await saveRunToSupabase(run);
+          await saveRunToSupabase(JSON.parse(current[key]));
         } else if(key.startsWith('acct:')){
-          const id = key.slice(5);
-          const acct = (_accounts||[]).find(a => a.id === id);
-          if(acct) await saveAccountToSupabase(acct);
+          await saveAccountToSupabase(JSON.parse(current[key]));
         } else if(key.startsWith('log:')){
-          const id = key.slice(4);
-          const l = (DB.activityLog||[]).find(x => x.id === id);
-          if(l) await saveActivityToSupabase(l);
+          await saveActivityToSupabase(JSON.parse(current[key]));
         } else if(key.startsWith('jlot:')){
-          const id=key.slice(5); const l=(_jobLots||[]).find(x=>x.id===id);
-          if(l) await saveJobLotToSupabase(l);
+          await saveJobLotToSupabase(JSON.parse(current[key]));
         } else if(key.startsWith('jmem:')){
-          const id=key.slice(5); const m=(_jobLotItems||[]).find(x=>x.id===id);
-          if(m) await saveJobLotItemToSupabase(m);
+          await saveJobLotItemToSupabase(JSON.parse(current[key]));
         } else if(key.startsWith('recon:')){
-          const id=key.slice(6); const r=(_saleReconciliations||[]).find(x=>x.id===id);
-          if(r) await saveSaleReconciliationToSupabase(r);
+          await saveSaleReconciliationToSupabase(JSON.parse(current[key]));
         }
       }catch(e){ errors.push(e.message); failedKeys.add(key); }
     }
@@ -4211,34 +4346,80 @@ async function _persistChanges(){
       _lastSyncDiagMessage=null;
     }
 
-    // v2.21.50 — prune the outbox to only the writes that FAILED to confirm.
-    // On full success this clears it; failures stay on-device and replay next
-    // boot (in addition to the in-tab failedKeys retry below).
+    // v1.4.3 — prune ONLY the exact batch that this pass confirmed.
+    // A user can create/list/sell another item while these awaits are running.
+    // Those newer mutations already live in the write-ahead outbox and MUST NOT
+    // be cleared by completion of this older pass.
     try{
-      if(failedKeys.size === 0){ _outboxSave({}); }
-      else {
-        const _rem = {};
-        failedKeys.forEach(function(k){
-          if(current[k] !== undefined) _rem[k] = _outboxEntry(k, current[k]);
-          else                        _rem[k] = _outboxDeleteEntry(k);
-        });
-        _outboxSave(_rem);
-      }
+      const liveNow=_dbFingerprint();
+      const rem=_outboxRead();
+      const touched=new Set();
+      Object.keys(current).forEach(function(k){ if(current[k]!==prev[k]) touched.add(k); });
+      Object.keys(prev).forEach(function(k){ if(current[k]===undefined) touched.add(k); });
+      touched.forEach(function(k){
+        if(failedKeys.has(k)){
+          // Keep the newest local version, not necessarily the version this pass
+          // attempted. _outboxEntry's revision wrapper uses the latest known CAS base.
+          rem[k]=(liveNow[k]!==undefined)?_outboxEntry(k,liveNow[k]):_outboxDeleteEntry(k);
+          return;
+        }
+        // This pass confirmed its captured version. If the live object has not
+        // changed since capture, the durable entry can go. Otherwise keep the
+        // newer mutation queued for the next serialized pass.
+        if(liveNow[k]===current[k]) delete rem[k];
+        else rem[k]=(liveNow[k]!==undefined)?_outboxEntry(k,liveNow[k]):_outboxDeleteEntry(k);
+      });
+      _outboxSave(rem);
     }catch(e){ console.warn('[RETRADE] outbox prune failed:', e && e.message); }
 
-    // Build the new snapshot from current state, then restore prev[key] for
-    // any keys that failed — that way next sync sees them as still "needs
-    // sync" (current !== prev) and retries automatically. Brand-new entities
-    // that failed (no prev entry) get deleted from the snapshot so they
-    // still trigger on next pass.
-    const newSnapshot = _dbFingerprint();
+    // Commit ONLY the fingerprint captured at pass start. The old code called
+    // _dbFingerprint() here after all awaits; any edits made during the network
+    // pass were therefore marked "synced" despite never being part of this batch.
+    // That race is the direct sold/listing reversion data-loss path fixed here.
+    const newSnapshot = Object.assign({}, current);
     failedKeys.forEach(function(k){
       if(prev[k] !== undefined){ newSnapshot[k] = prev[k]; }
       else                    { delete newSnapshot[k]; }
     });
     _dbSnapshot = newSnapshot;
+    return {failed:failedKeys.size};
   } finally {
-    _setSyncing(false);
+    _persistActiveCurrent = null;
+  }
+}
+
+// v1.4.3 — serialize persistence passes. The previous implementation allowed
+// overlapping async passes; an older pass could finish last, clear a newer
+// outbox entry and snapshot unsent UI state. One writer owns Supabase at a time.
+async function _persistChanges(){
+  if(_persistPromise){
+    _persistQueued=true;
+    return _persistPromise;
+  }
+  _persistPromise=(async function(){
+    _setSyncing(true);
+    try{
+      do{
+        _persistQueued=false;
+        // Failed cloud writes remain durable but must NOT cause a tight infinite
+        // retry loop. A second pass is immediate only when a newer mutation was
+        // staged while this pass was in flight.
+        await _persistChangesPass();
+      }while(_persistQueued && _currentUserId);
+    }finally{
+      _setSyncing(false);
+    }
+  })();
+  try{ return await _persistPromise; }
+  finally{
+    _persistPromise=null;
+    // Close the tiny race where a mutation lands after the loop condition was
+    // checked but before the promise settles. Its durable outbox entry already
+    // exists; schedule one fresh writer rather than leaving it until next boot.
+    if(_persistQueued && _currentUserId){
+      clearTimeout(_saveTimer);
+      _saveTimer=setTimeout(_persistChanges,0);
+    }
   }
 }
 
@@ -5835,7 +6016,6 @@ function _renderItemPageInner(m,id){
   pb+=_salePlatformPickerRow('rcpt-s1-platform-select',m,id,_plat); // v2.19.33 — picker at top
   pb+=_editMoneyRow(_wasRelistedDetect||_isResoldItem?'Sale price (Sale 1)':'Sale price','rcpt-s1-price-input',m,id,_origSalePrice,'var(--green)','');
   if(_wasRelistedDetect)pb+=rcp('↳ Relisted at',fmt(i.salePrice||0),'var(--muted)',true);
-  if(_isResoldItem){const _liveNo=typeof _currentResaleSaleNo==='function'?_currentResaleSaleNo(i):2;pb+=rcp('↳ Sale '+_liveNo+' price',fmt(i.resaleSalePrice||0),'var(--muted)',true);}
   // v2.19.35 — Sale 1 postage is now editable (writes the snapshot on a resold
   // item). Vinted shows the buyer-covered note instead.
   if(_plat==='vinted')pb+=rcp('Buyer pays postage','(buyer covered)','var(--muted)');
@@ -6183,8 +6363,33 @@ function _renderItemPageInner(m,id){
   let db='<div class="ip-details-grid">';
   db+='<div class="ip-row"><div class="ip-label">Date Listed</div>'
     +'<input class="ip-field" type="date" value="'+(i.dateListed||'')+'" onchange="ipSave(\''+m+'\',\''+i.id+'\',\'dateListed\',this.value)"></div>';
-  db+=i.dateSold
-    ?'<div class="ip-row"><div class="ip-label">Date Sold</div><div class="ip-field-date">'+fmtDate(i.dateSold)+'</div></div>'
+  // v1.4.2 — Details must not read only `dateSold` (Sale 1). A full return
+  // deliberately clears that live field, so a Sale 2/3/4 item used to say
+  // "Not yet sold" while its Sale-N card correctly showed a completed sale.
+  let _detailLastSaleDate=null,_detailLastSaleNo=null;
+  try{
+    const _detailNos=(typeof _saleCycleNumbers==='function')?_saleCycleNumbers(i):[];
+    _detailNos.slice().sort(function(a,b){return b-a;}).some(function(n){
+      const s=(typeof _saleCycleSnapshot==='function')?_saleCycleSnapshot(i,n):null;
+      if(s&&s.date){_detailLastSaleDate=s.date;_detailLastSaleNo=n;return true;}
+      return false;
+    });
+  }catch(e){}
+  if(!_detailLastSaleDate){
+    const _detailReturn=(i.returnHistory||[]).slice().sort(function(a,b){
+      return String(_returnSaleSnapshotDate(b)||b.loggedAt||'').localeCompare(String(_returnSaleSnapshotDate(a)||a.loggedAt||''));
+    })[0];
+    if(_detailReturn){
+      _detailLastSaleDate=_returnSaleSnapshotDate(_detailReturn);
+      _detailLastSaleNo=Math.max(1,Number(_detailReturn.saleNo)||1);
+    }
+  }
+  if(!_detailLastSaleDate){
+    _detailLastSaleDate=i.resaleDateSold||i.dateSold||null;
+    _detailLastSaleNo=i.resaleDateSold?(typeof _currentResaleSaleNo==='function'?_currentResaleSaleNo(i):2):(i.dateSold?1:null);
+  }
+  db+=_detailLastSaleDate
+    ?'<div class="ip-row"><div class="ip-label">'+(_detailLastSaleNo&&_detailLastSaleNo>1?'Latest Sale':'Date Sold')+'</div><div class="ip-field-date">'+(_detailLastSaleNo&&_detailLastSaleNo>1?'Sale '+_detailLastSaleNo+' · ':'')+fmtDate(_detailLastSaleDate)+'</div></div>'
     :'<div class="ip-row"><div class="ip-label">Date Sold</div><div class="ip-field-date" style="color:var(--muted);font-style:italic">Not yet sold</div></div>';
   db+='<div class="ip-row"><div class="ip-label">Location</div>'
     +'<input class="ip-field" value="'+esc(i.location||'')+'" placeholder="e.g. A101" onchange="ipSave(\''+m+'\',\''+i.id+'\',\'location\',this.value)" onkeydown="if(event.key===\'Enter\')this.blur()"></div>';
@@ -20019,6 +20224,22 @@ function _auditDataIntegrity(){
         push('DOUBLE_COUNT','high',
           'Resold but no full return on record — profit counts BOTH sales (£'+(+((i.salePrice||0)+(i.resaleSalePrice||0))).toFixed(2)+' revenue, gross £'+(g!=null?g.toFixed(2):'?')+'). A return likely failed to save. Log the full return to correct it.');
       }
+      // SALE_NO_COLLISION — two full returns cannot belong to one sale cycle.
+      // v1.4.2 auto-repairs this when distinct sold-date snapshots make the
+      // sequence unambiguous; anything still present here needs manual review.
+      const _fullBySale={};
+      rh.forEach(function(r){
+        if(!r||(r.type!=='full_seller'&&r.type!=='full_ebay'))return;
+        const n=Math.max(1,Number(r.saleNo)||1);
+        (_fullBySale[n]=_fullBySale[n]||[]).push(r);
+      });
+      Object.keys(_fullBySale).forEach(function(n){
+        if(_fullBySale[n].length<=1)return;
+        const ds=_fullBySale[n].map(_returnSaleSnapshotDate).filter(Boolean);
+        push('SALE_NO_COLLISION','high',
+          _fullBySale[n].length+' full returns are attached to Sale '+n+'. Their sold-date snapshots are '
+          +(new Set(ds).size===ds.length&&ds.length===_fullBySale[n].length?'distinct — reload once to run the automatic Sale-N repair.':'ambiguous — review this item before changing its P&L history.'));
+      });
       // NO_LOGGED_AT — return with no date: invisible in the returns KPI.
       rh.forEach(function(r,ri){
         if(!r.loggedAt){
@@ -22535,10 +22756,13 @@ function _restoreAuthInputs(){
   // background/close case.
   function _flushPendingSave(){
     if(_previewMode || !_currentUserId) return;
-    if(!_saveTimer) return;              // nothing pending
-    clearTimeout(_saveTimer);
-    _saveTimer = null;
-    try{ _persistChanges(); }catch(e){ console.warn('flush save failed:', e && e.message); }
+    // Stage even if no debounce timer exists. This also catches any mutation
+    // path that changed DB correctly but accidentally forgot to call saveDB().
+    try{ _stageDurableOutboxNow(); }catch(e){}
+    if(_saveTimer){ clearTimeout(_saveTimer); _saveTimer=null; }
+    if(_hasDirtyDurableState() || _persistPromise){
+      try{ _persistChanges(); }catch(e){ console.warn('flush save failed:', e && e.message); }
+    }
   }
   document.addEventListener('visibilitychange', function(){
     if(document.visibilityState === 'hidden') _flushPendingSave();
@@ -24035,3 +24259,6 @@ window.addEventListener('load', function(){
   console.info('[RETRADE] '+VERSION+' loaded — server revision guard required');
 })();
 
+
+console.info('[RETRADE] v1.4.2 Sale-N history repair loaded');
+console.info('[RETRADE] v1.4.3 persistence serialization + immediate write-ahead durability loaded');
