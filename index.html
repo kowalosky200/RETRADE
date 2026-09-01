@@ -43,6 +43,25 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.112.2/dist/umd/supabase.js" integrity="sha384-OUpie84zd1LdwNlK9uJJQRwab0BLqo3eKYKFh7hSVL58FSk7wPp2l0kfUMIIoaQd" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 <!-- V2 Session 4a: Chart.js removed — dashboard chart is hand-rolled SVG -->
 <link rel="stylesheet" href="./app.css">
+
+<style id="retrade-v145-sync-float">
+/* v1.4.5: global sync state is an overlay, never a header layout participant. */
+#sync-indicator.sync-float,#sync-indicator{
+  position:fixed!important;left:max(16px,env(safe-area-inset-left))!important;right:auto!important;top:auto!important;
+  bottom:calc(16px + env(safe-area-inset-bottom))!important;z-index:10050!important;
+  min-height:38px;padding:8px 12px!important;gap:8px;align-items:center;justify-content:center;
+  border-radius:999px;background:color-mix(in srgb,var(--surface) 94%,transparent);border:1px solid var(--border);
+  box-shadow:0 8px 28px rgba(0,0,0,.24);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
+  color:var(--text);font-size:12px;font-weight:700;line-height:1;white-space:nowrap;width:auto!important;margin:0!important;
+}
+#sync-indicator.sync-float.success{border-color:color-mix(in srgb,var(--green) 45%,var(--border));}
+#sync-indicator.sync-float.error{border-color:color-mix(in srgb,var(--red) 60%,var(--border));cursor:pointer;}
+#sync-indicator.sync-float.pending{border-color:color-mix(in srgb,var(--accent) 55%,var(--border));cursor:pointer;}
+.sync-float-spinner{width:14px;height:14px;border:2px solid var(--border2);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite;flex:none;}
+.sync-float-check{width:16px;height:16px;border-radius:50%;display:grid;place-items:center;background:var(--green);color:#07120d;font-size:11px;font-weight:900;flex:none;}
+.sync-float-warn{width:16px;height:16px;border-radius:50%;display:grid;place-items:center;background:var(--red);color:#fff;font-size:11px;font-weight:900;flex:none;}
+@media(max-width:760px){#sync-indicator.sync-float,#sync-indicator{left:14px!important;bottom:calc(76px + env(safe-area-inset-bottom))!important;}}
+</style>
 </head>
 <body class="rt">
 
@@ -942,7 +961,7 @@ c-230 453 -565 1105 -674 1315 -63 120 -114 221 -114 225 0 4 47 19 104 34
 
 <script src="./accounting.js"></script>
 <script src="./reports.js"></script>
-<script src="./app.js?v=1.4.4"></script>
+<script src="./app.js?v=1.4.6"></script>
 
 <!-- RETRADE dashboard spacing cleanup: mobile/tablet/narrow-desktop rhythm v3 - 2026-06-29 -->
 </body>

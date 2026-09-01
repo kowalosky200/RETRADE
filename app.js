@@ -1915,7 +1915,7 @@ if(!PREVIEW_MODE_ENABLED && 'serviceWorker' in navigator && /^https?:$/.test(loc
     navigator.serviceWorker.register('./sw.js',{updateViaCache:'none'}).then(function(reg){try{reg.update();}catch(e){}}).catch(function(err){console.warn('[RETRADE] service worker registration failed:',err&&err.message);});
   });
 }
-const RETRADE_SCHEMA_VERSION = '2026-08-23-v2';
+const RETRADE_SCHEMA_VERSION = '2026-09-01-v1.4.5';
 
 // Launch hardening — privacy-safe on-device diagnostics. Nothing is sent to an
 // external service: we retain a small ring buffer in localStorage so a user can
@@ -6085,13 +6085,17 @@ function _renderItemPageInner(m,id){
       timeline.push({date:r._relistedAt,badge:'relist',label:'Relisted for Sale '+nextNo,detail:'Condition: '+condLabel+(relistPrice?' · Price: '+fmt(relistPrice):'')+(relistPlat?' · '+relistPlat:''),rtnIdx:rtnIdx,saleNo:nextNo});
     }
   });
-  const typeOrder={listed:0,refresh:.5,relist:.6,sale:1,resale:1,'return-full':2,'return-partial':2};
+  const typeOrder={listed:0,sale:1,resale:1,'return-full':2,'return-partial':2,relist:3,refresh:4}; // v1.4.6: same-day sold → refund → relist
   timeline.sort(function(a,b){if(a.date<b.date)return -1;if(a.date>b.date)return 1;return (typeOrder[a.badge]??1)-(typeOrder[b.badge]??1);});
   const badgeLbl={listed:'listed',sale:'sold',resale:'re-sold','return-full':'full return','return-partial':'partial return',relist:'relisted',refresh:'refreshed'};
+  const _timelineLast=timeline.length?timeline[timeline.length-1]:null;
   const timelineHTML=timeline.map(function(t,idx){
     const isLast=idx===timeline.length-1;
     let undoBtn='';
-    if(isLast){
+    const _cascadeReturn=(!isLast&&t.badge==='return-full'&&_timelineLast&&_timelineLast.badge==='relist'&&_timelineLast.rtnIdx===t.rtnIdx);
+    if(_cascadeReturn){
+      undoBtn='<button onclick="event.stopPropagation();undoReturnCascade(\''+m+'\',\''+id+'\','+t.rtnIdx+')" style="margin-left:auto;background:none;border:1px solid var(--border);border-radius:4px;padding:1px 7px;font-size:11px;color:var(--accent);cursor:pointer">↶ undo return + relist</button>';
+    }else if(isLast){
       if(t.badge==='sale'&&Number(t.saleNo||1)===1&&i.dateSold)undoBtn='<button onclick="event.stopPropagation();undoSale(\''+m+'\',\''+id+'\')" style="margin-left:auto;background:none;border:1px solid var(--border);border-radius:4px;padding:1px 7px;font-size:11px;color:var(--muted);cursor:pointer">✕ undo</button>';
       else if(t.badge==='resale'&&Number(t.saleNo||2)>=2&&i.resaleSalePrice)undoBtn='<button onclick="event.stopPropagation();undoResale(\''+m+'\',\''+id+'\')" style="margin-left:auto;background:none;border:1px solid var(--border);border-radius:4px;padding:1px 7px;font-size:11px;color:var(--muted);cursor:pointer">✕ undo</button>';
       else if(t.badge==='return-full'||t.badge==='return-partial')undoBtn='<button onclick="event.stopPropagation();undoReturnEntry(\''+m+'\',\''+id+'\','+t.rtnIdx+')" style="margin-left:auto;background:none;border:1px solid var(--border);border-radius:4px;padding:1px 7px;font-size:11px;color:var(--muted);cursor:pointer">✕ undo</button>';
@@ -6362,10 +6366,10 @@ function _renderItemPageInner(m,id){
   html+='<div class="ip-topbar-row1">';
   html+='<button class="btn btn-secondary ip-back" onclick="exitItemPage()">'+icon('back',14)+'<span class="ip-back-label"> Back</span></button>';
 
-  if((!i.dateSold&&!i.resaleSalePrice)&&!i.isReturned&&!i.scrappedAt&&!_activeJobLotMembership(id))html+='<button class="btn btn-primary ip-act-btn" onclick="markSold(\''+m+'\',\''+id+'\')">'+icon('sold',15)+'<span class="ip-act-label-always">Mark Sold</span></button>';
-  if(i.isReturned&&!i.scrappedAt&&!_activeJobLotMembership(id))html+='<button class="btn btn-primary ip-act-btn" onclick="openRelist(\''+m+'\',\''+id+'\')">'+icon('relist',15)+'<span class="ip-act-label-always">Relist</span></button>';
-  if(i.isReturned&&!i.resaleSalePrice&&!i.scrappedAt&&!_activeJobLotMembership(id))html+='<button class="btn btn-secondary ip-act-btn" onclick="moveReturnedToUnlisted(\''+m+'\',\''+id+'\')" title="Keep the return history but move this unit to Unlisted">'+icon('inbox',15)+'<span class="ip-act-label">Unlisted</span></button>';
-  if((i.dateSold||i.resaleSalePrice)&&!i.isReturned&&!i.scrappedAt)html+='<button class="btn btn-secondary ip-act-btn" onclick="openReturn(\''+m+'\',\''+id+'\')">'+icon('return',15)+'<span class="ip-act-label-always">Return</span></button>';
+  if(_lifecycleCan(i,'markSold')&&!_activeJobLotMembership(id))html+='<button class="btn btn-primary ip-act-btn" onclick="markSold(\''+m+'\',\''+id+'\')">'+icon('sold',15)+'<span class="ip-act-label-always">Mark Sold</span></button>';
+  if(_lifecycleCan(i,'relist')&&!_activeJobLotMembership(id))html+='<button class="btn btn-primary ip-act-btn" onclick="openRelist(\''+m+'\',\''+id+'\')">'+icon('relist',15)+'<span class="ip-act-label-always">Relist</span></button>';
+  if(_lifecycleCan(i,'moveUnlisted')&&!_activeJobLotMembership(id))html+='<button class="btn btn-secondary ip-act-btn" onclick="moveReturnedToUnlisted(\''+m+'\',\''+id+'\')" title="Keep the return history but move this unit to Unlisted">'+icon('inbox',15)+'<span class="ip-act-label">Unlisted</span></button>';
+  if(_lifecycleCan(i,'return'))html+='<button class="btn btn-secondary ip-act-btn" onclick="openReturn(\''+m+'\',\''+id+'\')">'+icon('return',15)+'<span class="ip-act-label-always">Return</span></button>';
   if(_stepBackTitle(i))html+='<button class="btn btn-secondary ip-act-btn" onclick="stepBack(\''+m+'\',\''+id+'\')" title="'+_stepBackTitle(i)+' \u2014 step back one state" style="color:var(--accent)">'+icon('revert',15)+'<span class="ip-act-label">Undo</span></button>';
   html+='<button class="btn btn-secondary ip-act-btn" onclick="confirmDupeItem(\''+m+'\',\''+id+'\')">'+icon('dupe',15)+'<span class="ip-act-label">Dupe</span></button>';
   if(!i.dateSold&&!i.resaleSalePrice&&!i.isReturned&&!i.scrappedAt&&!_activeJobLotMembership(id)&&(i.state==='sourced'||i.state==='listed'))html+='<button class="btn btn-secondary ip-act-btn" onclick="openSplitModal(\''+m+'\',\''+id+'\')" title="Split a multi-buy lot into separate units"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3v6a3 3 0 0 0 3 3h6a3 3 0 0 1 3 3v6"/><path d="M6 3v6a3 3 0 0 1-3 3"/><polyline points="15 9 18 12 15 15"/></svg><span class="ip-act-label">Split</span></button>';
@@ -6448,19 +6452,14 @@ function _renderItemPageInner(m,id){
   // Listing fee moved to inline P&L receipt input (F1) — no longer a KPI token
 
 
-  // Net Profit token — read only, auto calculated.
-  // For a relisted-after-return item that hasn't resold yet, the headline shows
-  // the SAME lifetime-if-sold estimate the stock list shows (calcEstProfit), so
-  // the two surfaces agree. The loss-so-far and full breakdown remain in the P&L
-  // receipt and relist projection below.
-  const _headlineEst=_wasRelistedDetect?calcEstProfit(i):null;
-  const _useEst=_wasRelistedDetect&&_headlineEst!==null;
-  const _headlineVal=_useEst?_headlineEst:profit;
+  // v1.4.6 — The headline is always REALISED accounting. The next resale is
+  // hypothetical and stays in the separate projection card below.
+  const _headlineVal=profit;
   const _headlineClass=_headlineVal===null?'':_headlineVal>=0?'pos':'neg';
   html+='<div class="ip-token locked '+_headlineClass+'">';
-  html+='<div class="ip-token-label">'+(_useEst?'Lifetime P&amp;L if sold':i.resaleSalePrice?'Lifetime Profit':'Net Profit')+'</div>';
-  html+='<div class="ip-token-val">'+(_headlineVal!==null?(_useEst&&_headlineVal>=0?'+':'')+fmt(_headlineVal):'—')+'</div>';
-  html+='<div class="ip-token-sub">'+(_useEst?'at current price · est.':(marginDisplay?marginDisplay+' margin · ':'')+(hasReturn?'after return':'after fees'))+'</div>';
+  html+='<div class="ip-token-label">'+(hasReturn||i.resaleSalePrice?'Lifetime P&amp;L':'Net Profit')+'</div>';
+  html+='<div class="ip-token-val">'+(_headlineVal!==null?fmt(_headlineVal):'—')+'</div>';
+  html+='<div class="ip-token-sub">'+(hasReturn?'realised so far':(marginDisplay?marginDisplay+' margin · after fees':'after fees'))+'</div>';
   html+='</div>';
 
   html+='</div>'; // ip-tokens
@@ -15087,11 +15086,11 @@ function openItemDetail(m,id,noHistory){
   const _isZeroCost2=(i.costPrice==null||i.costPrice===0)&&!(i.shippingCost>0)&&!(i.packagingCost>0)&&!calcPartsCost(i);
   const roiDisplay2=_isZeroCost2&&profit!==null?'∞':(roi!==null?roi.toFixed(1)+'%':null);
   const status=i.scrappedAt?(i.scrapReason==='donated'?'donated':'scrapped'):i.isReturned?'returned':i.resaleSalePrice?'resold':i.dateSold?'sold':i.condition==='spares'?'spares':'listed';
-  const isSold=(i.dateSold||i.resaleSalePrice)&&!i.isReturned;
-  const isUnsold=!i.dateSold&&!i.resaleSalePrice&&!i.isReturned;
+  const _panelLifecycle=_itemLifecycleState(i);
+  const isSold=_panelLifecycle==='sold';
+  const isUnsold=_panelLifecycle==='listed';
 
   // Primary action button — the thing you most likely opened this to do
-  const canRevert=isSold&&!i.resaleSalePrice;
   const primaryBtn=i.isReturned
     ?`<button class="btn btn-primary" style="flex:1;justify-content:center;gap:8px;padding:12px;background:var(--warn);color:#000" onclick="openRelist('${m}','${id}')">${icon('relist',14)} Relist</button>`
     :isUnsold
@@ -15099,8 +15098,11 @@ function openItemDetail(m,id,noHistory){
     :isSold
     ?`<button class="btn btn-secondary" style="flex:1;justify-content:center;padding:12px" onclick="openReturn('${m}','${id}')">${icon('return',14)} Log Return</button>`
     :'';
-  const revertBtn=canRevert
-    ?`<button class="btn btn-secondary" style="justify-content:center;padding:12px;color:var(--text-secondary)" onclick="revertToActive('${m}','${id}')" title="Undo sale — move back to active stock">${icon('revert',14)} Revert</button>`
+  // Same state-machine undo as the full page. This keeps Sale 2/3 undo and
+  // returned/relisted step-back available from the quick panel too.
+  const _panelBackTitle=_stepBackTitle(i);
+  const revertBtn=_panelBackTitle
+    ?`<button class="btn btn-secondary" style="justify-content:center;padding:12px;color:var(--text-secondary)" onclick="stepBack('${m}','${id}')" title="${esc(_panelBackTitle)}">${icon('revert',14)} Undo</button>`
     :'';
 
   // Stat strip — sale + cost as editable ip-tokens, profit read-only
@@ -20128,10 +20130,35 @@ document.addEventListener('keydown',function(e){
   if(e.key==='Tab')_trapDialogTab(e,modal);
 });
 
+// v1.4.6 — Canonical lifecycle state machine. All primary item actions use
+// this single resolver so List / Mark Sold / Return / Relist do not drift apart.
+function _itemLifecycleState(i){
+  if(!i)return 'missing';
+  if(i.scrappedAt)return 'disposed';
+  if(i.isReturned)return 'returned';
+  if(i.resaleSalePrice||i.dateSold)return 'sold';
+  if(i.state==='sourced')return 'sourced';
+  return 'listed';
+}
+function _lifecycleCan(i,action){
+  const s=_itemLifecycleState(i);
+  if(action==='list')return s==='sourced';
+  if(action==='markSold')return s==='listed';
+  if(action==='return')return s==='sold';
+  if(action==='relist')return s==='returned';
+  if(action==='moveUnlisted')return s==='returned';
+  return false;
+}
+function _lifecycleActionSummary(i){
+  const s=_itemLifecycleState(i);
+  return {state:s,list:_lifecycleCan(i,'list'),markSold:_lifecycleCan(i,'markSold'),returnItem:_lifecycleCan(i,'return'),relist:_lifecycleCan(i,'relist'),moveUnlisted:_lifecycleCan(i,'moveUnlisted')};
+}
+
 function markSold(m,id){
   if(_jobLotActionGuard(id))return;
   const item=(DB[m]||[]).find(i=>i.id===id);
   if(!item)return;
+  if(!_lifecycleCan(item,'markSold')){toast('Mark Sold is only available for an active listed item.','error');return;}
   const hasFullReturn=(item.returnHistory||[]).some(r=>r.type==='full_seller'||r.type==='full_ebay');
   const today=new Date().toISOString().split('T')[0];
 
@@ -20605,8 +20632,8 @@ function openRelist(m,id){
   if(_jobLotActionGuard(id))return;
   const i=(DB[m]||[]).find(x=>x.id===id);
   if(!i)return;
-  if(!i.isReturned){
-    toast('Only returned stock can use the return-relist flow','error');
+  if(!_lifecycleCan(i,'relist')){
+    toast('Relist is only available while the item is in Returned stock.','error');
     return;
   }
   const postageMode=i._postageMode||'simple';
@@ -20894,6 +20921,7 @@ function openReturn(m,id){
   if(_jobLotActionGuard(id))return;
   const i=(DB[m]||[]).find(x=>x.id===id);
   if(!i)return;
+  if(!_lifecycleCan(i,'return')){toast('Return is only available after a completed sale.','error');return;}
   const cur=_currentSaleForReturn(i);
   const today=new Date().toISOString().split('T')[0];
   const _platLabel=(PLATFORMS[cur.platformId]&&PLATFORMS[cur.platformId].short)||'Platform';
@@ -21061,6 +21089,49 @@ function _removeReturnEntry(m,id,rtnIdx){
   return r;
 }
 
+// v1.4.6 — Dependency-aware return undo. If the only later structural step
+// is this return's relist, undo both atomically and restore Sale N as sold.
+function _dropReturnOwnedRelistMaintenance(i,r){
+  if(!i||!r||!r._relistedAt||!Array.isArray(i.refreshHistory))return;
+  const d=String(r._relistedAt).slice(0,10);
+  for(let k=i.refreshHistory.length-1;k>=0;k--){
+    const e=i.refreshHistory[k];
+    if(e&&e.type==='relist'&&e._fromReturn&&String(e.date||'').slice(0,10)===d){i.refreshHistory.splice(k,1);break;}
+  }
+  const prior=i.refreshHistory.slice().reverse().find(function(e){return e&&e.type==='relist';});
+  i._lastRelistAt=prior?prior.date:null;
+}
+function _restoreCompletedSaleFromReturn(i,r){
+  const saleNo=Math.max(1,Number(r.saleNo)||1);
+  const num=function(v,f){return v!=null?(Number(v)||0):(Number(f)||0);};
+  if(saleNo===1){
+    i.salePrice=num(r._salePriceAtReturn,i.salePrice);i.dateSold=r._dateSoldAtReturn||i.dateSold||null;
+    i.postage=num(r._postageAtReturn,i.postage);i.shippingCost=num(r._shippingCostAtReturn,i.shippingCost);
+    i.packagingCost=num(r._packagingCostAtReturn,i.packagingCost);i.promoPercent=num(r._promoPercentAtReturn,i.promoPercent);
+    if(r._platformAtReturn)i.soldOnPlatform=r._platformAtReturn;
+    i.resaleSalePrice=null;i.resaleDateSold=null;i.resaleGrossProfit=null;i.resalePostage=null;i.resaleShippingCost=null;i.resalePackagingCost=null;i.resalePromoPercent=null;
+  }else{
+    i.resaleSalePrice=num(r._salePriceAtReturn,r._salePriceAtRelist);i.resaleDateSold=r._dateSoldAtReturn||null;
+    i.resalePostage=num(r._postageAtReturn,r._postageAtRelist);i.resaleShippingCost=num(r._shippingCostAtReturn,r._shippingCostAtRelist);
+    i.resalePackagingCost=num(r._packagingCostAtReturn,r._packagingCostAtRelist);i.resalePromoPercent=num(r._promoPercentAtReturn,r._promoPercentAtRelist);
+    i.resaleListingFee=num(r._listingFeeAtReturn,i.resaleListingFee);i.resalePlatform=r._platformAtReturn||i.resalePlatform||_itemPlatform(i);
+    i.salePrice=i.resaleSalePrice;i.postage=i.resalePostage;i.shippingCost=i.resaleShippingCost;i.packagingCost=i.resalePackagingCost;i.promoPercent=i.resalePromoPercent;
+  }
+  i.isReturned=false;i.state='sold';i.condition=undefined;i.grossProfit=calcGrossProfit(i);
+}
+async function undoReturnCascade(m,id,rtnIdx){
+  const i=(DB[m]||[]).find(function(x){return x.id===id;});
+  const r=i&&Array.isArray(i.returnHistory)?i.returnHistory[rtnIdx]:null;if(!r)return;
+  const saleNo=Math.max(1,Number(r.saleNo)||1);const isFull=r.type==='full_seller'||r.type==='full_ebay';
+  if(!isFull||!r._relistedAt)return undoReturnEntry(m,id,rtnIdx);
+  const laterReturn=(i.returnHistory||[]).some(function(x){return x!==r&&(x.type==='full_seller'||x.type==='full_ebay')&&Math.max(1,Number(x.saleNo)||1)>saleNo;});
+  const liveSaleNo=i.resaleSalePrice?_currentResaleSaleNo(i):0;
+  if(laterReturn||(liveSaleNo&&liveSaleNo>saleNo)){toast('A later sale exists. Undo the newest sale/return first so the lifecycle stays intact.','error');return;}
+  const ok=await showConfirm('Undo Sale '+saleNo+' return + relist?','This removes the Sale '+saleNo+' refund and its dependent relist for Sale '+(saleNo+1)+', then restores Sale '+saleNo+' as sold. Cashflow and lifetime P&L will recalculate from the corrected history.',{okLabel:'Undo both',danger:false});
+  if(!ok)return;
+  _dropReturnOwnedRelistMaintenance(i,r);_restoreCompletedSaleFromReturn(i,r);i.returnHistory.splice(rtnIdx,1);saveDB();renderItemPage(m,id);toast('Return + relist undone — Sale '+saleNo+' restored');
+}
+
 async function panelDeleteReturn(m,id,rtnIdx){
   const i=(DB[m]||[]).find(function(x){return x.id===id;});
   const r=i&&Array.isArray(i.returnHistory)?i.returnHistory[rtnIdx]:null;
@@ -21101,14 +21172,26 @@ function _returnedToStockDate(i){
   const _fr=(i.returnHistory||[]).slice().reverse().find(function(r){return r.type==='full_seller'||r.type==='full_ebay';});
   return (_fr&&_fr.loggedAt)?String(_fr.loggedAt).split('T')[0]:null;
 }
+function _latestRelistedReturnRef(i){
+  if(!i||!Array.isArray(i.returnHistory))return null;
+  for(let k=i.returnHistory.length-1;k>=0;k--){
+    const r=i.returnHistory[k];
+    if(r&&(r.type==='full_seller'||r.type==='full_ebay')&&r._relistedAt)return {r:r,index:k};
+  }
+  return null;
+}
 function _stepBackTitle(i){
   if(!i)return null;
   if(i.scrappedAt)return 'Restore to stock';
   if(i.isReturned)return 'Back to sold';
   if(i.resaleSalePrice)return 'Undo Sale '+_currentResaleSaleNo(i);
   if(i.dateSold)return 'Back to active stock';
+  // v1.4.6 — a returned item that has been relisted is NOT a first-cycle
+  // listing. Stepping back must undo that relist, never withdraw it to sourced.
+  const rr=_latestRelistedReturnRef(i);
+  if(_itemLifecycleState(i)==='listed'&&rr)return 'Undo relist';
   if(i.state==='listed')return 'Back to sourced';
-  return null; // sourced = base state, nothing to step back to
+  return null;
 }
 function stepBack(m,id){
   const i=(DB[m]||[]).find(function(x){return x.id===id;});
@@ -21117,6 +21200,8 @@ function stepBack(m,id){
   if(i.isReturned)return undoLastReturn(m,id);
   if(i.resaleSalePrice)return undoResale(m,id);
   if(i.dateSold)return revertToActive(m,id);
+  const rr=_latestRelistedReturnRef(i);
+  if(_itemLifecycleState(i)==='listed'&&rr)return undoRelist(m,id,rr.index);
   if(i.state==='listed')return withdrawToSourced(m,id);
 }
 async function undoResale(m,id){
@@ -24385,3 +24470,335 @@ window.addEventListener('load', function(){
 
 console.info('[RETRADE] v1.4.2 Sale-N history repair loaded');
 console.info('[RETRADE] v1.4.3 persistence serialization + immediate write-ahead durability loaded');
+
+
+/* ========================================================================
+ * RETRADE-UK v1.4.5 — SYNC RECOVERY + SCHEMA HARDENING + COMPACT INTEGRITY
+ * 2026-09-01
+ *
+ * Repairs the live failure exposed by Diagnostics:
+ *  - missing launch columns were keeping the durable outbox permanently dirty;
+ *  - an unbounded Supabase request could leave the UI in "Syncing" forever;
+ *  - a revision conflict could remain queued forever and block cloud pulls;
+ *  - revision-aware boot recovery discarded a stale local save instead of
+ *    preserving/rebasing it;
+ *  - Data Integrity rendered every finding into the application page.
+ *
+ * No accounting formula is changed by this block.
+ * ======================================================================== */
+(function(){
+  'use strict';
+  var VERSION='1.4.5-2026-09-01';
+  var REQUEST_TIMEOUT_MS=12000;
+  var AUTH_TIMEOUT_MS=9000;
+
+  function _v145DelayReject(ms,message,onTimeout){
+    return new Promise(function(_,reject){
+      var t=setTimeout(function(){try{if(onTimeout)onTimeout();}catch(e){} reject(new Error(message));},ms);
+      // expose timer only to the local closure; Promise.race loser is harmless
+      try{Object.defineProperty(_, '_retradeTimer',{value:t});}catch(e){}
+    });
+  }
+  async function _v145Timed(promise,ms,message,onTimeout){
+    var timer=null;
+    try{
+      return await Promise.race([
+        Promise.resolve(promise),
+        new Promise(function(_,reject){timer=setTimeout(function(){try{if(onTimeout)onTimeout();}catch(e){} reject(new Error(message));},ms);})
+      ]);
+    }finally{if(timer)clearTimeout(timer);}
+  }
+
+  // Bounded + abortable PostgREST calls. A dead request can no longer keep the
+  // serialized persistence writer and global Syncing state alive indefinitely.
+  if(typeof _sbCall==='function'){
+    _sbCall=async function(fn){
+      var ok;
+      try{ok=await _v145Timed(_ensureSession(),AUTH_TIMEOUT_MS,'Authentication check timed out.');}
+      catch(e){return {error:e};}
+      if(!ok)return {error:new Error('Not authenticated')};
+
+      async function runOnce(){
+        var ctl=(typeof AbortController!=='undefined')?new AbortController():null;
+        try{
+          var q=fn();
+          if(ctl&&q&&typeof q.abortSignal==='function')q=q.abortSignal(ctl.signal);
+          return await _v145Timed(q,REQUEST_TIMEOUT_MS,'Supabase request timed out after 12 seconds.',function(){if(ctl)ctl.abort();});
+        }catch(e){return {error:e};}
+      }
+
+      var result=await runOnce();
+      if(result&&result.error&&(result.error.status===401||String(result.error.message||'').indexOf('JWT')>=0)){
+        try{
+          var refreshed=await _v145Timed(_sb.auth.refreshSession(),AUTH_TIMEOUT_MS,'Session refresh timed out.');
+          if(refreshed&&refreshed.error)return result;
+          if(!refreshed||!refreshed.data||!refreshed.data.session)return result;
+          result=await runOnce();
+        }catch(e){return {error:e};}
+      }
+      return result;
+    };
+  }
+
+  function _v145FindCloudItem(id){
+    try{
+      var keys=allDBKeys();
+      for(var a=0;a<keys.length;a++){
+        var arr=DB[keys[a]]||[];
+        for(var b=0;b<arr.length;b++)if(arr[b]&&arr[b].id===id)return {month:keys[a],item:arr[b]};
+      }
+    }catch(e){}
+    return null;
+  }
+  function _v145ParseItemFp(fp){
+    if(!fp)return null;
+    try{var p=fp.lastIndexOf('|');return {item:JSON.parse(fp.slice(0,p)),month:fp.slice(p+1)};}catch(e){return null;}
+  }
+  function _v145Eq(a,b){try{return JSON.stringify(a)===JSON.stringify(b);}catch(e){return a===b;}}
+  function _v145ThreeWay(base,local,remote){
+    if(!base)return Object.assign({},remote||{},local||{}); // pending local write wins when no base survived
+    var merged={};
+    var keys=new Set(Object.keys(remote||{}).concat(Object.keys(base||{}),Object.keys(local||{})));
+    keys.forEach(function(k){
+      if(k==='_cloudUpdatedAt'||k==='_cloudRevision')return;
+      var bv=base?base[k]:undefined, lv=local?local[k]:undefined, rv=remote?remote[k]:undefined;
+      merged[k]=_v145Eq(lv,bv)?rv:lv;
+    });
+    if(local&&local.id!=null)merged.id=local.id;
+    return merged;
+  }
+  async function _v145FetchOneItem(id){
+    var rr=await _sbCall(function(){return _sb.from('items').select('*').eq('id',id).eq('user_id',_currentUserId).limit(1);});
+    if(rr&&rr.error)throw new Error('Conflict refresh failed: '+rr.error.message);
+    var row=(rr&&rr.data&&rr.data[0])||null;
+    if(!row)return null;
+    var pr=await _sbCall(function(){return _sb.from('item_parts').select('*').eq('item_id',id).eq('user_id',_currentUserId);});
+    if(pr&&pr.error)throw new Error('Conflict parts refresh failed: '+pr.error.message);
+    var hr=await _sbCall(function(){return _sb.from('item_returns').select('*').eq('item_id',id).eq('user_id',_currentUserId).order('logged_at',{ascending:true});});
+    if(hr&&hr.error)throw new Error('Conflict return-history refresh failed: '+hr.error.message);
+    return _rowToItem(row,(pr&&pr.data)||[],(hr&&hr.data)||[]);
+  }
+
+  // Runtime CAS conflict recovery. Untouched fields take the newer server value;
+  // fields actually edited on this device keep the local value, then the merged
+  // item is retried against the latest server revision exactly once.
+  if(typeof saveItemToSupabase==='function'){
+    var _v145BaseSaveItem=saveItemToSupabase;
+    saveItemToSupabase=async function(m,i){
+      try{return await _v145BaseSaveItem(m,i);}
+      catch(e){
+        if(!e||e.code!=='RETRADE_REVISION_CONFLICT')throw e;
+        var remote=await _v145FetchOneItem(i.id);
+        if(!remote)throw e; // server deletion wins; never resurrect here
+        var key='item:'+i.id;
+        var baseFp=_dbSnapshot&&_dbSnapshot[key];
+        var parsed=_v145ParseItemFp(baseFp);
+        var merged=_v145ThreeWay(parsed&&parsed.item,i,remote);
+        merged.month=m||merged.month||remote.month;
+        try{
+          if(window.RETRADE_V14_REVISION&&typeof window.RETRADE_V14_REVISION._testSetRevision==='function'){
+            window.RETRADE_V14_REVISION._testSetRevision(merged,window.RETRADE_V14_REVISION.revisionFor(i.id),remote._cloudUpdatedAt||null);
+          }
+        }catch(_e){}
+        await _v145BaseSaveItem(m,merged);
+
+        // If no newer local edit landed during the retry, mirror the merge into
+        // the live object and into this pass's captured fingerprint so the writer
+        // records what the server actually confirmed rather than re-queuing it.
+        try{
+          var rec=(typeof _findItemRecordById==='function')?_findItemRecordById(i.id):null;
+          if(rec&&rec.item&&_v145Eq(rec.item,i)){
+            Object.keys(rec.item).forEach(function(k){delete rec.item[k];});
+            Object.assign(rec.item,merged);
+            if(window.RETRADE_V14_REVISION&&typeof window.RETRADE_V14_REVISION._testSetRevision==='function'){
+              window.RETRADE_V14_REVISION._testSetRevision(rec.item,window.RETRADE_V14_REVISION.revisionFor(i.id),merged._cloudUpdatedAt||remote._cloudUpdatedAt||null);
+            }
+          }
+          if(_persistActiveCurrent)_persistActiveCurrent[key]=JSON.stringify(merged)+'|'+m;
+        }catch(_e2){}
+        console.info('[RETRADE] revision conflict auto-reconciled for',i.id);
+      }
+    };
+  }
+
+  // A stale delete is deliberately conservative: do NOT delete a newer cloud
+  // item. Drop the local delete intent, restore from cloud on the next pull and
+  // let the user decide again with the current version visible.
+  if(typeof deleteItemFromSupabase==='function'){
+    var _v145BaseDeleteItem=deleteItemFromSupabase;
+    deleteItemFromSupabase=async function(id){
+      try{return await _v145BaseDeleteItem(id);}
+      catch(e){
+        if(!e||e.code!=='RETRADE_REVISION_CONFLICT')throw e;
+        try{var ob=_outboxRead();delete ob['item:'+id];_outboxSave(ob);}catch(_e){}
+        setTimeout(function(){try{_refreshCloudOnResume(true);}catch(_e2){}},250);
+        try{toast('Delete cancelled — this item changed on another device. Latest cloud version restored.','err');}catch(_e3){}
+        return;
+      }
+    };
+  }
+
+  // Boot recovery policy: NEVER silently throw away a pending local item SAVE
+  // just because another device advanced its revision. Rebase that pending save
+  // onto the current cloud revision and let normal persistence reconcile it.
+  // Stale deletes remain cloud-wins because resurrection is safer than deleting
+  // an item somebody edited on another device.
+  if(typeof _recoverOutbox==='function'){
+    _recoverOutbox=function(){
+      var applied=0,pruned=false;
+      try{
+        var ob=_outboxRead()||{};
+        Object.keys(ob).forEach(function(k){
+          var e=ob[k];if(!e)return;
+          try{
+            if(e.op==='save'){
+              var obj=JSON.parse(e.json);
+              if(e.type==='item'){
+                var cloud=_v145FindCloudItem(obj.id);
+                var cloudRev=cloud&&window.RETRADE_V14_REVISION?window.RETRADE_V14_REVISION.revisionFor(obj.id):0;
+                if(!cloud&&Number(e.baseRevision)>0){delete ob[k];pruned=true;return;} // remote delete wins
+                if(cloud&&window.RETRADE_V14_REVISION&&typeof window.RETRADE_V14_REVISION._testSetRevision==='function'){
+                  window.RETRADE_V14_REVISION._testSetRevision(obj,cloudRev,cloud.item._cloudUpdatedAt||null);
+                  e.baseRevision=cloudRev;e.serverUpdatedAt=cloud.item._cloudUpdatedAt||e.serverUpdatedAt||null;ob[k]=e;
+                }
+                allDBKeys().forEach(function(mm){if(DB[mm])DB[mm]=DB[mm].filter(function(x){return x.id!==obj.id;});});
+                var month=e.month||obj.month||currentMonthKey();if(!DB[month])DB[month]=[];DB[month].push(obj);applied++;
+              }else if(e.type==='trip'){DB.trips=DB.trips||[];var ti=DB.trips.findIndex(function(x){return x.id===obj.id;});if(ti>=0)DB.trips[ti]=obj;else DB.trips.push(obj);applied++;}
+              else if(e.type==='exp'){DB.expenses=DB.expenses||[];var ei=DB.expenses.findIndex(function(x){return x.id===obj.id;});if(ei>=0)DB.expenses[ei]=obj;else DB.expenses.push(obj);applied++;}
+              else if(e.type==='cash'){DB.cashLedger=DB.cashLedger||[];var ci=DB.cashLedger.findIndex(function(x){return x.id===obj.id;});if(ci>=0)DB.cashLedger[ci]=obj;else DB.cashLedger.push(obj);applied++;}
+              else if(e.type==='run'){var ri=_sourcingRuns.findIndex(function(x){return x.id===obj.id;});if(ri>=0)_sourcingRuns[ri]=obj;else _sourcingRuns.push(obj);applied++;}
+              else if(e.type==='acct'){var ai=_accounts.findIndex(function(x){return x.id===obj.id;});if(ai>=0)_accounts[ai]=obj;else _accounts.push(obj);applied++;}
+              else if(e.type==='log'){DB.activityLog=DB.activityLog||[];var li=DB.activityLog.findIndex(function(x){return x.id===obj.id;});if(li>=0)DB.activityLog[li]=obj;else DB.activityLog.push(obj);applied++;}
+              else if(e.type==='jlot'){var ji=_jobLots.findIndex(function(x){return x.id===obj.id;});if(ji>=0)_jobLots[ji]=obj;else _jobLots.push(obj);applied++;}
+              else if(e.type==='jmem'){var mi=_jobLotItems.findIndex(function(x){return x.id===obj.id;});if(mi>=0)_jobLotItems[mi]=obj;else _jobLotItems.push(obj);applied++;}
+              else if(e.type==='recon'){var qi=_saleReconciliations.findIndex(function(x){return x.id===obj.id;});if(qi>=0)_saleReconciliations[qi]=obj;else _saleReconciliations.push(obj);applied++;}
+            }else if(e.op==='delete'){
+              var id=e.id;
+              if(e.type==='item'){
+                var cloudNow=_v145FindCloudItem(id);
+                var currentRev=cloudNow&&window.RETRADE_V14_REVISION?window.RETRADE_V14_REVISION.revisionFor(id):0;
+                if(cloudNow&&e.baseRevision!=null&&Number(e.baseRevision)!==Number(currentRev)){delete ob[k];pruned=true;return;}
+                allDBKeys().forEach(function(mm){if(DB[mm])DB[mm]=DB[mm].filter(function(x){return x.id!==id;});});applied++;
+              }else if(e.type==='trip'){DB.trips=(DB.trips||[]).filter(function(x){return x.id!==id;});applied++;}
+              else if(e.type==='exp'){DB.expenses=(DB.expenses||[]).filter(function(x){return x.id!==id;});applied++;}
+              else if(e.type==='cash'){DB.cashLedger=(DB.cashLedger||[]).filter(function(x){return x.id!==id;});applied++;}
+              else if(e.type==='run'){_sourcingRuns=_sourcingRuns.filter(function(x){return x.id!==id;});applied++;}
+              else if(e.type==='acct'){_accounts=_accounts.filter(function(x){return x.id!==id;});applied++;}
+              else if(e.type==='log'){DB.activityLog=(DB.activityLog||[]).filter(function(x){return x.id!==id;});applied++;}
+              else if(e.type==='jlot'){_jobLots=_jobLots.filter(function(x){return x.id!==id;});applied++;}
+              else if(e.type==='jmem'){_jobLotItems=_jobLotItems.filter(function(x){return x.id!==id;});applied++;}
+              else if(e.type==='recon'){_saleReconciliations=_saleReconciliations.filter(function(x){return x.id!==id;});applied++;}
+            }
+          }catch(inner){console.warn('[RETRADE] outbox recovery entry failed',k,inner&&inner.message);}
+        });
+        if(pruned)_outboxSave(ob);
+      }catch(e){console.warn('[RETRADE] outbox recovery failed',e&&e.message);}
+      return applied;
+    };
+  }
+
+  // Legacy Sale-N repair v2: when immutable sold snapshots are incomplete, a
+  // strictly ordered full-return -> relist -> next full-return chain is strong
+  // enough evidence to number cycles chronologically. This fixes records such
+  // as Sale 1 return / Sale 2 sold / second return incorrectly tagged Sale 1.
+  if(typeof _repairSaleNoSequenceForItem==='function'){
+    var _v145OldRepair=_repairSaleNoSequenceForItem;
+    _repairSaleNoSequenceForItem=function(it){
+      var touched=_v145OldRepair(it)||0;
+      if(!it||!Array.isArray(it.returnHistory))return touched;
+      var fulls=it.returnHistory.map(function(r,idx){return {r:r,idx:idx};}).filter(function(x){return x.r&&(x.r.type==='full_seller'||x.r.type==='full_ebay');});
+      if(fulls.length<2)return touched;
+      var nums=fulls.map(function(x){return Number(x.r.saleNo)||0;});
+      if((new Set(nums)).size===fulls.length&&Math.min.apply(null,nums)>=1)return touched;
+      var ordered=fulls.slice().sort(function(a,b){return String(a.r.loggedAt||'').localeCompare(String(b.r.loggedAt||''))||a.idx-b.idx;});
+      var strong=true;
+      for(var n=0;n<ordered.length-1;n++){
+        var a=ordered[n].r,b=ordered[n+1].r;
+        var ad=a.loggedAt?String(a.loggedAt).slice(0,10):'', bd=b.loggedAt?String(b.loggedAt).slice(0,10):'';
+        var rel=a._relistedAt?String(a._relistedAt).slice(0,10):'';
+        if(!ad||!bd||!(ad<bd)||!rel||!(rel>=ad&&rel<=bd)){strong=false;break;}
+      }
+      if(!strong)return touched;
+      ordered.forEach(function(x,pos){var target=pos+1;if((Number(x.r.saleNo)||0)!==target){x.r.saleNo=target;touched++;}});
+      try{if(touched&&typeof calcGrossProfit==='function')it.grossProfit=calcGrossProfit(it);}catch(e){}
+      return touched;
+    };
+  }
+
+  // Compact Data Integrity UI. Keep only the highest-priority sample in-app;
+  // detailed review belongs in a downloadable table, not a 20-screen page.
+  function _v145CsvCell(v){v=String(v==null?'':v).replace(/<[^>]*>/g,' ').replace(/\s+/g,' ').trim();return '"'+v.replace(/"/g,'""')+'"';}
+  window.downloadIntegrityReport=function(){
+    var scan=_runIntegrityScanner();var rows=scan.findings||[];
+    var head=['Severity','Item','Item ID','Month / Area','Code','Issue','Details','Kind'];
+    var lines=[head.map(_v145CsvCell).join(',')];
+    rows.forEach(function(f){lines.push([f.severity,f.name,f.id,f.m,f.code,f.label,f.desc,f.kind].map(_v145CsvCell).join(','));});
+    var summary=['SUMMARY','Clean items: '+scan.clean,'Findings: '+rows.length,'Errors: '+rows.filter(function(f){return f.severity==='error';}).length,'Warnings: '+rows.filter(function(f){return f.severity==='warning';}).length];
+    lines.unshift(summary.map(_v145CsvCell).join(','));
+    var blob=new Blob(['\ufeff'+lines.join('\r\n')],{type:'text/csv;charset=utf-8'});
+    var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='RETRADE-Data-Integrity-'+new Date().toISOString().slice(0,10)+'.csv';document.body.appendChild(a);a.click();setTimeout(function(){URL.revokeObjectURL(a.href);a.remove();},0);
+  };
+  if(typeof runIntegrityCheck==='function'){
+    runIntegrityCheck=function(){
+      var out=document.getElementById('integrity-check-out');if(!out)return;
+      var scan=_runIntegrityScanner(),findings=scan.findings||[],clean=scan.clean||0;
+      var errors=findings.filter(function(f){return f.severity==='error';}),warnings=findings.filter(function(f){return f.severity==='warning';});
+      var html='<div style="background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:14px 16px;">';
+      html+='<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">';
+      html+='<span style="font-size:12px;font-weight:800;color:'+(errors.length?'var(--red)':'var(--green)')+'">'+errors.length+' errors</span>';
+      html+='<span style="font-size:12px;font-weight:800;color:var(--accent)">'+warnings.length+' warnings</span>';
+      html+='<span style="font-size:12px;color:var(--text-secondary)">'+clean+' clean</span></div>';
+      if(!findings.length){html+='<div style="margin-top:10px;font-size:13px;color:var(--green);font-weight:700">✓ All clear</div>';}
+      else{
+        html+='<div style="margin-top:9px;font-size:12px;color:var(--text-secondary);line-height:1.5">Showing the most important '+Math.min(5,findings.length)+' finding'+(Math.min(5,findings.length)===1?'':'s')+' here. Download the full report for detailed review without filling the app page.</div>';
+        findings.slice().sort(function(a,b){return (a.severity==='error'?0:1)-(b.severity==='error'?0:1);}).slice(0,5).forEach(function(f){
+          html+='<div style="margin-top:8px;padding:9px 10px;border-radius:8px;background:var(--surface);border:1px solid var(--border);display:flex;justify-content:space-between;gap:10px;align-items:flex-start">';
+          html+='<div><div style="font-size:12px;font-weight:700;color:'+(f.severity==='error'?'var(--red)':'var(--accent)')+'">'+esc(f.label)+'</div><div style="font-size:11px;color:var(--text-secondary);margin-top:2px">'+esc(f.name||'RETRADE')+'</div></div>';
+          if(f.m&&f.m!=='__run__')html+='<button class="btn btn-secondary" style="padding:4px 8px;font-size:10px" onclick="openItemPage(\''+f.m+'\',\''+f.id+'\',\'p-data\')">View</button>';
+          html+='</div>';
+        });
+      }
+      html+='<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px"><button class="btn btn-primary" style="font-size:12px" onclick="downloadIntegrityReport()">Download Excel-compatible report</button><button class="btn btn-secondary" style="font-size:12px" onclick="runIntegrityCheck()">↻ Re-run</button></div>';
+      html+='</div>';out.innerHTML=html;
+    };
+  }
+
+  // Floating sync status: fixed overlay, never participates in nav layout.
+  var _v145PillShowTimer=null,_v145PillHideTimer=null;
+  function _v145Pill(state){
+    var el=document.getElementById('sync-indicator');if(!el)return;
+    clearTimeout(_v145PillHideTimer);
+    el.className='sync-float '+state;
+    var iconHtml='';var text='';
+    if(state==='syncing'){iconHtml='<span class="sync-float-spinner"></span>';text='Syncing';}
+    else if(state==='success'){iconHtml='<span class="sync-float-check">✓</span>';text='Synced';}
+    else if(state==='error'){iconHtml='<span class="sync-float-warn">!</span>';text='Sync issue';}
+    else{iconHtml='<span class="sync-float-spinner"></span>';text='Pending';}
+    el.innerHTML=iconHtml+'<span id="sync-label">'+text+'</span>';
+    el.style.display='flex';
+    el.onclick=(state==='error'||state==='pending')?function(){try{retradeForceResync();}catch(e){}}:null;
+    el.title=state==='error'?(_lastSyncError||'Cloud sync needs attention'):(state==='pending'?'Changes are safe on this device and waiting for cloud confirmation':text);
+  }
+  _setSyncing=function(val){
+    _syncing=!!val;
+    clearTimeout(_v145PillShowTimer);
+    if(val){
+      clearTimeout(_v145PillHideTimer);
+      _v145PillShowTimer=setTimeout(function(){if(_syncing)_v145Pill('syncing');},450);
+    }else{
+      var pending=0;try{pending=_outboxPendingCount();}catch(e){}
+      if(_lastSyncError)_v145Pill('error');
+      else if(pending>0)_v145Pill('pending');
+      else{_v145Pill('success');_v145PillHideTimer=setTimeout(function(){var el=document.getElementById('sync-indicator');if(el&&!_syncing)el.style.display='none';},1500);}
+    }
+    try{if(typeof _refreshSideNavSync==='function')_refreshSideNavSync(val?'saving':(_lastSyncError?'error':((typeof _outboxPendingCount==='function'&&_outboxPendingCount()>0)?'pending':'synced')));}catch(e){}
+    if(!val){var cbs=_syncResolvers.splice(0);cbs.forEach(function(fn){try{fn();}catch(e){}});}
+  };
+
+  window.RETRADE_V145={version:VERSION,requestTimeoutMs:REQUEST_TIMEOUT_MS};
+  console.info('[RETRADE] v1.4.5 sync recovery + schema hardening + compact integrity loaded');
+})();
+
+
+// RETRADE v1.4.6 lifecycle hardening marker
+(function(){window.RETRADE_V146={version:'1.4.6-2026-09-01',lifecycleState:typeof _itemLifecycleState==='function'?_itemLifecycleState:null};console.info('[RETRADE] v1.4.6 lifecycle state machine + safe timeline undo loaded');})();
