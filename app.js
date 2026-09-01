@@ -25397,3 +25397,345 @@ console.log('[RETRADE] v1.4.7 verified full-backup export/import loaded');
   };
   console.info('[RETRADE] '+VERSION+' multi-device convergence + durable settings loaded');
 })();
+
+/* ========================================================================
+ * RETRADE-UK v1.4.9 — AUTHORITATIVE CLOUD + LIFECYCLE EVENT DURABILITY
+ * 2026-09-01
+ *
+ * Fixes the live regression reproduced with:
+ * Sold -> Return 1 -> Relist -> Sold 2 -> Return 2.
+ *
+ * Key rules:
+ *  - a large stale recovery queue is quarantined, never blindly replayed;
+ *  - normal persistence does NOT reload/rebase the whole cloud before every
+ *    local write (v1.4.8's loop could re-apply hundreds of old snapshots);
+ *  - item-return rows are stable event records: existing ids are updated,
+ *    new events append, and unrelated remote history is not implicitly deleted;
+ *  - explicit user undo is the only path that tombstones return-event rows;
+ *  - stale item recovery merges against its saved base where possible; a
+ *    legacy stale snapshot with no trustworthy base is quarantined instead of
+ *    silently overwriting a newer cloud lifecycle.
+ * ======================================================================== */
+(function(){
+  'use strict';
+  var VERSION='1.4.9-2026-09-01';
+  var BULK_RECOVERY_LIMIT=100;
+  var OUTBOX_QUARANTINE_BASE='retrade_outbox_quarantine_v149';
+  var RETURN_CONFLICT_BASE='retrade_return_conflicts_v149';
+  var _returnDeleteIds=new Set();
+
+  function _clone(v){try{return JSON.parse(JSON.stringify(v));}catch(e){return v;}}
+  function _eq(a,b){try{return JSON.stringify(a)===JSON.stringify(b);}catch(e){return a===b;}}
+  function _itemCloud(id){
+    try{
+      var ks=allDBKeys();
+      for(var n=0;n<ks.length;n++){
+        var arr=DB[ks[n]]||[];
+        for(var j=0;j<arr.length;j++)if(arr[j]&&String(arr[j].id)===String(id))return arr[j];
+      }
+    }catch(e){}
+    return null;
+  }
+  function _rev(id){
+    try{return window.RETRADE_V14_REVISION?Number(window.RETRADE_V14_REVISION.revisionFor(id))||0:0;}catch(e){return 0;}
+  }
+  function _parseItemFp(fp){
+    if(!fp)return null;
+    try{var p=fp.lastIndexOf('|');return JSON.parse(fp.slice(0,p));}catch(e){return null;}
+  }
+  function _returnKey(r){
+    if(!r)return'';
+    if(r.id!=null)return'id:'+String(r.id);
+    return [
+      'ev',Number(r.saleNo||r.sale_no)||1,r.type||'',
+      String(r.loggedAt||r.logged_at||''),
+      String(r._dateSoldAtReturn||r.date_sold_at_return||''),
+      String(r._salePriceAtReturn!=null?r._salePriceAtReturn:(r.sale_price_at_return!=null?r.sale_price_at_return:''))
+    ].join('|');
+  }
+  function _mergeReturnEvents(base,local,remote){
+    base=Array.isArray(base)?base:[];local=Array.isArray(local)?local:[];remote=Array.isArray(remote)?remote:[];
+    var bm=new Map(base.map(function(x){return[_returnKey(x),x];}));
+    var lm=new Map(local.map(function(x){return[_returnKey(x),x];}));
+    var rm=new Map(remote.map(function(x){return[_returnKey(x),x];}));
+    var order=[];
+    remote.concat(local).forEach(function(x){var k=_returnKey(x);if(k&&!order.includes(k))order.push(k);});
+    var out=[];
+    order.forEach(function(k){
+      var hb=bm.has(k),hl=lm.has(k),hr=rm.has(k),b=bm.get(k),l=lm.get(k),r=rm.get(k);
+      if(hb&&!hl){
+        // Local explicitly removed this event. Honour the delete only when the
+        // remote copy is unchanged from the user's base; otherwise preserve the
+        // concurrently changed cloud event for review.
+        if(hr&&!_eq(r,b))out.push(_clone(r));
+        return;
+      }
+      if(!hb&&hl&&!hr){out.push(_clone(l));return;}
+      if(!hb&&!hl&&hr){out.push(_clone(r));return;}
+      if(!hb&&hl&&hr){out.push(Object.assign({},_clone(r),_clone(l)));return;}
+      if(hl&&hr){
+        var merged={};
+        var keys=new Set(Object.keys(b||{}).concat(Object.keys(l||{}),Object.keys(r||{})));
+        keys.forEach(function(key){
+          var bv=b&&b[key],lv=l&&l[key],rv=r&&r[key];
+          merged[key]=_eq(lv,bv)?_clone(rv):_clone(lv);
+        });
+        if(r&&r.id!=null)merged.id=r.id;else if(l&&l.id!=null)merged.id=l.id;
+        out.push(merged);return;
+      }
+      if(hl)out.push(_clone(l));else if(hr)out.push(_clone(r));
+    });
+    return out.sort(function(a,b){return String(a.loggedAt||'').localeCompare(String(b.loggedAt||''))||((Number(a.saleNo)||1)-(Number(b.saleNo)||1));});
+  }
+  function _threeWayItem(base,local,remote){
+    base=base||{};local=local||{};remote=remote||{};
+    var out={};
+    var keys=new Set(Object.keys(base).concat(Object.keys(local),Object.keys(remote)));
+    keys.forEach(function(k){
+      if(k==='_cloudRevision'||k==='_cloudUpdatedAt')return;
+      if(k==='returnHistory'){
+        out.returnHistory=_mergeReturnEvents(base.returnHistory,local.returnHistory,remote.returnHistory);
+        return;
+      }
+      var bv=base[k],lv=local[k],rv=remote[k];
+      out[k]=_eq(lv,bv)?_clone(rv):_clone(lv);
+    });
+    if(local.id!=null)out.id=local.id;
+    return out;
+  }
+  function _quarantineObject(prefix,obj,reason){
+    try{
+      var key=prefix+'_'+(_currentUserId||'anon')+'_'+Date.now();
+      localStorage.setItem(key,JSON.stringify({reason:reason,createdAt:new Date().toISOString(),entries:obj}));
+      return key;
+    }catch(e){console.warn('[RETRADE] quarantine write failed:',e&&e.message);return null;}
+  }
+
+  // Every NEW item outbox entry carries the business JSON the user actually
+  // edited from. This enables a real three-way lifecycle merge on recovery.
+  if(typeof _outboxEntry==='function'){
+    var _baseOutboxEntry=_outboxEntry;
+    _outboxEntry=function(key,fp){
+      var e=_baseOutboxEntry.apply(this,arguments);
+      try{
+        if(e&&String(key||'').indexOf('item:')===0){
+          var baseFp=_dbSnapshot&&_dbSnapshot[key];
+          var base=_parseItemFp(baseFp);
+          if(base)e.baseItemJson=JSON.stringify(base);
+          e.v=149;
+        }
+      }catch(_e){}
+      return e;
+    };
+  }
+
+  // Preprocess recovery before the existing v1.4.5/v1.4.8 handlers touch DB.
+  // Large queues are preserved verbatim in quarantine but are not applied to
+  // live business state. This prevents a failed backup import becoming a second
+  // database that endlessly overwrites current cloud data.
+  if(typeof _recoverOutbox==='function'){
+    var _baseRecover=_recoverOutbox;
+    _recoverOutbox=function(){
+      try{
+        var ob=_outboxRead()||{},keys=Object.keys(ob);
+        if(keys.length>BULK_RECOVERY_LIMIT){
+          var q=_quarantineObject(OUTBOX_QUARANTINE_BASE,ob,'Bulk recovery queue ('+keys.length+') blocked from automatic replay. Cloud kept authoritative.');
+          _outboxSave({});
+          console.warn('[RETRADE] quarantined '+keys.length+' stale/bulk pending change(s); cloud state kept authoritative'+(q?' · '+q:''));
+          try{toast('Old bulk sync queue isolated safely — cloud data kept current','');}catch(e){}
+          return 0;
+        }
+
+        var changed=false,conflicts={};
+        keys.forEach(function(k){
+          if(k.indexOf('item:')!==0)return;
+          var e=ob[k];if(!e||e.op!=='save')return;
+          var local=null;try{local=JSON.parse(e.json);}catch(_e){return;}
+          var id=local&&local.id;if(id==null)return;
+          var remote=_itemCloud(id),cloudRev=_rev(id),baseRev=Number(e.baseRevision)||0;
+          if(!remote){
+            if(baseRev>0){delete ob[k];changed=true;}
+            return;
+          }
+          if(baseRev===cloudRev)return; // exact cloud base: safe replay
+
+          var base=null;
+          try{base=e.baseItemJson?JSON.parse(e.baseItemJson):null;}catch(_e2){base=null;}
+          if(!base){
+            // Legacy stale item snapshot has no trustworthy field base. Preserve
+            // it for manual recovery but never let it replace newer lifecycle.
+            conflicts[k]=e;delete ob[k];changed=true;
+            console.warn('[RETRADE] stale legacy item write quarantined; newer cloud lifecycle wins:',id);
+            return;
+          }
+          var merged=_threeWayItem(base,local,remote);
+          try{
+            if(window.RETRADE_V14_REVISION&&typeof window.RETRADE_V14_REVISION._testSetRevision==='function'){
+              window.RETRADE_V14_REVISION._testSetRevision(merged,cloudRev,remote._cloudUpdatedAt||null);
+            }
+          }catch(_e3){}
+          e.json=JSON.stringify(merged);e.baseRevision=cloudRev;e.baseItemJson=JSON.stringify(remote);ob[k]=e;changed=true;
+        });
+        if(Object.keys(conflicts).length)_quarantineObject(RETURN_CONFLICT_BASE,conflicts,'Stale item recovery without a trustworthy base.');
+        if(changed)_outboxSave(ob);
+      }catch(e){console.warn('[RETRADE] v1.4.9 recovery preflight failed:',e&&e.message);}
+      return _baseRecover.apply(this,arguments);
+    };
+  }
+
+  // Stable return-event persistence. item_returns are lifecycle events, not a
+  // disposable array snapshot. Existing events are updated by id/natural key;
+  // new ones append. Cloud events absent from a generic stale item snapshot are
+  // preserved. Only an explicit user undo registers a tombstone for deletion.
+  if(typeof _replaceChildRowsSafe==='function'){
+    var _baseReplaceChildRowsSafe=_replaceChildRowsSafe;
+    _replaceChildRowsSafe=async function(table,itemId,rows,label){
+      if(table!=='item_returns')return _baseReplaceChildRowsSafe.apply(this,arguments);
+      var uid=_currentUserId;
+      var existing=await _sbCall(function(){return _sb.from(table).select('*').eq('item_id',itemId).eq('user_id',uid);});
+      if(existing&&existing.error)throw new Error('Load existing '+label+' failed: '+existing.error.message);
+      var old=existing&&existing.data||[];
+      function dbKey(r){
+        if(r&&r.id!=null)return'id:'+String(r.id);
+        return ['ev',Number(r&&r.sale_no)||1,(r&&r.type)||'',String(r&&r.logged_at||''),String(r&&r.date_sold_at_return||''),String(r&&r.sale_price_at_return!=null?r.sale_price_at_return:'')].join('|');
+      }
+      function desiredKey(r){
+        if(r&&r.id!=null)return'id:'+String(r.id);
+        return ['ev',Number(r&&r.sale_no)||1,(r&&r.type)||'',String(r&&r.logged_at||''),String(r&&r.date_sold_at_return||''),String(r&&r.sale_price_at_return!=null?r.sale_price_at_return:'')].join('|');
+      }
+      var oldByNatural=new Map();
+      old.forEach(function(r){oldByNatural.set(dbKey(Object.assign({},r,{id:null})),r);});
+      var withIds=[],newRows=[];
+      (rows||[]).forEach(function(src){
+        var r=Object.assign({},src);
+        var hit=null;
+        if(r.id!=null)hit=old.find(function(x){return String(x.id)===String(r.id);});
+        if(!hit)hit=oldByNatural.get(desiredKey(Object.assign({},r,{id:null})))||null;
+        if(hit&&hit.id!=null){r.id=hit.id;withIds.push(r);}else newRows.push(r);
+      });
+      if(withIds.length){
+        var up=await _sbCall(function(){return _sb.from(table).upsert(withIds,{onConflict:'id'}).select('id');});
+        if(up&&up.error)throw new Error('Update '+label+' failed: '+up.error.message);
+      }
+      if(newRows.length){
+        var ins=await _sbWriteFallback(function(p){return _sb.from(table).insert(p).select('id');},newRows,label);
+        if(ins&&ins.error)throw new Error('Save '+label+' failed: '+ins.error.message);
+      }
+      var deletable=old.map(function(r){return r.id;}).filter(function(id){return id!=null&&_returnDeleteIds.has(String(id));});
+      if(deletable.length){
+        var del=await _sbCall(function(){return _sb.from(table).delete().in('id',deletable).eq('user_id',uid);});
+        if(del&&del.error)throw new Error('Delete '+label+' event failed: '+del.error.message);
+        deletable.forEach(function(id){_returnDeleteIds.delete(String(id));});
+      }
+    };
+  }
+
+  // Detect explicit UI undo/removal of an already-durable return event. saveDB()
+  // is called inside these functions, but the network pass is debounced, so the
+  // tombstone is registered before child persistence runs.
+  function _snapshotReturnIds(){
+    var s=new Set();
+    try{allDBKeys().forEach(function(k){(DB[k]||[]).forEach(function(i){(i.returnHistory||[]).forEach(function(r){if(r&&r.id!=null)s.add(String(r.id));});});});}catch(e){}
+    return s;
+  }
+  function _wrapReturnUndo(name){
+    try{
+      var fn=window[name]||eval(name);if(typeof fn!=='function')return;
+      var wrapped=function(){
+        var before=_snapshotReturnIds(),res=fn.apply(this,arguments),after=_snapshotReturnIds();
+        before.forEach(function(id){if(!after.has(id))_returnDeleteIds.add(id);});
+        return res;
+      };
+      // Top-level function declarations are window properties in this app.
+      window[name]=wrapped;
+      try{eval(name+'=wrapped');}catch(e){}
+    }catch(e){}
+  }
+  ['_removeReturnEntry','undoLastReturn','stepBack','undoRelist'].forEach(_wrapReturnUndo);
+
+  // v1.4.8 wrapped _persistChangesPass with a cloud-rebase preflight whenever
+  // ANY outbox row existed. Since every successful business write increments
+  // the sync clock, that could cause the app to pull/recover its own queue over
+  // and over. Replace it with the serialized durable writer itself: cloud pulls
+  // happen on Realtime/resume, while local writes are CAS-protected at item row.
+  _persistChangesPass=async function(){
+    if(!_currentUserId){console.warn('_persistChanges: no user, skipping');return {failed:0};}
+    var uidAtStart=_currentUserId;
+    try{
+      var current=_dbFingerprint();_persistActiveCurrent=current;
+      var prev=_dbSnapshot||{},errors=[],failedKeys=new Set();
+      try{
+        var stage=_outboxRead(),staged=0;
+        Object.keys(current).forEach(function(k){if(current[k]!==prev[k]){stage[k]=_outboxEntry(k,current[k]);staged++;}});
+        Object.keys(prev).forEach(function(k){if(current[k]===undefined){stage[k]=_outboxDeleteEntry(k);staged++;}});
+        if(staged)_outboxSave(stage);
+      }catch(e){console.warn('[RETRADE] outbox stage failed:',e&&e.message);}
+
+      var keys=Object.keys(current);
+      for(var a=0;a<keys.length;a++){
+        var key=keys[a];if(current[key]===prev[key])continue;
+        if(_currentUserId!==uidAtStart)return {failed:1};
+        try{
+          if(key.indexOf('item:')===0){var fp=current[key],p=fp.lastIndexOf('|');await saveItemToSupabase(fp.slice(p+1),JSON.parse(fp.slice(0,p)));}
+          else if(key.indexOf('trip:')===0)await saveTripToSupabase(JSON.parse(current[key]));
+          else if(key.indexOf('exp:')===0)await saveExpenseToSupabase(JSON.parse(current[key]));
+          else if(key.indexOf('cash:')===0)await saveCashMoveToSupabase(JSON.parse(current[key]));
+          else if(key.indexOf('run:')===0)await saveRunToSupabase(JSON.parse(current[key]));
+          else if(key.indexOf('acct:')===0)await saveAccountToSupabase(JSON.parse(current[key]));
+          else if(key.indexOf('log:')===0)await saveActivityToSupabase(JSON.parse(current[key]));
+          else if(key.indexOf('jlot:')===0)await saveJobLotToSupabase(JSON.parse(current[key]));
+          else if(key.indexOf('jmem:')===0)await saveJobLotItemToSupabase(JSON.parse(current[key]));
+          else if(key.indexOf('recon:')===0)await saveSaleReconciliationToSupabase(JSON.parse(current[key]));
+        }catch(e){errors.push(e&&e.message?e.message:String(e));failedKeys.add(key);}
+      }
+      var prevKeys=Object.keys(prev);
+      for(var b=0;b<prevKeys.length;b++){
+        var dkey=prevKeys[b];if(current[dkey]!==undefined)continue;
+        if(_currentUserId!==uidAtStart)return {failed:1};
+        try{
+          if(dkey.indexOf('item:')===0)await deleteItemFromSupabase(dkey.slice(5));
+          else if(dkey.indexOf('trip:')===0)await deleteTripFromSupabase(dkey.slice(5));
+          else if(dkey.indexOf('exp:')===0)await deleteExpenseFromSupabase(dkey.slice(4));
+          else if(dkey.indexOf('cash:')===0)await deleteCashMoveFromSupabase(dkey.slice(5));
+          else if(dkey.indexOf('run:')===0)await deleteRunFromSupabase(dkey.slice(4));
+          else if(dkey.indexOf('acct:')===0)await deleteAccountFromSupabase(dkey.slice(5));
+          else if(dkey.indexOf('log:')===0)await deleteActivityFromSupabase(dkey.slice(4));
+          else if(dkey.indexOf('jlot:')===0)await deleteJobLotFromSupabase(dkey.slice(5));
+          else if(dkey.indexOf('jmem:')===0)await deleteJobLotItemFromSupabase(dkey.slice(5));
+          else if(dkey.indexOf('recon:')===0)await deleteSaleReconciliationFromSupabase(dkey.slice(6));
+        }catch(e){errors.push(e&&e.message?e.message:String(e));failedKeys.add(dkey);}
+      }
+
+      if(errors.length){
+        var schemaErrors=errors.filter(function(msg){return /PGRST204|42703|schema cache|column .* does not exist|Could not find the .* column/i.test(String(msg||''));});
+        if(schemaErrors.length)console.warn('[RETRADE] Supabase schema mismatch:',schemaErrors);
+        console.error('[RETRADE] Cloud sync pending; writes retained locally:',errors);
+        _lastSyncError=errors.join(' | ')||'Cloud sync pending';
+      }else{_lastSyncError=null;_lastSyncDiagMessage=null;}
+
+      try{
+        var liveNow=_dbFingerprint(),rem=_outboxRead(),touched=new Set();
+        Object.keys(current).forEach(function(k){if(current[k]!==prev[k])touched.add(k);});
+        Object.keys(prev).forEach(function(k){if(current[k]===undefined)touched.add(k);});
+        touched.forEach(function(k){
+          if(failedKeys.has(k)){rem[k]=(liveNow[k]!==undefined)?_outboxEntry(k,liveNow[k]):_outboxDeleteEntry(k);return;}
+          if(liveNow[k]===current[k])delete rem[k];else rem[k]=(liveNow[k]!==undefined)?_outboxEntry(k,liveNow[k]):_outboxDeleteEntry(k);
+        });
+        _outboxSave(rem);
+      }catch(e){console.warn('[RETRADE] outbox prune failed:',e&&e.message);}
+
+      var newSnapshot=Object.assign({},current);
+      failedKeys.forEach(function(k){if(prev[k]!==undefined)newSnapshot[k]=prev[k];else delete newSnapshot[k];});
+      _dbSnapshot=newSnapshot;
+      return {failed:failedKeys.size};
+    }finally{_persistActiveCurrent=null;}
+  };
+
+  window.RETRADE_V149={
+    version:VERSION,
+    pending:function(){return typeof _outboxPendingCount==='function'?_outboxPendingCount():0;},
+    returnTombstones:function(){return Array.from(_returnDeleteIds);},
+    quarantinePrefix:OUTBOX_QUARANTINE_BASE
+  };
+  console.info('[RETRADE] '+VERSION+' authoritative cloud + lifecycle event durability loaded');
+})();
