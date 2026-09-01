@@ -1983,16 +1983,39 @@ function _estimatedPartnerCutFromProfit(i,profit){
   return +(Math.max(0,Number(profit)||0)*(pct/100)).toFixed(2);
 }
 
+// v1.4.10 — Expected profit is an operational stock metric, not merely the
+// current realised P&L. If a physical item is back in hand after one or more
+// full-return cycles, show what its LIFETIME P&L would become if the next sale
+// completes at the current expected ask. Acquisition cost stays sunk/recoverable
+// exactly once; the hypothetical next cycle only adds its incremental economics.
 function calcEstGrossProfit(i){
+  if(!i)return null;
+  const onHand=!i.scrappedAt&&(!!i.isReturned||(!i.dateSold&&!i.resaleSalePrice));
+  const hasCompletedReturn=(i.returnHistory||[]).some(function(r){return r&&(r.type==='full_seller'||r.type==='full_ebay');});
+
+  if(onHand&&hasCompletedReturn){
+    const base=calcGrossProfit(i);
+    if(base===null)return null;
+    const ask=(Number(i.estSalePrice)>0)?Number(i.estSalePrice):Math.max(0,Number(i.salePrice)||0);
+    if(ask<=0)return base;
+    const platformId=_itemPlatform(i);
+    const post=Math.max(0,Number(i.postage)||0);
+    const sellerPostage=(typeof _sellerPostageIncome==='function')?_sellerPostageIncome(platformId,post):post;
+    const bpf=Math.max(0,Number(calcPlatformBPF(i,ask,post,platformId))||0);
+    const promo=Math.max(0,Number(_calcPromoFee(platformId,ask,post,Number(i.promoPercent)||0))||0);
+    const sellerPays=(typeof _sellerPaysOutbound==='function')?_sellerPaysOutbound(platformId):(platformId!=='vinted'&&platformId!=='fb');
+    const fulfilment=sellerPays?(Math.max(0,Number(i.shippingCost)||0)+Math.max(0,Number(i.packagingCost)||0)):0;
+    // Any relist insertion fee already recorded on the return event is already
+    // contained in calcGrossProfit(base), so never deduct it twice here.
+    const nextCycle=ask+sellerPostage-bpf-promo-fulfilment;
+    return +(base+nextCycle).toFixed(2);
+  }
+
+  // Fresh listed stock keeps the established estimate semantics.
   if(!i.salePrice)return null;
   const base=calcGrossProfit(i);
   if(base===null)return null;
-  const _wasRelisted = !i.isReturned && !i.dateSold && !i.resaleSalePrice &&
-    (i.returnHistory||[]).some(r=>r.type==='full_seller'||r.type==='full_ebay');
-  if(!_wasRelisted)return base;
-  const _resaleP=(i.estSalePrice&&i.estSalePrice>0)?i.estSalePrice:+(((i.salePrice||0)*0.90).toFixed(2));
-  const rlBPF=calcPlatformBPF(i,_resaleP,i.postage||0);
-  return +(base+_resaleP+(i.postage||0)-rlBPF).toFixed(2);
+  return +base.toFixed(2);
 }
 
 function calcEstProfit(i){

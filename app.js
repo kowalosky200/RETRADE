@@ -5840,25 +5840,24 @@ function _renderStockItemPage(m,i){
           <div class="ip-token-sub">Sourced ${i.dateSourced||'\u2014'}</div>
         </div>
         ${capitalToken}
-        ${i.estSalePrice!=null?`
         <div class="ip-token" id="tok-estSalePrice-${id}"
           onpointerdown="tokenPointerDown('${m}','${id}','estSalePrice')"
           onclick="openTokenEdit('${m}','${id}','estSalePrice')">
           <div class="ip-token-label">Est. Sale</div>
-          <div class="ip-token-val">${fmt(i.estSalePrice)}</div>
-          <div class="ip-token-sub">✎ Tap to edit</div>
-        </div>`:''}
-        ${i.estSalePrice!=null?(function(){
+          <div class="ip-token-val">${i.estSalePrice!=null?fmt(i.estSalePrice):'—'}</div>
+          <div class="ip-token-sub">${i.estSalePrice!=null?'✎ Tap to edit':'Add estimate'}</div>
+        </div>
+        ${(function(){
           const _net=_estPotentialNet(i);
           const _cut=_estPartnerCut(i);
-          const _margin=i.estSalePrice>0?Math.round(((_net||0)/i.estSalePrice)*100):0;
-          const _sub=_cut!=null?('after '+fmt(_cut)+' partner share'):(_margin+'% margin est');
+          const _margin=i.estSalePrice>0&&_net!=null?Math.round((_net/i.estSalePrice)*100):null;
+          const _sub=_net==null?'add expected sale price':(_cut!=null?('after '+fmt(_cut)+' partner share'):_margin+'% margin est');
           return `
         <div class="ip-token locked">
-          <div class="ip-token-label">Est. Profit</div>
-          <div class="ip-token-val" style="color:${(_net||0)>=0?'var(--green)':'var(--red)'}">${((_net||0)>=0?'+':'')+fmt(_net||0)}</div>
+          <div class="ip-token-label">Expected Profit</div>
+          <div class="ip-token-val" style="color:${_net==null?'var(--muted)':(_net>=0?'var(--green)':'var(--red)')}">${_net==null?'—':((_net>=0?'+':'')+fmt(_net))}</div>
           <div class="ip-token-sub">${_sub}</div>
-        </div>`;})():''}
+        </div>`;})()}
       </div>
       ${i.notes?`<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:18px;"><div style="font-size:11px;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-secondary);font-weight:600;margin-bottom:6px;">Notes</div><div style="font-size:14px;color:var(--text);line-height:1.5;white-space:pre-wrap;">${esc(i.notes)}</div></div>`:''}
       <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:18px;">
@@ -6265,9 +6264,17 @@ function _renderItemPageInner(m,id){
       b+='<div class="ip-receipt-row section-head"><span>Return impact</span><span></span></div>';
       cycleReturns.forEach(function(r){
         const rb=_saleBreakdown({item:i,sale:'R',saleNo:saleNo,isReturnAdjustment:true,isReturned:true,returnEntry:r,snapshot:snap});
+        const impact=_returnEventImpact(i,r);
         cycleNet+=rb.netProfit;
         const lbl={full_seller:'Full refund — seller handled',full_ebay:'Full refund — platform involved',partial_seller:'Partial refund — seller handled',partial_ebay:'Partial refund — platform decided'}[r.type]||'Return adjustment';
-        b+=rcp(lbl,(rb.netProfit>=0?'+':'')+fmt(rb.netProfit),rb.netProfit>=0?'var(--green)':'var(--red)');
+        // v1.4.10 — show the actual refund economics instead of hiding fee
+        // credits inside one net number. This makes Sale 2+ boost/ad credits
+        // explicit and confirms whether eBay credited the advertising charge.
+        b+=rcp(lbl,'−'+fmt(impact.refund),'var(--red)');
+        if(impact.platformCredit>0)b+=rcp('Platform fee credit','+'+fmt(impact.platformCredit),'var(--green)',true);
+        if(impact.promoCredit>0)b+=rcp((platId==='ebay_biz'?'Boost / ad fee credit':'Promo fee credit'),'+'+fmt(impact.promoCredit),'var(--green)',true);
+        if(impact.postage>0)b+=rcp('Return postage','−'+fmt(impact.postage),'var(--red)',true);
+        b+=rcp('Net return impact',(rb.netProfit>=0?'+':'')+fmt(rb.netProfit),rb.netProfit>=0?'var(--green)':'var(--red)',true);
       });
       cycleNet=+cycleNet.toFixed(2);
       b+='<div class="ip-receipt-row total"><span style="flex:1">Sale '+saleNo+' cycle P&amp;L</span><span class="ip-receipt-val" style="color:'+(cycleNet>=0?'var(--green)':'var(--red)')+'">'+fmt(cycleNet)+'</span></div>';
@@ -6295,8 +6302,10 @@ function _renderItemPageInner(m,id){
     const rlPromo=_calcPromoFee(_itemPlatform(i),rlSalePrice,rlPostage,i.promoPercent||0);
     const rlRev=rlSalePrice+rlPostage-rlBPF;
     const rlCost=rlShipping+rlPackaging+rlPromo;
-    const rlProfit=+(rlRev-rlCost).toFixed(2);
-    const combinedP=+(profit+rlProfit).toFixed(2);
+    // v1.4.10 — use the same canonical expected-profit function as the
+    // Inventory row/header so this projection can never disagree with Stock.
+    const combinedP=calcEstGrossProfit(i);
+    const rlProfit=combinedP==null?+(rlRev-rlCost).toFixed(2):+(combinedP-profit).toFixed(2);
     relistHTML=`<div class="ip-relist-section">
       <div class="ip-section-header" onclick="var b=this.nextElementSibling,c=this.querySelector('.ip-section-chevron');b.style.display=b.style.display==='none'?'block':'none';c.style.transform=b.style.display==='none'?'rotate(0deg)':'rotate(180deg)'">
         <span class="ip-section-title" style="color:var(--accent)">${projTitle}</span>
@@ -6454,14 +6463,20 @@ function _renderItemPageInner(m,id){
   // Listing fee moved to inline P&L receipt input (F1) — no longer a KPI token
 
 
-  // v1.4.6 — The headline is always REALISED accounting. The next resale is
-  // hypothetical and stays in the separate projection card below.
-  const _headlineVal=profit;
+  // v1.4.10 — For anything still physically available to sell, the headline
+  // operational number is Expected Profit. Returned/relisted stock therefore
+  // shows the lifetime result IF the next sale completes, while realised P&L
+  // remains visible in the detailed receipt/projection below. Final sold/disposed
+  // stock continues to show the realised accounting result.
+  const _onHandForExpected=!i.scrappedAt&&(!!i.isReturned||(!i.dateSold&&!i.resaleSalePrice));
+  const _expectedHeadline=_onHandForExpected?calcEstProfit(i):null;
+  const _headlineVal=_onHandForExpected?_expectedHeadline:profit;
   const _headlineClass=_headlineVal===null?'':_headlineVal>=0?'pos':'neg';
+  const _expectedAsk=(Number(i.estSalePrice)>0)?Number(i.estSalePrice):Number(i.salePrice)||0;
   html+='<div class="ip-token locked '+_headlineClass+'">';
-  html+='<div class="ip-token-label">'+(hasReturn||i.resaleSalePrice?'Lifetime P&amp;L':'Net Profit')+'</div>';
+  html+='<div class="ip-token-label">'+(_onHandForExpected?'Expected Profit':(hasReturn||i.resaleSalePrice?'Lifetime P&amp;L':'Net Profit'))+'</div>';
   html+='<div class="ip-token-val">'+(_headlineVal!==null?fmt(_headlineVal):'—')+'</div>';
-  html+='<div class="ip-token-sub">'+(hasReturn?'realised so far':(marginDisplay?marginDisplay+' margin · after fees':'after fees'))+'</div>';
+  html+='<div class="ip-token-sub">'+(_onHandForExpected?(_expectedAsk>0?'lifetime if sold at '+fmt(_expectedAsk):'add an expected sale price'):(hasReturn?'realised so far':(marginDisplay?marginDisplay+' margin · after fees':'after fees')))+'</div>';
   html+='</div>';
 
   html+='</div>'; // ip-tokens
@@ -14831,7 +14846,7 @@ function renderItemRow(m,i){
     const _hasParts=calcPartsCost(i)>0;
     const _costStr='<div class="item-row-price">'+fmt(_tc)+(_hasParts?' <span style="font-size:10px;opacity:0.6">all-in</span>':'')+'</div>';
     const _ep=_estPotentialNet(i); // real net: est − fee − cost − parts − median fulfilment drag (matches detail page)
-    const _profitEl=_ep!=null?'<div class="item-row-profit est" style="color:'+(_ep>=0?'var(--green)':'var(--red)')+'">est '+(_ep>=0?'+':'')+fmt(_ep)+'</div>':'<div class="item-row-roi">cost</div>';
+    const _profitEl=_ep!=null?'<div class="item-row-profit est" style="color:'+(_ep>=0?'var(--green)':'var(--red)')+'">est '+(_ep>=0?'+':'')+fmt(_ep)+'</div>':'<div class="item-row-profit est" style="color:var(--muted)">est —</div>';
     return '<div class="item-row sourced-row'+(selected?' selected':'')+'" '+stockRowClick+'>'+
       '<div class="item-main">'+
         '<div class="item-row-inner">'+
@@ -14934,8 +14949,13 @@ function renderItemRow(m,i){
     const estCol=estP>=0?'var(--green)':'var(--red)';
     profitEl='<div class="item-row-profit est" style="color:'+estCol+';">'+(estP>=0?'+':'')+fmt(estP)+'</div>';
   }else if(i.isReturned){
-    const cls=profit>=0?'pos':'neg';
-    profitEl='<div class="item-row-profit '+cls+'">net '+fmt(profit)+'</div>';
+    // v1.4.10 — returned stock is still an asset with another possible sale.
+    // Lead with expected lifetime profit; keep realised loss/profit underneath
+    // so the operator sees both recovery potential and history at a glance.
+    const estP=calcEstProfit(i);
+    const estCol=estP==null?'var(--muted)':(estP>=0?'var(--green)':'var(--red)');
+    profitEl='<div class="item-row-profit est" style="color:'+estCol+';">'+(estP==null?'—':((estP>=0?'+':'')+fmt(estP)))+'</div>'
+      +'<div class="item-row-roi">expected · lifetime '+fmt(profit)+'</div>';
   }
 
   // Left slot: checkbox in selection mode, status dot otherwise
@@ -25739,3 +25759,5 @@ console.log('[RETRADE] v1.4.7 verified full-backup export/import loaded');
   };
   console.info('[RETRADE] '+VERSION+' authoritative cloud + lifecycle event durability loaded');
 })();
+
+console.info('[RETRADE] 1.4.10 expected-profit consistency + return fee-credit visibility loaded');
