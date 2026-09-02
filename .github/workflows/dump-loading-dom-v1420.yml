@@ -1,0 +1,57 @@
+name: Inspect loading DOM leaks
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/dump-loading-dom-v1420.yml']
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          npm init -y >/dev/null 2>&1
+          npm install --silent playwright@1.55.0
+          npx playwright install --with-deps chromium >/dev/null
+      - name: Dump leak selectors
+        run: |
+          python -m http.server 4173 >/tmp/http.log 2>&1 &
+          cat >/tmp/dump.js <<'JS'
+          const {chromium}=require('playwright');
+          (async()=>{
+            const b=await chromium.launch({headless:true});
+            for(const tab of ['summary','monthly','stock']){
+              const p=await b.newPage({viewport:{width:1440,height:900}});
+              await p.goto('http://127.0.0.1:4173/index.html',{waitUntil:'domcontentloaded'});
+              await p.waitForFunction(()=>typeof window.showRealLayoutLoading==='function');
+              await p.evaluate((tab)=>{
+                const a=document.getElementById('auth-overlay');if(a)a.style.display='none';
+                const ol=document.getElementById('app-loading');if(ol)ol.remove();
+                document.body.classList.add('rt-app-visible');
+                if(typeof DB==='object'&&DB){Object.keys(DB).forEach(k=>{if(/^[A-Z]{3}-\d{2}$/.test(k))delete DB[k];});DB.expenses=[];DB.trips=[];DB.cashLedger=[];DB.sourcingRuns=[];}
+                showRealLayoutLoading(tab,'inspect');
+                let n=document.getElementById('p-'+tab);while(n&&n!==document.body){const cs=getComputedStyle(n);if(cs.display==='none')n.style.display='block';if(cs.visibility==='hidden')n.style.visibility='visible';if(+cs.opacity===0)n.style.opacity='1';n=n.parentElement;}
+              },tab);
+              await p.waitForTimeout(100);
+              const rows=await p.evaluate(()=>{
+                const page=document.querySelector('.page.on');
+                const needles=[/No sales yet/i,/No completed sales/i,/No items yet/i,/100%/i,/54\.1pp/i,/0\.0pp/i,/Fresh/i,/Maturing/i,/Slow/i,/Stale/i,/sold\s*·/i];
+                const out=[];
+                for(const el of page.querySelectorAll('*')){
+                  if(el.children.length)continue;
+                  const t=(el.textContent||'').trim(); if(!t)continue;
+                  if(needles.some(r=>r.test(t))){
+                    const p1=el.parentElement,p2=p1&&p1.parentElement;
+                    out.push({text:t,tag:el.tagName,cls:el.className||'',p1:p1?`${p1.tagName}.${p1.className||''}`:'',p2:p2?`${p2.tagName}.${p2.className||''}`:''});
+                  }
+                }
+                return out;
+              });
+              console.log('\nTAB',tab,JSON.stringify(rows,null,2));
+              await p.close();
+            }
+            await b.close();
+          })().catch(e=>{console.error(e);process.exit(1)});
+          JS
+          NODE_PATH="$PWD/node_modules" node /tmp/dump.js
