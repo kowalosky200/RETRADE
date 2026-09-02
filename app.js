@@ -4832,8 +4832,12 @@ function _markLoadingRegions(root){
     '.mf-val','.mf-foot','.fy-stat-hide'
   ].join(',')).forEach(function(el){el.classList.add('rt-data-loading');});
 
-  root.querySelectorAll('.fy-section span').forEach(function(el){
-    if(/^[-+−]?£[\d,.]+$/.test((el.textContent||'').trim()))el.classList.add('rt-data-loading');
+  // Sales/FY rows have several dynamic leaf values without semantic classes.
+  // Mask only leaf text that represents loaded data; keep month/FY labels visible.
+  root.querySelectorAll('.fy-section *').forEach(function(el){
+    if(el.children&&el.children.length)return;
+    const txt=(el.textContent||'').trim();
+    if(/^[-+−]?£[\d,.]+$/.test(txt)||/^\d+\s+sold\b/i.test(txt))el.classList.add('rt-data-loading');
   });
 
   root.querySelectorAll([
@@ -4965,6 +4969,7 @@ function finishRealLayoutLoading(tab){
 
 console.info('[RETRADE] v1.4.14 real-layout boot loading loaded');
 console.info('[RETRADE] v1.4.18 polished real-layout loading loaded');
+console.info('[RETRADE] v1.4.19 Sales month-card loading loaded');
 
 function refreshActivePage(){
   if(typeof renderSummary==='undefined')return; // called before functions defined
