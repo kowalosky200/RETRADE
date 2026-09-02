@@ -4743,10 +4743,7 @@ function _showLoadError(msg){
   document.body.classList.remove('rt-real-layout-loading');
 
   if(!page)return;
-  page.removeAttribute('aria-busy');
-  delete page.dataset.loading;
-  page.querySelectorAll('.rt-data-loading,.rt-chart-loading,.rt-chart-data-loading,.rt-list-loading,.rt-hide-while-loading')
-    .forEach(function(el){el.classList.remove('rt-data-loading','rt-chart-loading','rt-chart-data-loading','rt-list-loading','rt-hide-while-loading');});
+  _clearLoadingRegions(page);
 
   const old=page.querySelector('.rt-load-error');
   if(old)old.remove();
@@ -4773,6 +4770,8 @@ function retryAppLoad(){
 // ============================================================================
 let _realLayoutLoading=false;
 let _realLayoutLoadingTab=null;
+let _realLayoutLoadingStartedAt=0;
+let _realLayoutFinishTimer=null;
 
 function _bootRendererForTab(tab){
   const renderers={
@@ -4827,26 +4826,51 @@ function _markLoadingRegions(root){
   root.querySelectorAll([
     '[data-cv]','.kpi-value','.summary-hero-value','.metric-v','.inv-stat-v',
     '.snap-stat-v','.category-mini-val','.age-legend-count','.rh-profit',
-    '.stat-num','.kcard-value','.run-kpi-value','.cash-balance-value'
+    '.stat-num','.kcard-value','.run-kpi-value','.cash-balance-value',
+    '.sales-kpi-value','.sales-kpi-sub','.kpi-foot','.summary-hero-sub',
+    '.metric-sub','.item-row-profit','.item-row-roi','.money-value',
+    '.mf-val','.mf-foot','.fy-stat-hide'
   ].join(',')).forEach(function(el){el.classList.add('rt-data-loading');});
 
-  root.querySelectorAll('.summary-hero-chart,.chart-wrap,.chart-container,.summary-chart-body,.monthly-profitability-card .chart-area')
-    .forEach(function(el){el.classList.add('rt-chart-loading');});
-  root.querySelectorAll('svg[id*="chart"],canvas').forEach(function(el){el.classList.add('rt-chart-data-loading');});
+  root.querySelectorAll('.fy-section span').forEach(function(el){
+    if(/^[-+−]?£[\d,.]+$/.test((el.textContent||'').trim()))el.classList.add('rt-data-loading');
+  });
 
-  // Only dynamic rows are substituted. The surrounding real page/card/table is
-  // untouched, so its mobile/tablet/desktop geometry remains production CSS.
+  root.querySelectorAll([
+    '.summary-hero-chart','.chart-wrap','.chart-container','.summary-chart-body',
+    '.monthly-profitability-card .chart-area','.monthly-profitability-card svg',
+    '#monthly-profitability-svg'
+  ].join(',')).forEach(function(el){el.classList.add('rt-chart-loading');});
+  root.querySelectorAll('svg[id*="chart"],canvas,#monthly-profitability-svg').forEach(function(el){el.classList.add('rt-chart-data-loading');});
+
   const listTargets=root.querySelectorAll([
     '.item-table','.run-history-list','.activity-list','.cash-list','.expense-list',
-    '.returns-list','.return-list','.scrapped-list','.data-list'
+    '.returns-list','.return-list','.scrapped-list','.data-list',
+    '.monthly-list','.sales-list'
   ].join(','));
   listTargets.forEach(function(el){
     el.classList.add('rt-list-loading');
-    el.innerHTML=_loadingItemRows(Math.max(5,Math.ceil(((window.innerHeight||800)-360)/58)));
+    let overlay=null;
+    try{overlay=el.querySelector(':scope > .rt-loading-list-overlay');}catch(e){overlay=el.querySelector('.rt-loading-list-overlay');}
+    if(!overlay){
+      overlay=document.createElement('div');
+      overlay.className='rt-loading-list-overlay';
+      overlay.setAttribute('aria-hidden','true');
+      overlay.innerHTML=_loadingItemRows(Math.max(5,Math.ceil(((window.innerHeight||800)-360)/58)));
+      el.appendChild(overlay);
+    }
   });
 
-  // Do not briefly claim that an account has no data while it is still loading.
   root.querySelectorAll('.empty-state,.empty-state-v2,.no-data,.empty-list').forEach(function(el){el.classList.add('rt-hide-while-loading');});
+}
+
+function _clearLoadingRegions(page){
+  if(!page)return;
+  page.removeAttribute('aria-busy');
+  delete page.dataset.loading;
+  page.querySelectorAll('.rt-data-loading,.rt-chart-loading,.rt-chart-data-loading,.rt-list-loading,.rt-hide-while-loading')
+    .forEach(function(el){el.classList.remove('rt-data-loading','rt-chart-loading','rt-chart-data-loading','rt-list-loading','rt-hide-while-loading');});
+  page.querySelectorAll('.rt-loading-list-overlay').forEach(function(el){el.remove();});
 }
 
 function _disableLoadingControls(){
@@ -4878,6 +4902,8 @@ function showRealLayoutLoading(tab,msg){
   const safe=_activateBootPage(tab);
   _realLayoutLoading=true;
   _realLayoutLoadingTab=safe;
+  _realLayoutLoadingStartedAt=(window.performance&&performance.now)?performance.now():Date.now();
+  if(_realLayoutFinishTimer){clearTimeout(_realLayoutFinishTimer);_realLayoutFinishTimer=null;}
 
   // Remove a stale overlay left by an older cached build; never create one.
   const oldOverlay=document.getElementById('app-loading');
@@ -4914,22 +4940,31 @@ function showRealLayoutLoading(tab,msg){
 function finishRealLayoutLoading(tab){
   const safe=tab||_realLayoutLoadingTab||'summary';
   const page=document.getElementById('p-'+safe);
-  if(page){
-    page.removeAttribute('aria-busy');
-    delete page.dataset.loading;
-    page.querySelectorAll('.rt-data-loading,.rt-chart-loading,.rt-chart-data-loading,.rt-list-loading,.rt-hide-while-loading')
-      .forEach(function(el){el.classList.remove('rt-data-loading','rt-chart-loading','rt-chart-data-loading','rt-list-loading','rt-hide-while-loading');});
-  }
-  _enableLoadingControls();
-  document.body.classList.remove('rt-real-layout-loading','rt-boot-shell');
-  const status=document.getElementById('real-layout-loading-status');
-  if(status)status.remove();
-  _realLayoutLoading=false;
-  _realLayoutLoadingTab=null;
-  if(typeof _syncFabVisibility==='function')_syncFabVisibility();
+  if(page)_markLoadingRegions(page);
+
+  const now=(window.performance&&performance.now)?performance.now():Date.now();
+  const elapsed=Math.max(0,now-_realLayoutLoadingStartedAt);
+  const remaining=Math.max(0,260-elapsed);
+
+  const finalize=function(){
+    _clearLoadingRegions(page);
+    _enableLoadingControls();
+    document.body.classList.remove('rt-real-layout-loading','rt-boot-shell');
+    const status=document.getElementById('real-layout-loading-status');
+    if(status)status.remove();
+    _realLayoutLoading=false;
+    _realLayoutLoadingTab=null;
+    _realLayoutFinishTimer=null;
+    if(typeof _syncFabVisibility==='function')_syncFabVisibility();
+  };
+
+  requestAnimationFrame(function(){requestAnimationFrame(function(){
+    _realLayoutFinishTimer=setTimeout(finalize,remaining);
+  });});
 }
 
 console.info('[RETRADE] v1.4.14 real-layout boot loading loaded');
+console.info('[RETRADE] v1.4.18 polished real-layout loading loaded');
 
 function refreshActivePage(){
   if(typeof renderSummary==='undefined')return; // called before functions defined

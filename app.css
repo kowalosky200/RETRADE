@@ -1920,6 +1920,84 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
   .rt-real-layout-loading .rt-chart-loading::after{animation:none!important;}
 }
 
+/* v1.4.18 — polished in-place skeleton. Geometry belongs to the real components;
+   these rules only paint data placeholders inside them. */
+.rt-real-layout-loading .rt-data-loading{
+  position:relative;overflow:hidden;
+  color:transparent!important;
+  text-shadow:none!important;
+  border-radius:6px;
+  background:linear-gradient(90deg,
+    color-mix(in srgb,var(--surface2) 88%,var(--border)) 0%,
+    color-mix(in srgb,var(--border) 76%,var(--surface2)) 44%,
+    color-mix(in srgb,var(--surface2) 88%,var(--border)) 100%);
+  background-size:240% 100%;
+  animation:rt-data-shimmer 1.28s ease-in-out infinite;
+  box-decoration-break:clone;-webkit-box-decoration-break:clone;
+}
+.rt-real-layout-loading .kpi-value.rt-data-loading,
+.rt-real-layout-loading .summary-hero-value.rt-data-loading,
+.rt-real-layout-loading .metric-v.rt-data-loading,
+.rt-real-layout-loading .inv-stat-v.rt-data-loading,
+.rt-real-layout-loading .snap-stat-v.rt-data-loading,
+.rt-real-layout-loading .sales-kpi-value.rt-data-loading,
+.rt-real-layout-loading .stat-num.rt-data-loading,
+.rt-real-layout-loading .kcard-value.rt-data-loading,
+.rt-real-layout-loading .run-kpi-value.rt-data-loading,
+.rt-real-layout-loading .cash-balance-value.rt-data-loading,
+.rt-real-layout-loading .mf-val.rt-data-loading{
+  display:inline-block!important;min-width:5.2ch;min-height:.92em;vertical-align:middle;
+}
+.rt-real-layout-loading .kpi-foot.rt-data-loading,
+.rt-real-layout-loading .summary-hero-sub.rt-data-loading,
+.rt-real-layout-loading .metric-sub.rt-data-loading,
+.rt-real-layout-loading .sales-kpi-sub.rt-data-loading,
+.rt-real-layout-loading .item-row-roi.rt-data-loading,
+.rt-real-layout-loading .mf-foot.rt-data-loading,
+.rt-real-layout-loading .fy-stat-hide.rt-data-loading{
+  display:inline-block!important;min-width:9ch;min-height:.78em;border-radius:5px;
+}
+.rt-real-layout-loading .rt-chart-loading{
+  position:relative;overflow:hidden;
+  min-height:inherit;background:color-mix(in srgb,var(--surface2) 42%,transparent);
+}
+.rt-real-layout-loading .rt-chart-data-loading{opacity:.10!important;}
+.rt-real-layout-loading .rt-chart-loading::after{
+  content:'';position:absolute;inset:0;z-index:5;pointer-events:none;
+  background:
+    linear-gradient(110deg,transparent 18%,color-mix(in srgb,var(--border) 72%,transparent) 42%,transparent 66%),
+    linear-gradient(to top right,transparent 46%,color-mix(in srgb,var(--border) 46%,transparent) 48%,color-mix(in srgb,var(--border) 46%,transparent) 51%,transparent 53%);
+  background-size:240% 100%,100% 100%;
+  animation:rt-data-shimmer 1.28s ease-in-out infinite;
+}
+.rt-real-layout-loading .rt-list-loading{position:relative;overflow:hidden;min-height:240px;}
+.rt-real-layout-loading .rt-loading-list-overlay{
+  position:absolute;z-index:30;inset:0;overflow:hidden;pointer-events:none;
+  background:var(--surface);
+}
+.rt-real-layout-loading .rt-loading-list-overlay .rt-loading-row{
+  min-height:58px;padding-left:inherit;padding-right:inherit;border-bottom:1px solid var(--border);
+}
+.rt-real-layout-loading .rt-loading-line{
+  background:linear-gradient(90deg,var(--surface2) 0%,var(--border) 46%,var(--surface2) 100%);
+  background-size:240% 100%;animation:rt-data-shimmer 1.28s ease-in-out infinite;
+}
+.rt-real-layout-loading .rt-loading-line-main{width:min(46%,320px);height:12px;}
+.rt-real-layout-loading .rt-loading-line-sub{width:min(29%,210px);height:9px;}
+.rt-real-layout-loading .rt-loading-line-value{width:64px;height:15px;margin-right:12px;}
+@media(max-width:600px){
+  .rt-real-layout-loading .rt-list-loading{min-height:220px;}
+  .rt-real-layout-loading .rt-loading-line-main{width:58%;}
+  .rt-real-layout-loading .rt-loading-line-sub{width:38%;}
+  .rt-real-layout-loading .rt-loading-line-value{width:52px;margin-right:8px;}
+}
+@media(prefers-reduced-motion:reduce){
+  .rt-real-layout-loading .rt-data-loading,
+  .rt-real-layout-loading .rt-loading-line,
+  .rt-real-layout-loading .rt-chart-loading::after{animation:none!important;}
+}
+
+
 /* Chart draw-in (v2.19.2 -- 7A)
    Lines draw left-to-right via stroke-dashoffset; the area fill and the dots
    fade in behind them, dots delayed so they land as the line arrives rather
