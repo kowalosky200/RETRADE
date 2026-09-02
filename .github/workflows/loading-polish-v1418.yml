@@ -80,6 +80,27 @@ jobs:
                   const auth=document.getElementById('auth-overlay'); if(auth)auth.style.display='none';
                   const loading=document.getElementById('app-loading'); if(loading)loading.remove();
                   document.body.classList.add('rt-app-visible');
+
+                  // Seed a tiny valid RETRADE shape in memory. This is test-only data;
+                  // it never touches Supabase. It forces the CURRENT production renderers
+                  // down their normal KPI/list/chart paths instead of first-run onboarding.
+                  const seed=`(function(){
+                    if(typeof DB!=='object')throw new Error('DB unavailable');
+                    Object.keys(DB).forEach(function(k){if(/^[A-Z]{3}-\\d{2}$/.test(k))delete DB[k];});
+                    DB['AUG-26']=[
+                      {id:'vis-sold',gid:'R-V001',item:'Visual Test Sold',state:'sold',dateSourced:'2026-08-01',dateListed:'2026-08-03',dateSold:'2026-08-20',salePrice:79.99,costPrice:20,postage:0,shippingCost:3.65,packagingCost:0,promoPercent:.05,listingFee:.36,isReturned:false,returnHistory:[],parts:[],defaultPlatform:'ebay_biz',salePlatform:'ebay_biz'},
+                      {id:'vis-return',gid:'R-V002',item:'Visual Test Returned',state:'returned',dateSourced:'2026-08-02',dateListed:'2026-08-04',dateSold:null,salePrice:49.99,costPrice:12,postage:0,shippingCost:3.65,packagingCost:0,promoPercent:.05,listingFee:.36,isReturned:true,returnHistory:[{id:9001,saleNo:1,type:'full_seller',loggedAt:'2026-08-25',refundAmount:49.99,returnPostage:0,_dateSoldAtReturn:'2026-08-18',_salePriceAtReturn:49.99,_relistedAt:null}],parts:[],defaultPlatform:'ebay_biz'},
+                    ];
+                    DB['SEP-26']=[
+                      {id:'vis-listed',gid:'R-V003',item:'Visual Test Listed',state:'listed',dateSourced:'2026-09-01',dateListed:'2026-09-01',dateSold:null,salePrice:39.99,costPrice:8,postage:0,shippingCost:3.65,packagingCost:0,promoPercent:.05,listingFee:.36,isReturned:false,returnHistory:[],parts:[],defaultPlatform:'ebay_biz'},
+                      {id:'vis-sourced',gid:'R-V004',item:'Visual Test Unlisted',state:'sourced',dateSourced:'2026-09-02',dateListed:null,dateSold:null,salePrice:0,estSalePrice:55,costPrice:10,postage:0,shippingCost:0,packagingCost:0,promoPercent:0,listingFee:0,isReturned:false,returnHistory:[],parts:[],defaultPlatform:'ebay_biz'}
+                    ];
+                    DB.expenses=Array.isArray(DB.expenses)?DB.expenses:[];
+                    DB.trips=Array.isArray(DB.trips)?DB.trips:[];
+                    DB.cashLedger=Array.isArray(DB.cashLedger)?DB.cashLedger:[];
+                  })()`;
+                  eval(seed);
+
                   window.showRealLayoutLoading(tab,'Visual test');
                   let node=document.getElementById('p-'+tab);
                   while(node && node!==document.body){
@@ -102,9 +123,7 @@ jobs:
                   html:(()=>{const el=document.querySelector('.page.on');return el?el.innerHTML.slice(0,12000):'';})(),
                 }));
                 if(!stats.bodyLoading || stats.busy!==1 || stats.values<1 || stats.fake!==0 || !stats.pageRect || stats.pageRect.w<100){
-                  console.log('LOADER_MARKUP_START');
-                  console.log(stats.html);
-                  console.log('LOADER_MARKUP_END');
+                  console.log('LOADER_MARKUP_START');console.log(stats.html);console.log('LOADER_MARKUP_END');
                   throw new Error(`${vp.name}/${tab} bad loading state ${JSON.stringify({...stats,html:undefined})}`);
                 }
                 await page.screenshot({path:`loading-visual-artifacts/${vp.name}-${tab}.png`,fullPage:true});
