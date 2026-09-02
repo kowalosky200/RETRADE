@@ -4630,19 +4630,19 @@ async function initDB(){
   if(_dbLoading){ console.warn('initDB already in progress, skipping'); return; }
   _dbLoading = true;
   try{
-    // v2.19.18 -- 7B. Resolve the boot tab BEFORE the load so the skeleton can be
+    // v2.19.18 -- 7B. Resolve the boot tab BEFORE the load so the real loading layout can be
     // the right page. Everything this reads (_SK.tab, _SK.lastActive) is
     // localStorage and is not written again until the end of this function, so
     // reading early is equivalent -- with one improvement: _isSameSession() is a
     // clock comparison against _SESSION_FRESH_MS, and the load can take up to
     // 15s. Computed after the load, a session sitting near the boundary could
-    // resolve differently from the skeleton already on screen. Resolved ONCE and
-    // reused below, the skeleton and the rendered page cannot disagree.
+    // resolve differently from the loading page already on screen. Resolved ONCE and
+    // reused below, the loading and hydrated page cannot disagree.
     const _freshSession = !_isSameSession();
     const _lastTab = (() => { if(_freshSession) return 'summary';
       try{ return localStorage.getItem(_SK.tab) || 'summary'; }catch(e){ return 'summary'; } })();
     const _safeTab = ['summary','monthly','stock','expenses','cash','returns','scrapped','tax','data','runs','activity'].includes(_lastTab) ? _lastTab : 'summary';
-    showLoadingScreen('Loading your data…', _safeTab);
+    showRealLayoutLoading(_safeTab, 'Loading your data…');
     await Promise.race([
       loadFromSupabase(),
       new Promise((_,reject) => setTimeout(() => reject(new Error('Request timed out. Try refreshing.')), 15000))
@@ -4691,11 +4691,11 @@ async function initDB(){
     // never log as brand-new; the first real transition after boot logs cleanly.
     try{ _initActivityShadow(); }catch(e){ console.warn('[RETRADE] shadow seed failed',e); }
     _loadUIState();
-    // Render the remembered destination BEFORE dissolving the skeleton. Previously
+    // Render the remembered destination into the already-mounted real page. Previously
     // Returns/Cash/Archive/Activity were valid remembered tabs but had no boot
     // renderer here: init removed the skeleton, activated an empty page, and the
     // user saw a blank canvas. Boot now has one contract: every allowed tab must
-    // successfully render before the loading surface is allowed to leave.
+    // successfully render before loading state is removed.
     if(_safeTab==='summary')renderSummary();
     else if(_safeTab==='monthly')renderMonthlyPage();
     else if(_safeTab==='stock')renderStock();
@@ -4722,409 +4722,214 @@ async function initDB(){
     const _bn=document.querySelector('#bottom-nav .bnt[data-tab="'+_safeTab+'"]');if(_bn)_bn.classList.add('on');
     handleNavResize();
     if(typeof _syncFabVisibility==='function')_syncFabVisibility();
-    // Destination is now rendered + active underneath the overlay; cross-fade only now.
-    hideLoadingScreen();
+    // Destination is already the same real page; reveal live data in-place.
+    finishRealLayoutLoading(_safeTab);
     // Stamp this session active now so a quick reload (even with no navigation)
     // is recognised as the same session and the next save extends it.
     try{localStorage.setItem(_SK.lastActive,String(Date.now()));}catch(e){}
   }catch(e){
     console.error('initDB error:', e);
-    // Keep the boot surface in place. A failed load/render must never expose a
-    // blank app canvas; _showLoadError converts the skeleton into a retry state.
+    // Keep the real page mounted. Load errors render inside that same layout.
     _showLoadError(e.message);
   } finally {
     _dbLoading = false;
   }
 }
 function _showLoadError(msg){
-  const loading=document.getElementById('app-loading');
-  if(loading){
-    if(_bootFadeTimer){clearTimeout(_bootFadeTimer);_bootFadeTimer=null;}
-    loading.classList.remove('rt-boot-out');
-    loading.classList.add('rt-boot-error');
-    loading.style.opacity='1';
-    loading.style.pointerEvents='auto';
-    const safeMsg=String(msg||'Failed to load data.');
-    loading.innerHTML='<div style="min-height:100%;display:flex;align-items:center;justify-content:center;padding:28px;">'
-      +'<div style="width:min(420px,100%);background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:24px;box-shadow:0 12px 40px var(--shadow-md);text-align:center;">'
-      +'<div style="width:42px;height:42px;margin:0 auto 14px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--red-dim);color:var(--red);font-size:20px;font-weight:800;">!</div>'
-      +'<div style="font-size:18px;font-weight:800;margin-bottom:8px;">Couldn\'t load RETRADE</div>'
-      +'<div id="load-error-msg" style="font-size:13px;line-height:1.55;color:var(--text-secondary);margin-bottom:18px;"></div>'
-      +'<button onclick="retryAppLoad()" class="btn btn-primary" style="min-width:120px;">Retry</button>'
-      +'</div></div>';
-    const msgEl=loading.querySelector('#load-error-msg');if(msgEl)msgEl.textContent=safeMsg;
-    return;
-  }
-  let el = document.getElementById('load-error-banner');
-  if(!el){
-    el = document.createElement('div');
-    el.id = 'load-error-banner';
-    el.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:9997;background:var(--red-dim);border-bottom:1px solid var(--red);padding:12px 16px;display:flex;align-items:center;justify-content:space-between;gap:12px;';
-    el.innerHTML = `
-      <span style="font-size:13px;color:var(--red);" id="load-error-msg"></span>
-      <div style="display:flex;gap:8px;flex-shrink:0;">
-        <button onclick="initDB()" style="padding:6px 12px;background:var(--accent);color:#000;border:none;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;">Retry</button>
-        <button onclick="document.getElementById('load-error-banner').remove()" style="padding:6px 10px;background:none;border:1px solid var(--border);border-radius:6px;font-size:12px;color:var(--text-secondary);cursor:pointer;">Dismiss</button>
-      </div>`;
-    document.body.appendChild(el);
-  }
-  document.getElementById('load-error-msg').textContent = '⚠️ ' + (msg || 'Failed to load data.');
-  el.style.display = 'flex';
+  const tab=_realLayoutLoadingTab||'summary';
+  const page=document.getElementById('p-'+tab);
+
+  _enableLoadingControls();
+  document.body.classList.remove('rt-real-layout-loading');
+
+  if(!page)return;
+  page.removeAttribute('aria-busy');
+  delete page.dataset.loading;
+  page.querySelectorAll('.rt-data-loading,.rt-chart-loading,.rt-chart-data-loading,.rt-list-loading,.rt-hide-while-loading')
+    .forEach(function(el){el.classList.remove('rt-data-loading','rt-chart-loading','rt-chart-data-loading','rt-list-loading','rt-hide-while-loading');});
+
+  const old=page.querySelector('.rt-load-error');
+  if(old)old.remove();
+
+  const box=document.createElement('div');
+  box.className='rt-load-error';
+  box.innerHTML='<div class="rt-load-error-icon">!</div>'
+    +'<div class="rt-load-error-copy"><strong>Couldn\'t load your data</strong><span class="rt-load-error-message"></span></div>'
+    +'<button class="btn btn-primary" onclick="retryAppLoad()">Retry</button>';
+  const message=box.querySelector('.rt-load-error-message');
+  if(message)message.textContent=String(msg||'Failed to load data.');
+  page.prepend(box);
 }
 function retryAppLoad(){
-  const loading=document.getElementById('app-loading');
-  if(loading)loading.remove();
-  document.body.classList.remove('rt-boot-shell');
+  document.querySelectorAll('.rt-load-error').forEach(function(el){el.remove();});
   initDB();
 }
 
-// v2.17.0 — Boot skeleton. Rebuilt v2.19.18 (7B) as per-page + class-driven.
-// This screen covers a REAL wait: initDB() -> loadFromSupabase(), racing a 15s
-// timeout. It used to be a 32px hourglass emoji on an opaque backdrop, which
-// communicated "stopped" rather than "working". The V2 design system already
-// shipped `.rt .skeleton` (tokenised shimmer + reduced-motion killswitch) and
-// nothing ever used it — v2.17.0 wired it up.
-// Deliberately NOT used for page-to-page navigation: that renders from memory
-// and has nothing to wait for, so a skeleton there would be inventing delay.
-// #app-loading-msg is preserved — showLoadingScreen(msg) still writes to it.
-//
-// ── 7B: why this is built from real class names ──────────────────────────────
-// v2.17.0's skeleton hand-tuned an inline-styled mirror of Summary and served it
-// for every tab. Both halves of that were wrong:
-//   • GEOMETRY. It hardcoded max-width:1100px;padding:20px. The real .page runs
-//     max-width 1100 -> 1280 -> 1600 (>=1400px) on a padding ramp of 16/20 ->
-//     28/28. On a wide desktop the skeleton was up to 500px narrower than the
-//     page it dissolved into. Nobody saw it because until v2.19.14 the page
-//     underneath was still fading in over the top of the mismatch.
-//   • IDENTITY. Boot on Stock, get a skeleton of Summary.
-// The fix is not to measure the layout more carefully — that is what drifts. It
-// is to REUSE the layout. Every container below is a real class, so the box
-// model is not copied, it is the same code path. Change .page's padding and the
-// skeleton follows on its own.
-//
-// The load-bearing trick: the shimmer goes INSIDE the real typographic element,
-// not instead of it. <div class="page-title"><div class="skeleton" height:1em>>
-// inherits font-size:clamp(20px,5.5vw,34px) and line-height:1.1, so the bar is
-// exactly the height of the text it stands in for at every viewport — and the
-// breakpoints come free: .page-subtitle collapses to max-height:0 at <=420px and
-// .summary-subtitle is display:none at <=600px. The old skeleton drew a bar in
-// both cases. Size shimmer in `em`, never `px`, for anything standing in for text.
-//
-// Widths are the one honest hardcode: they are how much TEXT is pending, which
-// no class knows. Keep them in % or ch so they still track the container.
-function _sk(css){ return '<div class="skeleton" style="' + css + '"></div>'; }
+// ============================================================================
+// v1.4.14 — REAL-LAYOUT BOOT LOADING
+// The production page/component tree IS the loading UI. Static structure renders
+// immediately at the real responsive breakpoint; only dynamic values/rows/charts
+// are masked while Supabase hydrates. There is no duplicate boot page.
+// ============================================================================
+let _realLayoutLoading=false;
+let _realLayoutLoadingTab=null;
 
-// Title block for the eight pages using the .page-header family.
-function _skPageHead(titleW, subW){
-  return '<div class="page-header"><div>'
-    + '<div class="page-title">' + _sk('height:1em;width:' + titleW + ';') + '</div>'
-    + '<div class="page-subtitle">' + _sk('height:1em;width:' + subW + ';') + '</div>'
-    + '</div></div>';
-}
-// A .card.kpi with a pending label + value. Real card, real padding, real border.
-function _skKpi(){
-  return '<div class="card kpi">'
-    + '<div class="kpi-label">' + _sk('height:1em;width:62%;') + '</div>'
-    + '<div class="kpi-value">' + _sk('height:1em;width:78%;') + '</div>'
-    + '<div class="kpi-foot">' + _sk('height:1em;width:46%;') + '</div>'
-    + '</div>';
-}
-// List rows. v2.19.43 — when no count is given, fill the viewport so the
-// skeleton spans the whole page instead of a ~1/3 stub at the top (list pages
-// continue well below the KPIs). Row ≈ 58px; subtract the header + KPI + controls
-// band already drawn above.
-function _skRows(n){
-  if(n==null){
-    const vh=(typeof window!=='undefined'&&window.innerHeight)||900;
-    n=Math.max(5,Math.ceil((vh-380)/58));
-  }
-  let h = '';
-  for(let i = 0; i < n; i++){
-    h += '<div style="display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--border);">'
-      + _sk('height:34px;width:34px;border-radius:var(--r-s);flex-shrink:0;')
-      + '<div style="flex:1;min-width:0;">'
-        + _sk('height:9px;width:46%;margin-bottom:7px;')
-        + _sk('height:8px;width:26%;')
-      + '</div>'
-      + _sk('height:14px;width:56px;flex-shrink:0;')
-      + '</div>';
-  }
-  return h;
-}
-// v2.19.43 — the controls band list pages carry between the KPIs and the list
-// (a segmented tab + a filter/sort row). Generic on purpose: enough to read as
-// "controls, then a long list" without per-page drift.
-function _skListControls(){
-  return '<div class="skeleton" style="height:44px;width:100%;border-radius:10px;margin-bottom:14px;"></div>'
-    + '<div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;">'
-      + _sk('height:30px;width:190px;border-radius:8px;')
-      + '<div style="flex:1"></div>'
-      + _sk('height:30px;width:120px;border-radius:8px;')
-    + '</div>';
-}
-
-// Summary. The only page worth mirroring in full — it is the default boot tab and
-// the one whose reveal is busiest (count-ups ~40% in and the donut mid-sweep by
-// the time this dissolves, per 7C). .summary-mobile-only and .summary-kpis-v3
-// already carry every breakpoint rule, so reusing them means this skeleton
-// reflows exactly like the page without a single media query of its own.
-function _skelSummary(){
-  return '<div class="summary-header"><div class="summary-header-text">'
-      + '<div class="summary-title">' + _sk('height:1em;width:150px;') + '</div>'
-      + '<div class="summary-subtitle">' + _sk('height:1em;width:290px;') + '</div>'
-      + '</div></div>'
-    + '<div class="summary-grid-v3">'
-      // Mobile hero — auto-hidden on desktop by .summary-mobile-only.
-      + '<div class="card summary-hero-card summary-mobile-only">'
-        + '<div class="summary-hero-top"><div class="summary-hero-head">'
-          + '<div class="kpi-label">' + _sk('height:1em;width:120px;') + '</div>'
-          + '<div class="summary-hero-value">' + _sk('height:1em;width:64%;') + '</div>'
-          + '<div class="kpi-foot">' + _sk('height:1em;width:40%;') + '</div>'
-        + '</div></div>'
-        + '<div class="summary-hero-chart">' + _sk('height:150px;width:100%;border-radius:var(--r-m);') + '</div>'
-      + '</div>'
-      + '<div class="summary-mobile-twoup summary-mobile-only">' + _skKpi() + _skKpi() + '</div>'
-      + '<div class="summary-kpis-v3">' + _skKpi() + _skKpi() + _skKpi() + _skKpi() + '</div>'
-      + '<div class="card summary-panel summary-chart-card">'
-        + '<div class="summary-chart-head"><div class="sl">' + _sk('height:1em;width:120px;') + '</div></div>'
-        + _sk('height:220px;width:100%;border-radius:var(--r-m);')
-      + '</div>'
-      + '<div class="card summary-panel summary-categories">'
-        + '<div class="sl">' + _sk('height:1em;width:100px;') + '</div>'
-        + '<div class="cat-donut-wrap">' + _sk('height:132px;width:132px;border-radius:50%;flex-shrink:0;')
-          + '<div style="flex:1;min-width:0;">'
-            + _sk('height:9px;width:70%;margin-bottom:10px;')
-            + _sk('height:9px;width:54%;margin-bottom:10px;')
-            + _sk('height:9px;width:62%;')
-          + '</div>'
-        + '</div>'
-      + '</div>'
-      // v2.19.44 — the lower half the v2.19.43 skeleton stopped short of:
-      // snapshot strip (row 3), inventory health (row 4), velocity + top flips
-      // (row 5). Same summary-panel classes, so grid placement + mobile order
-      // come for free.
-      + '<div class="card summary-panel summary-snapshot summary-snapshot-strip">'
-        + '<div class="snap-strip-head"><div class="sl">' + _sk('height:1em;width:90px;') + '</div></div>'
-        + '<div class="snap-strip-row">' + _skSnapStat() + _skSnapStat() + _skSnapStat() + '</div>'
-      + '</div>'
-      + '<div class="card summary-panel summary-inventory">'
-        + '<div class="summary-cat-head"><div class="sl">' + _sk('height:1em;width:130px;') + '</div></div>'
-        + '<div class="inv-band-grid"><div class="inv-metrics">' + _skInvStat() + _skInvStat() + _skInvStat() + '</div>'
-          + '<div class="inv-age"><div class="inv-age-title">' + _sk('height:0.8em;width:70px;') + '</div>'
-            + _sk('height:8px;width:100%;border-radius:6px;margin:4px 0 14px;')
-            + '<div style="display:flex;gap:10px;">' + _sk('height:0.8em;width:22%;') + _sk('height:0.8em;width:22%;') + _sk('height:0.8em;width:22%;') + _sk('height:0.8em;width:22%;') + '</div>'
-          + '</div>'
-        + '</div>'
-      + '</div>'
-      + '<div class="card summary-panel summary-velocity">'
-        + '<div class="sl">' + _sk('height:1em;width:80px;') + '</div>'
-        + _skMetricRow() + _skMetricRow()
-      + '</div>'
-      + '<div class="card summary-panel summary-topflips">'
-        + '<div class="summary-cat-head"><div class="sl">' + _sk('height:1em;width:80px;') + '</div></div>'
-        + _skMetricRow() + _skMetricRow() + _skMetricRow()
-    + '</div>';
-}
-
-// Stock. The other tab that boots often (it is the one you leave open mid-session).
-function _skelStock(){
-  return _skPageHead('180px', '280px')
-    + '<div class="stock-kpis-v2 stock-kpis">' + _skKpi() + _skKpi() + _skKpi() + _skKpi() + '</div>'
-    + _skListControls()
-    + '<div class="section-card">' + _skRows() + '</div>';
-}
-
-// Everything else. Deliberately one shared shape rather than five bespoke ones:
-// these tabs are a rare boot, they genuinely share the header + metrics + list
-// skeleton, and five hand-maintained variants is how v2.17.0's skeleton drifted
-// in the first place. .kgrid is the real class these pages use for metric rows.
-// v2.19.43 — `listy` (default true) draws the controls band + a viewport-filling
-// list for the list pages (Sales, Runs, Expenses); tax/data pass false since they
-// are forms/settings, not a long list, and shouldn't claim one.
-function _skelGeneric(titleW, listy){
-  const head = _skPageHead(titleW || '160px', '260px')
-    + '<div class="kgrid">' + _skKpi() + _skKpi() + _skKpi() + _skKpi() + '</div>';
-  if(listy === false) return head + '<div class="section-card">' + _skRows(4) + '</div>';
-  return head + _skListControls() + '<div class="section-card">' + _skRows() + '</div>';
-}
-
-// v2.19.44 — helpers for the dashboard lower tiers and the two Sales History
-// layouts. Real page classes, shimmer inside, so they reflow with the page.
-function _skSnapStat(){
-  return '<div class="snap-stat"><div class="snap-stat-k">' + _sk('height:0.8em;width:70%;') + '</div>'
-    + '<div class="snap-stat-v">' + _sk('height:1em;width:55%;margin-top:9px;') + '</div></div>';
-}
-function _skInvStat(){
-  return '<div class="inv-stat"><div class="inv-stat-k">' + _sk('height:0.8em;width:72%;') + '</div>'
-    + '<div class="inv-stat-v">' + _sk('height:1em;width:52%;margin-top:9px;') + '</div>'
-    + '<div class="inv-stat-sub">' + _sk('height:0.7em;width:44%;margin-top:9px;') + '</div></div>';
-}
-function _skMetricRow(){
-  return '<div class="metric-inline"><div style="flex:1;min-width:0;">'
-    + _sk('height:0.9em;width:42%;margin-bottom:7px;') + _sk('height:0.7em;width:64%;')
-    + '</div>' + _sk('height:1.1em;width:46px;flex-shrink:0;') + '</div>';
-}
-function _skMoneyFlowRows(n){
-  let h = '<div style="display:flex;flex-direction:column;gap:11px;margin-top:6px;">';
-  for(let i = 0; i < n; i++){
-    h += '<div style="display:flex;flex-direction:column;gap:6px;">'
-      + '<div style="display:flex;align-items:baseline;justify-content:space-between;gap:10px;">'
-        + _sk('height:0.85em;width:' + (34 + (i * 11) % 34) + '%;') + _sk('height:0.85em;width:52px;')
-      + '</div>' + _sk('height:8px;width:100%;border-radius:999px;')
-    + '</div>';
-  }
-  return h + '</div>';
-}
-// One FY accordion section. expanded => a month-card grid below the header bar.
-function _skFySection(expanded){
-  const bar = '<div style="display:flex;align-items:center;justify-content:space-between;padding:12px 18px;background:var(--surface);border:1.5px solid var(--border);border-radius:10px;">'
-    + _sk('height:1em;width:90px;')
-    + '<div style="display:flex;align-items:center;gap:16px;">' + _sk('height:1em;width:56px;') + _sk('height:1em;width:70px;') + '</div>'
-  + '</div>';
-  if(!expanded) return '<div style="margin-bottom:12px;">' + bar + '</div>';
-  let cards = '';
-  for(let i = 0; i < 6; i++){
-    cards += '<div class="mcard">'
-      + '<div class="mcard-body-left">' + _sk('height:1em;width:58%;margin-bottom:7px;') + _sk('height:0.75em;width:82%;') + '</div>'
-      + '<div class="mcard-body-right">' + _sk('height:1.3em;width:52%;') + '</div>'
-    + '</div>';
-  }
-  return '<div style="margin-bottom:20px;">' + bar + '<div class="mgrid" style="margin-top:10px;">' + cards + '</div></div>';
-}
-// Sales History — grid (calendar) layout: charts row + FY accordion of months.
-function _skelMonthlyGrid(){
-  const head = '<div class="page-header"><div>'
-    + '<div class="page-title">' + _sk('height:1em;width:180px;') + '</div>'
-    + '<div class="page-subtitle">' + _sk('height:1em;width:250px;') + '</div>'
-    + '</div>' + _sk('height:34px;width:150px;border-radius:8px;flex-shrink:0;') + '</div>';
-  const charts = '<div class="monthly-charts-row">'
-    + '<div class="card summary-panel summary-chart-card monthly-profitability-card">'
-      + '<div class="summary-chart-head"><div class="sl">' + _sk('height:1em;width:150px;') + '</div>'
-        + '<div style="display:flex;gap:12px;">' + _sk('height:0.8em;width:60px;') + _sk('height:0.8em;width:66px;') + _sk('height:0.8em;width:62px;') + '</div>'
-      + '</div>' + _sk('height:300px;width:100%;border-radius:var(--r-m);')
-    + '</div>'
-    + '<div class="card summary-panel money-flow-card">'
-      + '<div class="summary-chart-head"><div class="sl">' + _sk('height:1em;width:130px;') + '</div></div>'
-      + _skMoneyFlowRows(5)
-    + '</div>'
-  + '</div>';
-  return head + charts + _skFySection(true) + _skFySection(false) + _skFySection(false);
-}
-// Sales History — single-month detail layout: KPIs + filter row + sale list.
-function _skelMonthlyDetail(){
-  const head = '<div class="page-header"><div style="display:flex;align-items:center;gap:12px;min-width:0;">'
-    + _sk('height:32px;width:104px;border-radius:8px;flex-shrink:0;') + _sk('height:1.4em;width:150px;')
-  + '</div></div>';
-  const kpis = '<div class="sales-kpis-v2">' + _skKpi() + _skKpi() + _skKpi() + _skKpi() + '</div>';
-  const filters = '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:16px;">'
-    + _sk('height:36px;width:180px;border-radius:10px;') + _sk('height:36px;width:120px;border-radius:8px;')
-  + '</div>';
-  return head + kpis + filters + '<div class="item-table">' + _skRows() + '</div>';
-}
-// tab is resolved from localStorage BEFORE the load starts (see initDB) so the
-// skeleton and the page that renders can never disagree. Unknown/absent -> summary,
-// mirroring initDB's own _safeTab fallback.
-function _bootSkeletonHTML(tab){
-  let body;
-  if(tab === 'stock')            body = _skelStock();
-  else if(tab === 'monthly'){
-    // Sales History has two layouts. _loadUIState hasn't run yet at skeleton
-    // time, so read the persisted view straight from localStorage (default
-    // 'grid', matching MONTHLY_VIEW's own initialiser).
-    let _mv = 'grid';
-    try{ _mv = localStorage.getItem(_SK.monthV) || 'grid'; }catch(e){}
-    body = _mv === 'detail' ? _skelMonthlyDetail() : _skelMonthlyGrid();
-  }
-  else if(tab === 'runs')        body = _skelGeneric('110px');
-  else if(tab === 'expenses')    body = _skelGeneric('220px');
-  else if(tab === 'tax')         body = _skelGeneric('170px', false);
-  else if(tab === 'data')        body = _skelGeneric('90px', false);
-  else if(tab === 'cash')        body = _skelGeneric('120px', false);
-  else if(tab === 'returns')     body = _skelGeneric('120px', false);
-  else if(tab === 'scrapped')    body = _skelGeneric('120px', false);
-  else if(tab === 'activity')    body = _skelGeneric('90px', false);
-  else                           body = _skelSummary();
-  // .page (not .page.on — see the .rt-skel CSS note) so the box model is shared.
-  // rt-skel-<tab> is what lets the ID-scoped page rules reach this element --
-  // see the .rt-skel-summary note in the CSS. Emitted for every tab so a future
-  // ID rule on any page has a selector waiting for it.
-  const _t = ['summary','monthly','stock','expenses','cash','returns','scrapped','tax','data','runs','activity'].includes(tab) ? tab : 'summary';
-  return '<div class="page rt-skel rt-skel-' + _t + '">' + body
-    + '<div id="app-loading-msg" role="status" aria-live="polite" style="position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0;"></div>'
-    + '</div>';
-}
-// v2.19.0 -- 7C boot cross-fade.
-// Failsafe only. The teardown is driven by transitionend (see hideLoadingScreen);
-// this timer exists solely for the case where the transition never fires at all.
-let _bootFadeTimer = null;
-// v2.19.18 -- 7B. `tab` selects the skeleton. Callers that do not know the tab
-// (the Retry path) may omit it and get Summary, which is also where a retry lands.
-function showLoadingScreen(msg, tab){
-  let el = document.getElementById('app-loading');
-  if(_bootFadeTimer){ clearTimeout(_bootFadeTimer); _bootFadeTimer = null; }
-  // Re-entrancy (load-error banner Retry -> initDB -> showLoadingScreen while a
-  // fade is still in flight): drop the fading element and rebuild rather than
-  // reversing it. Reversing would run opacity 0->1, fire the pending
-  // transitionend, and tear down the screen we just re-showed.
-  if(el && el.classList.contains('rt-boot-out')){ el.remove(); el = null; }
-  if(!el){
-    el = document.createElement('div');
-    el.id = 'app-loading';
-    // display:block, NOT flex (v2.19.18). The skeleton's root is a real .page,
-    // which centres itself with margin:0 auto against its max-width. A flex
-    // parent would size it as a flex item and defeat that -- the box model has
-    // to be the page's own or 7B is pointless.
-    el.style.cssText = 'position:fixed;inset:0;z-index:9998;background:var(--bg);display:block;overflow-y:auto;';
-    el.innerHTML = _bootSkeletonHTML(tab);
-    document.body.appendChild(el);
-  }
-  // v2.21.22 — pin scroll to top so the boot skeleton never appears mid-scroll
-  // (browsers restore the prior scroll on reload; make our control authoritative).
-  try{if('scrollRestoration' in history)history.scrollRestoration='manual';}catch(e){}
-  window.scrollTo(0,0); if(el)el.scrollTop=0;
-  const _m = document.getElementById('app-loading-msg');
-  if(_m) _m.textContent = msg || 'Loading…';
-  // v2.19.19 -- boot app shell. Lifts the nav chrome above this overlay and
-  // makes it inert for the duration. Disarmed in hideLoadingScreen's _finish,
-  // so the overlay and the shell state share one teardown. Safe on the Retry
-  // path: re-adding a class that is already there is a no-op.
-  document.body.classList.add('rt-boot-shell');
-  el.style.display = 'block';
-}
-function hideLoadingScreen(){
-  const el = document.getElementById('app-loading');
-  if(!el) return;
-  if(_bootFadeTimer){ clearTimeout(_bootFadeTimer); _bootFadeTimer = null; }
-  // Remove, don't display:none. showLoadingScreen() rebuilds from scratch when
-  // the element is absent, so removal costs nothing, guarantees a clean opacity:1
-  // start next time, lets the {once:true} listener die with its element, and
-  // stops the skeleton DOM squatting in the tree for the rest of the session.
-  const _finish = function(){
-    if(_bootFadeTimer){ clearTimeout(_bootFadeTimer); _bootFadeTimer = null; }
-    if(el.parentNode) el.remove();
-    // v2.19.19 -- the chrome drops back to its own z-index and goes live. This
-    // must not run before the overlay is gone or the nav is buried mid-dissolve.
-    document.body.classList.remove('rt-boot-shell');
+function _bootRendererForTab(tab){
+  const renderers={
+    summary:function(){renderSummary();},
+    monthly:function(){renderMonthlyPage();},
+    stock:function(){renderStock();},
+    runs:function(){renderRunsPage();},
+    expenses:function(){renderExpenses();},
+    cash:function(){renderCash();},
+    returns:function(){renderReturns();},
+    scrapped:function(){renderScrapped();},
+    activity:function(){renderActivity();},
+    tax:function(){renderTax();},
+    data:function(){renderData();}
   };
-  el.addEventListener('transitionend', function(e){
-    if(e.propertyName === 'opacity') _finish();
-  }, {once:true});
-  // Force a style flush BEFORE the class lands, so the browser has a
-  // before-change style for opacity. Without it, a load that resolves inside a
-  // single task (warm cache, or any future in-memory path) lets the browser
-  // coalesce create+fade into the end state -- the transition silently never
-  // runs and the hard cut is back. Verified both ways in Puppeteer.
-  void el.offsetWidth;
-  el.classList.add('rt-boot-out');
-  // Failsafe ONLY -- transitionend is the real teardown. A fixed timer must
-  // never be the schedule here: measured start of the transition is t+110..130ms
-  // (initDB's synchronous block plus first dashboard paint must clear first),
-  // so any timer counted from this call races an animation it cannot see.
-  // 1200ms is deliberately far past any plausible finish. If the transition
-  // never fires (coalesced away, element hidden), the overlay is already at
-  // opacity 0 + pointer-events:none, so the wait is invisible.
-  _bootFadeTimer = setTimeout(_finish, 1200);
+  return renderers[tab]||renderers.summary;
 }
+
+function _activateBootPage(tab){
+  const safe=['summary','monthly','stock','runs','expenses','cash','returns','scrapped','activity','tax','data'].includes(tab)?tab:'summary';
+  if(typeof _deactivatePages==='function')_deactivatePages();
+  else document.querySelectorAll('.page').forEach(function(page){page.classList.remove('on','rt-boot-noanim');});
+
+  document.querySelectorAll('.tab,.bnt,.side-nav-item').forEach(function(el){el.classList.remove('on');});
+  const page=document.getElementById('p-'+safe);
+  if(page)page.classList.add('on','rt-boot-noanim');
+  document.querySelectorAll('[data-tab="'+safe+'"]').forEach(function(el){el.classList.add('on');});
+
+  if(typeof handleNavResize==='function')handleNavResize();
+  if(typeof _syncFabVisibility==='function')_syncFabVisibility();
+  return safe;
+}
+
+function _loadingItemRows(count){
+  count=count||6;
+  let html='';
+  for(let n=0;n<count;n++){
+    html+='<div class="item-row rt-loading-row" aria-hidden="true">'
+      +'<div class="rt-loading-row-main"><span class="skeleton rt-loading-line rt-loading-line-main"></span>'
+      +'<span class="skeleton rt-loading-line rt-loading-line-sub"></span></div>'
+      +'<span class="skeleton rt-loading-line rt-loading-line-value"></span>'
+      +'</div>';
+  }
+  return html;
+}
+
+function _markLoadingRegions(root){
+  if(!root)return;
+  root.setAttribute('aria-busy','true');
+  root.dataset.loading='true';
+
+  root.querySelectorAll([
+    '[data-cv]','.kpi-value','.summary-hero-value','.metric-v','.inv-stat-v',
+    '.snap-stat-v','.category-mini-val','.age-legend-count','.rh-profit',
+    '.stat-num','.kcard-value','.run-kpi-value','.cash-balance-value'
+  ].join(',')).forEach(function(el){el.classList.add('rt-data-loading');});
+
+  root.querySelectorAll('.summary-hero-chart,.chart-wrap,.chart-container,.summary-chart-body,.monthly-profitability-card .chart-area')
+    .forEach(function(el){el.classList.add('rt-chart-loading');});
+  root.querySelectorAll('svg[id*="chart"],canvas').forEach(function(el){el.classList.add('rt-chart-data-loading');});
+
+  // Only dynamic rows are substituted. The surrounding real page/card/table is
+  // untouched, so its mobile/tablet/desktop geometry remains production CSS.
+  const listTargets=root.querySelectorAll([
+    '.item-table','.run-history-list','.activity-list','.cash-list','.expense-list',
+    '.returns-list','.return-list','.scrapped-list','.data-list'
+  ].join(','));
+  listTargets.forEach(function(el){
+    el.classList.add('rt-list-loading');
+    el.innerHTML=_loadingItemRows(Math.max(5,Math.ceil(((window.innerHeight||800)-360)/58)));
+  });
+
+  // Do not briefly claim that an account has no data while it is still loading.
+  root.querySelectorAll('.empty-state,.empty-state-v2,.no-data,.empty-list').forEach(function(el){el.classList.add('rt-hide-while-loading');});
+}
+
+function _disableLoadingControls(){
+  document.body.classList.add('rt-data-loading-active');
+  document.querySelectorAll([
+    '.page.on button','.page.on input','.page.on select','.page.on textarea',
+    '#fab-dial button','#side-nav button','#side-nav input','nav#nav button','nav#nav input',
+    '#bottom-nav button','#mobile-top-bar button','#nav-search-expand input','#search-fab'
+  ].join(',')).forEach(function(el){
+    if(el.dataset.rtLoadingDisabled==='1')return;
+    el.dataset.rtLoadingWasDisabled=el.disabled?'1':'0';
+    el.dataset.rtLoadingDisabled='1';
+    el.disabled=true;
+    el.setAttribute('aria-disabled','true');
+  });
+}
+
+function _enableLoadingControls(){
+  document.querySelectorAll('[data-rt-loading-disabled="1"]').forEach(function(el){
+    if(el.dataset.rtLoadingWasDisabled!=='1')el.disabled=false;
+    el.removeAttribute('aria-disabled');
+    delete el.dataset.rtLoadingDisabled;
+    delete el.dataset.rtLoadingWasDisabled;
+  });
+  document.body.classList.remove('rt-data-loading-active');
+}
+
+function showRealLayoutLoading(tab,msg){
+  const safe=_activateBootPage(tab);
+  _realLayoutLoading=true;
+  _realLayoutLoadingTab=safe;
+
+  // Remove a stale overlay left by an older cached build; never create one.
+  const oldOverlay=document.getElementById('app-loading');
+  if(oldOverlay)oldOverlay.remove();
+  document.body.classList.remove('rt-boot-shell');
+  document.body.classList.add('rt-real-layout-loading');
+
+  try{
+    if(typeof _ensureDBShape==='function')_ensureDBShape();
+    _bootRendererForTab(safe)();
+  }catch(err){
+    console.warn('[RETRADE] initial real-layout loading render failed:',err);
+  }
+
+  const page=document.getElementById('p-'+safe);
+  _markLoadingRegions(page);
+  _disableLoadingControls();
+
+  try{if('scrollRestoration' in history)history.scrollRestoration='manual';}catch(e){}
+  window.scrollTo(0,0);
+
+  let status=document.getElementById('real-layout-loading-status');
+  if(!status){
+    status=document.createElement('div');
+    status.id='real-layout-loading-status';
+    status.setAttribute('role','status');
+    status.setAttribute('aria-live','polite');
+    status.className='rt-sr-only';
+    document.body.appendChild(status);
+  }
+  status.textContent=msg||'Loading your data…';
+}
+
+function finishRealLayoutLoading(tab){
+  const safe=tab||_realLayoutLoadingTab||'summary';
+  const page=document.getElementById('p-'+safe);
+  if(page){
+    page.removeAttribute('aria-busy');
+    delete page.dataset.loading;
+    page.querySelectorAll('.rt-data-loading,.rt-chart-loading,.rt-chart-data-loading,.rt-list-loading,.rt-hide-while-loading')
+      .forEach(function(el){el.classList.remove('rt-data-loading','rt-chart-loading','rt-chart-data-loading','rt-list-loading','rt-hide-while-loading');});
+  }
+  _enableLoadingControls();
+  document.body.classList.remove('rt-real-layout-loading','rt-boot-shell');
+  const status=document.getElementById('real-layout-loading-status');
+  if(status)status.remove();
+  _realLayoutLoading=false;
+  _realLayoutLoadingTab=null;
+  if(typeof _syncFabVisibility==='function')_syncFabVisibility();
+}
+
+console.info('[RETRADE] v1.4.14 real-layout boot loading loaded');
 
 function refreshActivePage(){
   if(typeof renderSummary==='undefined')return; // called before functions defined

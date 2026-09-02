@@ -1848,115 +1848,77 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
    front-loads, so ~80% of a 5px move completed inside 60ms. --dur-medium +10px
    is visible without feeling slow. */
 .page.on{animation:pageFade var(--dur-medium) var(--ease-out) both;}
-/* v2.19.14 -- §8.1. The boot reveal must NOT run pageFade. The page sits opaque
-   under the dissolving #app-loading overlay, which is what makes the cross-fade
-   read as one surface: two fades stacked dip luminance at the 50/50 point, and
-   pageFade's 10px translate would slide the content against the skeleton
-   mid-dissolve.
-   That was already the behaviour -- but only by luck. p-summary ships .on in
-   the static markup, so initDB's remove-then-add coalesced into no class change
-   and the animation never restarted. A same-session reload landing on Stock was
-   a genuine class change and DID fade, so boot differed by tab. This suppresses
-   it explicitly for whichever tab boot lands on.
-   Removal is the delicate part: taking .rt-boot-noanim off while .on is still
-   present makes .page.on start matching the pageFade rule again and fires a
-   stray fade. So it is ONLY ever cleared in _deactivatePages(), in the same
-   sweep that removes .on -- which is why that sweep is now a helper instead of
-   ten copies of the same line. Specificity (0,3,0) beats .page.on (0,2,0). */
+/* Boot hydration uses the real page from the first frame. Suppress pageFade
+   while that page is being hydrated; _deactivatePages removes the class before
+   normal navigation, so subsequent page switches keep the standard motion. */
 .page.on.rt-boot-noanim{animation:none;}
 
-/* Boot cross-fade (v2.19.0 -- 7C)
-   #app-loading is an opaque z-index:9998 overlay. hideLoadingScreen() used to
-   set display:none -- a hard cut. The page underneath then started pageFade
-   from opacity 0, so the eye caught a flash of bare --bg between the two.
-   The overlay now dissolves while the page fades in underneath it. Both run
-   --dur-medium and start on the SAME paint: initDB() calls hideLoadingScreen(),
-   renderSummary() and .classList.add('on') inside one synchronous block, so no
-   style recalc happens between them. _animateKPIs' 700ms reveal is kicked off
-   in that same block -- it is already ~40% through as the skeleton thins out,
-   which is the point: the skeleton's KPI blocks dissolve into real cards that
-   are already moving.
-   opacity + transition live in CSS, NOT inline -- same lesson as #more-sheet
-   (v2.17.1), where an inline transition was deleted by style.transition=''
-   instead of restored. Only `display` stays inline; showLoadingScreen owns it.
-   prefers-reduced-motion: the global killswitch (~line 1655) clamps the
-   transition to .01ms, so the overlay snaps to opacity 0 and the teardown timer
-   hides it. No JS motion check needed here -- unlike the count-up, this IS a
-   CSS transition, so the killswitch does cover it. */
-#app-loading{opacity:1;transition:opacity var(--dur-medium) var(--ease-out);}
-#app-loading.rt-boot-out{opacity:0;pointer-events:none;}
-
-/* Boot app shell (v2.19.19)
-   The skeleton had no nav. Measured pre-patch (test_shell.js): at 1440 the
-   sidebar was display:none for the entire load and the 240px the overlay
-   politely padded around (8.9) was flat --bg; at 800 and 390 the top/bottom
-   bars WERE displayed but sat under the z-index:9998 overlay. So on every
-   viewport the whole chrome arrived in one pop at the dissolve, next to a
-   content column that cross-faded. One thing moved, one thing teleported.
-
-   The fix is NOT to skeleton the nav. A skeleton is a promise that data is
-   coming, and the nav has no data coming: the brand, the search field and
-   every item label are static markup that exist at first paint. Shimmering
-   them would invent a wait that is not happening — and it would be §4's
-   "described the page instead of being it" mistake made on the one region of
-   the UI where the real thing is already sitting there, free. So the real
-   chrome is what shows. The overlay stops being a screen over the app and
-   becomes a screen over the app's CONTENT, which is the only part that waits.
-
-   The genuinely data-driven bits are already honest without help: the stock
-   badge is inline display:none, the run dot is appended by JS, and both appear
-   with the data that justifies them.
-
-   z-index 9999 clears the overlay's 9998. It is scoped to the boot class, not
-   given to the chrome permanently — modals (1000-1201) must keep winning after
-   boot. #auth-overlay is also 9999 but is display:none before this class can
-   exist (showApp hides it, then initDB shows the overlay).
-
-   pointer-events:none because the chrome is visible, not ready: DB is empty until
-   the load resolves, so a nav item clicked here would render an empty page that
-   initDB then overwrites. It goes live with the same _finish that removes the
-   overlay — one teardown, not two. The ~280ms of the dissolve is not a window
-   anyone clicks in.
-
-   Deliberately no display/opacity work here: the chrome is not fading in, it
-   was never gone. That is the whole point. */
-body.rt-boot-shell #side-nav,
-body.rt-boot-shell #mobile-top-bar,
-body.rt-boot-shell nav#nav,
-body.rt-boot-shell #bottom-nav{z-index:9999;pointer-events:none;}
-
-/* v2.19.18 -- 7B. The skeleton is built from the real page classes, so it needs
-   .page to be visible without .on. It must NOT use .on: that matches the
-   pageFade rule (~1663) and the skeleton would fade in over the loading
-   backdrop for no reason.
-   Everything else about the box -- max-width 1100/1280/1600, the padding ramp,
-   margin:0 auto -- comes from .page itself and therefore cannot drift from the
-   page this dissolves into. That drift is exactly what 7B existed to kill. */
-/* Wordmark accent — the TRADE half. v2.19.23.
-   Marketing sets RE white / TRADE gold and always has; the V1 login markup did
-   too until the v2.19.20 reskin flattened it. One rule, four consumers (three
-   nav slots + login), so the split cannot drift between them. Tokenised, so it
-   follows the theme like everything else -- and inside #auth-overlay it picks up
-   that subtree's pinned --brand automatically. */
+/* ========================================================================== 
+   v1.4.14 — REAL-LAYOUT LOADING
+   Production layout stays mounted. Only data-bearing surfaces load.
+   ========================================================================== */
 .rt-word-accent{color:var(--brand);}
-.rt .page.rt-skel{display:block;}
-/* The real classes carry interaction affordances (cursor:pointer, hover borders,
-   :active transform). Nothing here is clickable, and #app-loading is
-   pointer-events:none only AFTER .rt-boot-out lands, so suppress them. */
-/* .rt-skel-summary / .rt-skel-monthly: .page geometry is NOT only class-driven.
-   Six rules scope padding/max-width to a page ID (search `#p-summary.page`), and
-   an ID is the one thing a skeleton cannot borrow. Each of those rules therefore
-   carries a `.rt .rt-skel-<tab>.page` partner selector so the skeleton resolves
-   to the same box as the page it dissolves into. Summary alone runs a private
-   padding ramp of 14/16/18/20/22px across five breakpoints -- get this wrong and
-   the content visibly steps sideways at the handover.
-   This duplication is guarded, not trusted: test_7b.js G7 enumerates every
-   `#p-X.page` rule and fails on any that lacks a partner. Add a 7th ID rule and
-   the test tells you. Do NOT rely on remembering. */
-.rt .rt-skel .card,
-.rt .rt-skel .kpi{cursor:default!important;transform:none!important;}
-.rt .rt-skel .card:hover,
-.rt .rt-skel .kpi:hover{border-color:var(--border)!important;transform:none!important;}
+
+.rt-sr-only{
+  position:absolute!important;width:1px!important;height:1px!important;padding:0!important;
+  margin:-1px!important;overflow:hidden!important;clip:rect(0,0,0,0)!important;
+  white-space:nowrap!important;border:0!important;
+}
+@keyframes rt-data-shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
+
+.rt-real-layout-loading .rt-data-loading{
+  color:transparent!important;text-shadow:none!important;border-radius:6px;min-width:2.5ch;
+  background:linear-gradient(90deg,var(--surface2) 0%,var(--border) 45%,var(--surface2) 100%);
+  background-size:220% 100%;animation:rt-data-shimmer 1.3s ease-in-out infinite;user-select:none;
+}
+.rt-real-layout-loading .kpi-value.rt-data-loading,
+.rt-real-layout-loading .summary-hero-value.rt-data-loading,
+.rt-real-layout-loading .metric-v.rt-data-loading,
+.rt-real-layout-loading .inv-stat-v.rt-data-loading,
+.rt-real-layout-loading .snap-stat-v.rt-data-loading{display:inline-block;min-width:4.5ch;}
+
+.rt-real-layout-loading .rt-chart-loading{position:relative;overflow:hidden;}
+.rt-real-layout-loading .rt-chart-loading>*{opacity:0;}
+.rt-real-layout-loading .rt-chart-loading::after{
+  content:'';position:absolute;inset:0;border-radius:inherit;pointer-events:none;
+  background:linear-gradient(90deg,transparent 0%,color-mix(in srgb,var(--border) 60%,transparent) 50%,transparent 100%);
+  background-size:220% 100%;animation:rt-data-shimmer 1.4s ease-in-out infinite;
+}
+.rt-real-layout-loading .rt-chart-data-loading{opacity:.08!important;}
+
+.rt-real-layout-loading .rt-list-loading{min-height:180px;position:relative;}
+.rt-real-layout-loading .rt-hide-while-loading{display:none!important;}
+.rt-loading-row{pointer-events:none!important;cursor:default!important;display:flex;align-items:center;gap:12px;}
+.rt-loading-row-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:7px;}
+.rt-loading-line{display:block!important;border-radius:6px!important;}
+.rt-loading-line-main{width:42%;height:11px;}
+.rt-loading-line-sub{width:24%;height:9px;}
+.rt-loading-line-value{width:58px;height:14px;flex:none;}
+
+.rt-data-loading-active button:disabled,
+.rt-data-loading-active input:disabled,
+.rt-data-loading-active select:disabled,
+.rt-data-loading-active textarea:disabled{cursor:not-allowed!important;}
+.rt-data-loading-active .page.on button:disabled,
+.rt-data-loading-active .page.on input:disabled,
+.rt-data-loading-active .page.on select:disabled,
+.rt-data-loading-active .page.on textarea:disabled{opacity:.62;}
+.rt-data-loading-active #side-nav button:disabled,
+.rt-data-loading-active nav#nav button:disabled,
+.rt-data-loading-active #bottom-nav button:disabled,
+.rt-data-loading-active #mobile-top-bar button:disabled{opacity:1;}
+.rt-data-loading-active #fab-dial{pointer-events:none;}
+
+.rt-load-error{display:flex;align-items:center;gap:12px;padding:14px 16px;margin-bottom:18px;border:1px solid color-mix(in srgb,var(--red) 50%,var(--border));background:var(--red-dim);border-radius:12px;}
+.rt-load-error-icon{width:32px;height:32px;flex:none;display:grid;place-items:center;border-radius:50%;background:var(--red);color:#fff;font-weight:800;}
+.rt-load-error-copy{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px;}
+.rt-load-error-copy strong{font-size:13px;}
+.rt-load-error-message{font-size:12px;color:var(--text-secondary);}
+
+@media(prefers-reduced-motion:reduce){
+  .rt-real-layout-loading .rt-data-loading,
+  .rt-real-layout-loading .rt-chart-loading::after{animation:none!important;}
+}
 
 /* Chart draw-in (v2.19.2 -- 7A)
    Lines draw left-to-right via stroke-dashoffset; the area fill and the dots
@@ -3144,18 +3106,6 @@ svg.cat-donut-draw circle.donut-seg-last{
   .rt #p-monthly #monthly-profitability-svg{min-height:200px;}
 }
 
-/* v2.19.44 — Sales History boot skeleton borrows #p-monthly layout classes,
-   which are ID-scoped (a skeleton root cannot match #p-monthly). Mirror the
-   layout-critical ones onto .rt-skel-monthly so the grid/detail skeletons
-   reflow exactly like the real page. */
-.rt .rt-skel-monthly .monthly-charts-row{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr);gap:16px;margin-bottom:18px;align-items:stretch;}
-.rt .rt-skel-monthly .monthly-charts-row>.card{margin-bottom:0;grid-column:auto!important;grid-row:auto!important;order:0!important;min-width:0;}
-.rt .rt-skel-monthly .monthly-profitability-card{display:flex;flex-direction:column;padding:22px;margin-bottom:18px;}
-.rt .rt-skel-monthly .money-flow-card{display:flex;flex-direction:column;padding:22px;}
-.rt .rt-skel-monthly .sales-kpis-v2{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px;margin-bottom:18px;}
-@media(max-width:980px){.rt .rt-skel-monthly .sales-kpis-v2{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;}}
-@media(max-width:860px){.rt .rt-skel-monthly .monthly-charts-row{grid-template-columns:minmax(0,1fr);}}
-@media(max-width:600px){.rt .rt-skel-monthly .monthly-profitability-card{padding:16px;border-radius:18px;}}
 .rt .summary-categories-empty{display:none;}
 .rt .summary-cat-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;gap:8px;}
 .rt .summary-cat-count{font-size:10px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.06em;}
@@ -3897,7 +3847,7 @@ svg.cat-donut-draw circle.donut-seg-last{
 /* Ultra-wide: cap Sales History content so list rows keep a readable line
    length instead of stretching to the global 1600px page width. */
 @media(min-width:1400px){
-  .rt #p-monthly.page,.rt .rt-skel-monthly.page{max-width:1400px;}
+  .rt #p-monthly.page{max-width:1400px;}
 }
 
 /* ── Runs KPI cards — V2 flat treatment (v2.11.0) ───────────────────────────
@@ -4608,24 +4558,6 @@ svg.cat-donut-draw circle.donut-seg-last{
   .rt nav#nav{display:none!important;}
   body.rt{margin-left:var(--sidebar-w);}
 
-  /* v2.19.18 -- 8.9. The boot overlay must sit in the same content column as the
-     page it dissolves into, or the skeleton hands over to content 240px to its
-     right (measured: test_7b.js G8).
-     #app-loading is position:fixed;inset:0, and fixed resolves against the
-     VIEWPORT -- it ignores body's margin box by design. That is why 7B's
-     class-level rebuild could not fix this on its own: the overlay is outside
-     the flow that carries the offset, so no amount of borrowing real classes
-     reaches it. It has to be told.
-     PADDING, not margin: the border box must stay full-width so the backdrop
-     still covers the sidebar strip (body's background is a gradient, the
-     overlay's is flat var(--bg) -- shrink the box and a seam appears at x=240).
-     padding insets only the content, so the skeleton's .page centres inside a
-     box identical to body's content box: starts at --sidebar-w, ends at the
-     right edge. Same token, same breakpoint, same source of truth as the
-     body rule directly above -- change --sidebar-w and both follow. Do NOT
-     substitute a literal 240px here. */
-  #app-loading{padding-left:var(--sidebar-w);}
-
   /* Shell — fixed, full-height, canvas-continuous chrome */
   .rt #side-nav{
     position:fixed;left:0;top:0;bottom:0;
@@ -5068,7 +5000,7 @@ svg.cat-donut-draw circle.donut-seg-last{
    Keeps the dashboard sections visually even from phone through narrow desktop. */
 @media(max-width:600px){
   body.rt{padding-bottom:calc(82px + env(safe-area-inset-bottom,0px))!important;}
-  .rt #p-summary.page,.rt .rt-skel-summary.page{padding:18px 16px calc(104px + env(safe-area-inset-bottom,0px))!important;}
+  .rt #p-summary.page{padding:18px 16px calc(104px + env(safe-area-inset-bottom,0px))!important;}
   .rt #p-summary .summary-header{margin:2px 0 18px!important;gap:12px!important;align-items:center!important;}
   .rt #p-summary .summary-title{font-size:24px!important;line-height:1.05!important;}
   .rt #p-summary .summary-period-sel{height:38px!important;min-width:136px!important;border-radius:14px!important;}
@@ -5115,7 +5047,7 @@ svg.cat-donut-draw circle.donut-seg-last{
 }
 
 @media(max-width:380px){
-  .rt #p-summary.page,.rt .rt-skel-summary.page{padding-left:14px!important;padding-right:14px!important;}
+  .rt #p-summary.page{padding-left:14px!important;padding-right:14px!important;}
   .rt #p-summary .summary-period-sel{min-width:124px!important;}
   .rt #p-summary .summary-hero-card .summary-hero-value{font-size:36px!important;line-height:40px!important;}
   .rt #p-summary .summary-inventory .age-legend{gap:6px!important;}
@@ -5123,7 +5055,7 @@ svg.cat-donut-draw circle.donut-seg-last{
 }
 
 @media(min-width:601px) and (max-width:1280px){
-  .rt #p-summary.page,.rt .rt-skel-summary.page{padding-left:20px!important;padding-right:20px!important;padding-bottom:calc(96px + env(safe-area-inset-bottom,0px))!important;}
+  .rt #p-summary.page{padding-left:20px!important;padding-right:20px!important;padding-bottom:calc(96px + env(safe-area-inset-bottom,0px))!important;}
   .rt #p-summary .summary-header{margin:4px 0 18px!important;gap:14px!important;align-items:center!important;}
   .rt #p-summary .summary-grid-v3{gap:18px!important;align-items:stretch!important;}
   .rt #p-summary .summary-grid-v3 > *,
@@ -5152,7 +5084,7 @@ svg.cat-donut-draw circle.donut-seg-last{
 }
 
 @media(min-width:601px) and (max-width:799px){
-  .rt #p-summary.page,.rt .rt-skel-summary.page{padding-left:18px!important;padding-right:18px!important;}
+  .rt #p-summary.page{padding-left:18px!important;padding-right:18px!important;}
   .rt #p-summary .summary-grid-v3{grid-template-columns:1fr!important;gap:18px!important;}
   .rt #p-summary .summary-kpis-v3,
   .rt #p-summary .summary-chart-card,
@@ -5182,7 +5114,7 @@ svg.cat-donut-draw circle.donut-seg-last{
 }
 
 @media(min-width:1000px) and (max-width:1280px){
-  .rt #p-summary.page,.rt .rt-skel-summary.page{max-width:1180px!important;padding-left:22px!important;padding-right:22px!important;}
+  .rt #p-summary.page{max-width:1180px!important;padding-left:22px!important;padding-right:22px!important;}
   .rt #p-summary .summary-grid-v3,
   .rt #p-summary .summary-kpis-v3{gap:20px!important;}
   .rt #p-summary .summary-panel{padding:22px!important;}
