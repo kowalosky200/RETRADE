@@ -1,0 +1,59 @@
+name: Validate neutral old-style loading visuals
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/loading-neutral-v1422.yml'
+      - '.github/scripts/apply_loading_neutral_v1422.py'
+permissions:
+  contents: write
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: python .github/scripts/apply_loading_neutral_v1422.py
+      - name: Static gate
+        run: |
+          node --check app.js
+          python - <<'PY'
+          from pathlib import Path
+          js=Path('app.js').read_text(encoding='utf-8'); css=Path('app.css').read_text(encoding='utf-8'); idx=Path('index.html').read_text(encoding='utf-8')
+          for t in ["var VERSION='1.4.13-2026-09-02'",'v1.4.15 stable return identity loaded','v1.4.16 bulk platform editing loaded','v1.4.17 terminal disposal durability loaded','v1.4.20 populated real-layout loading shell loaded','v1.4.21 old-look real-layout skeleton loaded','v1.4.22 neutral loading visuals loaded']: assert t in js,t
+          assert '.rt-real-layout-loading .age-bar-seg' in css
+          assert '.rt-real-layout-loading #p-summary .summary-hero-card svg' in css
+          assert './app.js?v=1.4.22' in idx and './app.css?v=1.4.22' in idx
+          PY
+      - name: Install Chromium
+        run: |
+          npm init -y >/dev/null 2>&1
+          npm install --silent playwright@1.55.0
+          npx playwright install --with-deps chromium >/dev/null
+      - name: Visual gate
+        run: |
+          python -m http.server 4173 >/tmp/http.log 2>&1 &
+          cat >/tmp/test.js <<'JS'
+          const {chromium}=require('playwright');const fs=require('fs');
+          (async()=>{const b=await chromium.launch({headless:true});fs.mkdirSync('v1422-visuals',{recursive:true});
+          for(const spec of [{n:'mobile-summary',tab:'summary',w:390,h:844},{n:'desktop-summary',tab:'summary',w:1440,h:900},{n:'desktop-stock',tab:'stock',w:1440,h:900},{n:'desktop-monthly',tab:'monthly',w:1440,h:900}]){
+            const p=await b.newPage({viewport:{width:spec.w,height:spec.h}});await p.goto('http://127.0.0.1:4173/index.html',{waitUntil:'domcontentloaded'});await p.waitForFunction(()=>typeof showRealLayoutLoading==='function');
+            await p.evaluate((tab)=>{const a=document.getElementById('auth-overlay');if(a)a.style.display='none';const ol=document.getElementById('app-loading');if(ol)ol.remove();document.body.classList.add('rt-app-visible');if(typeof DB==='object'&&DB){Object.keys(DB).forEach(k=>{if(/^[A-Z]{3}-\d{2}$/.test(k))delete DB[k];});DB.expenses=[];DB.trips=[];DB.cashLedger=[];DB.sourcingRuns=[];}showRealLayoutLoading(tab,'test');let n=document.getElementById('p-'+tab);while(n&&n!==document.body){const cs=getComputedStyle(n);if(cs.display==='none')n.style.display='block';if(cs.visibility==='hidden')n.style.visibility='visible';if(+cs.opacity===0)n.style.opacity='1';n=n.parentElement;}},spec.tab);
+            await p.waitForTimeout(120);
+            const s=await p.evaluate(()=>{const page=document.querySelector('.page.on');const parse=s=>{const m=s&&s.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);return m?[+m[1],+m[2],+m[3]]:null};const green=rgb=>rgb&&rgb[1]>rgb[0]*1.25&&rgb[1]>rgb[2]*1.08&&rgb[1]>75;const bad=[];for(const el of page.querySelectorAll('.age-bar-seg,.age-legend-dot,.legend-dot')){const cs=getComputedStyle(el);if(green(parse(cs.backgroundColor)))bad.push({cls:el.className,bg:cs.backgroundColor});}return{onboarding:/Start your RETRADE workspace/i.test(page.innerText||''),labels:page.querySelectorAll('.rt-label-loading').length,values:page.querySelectorAll('.rt-data-loading').length,bad};});
+            if(s.onboarding||s.labels<1||s.values<1||s.bad.length)throw new Error(spec.n+' bad '+JSON.stringify(s));
+            await p.screenshot({path:'v1422-visuals/'+spec.n+'.png',fullPage:true});await p.close();}
+          await b.close();})().catch(e=>{console.error(e);process.exit(1)});
+          JS
+          NODE_PATH="$PWD/node_modules" node /tmp/test.js
+      - uses: actions/upload-artifact@v4
+        with:
+          name: retrade-v1422-loading-visuals
+          path: v1422-visuals/*.png
+          retention-days: 7
+      - name: Commit production patch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app.js app.css index.html
+          git commit -m "fix(ui): neutralise final loading data accents"
+          git push
