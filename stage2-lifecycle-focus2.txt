@@ -1,0 +1,1268 @@
+# RETRADE return persistence focus
+
+## Core child persistence
+003245:         const strictErr=new Error('Database schema is out of date ('+label+'.'+col+'). Apply the RETRADE launch migration before using this version.');
+003246:         strictErr.cause=error;
+003247:         return {error:strictErr, stripped};
+003248:       }
+003249:       if(Array.isArray(payload)) payload.forEach(r=>{ delete r[col]; });
+003250:       else delete payload[col];
+003251:       stripped.push(col);
+003252:       continue;
+003253:     }
+003254:     return {error, stripped}; // not a missing-column error → real failure, surface it
+003255:   }
+003256:   return {error:new Error('Too many missing columns on '+label+' — run the Supabase migration.'), stripped};
+003257: }
+003258: 
+003259: // Replace child rows without deleting the only durable copy first.
+003260: // The old implementation deleted parts/returns and only then inserted the new
+003261: // snapshot. A network/schema failure between those calls could permanently
+003262: // erase child history. This staged replacement inserts the new snapshot first,
+003263: // then removes the old row ids; on a delete failure it makes a best-effort
+003264: // rollback of the newly inserted rows and surfaces the error.
+003265: async function _replaceChildRowsSafe(table, itemId, rows, label){
+003266:   const uid=_currentUserId;
+003267:   const existing=await _sbCall(()=>_sb.from(table).select('id').eq('item_id',itemId).eq('user_id',uid));
+003268:   if(existing.error) throw new Error('Load existing '+label+' failed: '+existing.error.message);
+003269:   const oldIds=(existing.data||[]).map(r=>r.id).filter(id=>id!=null);
+003270:   let insertedIds=[];
+003271: 
+003272:   if(rows.length){
+003273:     const ins=await _sbWriteFallback(
+003274:       p=>_sb.from(table).insert(p).select('id'),
+003275:       rows,
+003276:       label
+003277:     );
+003278:     if(ins.error) throw new Error('Save '+label+' failed: '+ins.error.message);
+003279:     insertedIds=(ins.data||[]).map(r=>r.id).filter(id=>id!=null);
+003280:   }
+003281: 
+003282:   if(oldIds.length){
+003283:     const del=await _sbCall(()=>_sb.from(table).delete().in('id',oldIds).eq('user_id',uid));
+003284:     if(del.error){
+003285:       if(insertedIds.length){
+003286:         try{ await _sbCall(()=>_sb.from(table).delete().in('id',insertedIds).eq('user_id',uid)); }catch(e){}
+003287:       }
+003288:       throw new Error('Replace '+label+' failed while removing the old snapshot: '+del.error.message);
+003289:     }
+003290:   }
+003291: }
+003292: 
+003293: // Upserts the item row, then replaces its parts and returns in full.
+003294: 
+003295: async function saveItemToSupabase(m, i){
+003296:   // Hard-throw on any invalid state BEFORE building the row — if this fires,
+003297:   // the bad path is immediately visible in the console with the item id and
+003298:   // the value that would have been sent. Never silently corrupt the DB.
+003299:   const _VALID_STATES = ['sourced','listed','sold','returned'];
+003300:   if (!_VALID_STATES.includes(i.state)) {
+003301:     const msg = '[E8] GUARD: invalid state on save — refusing upsert. state=' + JSON.stringify(i.state) + ' id=' + i.id;
+003302:     console.error(msg, i);
+003303:     throw new Error(msg);
+003304:   }
+003305: 
+003306:   const row = _itemToRow(i, m);
+003307: 
+003308:   // E8 verified 2026-05-11: previous upsert bug was server-side CHECK constraint
+003309:   // missing 'sourced' after E6 rename. Boundary guard above provides defence
+003310:   // against future regression. Debug log removed — bug confirmed fixed.
+003311: 
+003312:   // Upsert main item row — conflict on (id, user_id) so two users with the same
+003313:   // item ID never overwrite each other. Any column the DB hasn't migrated yet
+003314:   // (sale_platform, resale_listing_fee, account_*, …) is stripped-and-retried by
+003315:   // _sbWriteFallback so the row STILL persists instead of the whole save throwing
+003316:   // and the item silently reverting on reload (was the "sold → listed" data loss).
+003317:   const {error: itemErr} = await _sbWriteFallback(
+003318:     p => _upsertOwned('items',p,'id,user_id'), row, 'items');
+003319:   if(itemErr) throw new Error('Save item failed: ' + itemErr.message);
+003320: 
+003321:   // Replace child snapshots safely. New rows are inserted before the old
+003322:   // durable snapshot is removed, avoiding delete-then-fail data loss.
+003323:   const partsRows = (i.parts||[]).map(p => ({
+003324:     item_id:     i.id,
+003325:     user_id:     _currentUserId || null,
+003326:     description: p.desc || p.description || '',
+003327:     cost:        Number(p.cost) || 0,
+003328:     date:        p.date || null,
+003329:   }));
+003330:   await _replaceChildRowsSafe('item_parts', i.id, partsRows, 'item_parts');
+003331: 
+003332:   const retRows = (i.returnHistory||[]).map(r => ({
+003333:     item_id:       i.id,
+003334:     user_id:       _currentUserId || null,
+003335:     logged_at:     r.loggedAt || null,
+003336:     sale_no:       r.saleNo || 1,
+003337:     type:          r.type || null,
+003338:     refund_amount: Number(r.refundAmount) || 0,
+003339:     return_postage:Number(r.returnPostage) || 0,
+003340:     notes:         r.notes || null,
+003341:     relisted_at:   r._relistedAt || null,
+003342:     relist_condition: r._relistCondition || null,
+003343:     sale_price_at_return: r._salePriceAtReturn!=null ? Number(r._salePriceAtReturn) : null,
+003344:     date_sold_at_return:  r._dateSoldAtReturn || null,
+003345:     postage_at_return:    r._postageAtReturn!=null ? Number(r._postageAtReturn) : null,
+003346:     platform_at_return:   r._platformAtReturn || null,
+003347:     promo_percent_at_return: r._promoPercentAtReturn!=null ? Number(r._promoPercentAtReturn) : null,
+003348:     shipping_cost_at_return: r._shippingCostAtReturn!=null ? Number(r._shippingCostAtReturn) : null,
+003349:     packaging_cost_at_return:r._packagingCostAtReturn!=null ? Number(r._packagingCostAtReturn) : null,
+003350:     listing_fee_at_return:   r._listingFeeAtReturn!=null ? Number(r._listingFeeAtReturn) : null,
+003351:     bundle_id_at_return:     r._bundleIdAtReturn || null,
+003352:     bundle_ref_at_return:    r._bundleRefAtReturn || null,
+003353:     bundle_total_at_return:  r._bundleTotalAtReturn!=null ? Number(r._bundleTotalAtReturn) : null,
+003354:     platform_at_relist:      r._platformAtRelist || null,
+003355:     listing_fee_at_relist:   r._listingFeeAtRelist!=null ? Number(r._listingFeeAtRelist) : null,
+003356:     sale_price_at_relist:    r._salePriceAtRelist!=null ? Number(r._salePriceAtRelist) : null,
+003357:     postage_at_relist:       r._postageAtRelist!=null ? Number(r._postageAtRelist) : null,
+003358:     shipping_cost_at_relist: r._shippingCostAtRelist!=null ? Number(r._shippingCostAtRelist) : null,
+003359:     packaging_cost_at_relist:r._packagingCostAtRelist!=null ? Number(r._packagingCostAtRelist) : null,
+003360:     promo_percent_at_relist: r._promoPercentAtRelist!=null ? Number(r._promoPercentAtRelist) : null,
+003361:     sd_rate_idx_at_relist:   r._sdRateIdxAtRelist!=null ? Number(r._sdRateIdxAtRelist) : null,
+003362:     sd_buyer_pays_at_relist: r._sdBuyerPaysAtRelist!=null ? !!r._sdBuyerPaysAtRelist : null,
+003363:   }));
+003364:   await _replaceChildRowsSafe('item_returns', i.id, retRows, 'item_returns');
+003365: }
+003366: 
+003367: // item_parts and item_returns cascade on delete via FK, so just delete item row.
+003368: 
+003369: async function deleteItemFromSupabase(id){
+003370:   const {error} = await _sbCall(()=>_sb.from('items').delete().eq('id', id).eq('user_id', _currentUserId));
+003371:   if(error) throw new Error('Delete failed: ' + error.message);
+003372: }
+003373: 
+003374: 
+003375: async function saveTripToSupabase(t){
+003376:   const row = {
+003377:     id:t.id, user_id:_currentUserId||null, date:t.date,
+003378:     description:t.description||'', mileage:t.mileage||0,
+003379:     rate_per_mile:t.ratePerMile||0.45,
+003380:     // BUG-07: persist per-trip expenses as JSONB
+
+## v1.4.9 merge + stable return persistence
+025230:  * Fixes the live regression reproduced with:
+025231:  * Sold -> Return 1 -> Relist -> Sold 2 -> Return 2.
+025232:  *
+025233:  * Key rules:
+025234:  *  - a large stale recovery queue is quarantined, never blindly replayed;
+025235:  *  - normal persistence does NOT reload/rebase the whole cloud before every
+025236:  *    local write (v1.4.8's loop could re-apply hundreds of old snapshots);
+025237:  *  - item-return rows are stable event records: existing ids are updated,
+025238:  *    new events append, and unrelated remote history is not implicitly deleted;
+025239:  *  - explicit user undo is the only path that tombstones return-event rows;
+025240:  *  - stale item recovery merges against its saved base where possible; a
+025241:  *    legacy stale snapshot with no trustworthy base is quarantined instead of
+025242:  *    silently overwriting a newer cloud lifecycle.
+025243:  * ======================================================================== */
+025244: (function(){
+025245:   'use strict';
+025246:   var VERSION='1.4.9-2026-09-01';
+025247:   var BULK_RECOVERY_LIMIT=100;
+025248:   var OUTBOX_QUARANTINE_BASE='retrade_outbox_quarantine_v149';
+025249:   var RETURN_CONFLICT_BASE='retrade_return_conflicts_v149';
+025250:   var _returnDeleteIds=new Set();
+025251: 
+025252:   function _clone(v){try{return JSON.parse(JSON.stringify(v));}catch(e){return v;}}
+025253:   function _eq(a,b){try{return JSON.stringify(a)===JSON.stringify(b);}catch(e){return a===b;}}
+025254:   function _itemCloud(id){
+025255:     try{
+025256:       var ks=allDBKeys();
+025257:       for(var n=0;n<ks.length;n++){
+025258:         var arr=DB[ks[n]]||[];
+025259:         for(var j=0;j<arr.length;j++)if(arr[j]&&String(arr[j].id)===String(id))return arr[j];
+025260:       }
+025261:     }catch(e){}
+025262:     return null;
+025263:   }
+025264:   function _rev(id){
+025265:     try{return window.RETRADE_V14_REVISION?Number(window.RETRADE_V14_REVISION.revisionFor(id))||0:0;}catch(e){return 0;}
+025266:   }
+025267:   function _parseItemFp(fp){
+025268:     if(!fp)return null;
+025269:     try{var p=fp.lastIndexOf('|');return JSON.parse(fp.slice(0,p));}catch(e){return null;}
+025270:   }
+025271:   function _returnKey(r){
+025272:     if(!r)return'';
+025273:     if(r.id!=null)return'id:'+String(r.id);
+025274:     return [
+025275:       'ev',Number(r.saleNo||r.sale_no)||1,r.type||'',
+025276:       String(r.loggedAt||r.logged_at||''),
+025277:       String(r._dateSoldAtReturn||r.date_sold_at_return||''),
+025278:       String(r._salePriceAtReturn!=null?r._salePriceAtReturn:(r.sale_price_at_return!=null?r.sale_price_at_return:''))
+025279:     ].join('|');
+025280:   }
+025281:   function _mergeReturnEvents(base,local,remote){
+025282:     base=Array.isArray(base)?base:[];local=Array.isArray(local)?local:[];remote=Array.isArray(remote)?remote:[];
+025283:     var bm=new Map(base.map(function(x){return[_returnKey(x),x];}));
+025284:     var lm=new Map(local.map(function(x){return[_returnKey(x),x];}));
+025285:     var rm=new Map(remote.map(function(x){return[_returnKey(x),x];}));
+025286:     var order=[];
+025287:     remote.concat(local).forEach(function(x){var k=_returnKey(x);if(k&&!order.includes(k))order.push(k);});
+025288:     var out=[];
+025289:     order.forEach(function(k){
+025290:       var hb=bm.has(k),hl=lm.has(k),hr=rm.has(k),b=bm.get(k),l=lm.get(k),r=rm.get(k);
+025291:       if(hb&&!hl){
+025292:         // Local explicitly removed this event. Honour the delete only when the
+025293:         // remote copy is unchanged from the user's base; otherwise preserve the
+025294:         // concurrently changed cloud event for review.
+025295:         if(hr&&!_eq(r,b))out.push(_clone(r));
+025296:         return;
+025297:       }
+025298:       if(!hb&&hl&&!hr){out.push(_clone(l));return;}
+025299:       if(!hb&&!hl&&hr){out.push(_clone(r));return;}
+025300:       if(!hb&&hl&&hr){out.push(Object.assign({},_clone(r),_clone(l)));return;}
+025301:       if(hl&&hr){
+025302:         var merged={};
+025303:         var keys=new Set(Object.keys(b||{}).concat(Object.keys(l||{}),Object.keys(r||{})));
+025304:         keys.forEach(function(key){
+025305:           var bv=b&&b[key],lv=l&&l[key],rv=r&&r[key];
+025306:           merged[key]=_eq(lv,bv)?_clone(rv):_clone(lv);
+025307:         });
+025308:         if(r&&r.id!=null)merged.id=r.id;else if(l&&l.id!=null)merged.id=l.id;
+025309:         out.push(merged);return;
+025310:       }
+025311:       if(hl)out.push(_clone(l));else if(hr)out.push(_clone(r));
+025312:     });
+025313:     return out.sort(function(a,b){return String(a.loggedAt||'').localeCompare(String(b.loggedAt||''))||((Number(a.saleNo)||1)-(Number(b.saleNo)||1));});
+025314:   }
+025315:   function _threeWayItem(base,local,remote){
+025316:     base=base||{};local=local||{};remote=remote||{};
+025317:     var out={};
+025318:     var keys=new Set(Object.keys(base).concat(Object.keys(local),Object.keys(remote)));
+025319:     keys.forEach(function(k){
+025320:       if(k==='_cloudRevision'||k==='_cloudUpdatedAt')return;
+025321:       if(k==='returnHistory'){
+025322:         out.returnHistory=_mergeReturnEvents(base.returnHistory,local.returnHistory,remote.returnHistory);
+025323:         return;
+025324:       }
+025325:       var bv=base[k],lv=local[k],rv=remote[k];
+025326:       out[k]=_eq(lv,bv)?_clone(rv):_clone(lv);
+025327:     });
+025328:     if(local.id!=null)out.id=local.id;
+025329:     return out;
+025330:   }
+025331:   function _quarantineObject(prefix,obj,reason){
+025332:     try{
+025333:       var key=prefix+'_'+(_currentUserId||'anon')+'_'+Date.now();
+025334:       localStorage.setItem(key,JSON.stringify({reason:reason,createdAt:new Date().toISOString(),entries:obj}));
+025335:       return key;
+025336:     }catch(e){console.warn('[RETRADE] quarantine write failed:',e&&e.message);return null;}
+025337:   }
+025338: 
+025339:   // Every NEW item outbox entry carries the business JSON the user actually
+025340:   // edited from. This enables a real three-way lifecycle merge on recovery.
+025341:   if(typeof _outboxEntry==='function'){
+025342:     var _baseOutboxEntry=_outboxEntry;
+025343:     _outboxEntry=function(key,fp){
+025344:       var e=_baseOutboxEntry.apply(this,arguments);
+025345:       try{
+025346:         if(e&&String(key||'').indexOf('item:')===0){
+025347:           var baseFp=_dbSnapshot&&_dbSnapshot[key];
+025348:           var base=_parseItemFp(baseFp);
+025349:           if(base)e.baseItemJson=JSON.stringify(base);
+025350:           e.v=149;
+025351:         }
+025352:       }catch(_e){}
+025353:       return e;
+025354:     };
+025355:   }
+025356: 
+025357:   // Preprocess recovery before the existing v1.4.5/v1.4.8 handlers touch DB.
+025358:   // Large queues are preserved verbatim in quarantine but are not applied to
+025359:   // live business state. This prevents a failed backup import becoming a second
+025360:   // database that endlessly overwrites current cloud data.
+025361:   if(typeof _recoverOutbox==='function'){
+025362:     var _baseRecover=_recoverOutbox;
+025363:     _recoverOutbox=function(){
+025364:       try{
+025365:         var ob=_outboxRead()||{},keys=Object.keys(ob);
+025366:         if(keys.length>BULK_RECOVERY_LIMIT){
+025367:           var q=_quarantineObject(OUTBOX_QUARANTINE_BASE,ob,'Bulk recovery queue ('+keys.length+') blocked from automatic replay. Cloud kept authoritative.');
+025368:           _outboxSave({});
+025369:           console.warn('[RETRADE] quarantined '+keys.length+' stale/bulk pending change(s); cloud state kept authoritative'+(q?' · '+q:''));
+025370:           try{toast('Old bulk sync queue isolated safely — cloud data kept current','');}catch(e){}
+025371:           return 0;
+025372:         }
+025373: 
+025374:         var changed=false,conflicts={};
+025375:         keys.forEach(function(k){
+025376:           if(k.indexOf('item:')!==0)return;
+025377:           var e=ob[k];if(!e||e.op!=='save')return;
+025378:           var local=null;try{local=JSON.parse(e.json);}catch(_e){return;}
+025379:           var id=local&&local.id;if(id==null)return;
+025380:           var remote=_itemCloud(id),cloudRev=_rev(id),baseRev=Number(e.baseRevision)||0;
+025381:           if(!remote){
+025382:             if(baseRev>0){delete ob[k];changed=true;}
+025383:             return;
+025384:           }
+025385:           if(baseRev===cloudRev)return; // exact cloud base: safe replay
+025386: 
+025387:           var base=null;
+025388:           try{base=e.baseItemJson?JSON.parse(e.baseItemJson):null;}catch(_e2){base=null;}
+025389:           if(!base){
+025390:             // Legacy stale item snapshot has no trustworthy field base. Preserve
+025391:             // it for manual recovery but never let it replace newer lifecycle.
+025392:             conflicts[k]=e;delete ob[k];changed=true;
+025393:             console.warn('[RETRADE] stale legacy item write quarantined; newer cloud lifecycle wins:',id);
+025394:             return;
+025395:           }
+025396:           var merged=_threeWayItem(base,local,remote);
+025397:           try{
+025398:             if(window.RETRADE_V14_REVISION&&typeof window.RETRADE_V14_REVISION._testSetRevision==='function'){
+025399:               window.RETRADE_V14_REVISION._testSetRevision(merged,cloudRev,remote._cloudUpdatedAt||null);
+025400:             }
+025401:           }catch(_e3){}
+025402:           e.json=JSON.stringify(merged);e.baseRevision=cloudRev;e.baseItemJson=JSON.stringify(remote);ob[k]=e;changed=true;
+025403:         });
+025404:         if(Object.keys(conflicts).length)_quarantineObject(RETURN_CONFLICT_BASE,conflicts,'Stale item recovery without a trustworthy base.');
+025405:         if(changed)_outboxSave(ob);
+025406:       }catch(e){console.warn('[RETRADE] v1.4.9 recovery preflight failed:',e&&e.message);}
+025407:       return _baseRecover.apply(this,arguments);
+025408:     };
+025409:   }
+025410: 
+025411:   // Stable return-event persistence. item_returns are lifecycle events, not a
+025412:   // disposable array snapshot. Existing events are updated by id/natural key;
+025413:   // new ones append. Cloud events absent from a generic stale item snapshot are
+025414:   // preserved. Only an explicit user undo registers a tombstone for deletion.
+025415:   if(typeof _replaceChildRowsSafe==='function'){
+025416:     var _baseReplaceChildRowsSafe=_replaceChildRowsSafe;
+025417:     _replaceChildRowsSafe=async function(table,itemId,rows,label){
+025418:       if(table!=='item_returns')return _baseReplaceChildRowsSafe.apply(this,arguments);
+025419:       var uid=_currentUserId;
+025420:       var existing=await _sbCall(function(){return _sb.from(table).select('*').eq('item_id',itemId).eq('user_id',uid);});
+025421:       if(existing&&existing.error)throw new Error('Load existing '+label+' failed: '+existing.error.message);
+025422:       var old=existing&&existing.data||[];
+025423:       function dbKey(r){
+025424:         if(r&&r.id!=null)return'id:'+String(r.id);
+025425:         return ['ev',Number(r&&r.sale_no)||1,(r&&r.type)||'',String(r&&r.logged_at||''),String(r&&r.date_sold_at_return||''),String(r&&r.sale_price_at_return!=null?r.sale_price_at_return:'')].join('|');
+025426:       }
+025427:       function desiredKey(r){
+025428:         if(r&&r.id!=null)return'id:'+String(r.id);
+025429:         return ['ev',Number(r&&r.sale_no)||1,(r&&r.type)||'',String(r&&r.logged_at||''),String(r&&r.date_sold_at_return||''),String(r&&r.sale_price_at_return!=null?r.sale_price_at_return:'')].join('|');
+025430:       }
+025431:       var oldByNatural=new Map();
+025432:       old.forEach(function(r){oldByNatural.set(dbKey(Object.assign({},r,{id:null})),r);});
+025433:       var withIds=[],newRows=[];
+025434:       (rows||[]).forEach(function(src){
+025435:         var r=Object.assign({},src);
+025436:         var hit=null;
+025437:         if(r.id!=null)hit=old.find(function(x){return String(x.id)===String(r.id);});
+025438:         if(!hit)hit=oldByNatural.get(desiredKey(Object.assign({},r,{id:null})))||null;
+025439:         if(hit&&hit.id!=null){r.id=hit.id;withIds.push(r);}else newRows.push(r);
+025440:       });
+025441:       if(withIds.length){
+025442:         var up=await _sbCall(function(){return _sb.from(table).upsert(withIds,{onConflict:'id'}).select('id');});
+025443:         if(up&&up.error)throw new Error('Update '+label+' failed: '+up.error.message);
+025444:       }
+025445:       if(newRows.length){
+025446:         var ins=await _sbWriteFallback(function(p){return _sb.from(table).insert(p).select('id');},newRows,label);
+025447:         if(ins&&ins.error)throw new Error('Save '+label+' failed: '+ins.error.message);
+025448:       }
+025449:       var deletable=old.map(function(r){return r.id;}).filter(function(id){return id!=null&&_returnDeleteIds.has(String(id));});
+025450:       if(deletable.length){
+025451:         var del=await _sbCall(function(){return _sb.from(table).delete().in('id',deletable).eq('user_id',uid);});
+025452:         if(del&&del.error)throw new Error('Delete '+label+' event failed: '+del.error.message);
+025453:         deletable.forEach(function(id){_returnDeleteIds.delete(String(id));});
+025454:       }
+025455:     };
+025456:   }
+025457: 
+025458:   // Detect explicit UI undo/removal of an already-durable return event. saveDB()
+025459:   // is called inside these functions, but the network pass is debounced, so the
+025460:   // tombstone is registered before child persistence runs.
+025461:   function _snapshotReturnIds(){
+025462:     var s=new Set();
+025463:     try{allDBKeys().forEach(function(k){(DB[k]||[]).forEach(function(i){(i.returnHistory||[]).forEach(function(r){if(r&&r.id!=null)s.add(String(r.id));});});});}catch(e){}
+025464:     return s;
+025465:   }
+025466:   function _wrapReturnUndo(name){
+025467:     try{
+025468:       var fn=window[name]||eval(name);if(typeof fn!=='function')return;
+025469:       var wrapped=function(){
+025470:         var before=_snapshotReturnIds(),res=fn.apply(this,arguments),after=_snapshotReturnIds();
+025471:         before.forEach(function(id){if(!after.has(id))_returnDeleteIds.add(id);});
+025472:         return res;
+025473:       };
+025474:       // Top-level function declarations are window properties in this app.
+025475:       window[name]=wrapped;
+025476:       try{eval(name+'=wrapped');}catch(e){}
+025477:     }catch(e){}
+025478:   }
+025479:   ['_removeReturnEntry','undoLastReturn','stepBack','undoRelist'].forEach(_wrapReturnUndo);
+025480: 
+025481:   // v1.4.8 wrapped _persistChangesPass with a cloud-rebase preflight whenever
+025482:   // ANY outbox row existed. Since every successful business write increments
+025483:   // the sync clock, that could cause the app to pull/recover its own queue over
+025484:   // and over. Replace it with the serialized durable writer itself: cloud pulls
+025485:   // happen on Realtime/resume, while local writes are CAS-protected at item row.
+025486:   _persistChangesPass=async function(){
+025487:     if(!_currentUserId){console.warn('_persistChanges: no user, skipping');return {failed:0};}
+025488:     var uidAtStart=_currentUserId;
+025489:     try{
+025490:       var current=_dbFingerprint();_persistActiveCurrent=current;
+025491:       var prev=_dbSnapshot||{},errors=[],failedKeys=new Set();
+025492:       try{
+025493:         var stage=_outboxRead(),staged=0;
+025494:         Object.keys(current).forEach(function(k){if(current[k]!==prev[k]){stage[k]=_outboxEntry(k,current[k]);staged++;}});
+025495:         Object.keys(prev).forEach(function(k){if(current[k]===undefined){stage[k]=_outboxDeleteEntry(k);staged++;}});
+025496:         if(staged)_outboxSave(stage);
+025497:       }catch(e){console.warn('[RETRADE] outbox stage failed:',e&&e.message);}
+025498: 
+025499:       var keys=Object.keys(current);
+025500:       for(var a=0;a<keys.length;a++){
+025501:         var key=keys[a];if(current[key]===prev[key])continue;
+025502:         if(_currentUserId!==uidAtStart)return {failed:1};
+025503:         try{
+025504:           if(key.indexOf('item:')===0){var fp=current[key],p=fp.lastIndexOf('|');await saveItemToSupabase(fp.slice(p+1),JSON.parse(fp.slice(0,p)));}
+025505:           else if(key.indexOf('trip:')===0)await saveTripToSupabase(JSON.parse(current[key]));
+025506:           else if(key.indexOf('exp:')===0)await saveExpenseToSupabase(JSON.parse(current[key]));
+025507:           else if(key.indexOf('cash:')===0)await saveCashMoveToSupabase(JSON.parse(current[key]));
+025508:           else if(key.indexOf('run:')===0)await saveRunToSupabase(JSON.parse(current[key]));
+025509:           else if(key.indexOf('acct:')===0)await saveAccountToSupabase(JSON.parse(current[key]));
+025510:           else if(key.indexOf('log:')===0)await saveActivityToSupabase(JSON.parse(current[key]));
+025511:           else if(key.indexOf('jlot:')===0)await saveJobLotToSupabase(JSON.parse(current[key]));
+025512:           else if(key.indexOf('jmem:')===0)await saveJobLotItemToSupabase(JSON.parse(current[key]));
+025513:           else if(key.indexOf('recon:')===0)await saveSaleReconciliationToSupabase(JSON.parse(current[key]));
+025514:         }catch(e){errors.push(e&&e.message?e.message:String(e));failedKeys.add(key);}
+025515:       }
+025516:       var prevKeys=Object.keys(prev);
+025517:       for(var b=0;b<prevKeys.length;b++){
+025518:         var dkey=prevKeys[b];if(current[dkey]!==undefined)continue;
+025519:         if(_currentUserId!==uidAtStart)return {failed:1};
+025520:         try{
+025521:           if(dkey.indexOf('item:')===0)await deleteItemFromSupabase(dkey.slice(5));
+025522:           else if(dkey.indexOf('trip:')===0)await deleteTripFromSupabase(dkey.slice(5));
+025523:           else if(dkey.indexOf('exp:')===0)await deleteExpenseFromSupabase(dkey.slice(4));
+025524:           else if(dkey.indexOf('cash:')===0)await deleteCashMoveFromSupabase(dkey.slice(5));
+025525:           else if(dkey.indexOf('run:')===0)await deleteRunFromSupabase(dkey.slice(4));
+025526:           else if(dkey.indexOf('acct:')===0)await deleteAccountFromSupabase(dkey.slice(5));
+025527:           else if(dkey.indexOf('log:')===0)await deleteActivityFromSupabase(dkey.slice(4));
+025528:           else if(dkey.indexOf('jlot:')===0)await deleteJobLotFromSupabase(dkey.slice(5));
+025529:           else if(dkey.indexOf('jmem:')===0)await deleteJobLotItemFromSupabase(dkey.slice(5));
+025530:           else if(dkey.indexOf('recon:')===0)await deleteSaleReconciliationFromSupabase(dkey.slice(6));
+025531:         }catch(e){errors.push(e&&e.message?e.message:String(e));failedKeys.add(dkey);}
+025532:       }
+025533: 
+025534:       if(errors.length){
+025535:         var schemaErrors=errors.filter(function(msg){return /PGRST204|42703|schema cache|column .* does not exist|Could not find the .* column/i.test(String(msg||''));});
+025536:         if(schemaErrors.length)console.warn('[RETRADE] Supabase schema mismatch:',schemaErrors);
+025537:         console.error('[RETRADE] Cloud sync pending; writes retained locally:',errors);
+025538:         _lastSyncError=errors.join(' | ')||'Cloud sync pending';
+025539:       }else{_lastSyncError=null;_lastSyncDiagMessage=null;}
+025540: 
+
+## Dispose and restore
+017290:   rows.forEach(function(r){
+017291:     const i=r.item;
+017292:     const c=(Number(i.costPrice)||0)+((typeof calcPartsCost==='function')?(Number(calcPartsCost(i))||0):0);
+017293:     const when=String(i.scrappedAt||'').slice(0,10);
+017294:     const rk=i.scrapReason||'scrapped';
+017295:     const isSupplier=rk==='supplier_return',isDon=rk==='donated';
+017296:     const refund=isSupplier?Math.max(0,Number(i.supplierRefund)||0):0;
+017297:     const shortfall=isSupplier?Math.max(0,c-refund):0;
+017298:     html+='<div style="display:flex;align-items:center;gap:12px;padding:12px 14px;border-bottom:1px solid var(--border);cursor:pointer;" onclick="openItemPage(\''+r.m+'\',\''+i.id+'\',\''+origin+'\')">'
+017299:       +'<div style="flex:1;min-width:0;">'
+017300:         +'<div style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(i.item||'Untitled')+'</div>'
+017301:         +'<div style="font-size:12px;color:var(--text-secondary);margin-top:2px;">'
+017302:           +'<span style="color:'+(isSupplier?'var(--green)':isDon?'var(--accent)':'var(--muted)')+';font-weight:600;">'+esc(reasonLabel[rk]||'Removed')+'</span>'
+017303:           +' · '+esc(when||'—')+(i.scrapNote?' · '+esc(i.scrapNote):'')
+017304:         +'</div>'
+017305:       +'</div>'
+017306:       +'<div style="text-align:right;flex-shrink:0;">'
+017307:         +(isSupplier?'<div class="num" style="font-weight:700;color:var(--green);">+'+fmt(refund)+'</div><div style="font-size:11px;color:var(--muted);">refunded'+(shortfall>0?' · '+fmt(shortfall)+' lost':'')+'</div>'
+017308:           :'<div class="num" style="font-weight:700;color:'+(isDon?'var(--accent)':'var(--warn)')+';">−'+fmt(c)+'</div><div style="font-size:11px;color:var(--muted);">'+(isDon?'donated':'written off')+'</div>')
+017309:       +'</div>'
+017310:     +'</div>';
+017311:   });
+017312:   html+='</div>';
+017313:   return html;
+017314: }
+017315: 
+017316: function renderScrapped(){
+017317:   const el=document.getElementById('p-scrapped');if(!el)return;
+017318:   el.innerHTML='<div style="margin-bottom:12px"><button class="btn btn-secondary" onclick="goToTab(\'stock\',null)">← Inventory</button></div>'
+017319:     +'<div class="page-header"><div><div class="page-title">Archive</div><div class="page-subtitle">Items no longer in inventory — scrapped, donated, recycled or returned to a supplier.</div></div></div>'
+017320:     +_removedBodyHTML(_scrappedItems(),'p-scrapped'); return;
+017321:   /* legacy body below (unreached) */
+017322:   const rows=_scrappedItems();
+017323:   let capScrapped=0,capDonated=0;const byReason={scrapped:0,donated:0,recycled:0,other:0};
+017324:   rows.forEach(function(r){
+017325:     const c=(Number(r.item.costPrice)||0)+((typeof calcPartsCost==='function')?(Number(calcPartsCost(r.item))||0):0);
+017326:     const rk=(r.item.scrapReason||'scrapped');byReason[rk]=(byReason[rk]||0)+1;
+017327:     if(rk==='donated')capDonated+=c; else capScrapped+=c;
+017328:   });
+017329:   const kpi=function(label,val,foot,col){
+017330:     return '<div class="card kpi"><div class="kpi-label">'+esc(label)+'</div>'
+017331:       +'<div class="kpi-value num"'+(col?' style="color:'+col+'"':'')+'>'+val+'</div>'
+017332:       +(foot?'<div class="kpi-foot">'+foot+'</div>':'')+'</div>';
+017333:   };
+017334:   const _reasonLabel={scrapped:'Scrapped',donated:'Donated',recycled:'Recycled',other:'Other'};
+017335:   let html=''
+017336:     +'<div class="page-header"><div>'
+017337:       +'<div class="page-title">Scrapped / Donated</div>'
+017338:       +'<div class="page-subtitle">Items that have left your stock \u2014 scrapped, recycled, or given away. Your record of what you\u2019ve lost or donated.</div>'
+017339:     +'</div></div>';
+017340:   html+='<div class="kgrid" style="margin-bottom:16px;">'
+017341:     +kpi('Capital scrapped',fmt(capScrapped),((byReason.scrapped||0)+(byReason.recycled||0)+(byReason.other||0))+' item(s) \u00b7 faulty / binned / recycled',capScrapped>0?'var(--warn)':'')
+017342:     +kpi('Capital donated',fmt(capDonated),(byReason.donated||0)+' item(s) given away',capDonated>0?'var(--accent)':'')
+017343:   +'</div>';
+017344:   if(!rows.length){
+017345:     html+='<div class="card" style="padding:20px;text-align:center;color:var(--text-secondary);line-height:1.5;">Nothing removed yet. When you scrap or donate an item it\u2019ll show here.</div>';
+017346:   }else{
+017347:     html+='<div class="section-card" style="padding:0;overflow:hidden;">';
+017348:     rows.forEach(function(r){
+017349:       const i=r.item;
+017350:       const c=(Number(i.costPrice)||0)+((typeof calcPartsCost==='function')?(Number(calcPartsCost(i))||0):0);
+017351:       const when=String(i.scrappedAt||'').slice(0,10);
+017352:       html+='<div style="display:flex;align-items:center;gap:12px;padding:12px 14px;border-bottom:1px solid var(--border);cursor:pointer;" onclick="openItemPage(\''+r.m+'\',\''+i.id+'\',\'p-scrapped\')">'
+017353:         +'<div style="flex:1;min-width:0;">'
+017354:           +'<div style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(i.item||'Untitled')+'</div>'
+017355:           +'<div style="font-size:12px;color:var(--text-secondary);margin-top:2px;">'
+017356:             +'<span style="color:var(--muted);font-weight:600;">'+esc(_reasonLabel[i.scrapReason]||'Scrapped')+'</span>'
+017357:             +' \u00b7 '+esc(when||'\u2014')
+017358:             +(i.scrapNote?' \u00b7 '+esc(i.scrapNote):'')
+017359:           +'</div>'
+017360:         +'</div>'
+017361:         +'<div style="text-align:right;flex-shrink:0;">'
+017362:           +'<div class="num" style="font-weight:700;color:var(--warn);">\u2212'+fmt(c)+'</div>'
+017363:           +'<div style="font-size:11px;color:var(--muted);">written off</div>'
+017364:         +'</div>'
+017365:       +'</div>';
+017366:     });
+017367:     html+='</div>';
+017368:   }
+017369:   el.innerHTML=html;
+017370: }
+017371: 
+017372: function renderReturns(){
+017373:   const el=document.getElementById('p-returns');if(!el)return;
+017374:   // Flatten every return entry across all items
+017375:   const rows=[];
+017376:   const seenMulti={}; let multiCycle=0;
+017377:   (typeof allDBKeys==='function'?allDBKeys():[]).forEach(function(k){
+017378:     (DB[k]||[]).forEach(function(i){
+017379:       const rh=(i.returnHistory||[]);
+017380:       if(!rh.length)return;
+017381:       const fullN=rh.filter(function(r){return r.type==='full_seller'||r.type==='full_ebay';}).length;
+017382:       if(fullN>1 && !seenMulti[i.id]){seenMulti[i.id]=1;multiCycle++;}
+017383:       rh.forEach(function(r){
+017384:         const isFull=(r.type==='full_seller'||r.type==='full_ebay');
+017385:         rows.push({m:k,id:i.id,name:i.item||'Untitled',date:_returnEventDate(r)||'',
+017386:           type:r.type,isFull:isFull,refund:Number(r.refundAmount)||0,
+017387:           postage:Number(r.returnPostage)||0,saleNo:r.saleNo||1,item:i,fullN:fullN});
+017388:       });
+017389:     });
+017390:   });
+017391:   const fyR=_periodDateRange('current_fy');
+017392:   const inPeriod=function(d){return _returnsPeriod==='all'||(d&&d>=fyR.from&&d<=fyR.to);};
+017393:   // KPI stats scoped to the selected PERIOD (type filter doesn't move the headline)
+017394:   const periodRows=rows.filter(function(x){return inPeriod(x.date);});
+017395:   let fullCount=0,partialCount=0,totalRefund=0,totalRetPost=0;
+017396:   periodRows.forEach(function(x){
+017397:     if(x.isFull)fullCount++; else partialCount++;
+017398:     totalRefund+=x.refund; totalRetPost+=x.postage;
+017399:   });
+017400:   const _saleEvents=getSaleEventsInRange(_returnsPeriod==='all'?null:fyR.from,_returnsPeriod==='all'?null:fyR.to).filter(function(ev){return !ev.isReturned;});
+017401:   const soldCount=_saleEvents.length;
+017402:   const returnedSaleNos=new Set(periodRows.filter(function(x){return x.isFull;}).map(function(x){return x.id+':'+x.saleNo;}));
+017403:   const retItems=returnedSaleNos.size;
+017404:   const rate=soldCount>0?(retItems/soldCount*100):0;
+017405:   let _periodRev=0;
+017406:   _saleEvents.forEach(function(ev){const b=_saleBreakdown(ev);_periodRev+=(Number(b.salePrice)||0)+(Number(b.postage)||0);});
+017407:   const refundPctRev=_periodRev>0?(totalRefund/_periodRev*100):null;
+017408:   // Rows to list — period + type filter, newest first
+017409:   const filtered=periodRows.filter(function(x){
+017410:     if(_returnsType==='full')return x.isFull;
+017411:     if(_returnsType==='partial')return !x.isFull;
+017412:     return true;
+017413:   }).sort(function(a,b){return (b.date||'').localeCompare(a.date||'');});
+017414: 
+017415:   const kpi=function(label,val,foot,col){
+017416:     return '<div class="card kpi"><div class="kpi-label">'+esc(label)+'</div>'
+017417:       +'<div class="kpi-value num"'+(col?' style="color:'+col+'"':'')+'>'+val+'</div>'
+017418:       +(foot?'<div class="kpi-foot">'+foot+'</div>':'')+'</div>';
+017419:   };
+017420:   const seg=function(kind,val,label,active){
+017421:     return '<button class="rtn-seg'+(active?' on':'')+'" onclick="_setReturnsFilter(\''+kind+'\',\''+val+'\')">'+esc(label)+'</button>';
+017422:   };
+017423:   let html=''
+017424:     +'<div class="page-header"><div>'
+017425:       +'<div class="page-title">Returns</div>'
+017426:       +'<div class="page-subtitle">Every refund logged across your stock — the postage and fees you can\u2019t always get back</div>'
+017427:     +'</div></div>';
+017428:   html+='<div class="kgrid" style="margin-bottom:16px;">'
+017429:     +kpi('Refunds logged',String(periodRows.length),fullCount+' full · '+partialCount+' partial')
+017430:     +kpi('Return rate',rate.toFixed(1)+'%',retItems+' of '+soldCount+' sales came back')
+017431:     +kpi('Total refunded',fmt(totalRefund),(refundPctRev!=null?refundPctRev.toFixed(1)+'% of revenue':'Money sent back to buyers'))
+017432:     +kpi('Return postage',fmt(totalRetPost),'Sunk cost — rarely recoverable',totalRetPost>0?'var(--warn)':'')
+017433:   +'</div>';
+017434:   if(multiCycle>0 && _returnsPeriod==='all'){
+017435:     html+='<div class="card" style="padding:12px 14px;margin-bottom:16px;border-left:3px solid var(--warn);font-size:13px;color:var(--text-secondary);line-height:1.5;">'
+017436:       +'<strong style="color:var(--text)">'+multiCycle+' item'+(multiCycle>1?'s':'')+' returned more than once.</strong> '
+017437:       +'These went through multiple sale\u2192refund cycles. Lifetime P&amp;L and statement events are reconciled by sale cycle. Each completed sale cycle is kept separately, including Sale 3 and beyond. Data Integrity will flag any missing or duplicated cycle links.</div>';
+017438:   }
+017439:   html+='<div class="rtn-filters" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;">'
+017440:     +'<div class="rtn-segbar">'+seg('period','all','All time',_returnsPeriod==='all')+seg('period','fy','This tax year',_returnsPeriod==='fy')+'</div>'
+017441:     +'<div class="rtn-segbar">'+seg('type','all','All',_returnsType==='all')+seg('type','full','Full',_returnsType==='full')+seg('type','partial','Partial',_returnsType==='partial')+'</div>'
+017442:   +'</div>';
+017443:   if(!filtered.length){
+017444:     html+='<div class="card" style="padding:20px;text-align:center;color:var(--text-secondary);line-height:1.5;">No returns'+(_returnsPeriod==='fy'?' this tax year':'')+(_returnsType!=='all'?' of that type':'')+'. '+(rows.length?'Try widening the filters.':'When you log a return on an item it\u2019ll show here.')+'</div>';
+017445:   }else{
+017446:     html+='<div class="section-card" style="padding:0;overflow:hidden;">';
+017447:     filtered.forEach(function(x){
+017448:       const meta=_returnTypeMeta(x.type);
+017449:       const badgeCol=x.isFull?'var(--red)':'var(--accent)';
+017450:       // A partial refund leaves the item WITH the buyer — the sale stands, it was never returned/relisted.
+017451:       // Only full refunds bring the item back, so the returned/resold/relisted disposition applies to those.
+017452:       let disp = x.item.scrappedAt?(x.item.scrapReason==='donated'?'Donated':'Scrapped'):(!x.isFull?'Kept (sold)':(x.item.isReturned?'In stock (returned)':(x.item.resaleSalePrice?'Resold':'Relisted')));
+017453:       html+='<div style="display:flex;align-items:center;gap:12px;padding:12px 14px;border-bottom:1px solid var(--border);cursor:pointer;" onclick="openItemPage(\''+x.m+'\',\''+x.id+'\',\'p-returns\')">'
+017454:         +'<div style="flex:1;min-width:0;">'
+017455:           +'<div style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(x.name)+'</div>'
+017456:           +'<div style="font-size:12px;color:var(--text-secondary);margin-top:2px;">'
+017457:             +'<span style="color:'+badgeCol+';font-weight:600;">'+esc(meta.label)+'</span>'
+017458:             +' · '+esc(x.date||'—')
+017459:             +(x.fullN>1?' · Sale '+x.saleNo:'')
+017460:             +' · '+disp
+
+## Return save + relist + undo
+020980:   if(_saleNo>=2){
+020981:     entry._salePriceAtRelist=cur.price;
+020982:     entry._postageAtRelist=cur.postage;
+020983:     entry._shippingCostAtRelist=Number(i.resaleShippingCost||0);
+020984:     entry._packagingCostAtRelist=Number(i.resalePackagingCost||0);
+020985:     entry._promoPercentAtRelist=Number(i.resalePromoPercent||0);
+020986:   }
+020987: 
+020988:   if(!i.returnHistory)i.returnHistory=[];
+020989: 
+020990:   // A full refund supersedes adjustments for THIS sale only. Preserve the
+020991:   // previous sale cycle's history (e.g. Sale 1 partials/full return when Sale 2
+020992:   // is later returned). Also replace any duplicate full return on this sale.
+020993:   if(type==='full_seller'||type==='full_ebay'){
+020994:     i.returnHistory=i.returnHistory.filter(function(r){
+020995:       const rs=Math.max(1,Number(r.saleNo)||1);
+020996:       return rs!==_saleNo;
+020997:     });
+020998:   }
+020999: 
+021000:   i.returnHistory.push(entry);
+021001: 
+021002:   // Mark as fully returned only for full refund types
+021003:   if(type==='full_seller'||type==='full_ebay'){
+021004:     i.isReturned=true;
+021005:     i.state='returned';
+021006:     i.dateSold=null; // remove from sold — back to stock
+021007:   }
+021008:   saveDB();
+021009:   toast('Return logged');
+021010:   const _activePage=document.querySelector('.page.on');
+021011:   const _activeId=_activePage?_activePage.id:'p-summary';
+021012:   closePanel();
+021013:   if(_activeId==='p-item'){
+021014:     // Already on the item page — re-render in place after panel slides out.
+021015:     // Do NOT call openItemPage('p-item') or exitItemPage()'s back button breaks.
+021016:     setTimeout(function(){ renderItemPage(m,id); }, 340);
+021017:   } else {
+021018:     // Coming from a list page — navigate to item page after panel clears.
+021019:     setTimeout(function(){ openItemPage(m,id,_activeId); }, 340);
+021020:   }
+021021: }
+021022: 
+021023: function _removeReturnEntry(m,id,rtnIdx){
+021024:   const i=(DB[m]||[]).find(function(x){return x.id===id;});
+021025:   if(!i||!Array.isArray(i.returnHistory))return null;
+021026:   const r=i.returnHistory[rtnIdx];
+021027:   if(!r)return null;
+021028:   const saleNo=Math.max(1,Number(r.saleNo)||1);
+021029:   const isFull=(r.type==='full_seller'||r.type==='full_ebay');
+021030: 
+021031:   // Every full return is the structural bridge to the NEXT listing cycle.
+021032:   // Never let a user delete Sale N's return while its relist or a later sale
+021033:   // still exists — that would create Sale N+1 with no originating return.
+021034:   const _laterFrozen=(i.returnHistory||[]).some(function(r2){
+021035:     return r2!==r&&(r2.type==='full_seller'||r2.type==='full_ebay')&&Math.max(1,Number(r2.saleNo)||1)>saleNo;
+021036:   });
+021037:   const _liveNo=i.resaleSalePrice?_currentResaleSaleNo(i):null;
+021038:   const _laterLive=!!(_liveNo&&_liveNo>saleNo);
+021039:   if(isFull&&(r._relistedAt||_laterFrozen||_laterLive)){
+021040:     const _later=_laterFrozen||_laterLive;
+021041:     toast(_later
+021042:       ?'Undo the later sale/relist first, then remove Sale '+saleNo+' return.'
+021043:       :'Undo the relist first, then remove Sale '+saleNo+' return.','error');
+021044:     return null;
+021045:   }
+021046: 
+021047:   i.returnHistory.splice(rtnIdx,1);
+021048:   const stillFullyReturned=i.returnHistory.some(function(r2){
+021049:     return (r2.type==='full_seller'||r2.type==='full_ebay')&&!r2._relistedAt;
+021050:   });
+021051:   if(!stillFullyReturned&&i.isReturned){
+021052:     i.isReturned=false;
+021053:     i.state='sold';
+021054:     if(saleNo===1){
+021055:       // Sale 1 full return cleared dateSold; restore its original date.
+021056:       if(!i.dateSold)i.dateSold=r._dateSoldAtReturn||null;
+021057:     }else{
+021058:       // Sale 2 remains represented by resaleSalePrice/resaleDateSold. Never
+021059:       // copy the resale date into dateSold — that field belongs to Sale 1.
+021060:       i.dateSold=null;
+021061:     }
+021062:   }
+021063:   saveDB();
+021064:   return r;
+021065: }
+021066: 
+021067: // v1.4.6 — Dependency-aware return undo. If the only later structural step
+021068: // is this return's relist, undo both atomically and restore Sale N as sold.
+021069: function _dropReturnOwnedRelistMaintenance(i,r){
+021070:   if(!i||!r||!r._relistedAt||!Array.isArray(i.refreshHistory))return;
+021071:   const d=String(r._relistedAt).slice(0,10);
+021072:   for(let k=i.refreshHistory.length-1;k>=0;k--){
+021073:     const e=i.refreshHistory[k];
+021074:     if(e&&e.type==='relist'&&e._fromReturn&&String(e.date||'').slice(0,10)===d){i.refreshHistory.splice(k,1);break;}
+021075:   }
+021076:   const prior=i.refreshHistory.slice().reverse().find(function(e){return e&&e.type==='relist';});
+021077:   i._lastRelistAt=prior?prior.date:null;
+021078: }
+021079: function _restoreCompletedSaleFromReturn(i,r){
+021080:   const saleNo=Math.max(1,Number(r.saleNo)||1);
+021081:   const num=function(v,f){return v!=null?(Number(v)||0):(Number(f)||0);};
+021082:   if(saleNo===1){
+021083:     i.salePrice=num(r._salePriceAtReturn,i.salePrice);i.dateSold=r._dateSoldAtReturn||i.dateSold||null;
+021084:     i.postage=num(r._postageAtReturn,i.postage);i.shippingCost=num(r._shippingCostAtReturn,i.shippingCost);
+021085:     i.packagingCost=num(r._packagingCostAtReturn,i.packagingCost);i.promoPercent=num(r._promoPercentAtReturn,i.promoPercent);
+021086:     if(r._platformAtReturn)i.soldOnPlatform=r._platformAtReturn;
+021087:     i.resaleSalePrice=null;i.resaleDateSold=null;i.resaleGrossProfit=null;i.resalePostage=null;i.resaleShippingCost=null;i.resalePackagingCost=null;i.resalePromoPercent=null;
+021088:   }else{
+021089:     i.resaleSalePrice=num(r._salePriceAtReturn,r._salePriceAtRelist);i.resaleDateSold=r._dateSoldAtReturn||null;
+021090:     i.resalePostage=num(r._postageAtReturn,r._postageAtRelist);i.resaleShippingCost=num(r._shippingCostAtReturn,r._shippingCostAtRelist);
+021091:     i.resalePackagingCost=num(r._packagingCostAtReturn,r._packagingCostAtRelist);i.resalePromoPercent=num(r._promoPercentAtReturn,r._promoPercentAtRelist);
+021092:     i.resaleListingFee=num(r._listingFeeAtReturn,i.resaleListingFee);i.resalePlatform=r._platformAtReturn||i.resalePlatform||_itemPlatform(i);
+021093:     i.salePrice=i.resaleSalePrice;i.postage=i.resalePostage;i.shippingCost=i.resaleShippingCost;i.packagingCost=i.resalePackagingCost;i.promoPercent=i.resalePromoPercent;
+021094:   }
+021095:   i.isReturned=false;i.state='sold';i.condition=undefined;i.grossProfit=calcGrossProfit(i);
+021096: }
+021097: async function undoReturnCascade(m,id,rtnIdx){
+021098:   const i=(DB[m]||[]).find(function(x){return x.id===id;});
+021099:   const r=i&&Array.isArray(i.returnHistory)?i.returnHistory[rtnIdx]:null;if(!r)return;
+021100:   const saleNo=Math.max(1,Number(r.saleNo)||1);const isFull=r.type==='full_seller'||r.type==='full_ebay';
+021101:   if(!isFull||!r._relistedAt)return undoReturnEntry(m,id,rtnIdx);
+021102:   const laterReturn=(i.returnHistory||[]).some(function(x){return x!==r&&(x.type==='full_seller'||x.type==='full_ebay')&&Math.max(1,Number(x.saleNo)||1)>saleNo;});
+021103:   const liveSaleNo=i.resaleSalePrice?_currentResaleSaleNo(i):0;
+021104:   if(laterReturn||(liveSaleNo&&liveSaleNo>saleNo)){toast('A later sale exists. Undo the newest sale/return first so the lifecycle stays intact.','error');return;}
+021105:   const ok=await showConfirm('Undo Sale '+saleNo+' return + relist?','This removes the Sale '+saleNo+' refund and its dependent relist for Sale '+(saleNo+1)+', then restores Sale '+saleNo+' as sold. Cashflow and lifetime P&L will recalculate from the corrected history.',{okLabel:'Undo both',danger:false});
+021106:   if(!ok)return;
+021107:   _dropReturnOwnedRelistMaintenance(i,r);_restoreCompletedSaleFromReturn(i,r);i.returnHistory.splice(rtnIdx,1);saveDB();renderItemPage(m,id);toast('Return + relist undone — Sale '+saleNo+' restored');
+021108: }
+021109: 
+021110: async function panelDeleteReturn(m,id,rtnIdx){
+021111:   const i=(DB[m]||[]).find(function(x){return x.id===id;});
+021112:   const r=i&&Array.isArray(i.returnHistory)?i.returnHistory[rtnIdx]:null;
+021113:   if(!r)return;
+021114:   const ok=await showConfirm('Remove this return entry?','This removes the refund/return adjustment from the item history and recalculates its profit.',{okLabel:'Remove entry'});
+021115:   if(!ok)return;
+021116:   if(!_removeReturnEntry(m,id,rtnIdx))return;
+021117:   toast('Return removed');
+021118:   const _pg=document.querySelector('.page.on');
+021119:   if(_pg&&_pg.id==='p-item')renderItemPage(m,id);
+021120:   openItemDetail(m,id);
+021121: }
+021122: 
+021123: // Undo the most recent full return → move the item back to Sold. Prominent
+021124: // counterpart to the timeline "✕ undo"; completes the per-state "go back".
+021125: function undoLastReturn(m,id){
+021126:   const i=(DB[m]||[]).find(function(x){return x.id===id;});
+021127:   if(!i||!i.returnHistory||!i.returnHistory.length)return;
+021128:   let idx=-1;
+021129:   for(let k=i.returnHistory.length-1;k>=0;k--){
+021130:     const r=i.returnHistory[k];
+021131:     if((r.type==='full_seller'||r.type==='full_ebay')&&!r._relistedAt){idx=k;break;}
+021132:   }
+021133:   if(idx<0)for(let k=i.returnHistory.length-1;k>=0;k--){
+021134:     const r=i.returnHistory[k];
+021135:     if(r.type==='full_seller'||r.type==='full_ebay'){idx=k;break;}
+021136:   }
+021137:   if(idx<0)for(let k=i.returnHistory.length-1;k>=0;k--){ if(i.returnHistory[k]){idx=k;break;} }
+021138:   if(idx<0){toast('No return to undo');return;}
+021139:   undoReturnEntry(m,id,idx);
+021140: }
+021141: 
+021142: // ── Unified "step back one state" ───────────────────────────────────────────
+021143: // One consistent ← Back button on any state past the item's base. Dispatches to
+021144: // the right existing revert. (v2.21.48)
+021145: function _returnedToStockDate(i){
+021146:   if(!i||!i.isReturned)return null;
+021147:   const _fr=(i.returnHistory||[]).slice().reverse().find(function(r){return r.type==='full_seller'||r.type==='full_ebay';});
+021148:   return (_fr&&_fr.loggedAt)?String(_fr.loggedAt).split('T')[0]:null;
+021149: }
+021150: function _latestRelistedReturnRef(i){
+021151:   if(!i||!Array.isArray(i.returnHistory))return null;
+021152:   for(let k=i.returnHistory.length-1;k>=0;k--){
+021153:     const r=i.returnHistory[k];
+021154:     if(r&&(r.type==='full_seller'||r.type==='full_ebay')&&r._relistedAt)return {r:r,index:k};
+021155:   }
+021156:   return null;
+021157: }
+021158: function _stepBackTitle(i){
+021159:   if(!i)return null;
+021160:   if(i.scrappedAt)return 'Restore to stock';
+021161:   if(i.isReturned)return 'Back to sold';
+021162:   if(i.resaleSalePrice)return 'Undo Sale '+_currentResaleSaleNo(i);
+021163:   if(i.dateSold)return 'Back to active stock';
+021164:   // v1.4.6 — a returned item that has been relisted is NOT a first-cycle
+021165:   // listing. Stepping back must undo that relist, never withdraw it to sourced.
+021166:   const rr=_latestRelistedReturnRef(i);
+021167:   if(_itemLifecycleState(i)==='listed'&&rr)return 'Undo relist';
+021168:   if(i.state==='listed')return 'Back to sourced';
+021169:   return null;
+021170: }
+021171: function stepBack(m,id){
+021172:   const i=(DB[m]||[]).find(function(x){return x.id===id;});
+021173:   if(!i)return;
+021174:   if(i.scrappedAt)return unScrap(m,id);
+021175:   if(i.isReturned)return undoLastReturn(m,id);
+021176:   if(i.resaleSalePrice)return undoResale(m,id);
+021177:   if(i.dateSold)return revertToActive(m,id);
+021178:   const rr=_latestRelistedReturnRef(i);
+021179:   if(_itemLifecycleState(i)==='listed'&&rr)return undoRelist(m,id,rr.index);
+021180:   if(i.state==='listed')return withdrawToSourced(m,id);
+021181: }
+021182: async function undoResale(m,id){
+021183:   const i=(DB[m]||[]).find(function(x){return x.id===id;});
+021184:   if(!i||!i.resaleSalePrice)return;
+021185:   const saleNo=_currentResaleSaleNo(i);
+021186:   const adjustments=(i.returnHistory||[]).filter(function(r){return (Number(r.saleNo)||1)===saleNo;}).length;
+021187:   const ok=await showConfirm(
+021188:     'Undo Sale '+saleNo+'?',
+021189:     'This clears Sale '+saleNo+' and returns the item to its active relisted stock.'+(adjustments?' '+adjustments+' Sale '+saleNo+' refund adjustment'+(adjustments===1?'':'s')+' will also be removed because that sale will no longer exist.':'')+' The relist fee remains because that listing was actually created.',
+021190:     {okLabel:'Undo sale',danger:false}
+021191:   );
+021192:   if(!ok)return;
+021193:   i.resaleSalePrice=null;i.resaleDateSold=null;i.resaleGrossProfit=null;
+021194:   // Keep i.resalePlatform and the live i.shippingCost/postage/packaging/promo
+021195:   // because they are the active relist settings. Completed-sale snapshots go.
+021196:   i.resalePostage=null;i.resaleShippingCost=null;i.resalePackagingCost=null;i.resalePromoPercent=null;
+021197:   if(adjustments)i.returnHistory=(i.returnHistory||[]).filter(function(r){return (Number(r.saleNo)||1)!==saleNo;});
+021198:   i.isReturned=false;
+021199:   i.state='listed';i.grossProfit=null;
+021200:   saveDB();renderItemPage(m,id);toast('Sale '+saleNo+' undone — item back to listed');
+021201: }
+021202: 
+021203: async function undoReturnEntry(m,id,rtnIdx){
+021204:   const i=(DB[m]||[]).find(function(x){return x.id===id;});
+021205:   const r=i&&Array.isArray(i.returnHistory)?i.returnHistory[rtnIdx]:null;
+021206:   if(!r)return;
+021207:   const ok=await showConfirm('Undo this return?','The return/refund entry will be removed and the item will move back to its previous sale state where applicable.',{okLabel:'Undo return',danger:false});
+021208:   if(!ok)return;
+021209:   if(!_removeReturnEntry(m,id,rtnIdx))return;
+021210:   renderItemPage(m,id);
+021211:   toast('Return entry removed');
+021212: }
+021213: 
+021214: async function revertToActive(m,id){
+021215:   const i=(DB[m]||[]).find(x=>x.id===id);
+021216:   if(!i)return;
+021217:   // Safety: only revert a sold-but-not-returned, not-resold item.
+021218:   if(!i.dateSold||i.resaleSalePrice||i.isReturned)return;
+021219:   const s1Adjustments=(i.returnHistory||[]).filter(function(r){return (Number(r.saleNo)||1)===1;}).length;
+021220:   const ok=await showConfirm(
+021221:     'Move back to active?',
+021222:     'This clears Sale 1 and returns the item to active stock.'+(s1Adjustments?' '+s1Adjustments+' Sale 1 refund adjustment'+(s1Adjustments===1?'':'s')+' will also be removed because that sale will no longer exist.':'')+' Use this only to correct a mis-marked sale.'
+021223:   );
+021224:   if(!ok)return;
+021225:   i.dateSold=null;
+021226:   if(s1Adjustments)i.returnHistory=(i.returnHistory||[]).filter(function(r){return (Number(r.saleNo)||1)!==1;});
+021227:   i.state='listed';
+021228:   i.grossProfit=null;
+021229:   // Clear the sale-time platform — once back to active, the item must resolve
+021230:   // its platform from defaultPlatform again (otherwise the item-page platform
+021231:   // picker, which edits defaultPlatform, appears to do nothing).
+021232:   i.soldOnPlatform=null;
+021233:   saveDB();
+021234:   toast('Moved back to active stock');
+021235:   closePanel();
+021236:   const cur=document.querySelector('.page.on')?document.querySelector('.page.on').id:null;
+021237:   if(cur==='p-item')renderItemPage(m,id);
+021238:   else if(cur==='p-monthly')renderMonth();
+021239:   else if(cur==='p-stock')renderStock();
+021240:   else renderSummary();
+021241: }
+021242: 
+021243: async function undoSale(m,id){
+021244:   const i=(DB[m]||[]).find(x=>x.id===id);
+021245:   if(!i)return;
+021246:   const s1Adjustments=(i.returnHistory||[]).filter(function(r){return (Number(r.saleNo)||1)===1;}).length;
+021247:   const ok=await showConfirm(
+021248:     'Undo sale?',
+021249:     'This removes Sale 1 and returns the item to Listed.'+(s1Adjustments?' '+s1Adjustments+' Sale 1 refund adjustment'+(s1Adjustments===1?'':'s')+' will also be removed because they cannot exist without the sale.':''),
+021250:     {okLabel:'Undo sale',danger:false}
+021251:   );
+021252:   if(!ok)return;
+021253:   i.dateSold=null;
+021254:   i.isReturned=false;
+021255:   i.state='listed';
+021256:   i.grossProfit=null;
+021257:   i.soldOnPlatform=null;
+021258:   if(s1Adjustments)i.returnHistory=(i.returnHistory||[]).filter(function(r){return (Number(r.saleNo)||1)!==1;});
+021259:   saveDB();
+021260:   renderItemPage(m,id);
+021261:   toast('Sale undone — item back to Listed');
+021262: }
+021263: 
+021264: function undoRelist(m,id,rtnIdx){
+021265:   const i=(DB[m]||[]).find(x=>x.id===id);
+021266:   if(!i||!i.returnHistory)return;
+021267:   const r=i.returnHistory[rtnIdx];
+021268:   if(!r||!r._relistedAt)return;
+021269:   const saleNo=Math.max(1,Number(r.saleNo)||1);
+021270: 
+021271:   // A relist can only be undone while it is still the latest structural step.
+021272:   // If the next Sale-N already completed, step that sale back first.
+021273:   const _liveNo=i.resaleSalePrice?_currentResaleSaleNo(i):null;
+021274:   const _laterFrozen=(i.returnHistory||[]).some(function(r2){
+021275:     return r2!==r&&(r2.type==='full_seller'||r2.type==='full_ebay')&&Math.max(1,Number(r2.saleNo)||1)>saleNo;
+021276:   });
+021277:   if((_liveNo&&_liveNo>saleNo)||_laterFrozen){
+021278:     toast('Undo the later sale first, then undo this relist.','error');
+021279:     return;
+021280:   }
+021281: 
+021282:   // Remove relist markers from this return entry. The listing fee belongs to
+021283:   // the relist action itself, so a correction that undoes the relist removes
+021284:   // that fee from the event ledger as well.
+021285:   const _undoneDate=r._relistedAt;
+021286:   delete r._relistedAt;
+021287:   delete r._relistCondition;
+021288:   delete r._platformAtRelist;
+021289:   delete r._listingFeeAtRelist;
+021290: 
+021291:   // v2.15.0 — drop the paired maintenance entry, or the relist counter and the
+021292:   // freshness clock would keep counting a relist that has just been undone.
+021293:   if(Array.isArray(i.refreshHistory)){
+021294:     const _paired=i.refreshHistory
+021295:       .map(function(e,ix){return {e:e,ix:ix};})
+021296:       .filter(function(o){return o.e.type==='relist'&&o.e._fromReturn&&o.e.date===_undoneDate;})
+021297:       .pop();
+021298:     if(_paired)i.refreshHistory.splice(_paired.ix,1);
+021299:     const _prior=i.refreshHistory.slice().reverse().find(function(e){return e.type==='relist';});
+021300:     i._lastRelistAt=_prior?_prior.date:null;
+021301:   }
+021302: 
+021303:   // confirmRelist clears the reusable resale slot after Sale 2+. Rebuild that
+021304:   // failed completed sale from the immutable return snapshot so a subsequent
+021305:   // "Undo return" can correctly move the item back to Sale N sold state.
+021306:   if(saleNo>=2){
+021307:     const _num=function(a,b,fallback){
+021308:       if(a!=null)return Number(a)||0;
+021309:       if(b!=null)return Number(b)||0;
+021310:       return Number(fallback)||0;
+021311:     };
+021312:     i.resaleSalePrice=_num(r._salePriceAtReturn,r._salePriceAtRelist,0);
+021313:     i.resaleDateSold=r._dateSoldAtReturn||null;
+021314:     i.resalePostage=_num(r._postageAtReturn,r._postageAtRelist,0);
+021315:     i.resaleShippingCost=_num(r._shippingCostAtReturn,r._shippingCostAtRelist,0);
+021316:     i.resalePackagingCost=_num(r._packagingCostAtReturn,r._packagingCostAtRelist,0);
+021317:     i.resalePromoPercent=_num(r._promoPercentAtReturn,r._promoPercentAtRelist,0);
+021318:     i.resaleListingFee=_num(r._listingFeeAtReturn,null,0);
+021319:     i.resalePlatform=r._platformAtReturn||i.resalePlatform||_itemPlatform(i);
+021320:     i.resaleBundleId=r._bundleIdAtReturn||null;
+021321:     i.resaleBundleRef=r._bundleRefAtReturn||'';
+021322:     i.resaleBundleTotal=Number(r._bundleTotalAtReturn)||0;
+021323:     // Restore live fields used as defaults by the return/relist UI.
+021324:     i.salePrice=i.resaleSalePrice;
+021325:     i.postage=i.resalePostage;
+021326:     i.shippingCost=i.resaleShippingCost;
+021327:     i.packagingCost=i.resalePackagingCost;
+021328:     i.promoPercent=i.resalePromoPercent;
+021329:   }else{
+021330:     // Sale 1 stays frozen in its original fields/snapshot; only remove the
+021331:     // active resale-cycle fee that the now-undone relist had stamped.
+021332:     i.resaleListingFee=0;
+021333:   }
+021334: 
+021335:   // Restore returned state.
+021336:   i.isReturned=true;
+021337:   i.state='returned';
+021338:   i.dateSold=null;
+021339:   i.condition=undefined;
+021340:   i.grossProfit=calcGrossProfit(i);
+021341:   saveDB();
+021342:   renderItemPage(m,id);
+021343:   toast('Relist undone — item back to Returned after Sale '+saleNo);
+021344: }
+021345: 
+021346: // ── Returned items panel (opened from KPI card) ────────────────────────────
+021347: function showReturnedItems(){
+021348:   // IMPORTANT: this panel must use the exact same attribution rule as the
+021349:   // dashboard KPI — a refund belongs to the period in which it was LOGGED.
+021350:   // Build one row per item, but only from return entries inside the selected
+021351:   // period. Older/later returns on the same item must not leak into totals.
+021352:   const items=[];
+021353:   allDBKeys().forEach(function(k){
+021354:     (DB[k]||[]).forEach(function(i){
+021355:       if((i.item||'').trim().toUpperCase()==='MONTH END')return;
+021356:       const periodReturns=(i.returnHistory||[]).map(function(r,idx){
+021357:         return {entry:r,index:idx,date:_returnEventDate(r)};
+021358:       }).filter(function(x){return x.date&&_inSummaryPeriod(x.date);});
+021359:       if(!periodReturns.length)return;
+021360:       items.push(Object.assign({},i,{month:k,_periodReturns:periodReturns}));
+021361:     });
+021362:   });
+021363: 
+021364:   items.sort(function(a,b){
+021365:     const ad=a._periodReturns[a._periodReturns.length-1].date||'';
+021366:     const bd=b._periodReturns[b._periodReturns.length-1].date||'';
+021367:     return bd.localeCompare(ad);
+021368:   });
+021369: 
+021370:   const fullyReturned=items.filter(function(i){
+021371:     return i._periodReturns.some(function(x){const r=x.entry;return r.type==='full_seller'||r.type==='full_ebay';});
+021372:   });
+021373:   const partialOnly=items.filter(function(i){
+021374:     const hasFull=i._periodReturns.some(function(x){const r=x.entry;return r.type==='full_seller'||r.type==='full_ebay';});
+021375:     return !hasFull&&i._periodReturns.some(function(x){const r=x.entry;return r.type==='partial_seller'||r.type==='partial_ebay';});
+021376:   });
+021377:   const totalRefundedAll=items.reduce(function(s,i){
+021378:     return s+i._periodReturns.reduce(function(s2,x){return s2+(Number(x.entry.refundAmount)||0);},0);
+021379:   },0);
+021380: 
+021381:   const buildRow=function(i){
+021382:     const periodEntries=i._periodReturns.map(function(x){return x.entry;});
+021383:     const hasFull=periodEntries.some(function(r){return r.type==='full_seller'||r.type==='full_ebay';});
+021384:     const isResold=!!i.resaleSalePrice;
+021385:     const isRelisted=!i.isReturned&&!i.dateSold&&!i.resaleSalePrice&&(i.returnHistory||[]).some(function(r){return r.type==='full_seller'||r.type==='full_ebay';});
+021386:     const lastPeriod=i._periodReturns[i._periodReturns.length-1];
+021387:     const refundTotal=periodEntries.reduce(function(s,r){return s+(Number(r.refundAmount)||0);},0);
+021388:     const impactTotal=periodEntries.reduce(function(s,r){return s+_returnEventImpact(i,r).profit;},0);
+021389:     const borderCol=hasFull?'var(--red)':'var(--warn)';
+021390:     const refundCol=hasFull?'var(--red)':'var(--warn)';
+021391:     const typeBadge=hasFull
+021392:       ?'<span style="font-size:10px;padding:2px 6px;border-radius:4px;font-weight:600;background:var(--red-dim);color:var(--red);margin-left:6px">full return</span>'
+021393:       :'<span style="font-size:10px;padding:2px 6px;border-radius:4px;font-weight:600;background:rgba(212,136,10,0.13);color:var(--warn);margin-left:6px">partial</span>';
+021394:     const statusBadge=isResold
+021395:       ?'<span style="font-size:10px;padding:2px 6px;border-radius:4px;font-weight:600;background:rgba(167,139,250,0.15);color:var(--purple);margin-left:6px">resold</span>'
+021396:       :isRelisted
+021397:       ?'<span style="font-size:10px;padding:2px 6px;border-radius:4px;font-weight:600;background:var(--accent-dim);color:var(--accent);margin-left:6px">relisted</span>'
+021398:       :'';
+021399:     return '<div style="padding:12px;background:var(--surface2);border-radius:8px;margin-bottom:8px;cursor:pointer;border-left:3px solid '+borderCol+'" onclick="openItemDetail(\''+i.month+'\',\''+i.id+'\')">'
+021400:       +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">'
+021401:       +'<div style="flex:1;font-weight:600;font-size:14px">'+esc(i.item)+typeBadge+statusBadge+'</div>'
+021402:       +'<div style="font-size:15px;font-weight:700;color:'+refundCol+'">'+fmt(refundTotal)+'</div>'
+021403:       +'</div>'
+021404:       +'<div style="display:flex;gap:16px;flex-wrap:wrap;font-size:12px;color:var(--text-secondary)">'
+021405:       +'<span>Return impact: <strong style="color:'+(impactTotal>=0?'var(--green)':'var(--red)')+'">'+fmt(impactTotal)+'</strong></span>'
+021406:       +(i.gid?'<span style="color:var(--muted);font-family:monospace">'+esc(i.gid)+'</span>':'')
+021407:       +'<span style="color:var(--muted)">Returned '+(lastPeriod.date||'—')+'</span>'
+021408:       +'</div>'
+021409:       +'</div>';
+021410:   };
+021411: 
+021412:   let rows='';
+021413:   if(fullyReturned.length>0){
+021414:     rows+='<div style="font-size:11px;font-weight:700;color:var(--red);text-transform:uppercase;letter-spacing:.08em;margin:0 0 8px">Full returns — affect refund rate</div>';
+021415:     rows+=fullyReturned.map(buildRow).join('');
+021416:   }
+021417:   if(partialOnly.length>0){
+021418:     rows+='<div style="font-size:11px;font-weight:700;color:var(--warn);text-transform:uppercase;letter-spacing:.08em;margin:'+(fullyReturned.length>0?'16px':'0')+' 0 8px">Partial refunds — buyer kept item</div>';
+021419:     rows+=partialOnly.map(buildRow).join('');
+021420:   }
+021421: 
+021422:   const _stats=calcSummaryStats();
+021423:   const itemsRate=_stats.refundItemRate||0;
+021424:   const refundedItemCount=_stats.refundedItemCount||0;
+021425:   const refundDenom=_stats.refundDenom||0;
+021426:   // Reuse the exact Sale-N denominator used by the Summary engine. The old
+021427:   // panel only added Sale 1 + the current resale, so Sale 2 disappeared once
+021428:   // Sale 3 existed and the drill-down no longer reconciled to its KPI.
+021429:   const _periodRevenue=Number(_stats.refundMoneyDenom)||0;
+021430:   const _refundPaid=Number(_stats.refundMoneyTotal)||0;
+021431:   const _refundPctRev=Number(_stats.refundMoneyRate)||0;
+021432: 
+021433:   const summary='<div style="margin-bottom:16px;background:var(--surface2);border-radius:10px;padding:14px">'
+021434:     +'<div style="display:flex;align-items:baseline;gap:10px;margin-bottom:4px">'
+021435:     +'<div class="stat-num" style="color:var(--red)">'+itemsRate.toFixed(1)+'%</div>'
+021436:     +'<div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;font-weight:600">Refund rate · items</div>'
+021437:     +'</div>'
+021438:     +'<div style="font-size:13px;color:var(--text-secondary);margin-bottom:12px">'
+021439:       +'<strong style="color:var(--text);font-weight:600">'+refundedItemCount+' of '+refundDenom+'</strong> sold '
+021440:       +'· '+fullyReturned.length+' full · '+partialOnly.length+' partial'
+021441:     +'</div>'
+021442:     +'<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-top:1px solid var(--border);font-size:12px;color:var(--muted)">'
+021443:       +'<span>Total paid out in period</span>'
+021444:       +'<span style="color:var(--red);font-weight:600">'+fmt(_refundPaid)+'</span>'
+021445:     +'</div>'
+021446:     +'<div style="display:flex;align-items:center;justify-content:space-between;font-size:12px;color:var(--muted)">'
+021447:       +'<span>% of period sales revenue</span>'
+021448:       +'<span style="color:var(--text);font-weight:600">'+_refundPctRev.toFixed(1)+'% <span style="color:var(--muted);font-weight:400">of '+fmt(_periodRevenue)+'</span></span>'
+021449:     +'</div>'
+021450:     +'</div>';
+021451: 
+021452:   const content=items.length>0
+021453:     ? summary+rows
+021454:     : '<div style="padding:30px;text-align:center;color:var(--muted)">No refunds in this period</div>';
+021455: 
+021456:   openPanel('Refunds — '+items.length+' item'+(items.length!==1?'s':''),content);
+021457: }
+021458: 
+021459: // ── UK TAX ENGINE ────────────────────────────────────────────────────────
+021460: // Income-tax rates are centralised here so the monthly set-aside, Tax page and
+021461: // CSV export cannot drift. Income Tax is calculated on non-savings/non-dividend
+021462: // income only; dividends/savings are deliberately outside this estimator.
+021463: function setTaxRegion(v){
+021464:   DB._taxRegion=v==='scotland'?'scotland':'rUK';
+021465:   try{localStorage.setItem('retrade_tax_region',DB._taxRegion);}catch(e){}
+021466:   _syncUserSettingsToCloud();saveDB();renderTax();
+021467: }
+021468: 
+021469: function renderTax(){
+021470:   const now=new Date();
+021471:   const currentTaxYear=(now.getMonth()>3||(now.getMonth()===3&&now.getDate()>=6))?now.getFullYear():now.getFullYear()-1;
+021472:   const selectedYear=DB._taxYear||currentTaxYear;
+021473:   const yearOptions=[];
+021474:   for(let y=currentTaxYear;y>=currentTaxYear-2;y--){
+021475:     yearOptions.push('<option value="'+y+'" '+(y===selectedYear?'selected':'')+'>'+y+'/'+(y+1).toString().slice(2)+' (6 Apr '+y+' \u2013 5 Apr '+(y+1)+')</option>');
+021476:   }
+021477:   const taxYearStart=new Date(selectedYear,3,6);
+021478:   const taxYearEnd=new Date(selectedYear+1,3,5,23,59,59);
+021479:   const inTaxYear=function(ds){if(!ds)return false;const d=new Date(ds);return d>=taxYearStart&&d<=taxYearEnd;}
+021480:   const soldItems=[];
+021481:   allDBKeys().forEach(function(k){(DB[k]||[]).forEach(function(i){
+021482:     if((i.item||'').trim().toUpperCase()==='MONTH END')return;
+021483:     if((i.dateSold||i.resaleSalePrice)&&!i.isReturned&&inTaxYear(i.dateSold||i.resaleDateSold))soldItems.push(i);
+021484:   });});
+021485:   // ── Single source of truth: the shared reporting engine over the tax year ──
+021486:   // Every headline figure (turnover, expenses, taxable profit, SA103 boxes) is
+021487:   // derived from _buildPnLSummary so the Tax page reconciles to the exports to
+021488:   // the penny. Turnover = gross receipts incl. postage recharged to buyers.
+021489:   const fyFrom=selectedYear+'-04-06', fyTo=(selectedYear+1)+'-04-05';
+021490:   const _fyLabel=selectedYear+'/'+String(selectedYear+1).slice(2);
+021491:   const pnl=_buildTaxCashSummary(fyFrom,fyTo,'FY '+_fyLabel);
+021492:   const totalIncome=pnl.totalBusinessIncome!=null?pnl.totalBusinessIncome:pnl.revenue;
+021493:   const saleCount=soldItems.length;
+021494:   // Dynamic income label: list the unique platforms actually used this tax year
+021495:   const _usedPlatKeys=[...new Set(soldItems.map(function(i){
+021496:     const p=_itemPlatform(i);
+021497:     return p==='ebay_biz'?'ebay':p;
+021498:   }))];
+021499:   const _incomeLabel=_usedPlatKeys.length===0?'Gross receipts'
+021500:     :_usedPlatKeys.length<=3?'Gross receipts ('+_usedPlatKeys.map(function(k){return PLATFORMS[k]?PLATFORMS[k].short:k;}).join(', ')+')'
+021501:     :'Gross receipts (multiple platforms)';
+021502:   const tripsInYear=(DB.trips||[]).filter(function(t){return inTaxYear(t.date);});
+021503:   const totalMiles=tripsInYear.reduce(function(s,t){return s+(t.mileage||0);},0);
+021504:   // Tiered mileage split — kept for the display label; cost itself comes from pnl.
+021505:   const _tieredYr=calcTieredTrips(tripsInYear);
+021506:   const tier1Miles=_tieredYr.reduce(function(s,r){return s+r.tier1Miles;},0);
+021507:   const tier2Miles=_tieredYr.reduce(function(s,r){return s+r.tier2Miles;},0);
+021508:   const totalMileage=pnl.mileage.cost;
+021509:   const expensesInYear=(DB.expenses||[]).filter(function(e){return inTaxYear(e.date);});
+021510:   // Total allowable expenses = turnover − net profit before tax (guaranteed to
+021511:   // reconcile; includes COGS, fees, postage, packaging, returns, partner splits,
+021512:   // mileage and all logged overheads).
+021513:   const totalActualExpenses=+(totalIncome-pnl.netProfit).toFixed(2);
+021514:   const TRADING_ALLOWANCE=1000;
+021515:   const taxableTA=Math.max(0,+(totalIncome-TRADING_ALLOWANCE).toFixed(2));
+021516:   // Actual-expenses taxable profit IS the engine's net profit before tax.
+021517:   const taxableActual=+pnl.netProfit.toFixed(2); // may be negative (real loss)
+021518:   const taWins=taxableTA<=taxableActual;
+021519:   const belowThreshold=totalIncome<TRADING_ALLOWANCE;
+021520: 
+021521:   // Method selection — user can override, defaults to whichever gives lower tax
+021522:   const autoMethod=taWins?'ta':'actual';
+021523:   if(!DB._taxMethod)DB._taxMethod=autoMethod;
+021524:   const chosenMethod=DB._taxMethod;
+021525:   const usingTA=chosenMethod==='ta';
+021526: 
+021527:   // ── Pre-compute total tax early so monthly breakdown can show per-month set-aside ──
+021528:   // Uses same rates as the main tax estimate section below.
+021529:   // Separate lookup here so it runs BEFORE the html string is built.
+021530:   const _re=_taxRateConfig(selectedYear);
+021531:   const _chosenBox23=usingTA?taxableTA:taxableActual;
+021532:   const _taxableForEst=Math.max(0,_chosenBox23);
+021533:   const _taxRegionKey=_taxRegion();
+021534:   const _otherIncomeEarly=_taxOtherIncome();
+021535:   const _itTax=_selfEmploymentIncomeTax(_taxableForEst,_otherIncomeEarly,selectedYear,_taxRegionKey);
+021536:   const _c2=_re.c2mandatory&&_taxableForEst>(_re.c2chargeAt||_re.c2spt)?+(_re.c2weekly*52).toFixed(2):0;
+021537:   const _c4base=Math.max(0,_taxableForEst-_re.pa);
+021538:   const _c4=+(Math.min(_c4base,_re.c4upper-_re.pa)*_re.c4low+Math.max(0,_taxableForEst-_re.c4upper)*_re.c4high).toFixed(2);
+021539:   const _totalTaxEarly=+(_itTax+_c2+_c4).toFixed(2);
+021540: 
+021541:   const box15=+pnl.revenue.toFixed(2);
+021542:   const box16=usingTA?+Math.min(TRADING_ALLOWANCE,totalIncome).toFixed(2):totalActualExpenses;
+021543:   const box23=usingTA?taxableTA:taxableActual;
+021544: 
+021545:   // Expense breakdown, box-level, straight from the engine. Every line maps to
+021546:   // an HMRC SA103F box and the set sums to totalActualExpenses.
+021547:   const _taxExpLines=[
+021548:     [17,'Cost of goods sold (Box 17)',(pnl.box17!=null?pnl.box17:pnl.cogs)],
+021549:     [20,'Motor, van & travel (Box 20)',pnl.byBox[20]||0],
+021550:     [21,'Rent, rates, power & insurance (Box 21)',pnl.byBox[21]||0],
+021551:     [22,'Repairs & equipment (Box 22)',pnl.byBox[22]||0],
+021552:     [23,'Postage, packaging & office (Box 23)',pnl.byBox[23]||0],
+021553:     [24,'Advertising & marketing (Box 24)',pnl.byBox[24]||0],
+021554:     [26,'Platform & payment fees (Box 26)',pnl.byBox[26]||0],
+021555:     [28,'Accountancy, legal & professional (Box 28)',pnl.byBox[28]||0],
+021556:     [30,'Other business expenses (Box 30)',pnl.byBox[30]||0]
+021557:   ].filter(function(r){return r[0]===17||r[2]>0;});
+021558:   var expRows=_taxExpLines.map(function(row){
+021559:     var label=row[1],val=row[2];
+021560:     return '<div class="tax-exp-row" style="display:flex;justify-content:space-between;align-items:center;padding:10px 16px;border-bottom:1px solid var(--border);font-size:14px">'
+021561:       +'<span style="color:var(--text-secondary)">'+label+'</span>'
+021562:       +'<span style="font-family:var(--font-mono);font-weight:600;color:'+(val>0?'var(--red)':'var(--muted)')+'">'+( val>0?'\u2212'+fmt(val):'--')+'</span>'
+021563:       +'</div>';
+021564:   }).join('');
+021565: 
+021566:   // Method card helper — now clickable, selected state drives border + checkmark
+021567:   const methodCard=function(method,title,income,deductLabel,deductVal,taxable,note){
+021568:     const selected=chosenMethod===method;
+021569:     const isAuto=autoMethod===method;
+021570:     return '<div class="tax-method-card" onclick="DB._taxMethod=\''+method+'\';saveDB();renderTax()" style="background:var(--surface);border:2px solid '+(selected?'var(--green)':'var(--border)')+';border-radius:12px;padding:18px;position:relative;box-shadow:0 1px 3px var(--shadow);cursor:pointer;transition:border-color 0.15s,box-shadow 0.15s" onmouseenter="this.style.boxShadow=\'0 4px 16px var(--shadow-md)\'" onmouseleave="this.style.boxShadow=\'0 1px 3px var(--shadow)\'">'
+021571:       +(selected?'<div style="position:absolute;top:-1px;left:50%;transform:translateX(-50%);background:var(--green);color:#fff;font-size:10px;font-weight:700;padding:3px 12px;border-radius:0 0 8px 8px;letter-spacing:0.5px;white-space:nowrap">\u2713 SELECTED</div>'
+021572:         :isAuto?'<div style="position:absolute;top:-1px;left:50%;transform:translateX(-50%);background:var(--surface2);border:1px solid var(--border);color:var(--muted);font-size:10px;font-weight:700;padding:3px 12px;border-radius:0 0 8px 8px;letter-spacing:0.5px;white-space:nowrap">Recommended</div>':'')
+021573:       +'<div style="font-weight:700;font-size:14px;margin-bottom:14px;padding-top:'+((selected||isAuto)?'10px':'0')+'">' +title+'</div>'
+021574:       +'<div class="tax-row" style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--border);font-size:13px"><span style="color:var(--text-secondary)">Gross income</span><span style="font-weight:600">'+fmt(income)+'</span></div>'
+021575:       +'<div class="tax-row" style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--border);font-size:13px"><span style="color:var(--text-secondary)">'+deductLabel+'</span><span style="color:var(--red)">\u2212'+fmt(deductVal)+'</span></div>'
+021576:       +'<div class="tax-row" style="display:flex;justify-content:space-between;padding:9px 0;font-size:15px;font-weight:700"><span>'+(taxable<0?'Taxable loss':'Taxable profit')+'</span><span style="color:'+(taxable<0?'var(--accent)':selected?'var(--green)':taxable===0?'var(--green)':'var(--text)')+'">'+(taxable<0?'\u2212'+fmt(Math.abs(taxable)):fmt(taxable))+'</span></div>'
+021577:       +'<div style="margin-top:10px;font-size:11px;color:var(--muted);line-height:1.5">'+note+'</div>'
+021578:       +'</div>';
+021579:   }
+021580: 
+021581:   var html=''
+021582:     // Header
+021583:     +'<div style="margin-bottom:20px">'
+021584:     +'<div class="page-header"><div><div class="page-title">Tax Return</div><div class="page-subtitle">HMRC cash-basis working and Self Assessment estimate.</div></div></div>'
+021585:     +'<div style="color:var(--text-secondary);font-size:13px">Self Assessment \u2014 Self-employment income</div>'
+021586:     +'</div>'
+021587: 
+021588:     // Tax year selector — full width on mobile
+021589:     +'<div style="margin-bottom:20px">'
+021590:     +'<label style="display:block;font-weight:600;font-size:11px;color:var(--text-secondary);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">Tax Year</label>'
+021591:     +'<select class="tax-year-select" style="width:100%;max-width:360px" onchange="DB._taxYear=parseInt(this.value);DB._taxMethod=null;saveDB();renderTax()">'+yearOptions.join('')+'</select>'
+021592:     +'</div>'
+021593:     +'<div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:20px;font-size:12px;color:var(--text-secondary);line-height:1.55"><strong style="color:var(--text)">Cash-basis working:</strong> sales are treated as received on the recorded sale date; own/hybrid stock is deducted when sourced, supplier stock when its settlement is recorded paid, and consignment/hybrid partner shares when a paid settlement is recorded. Supplier refunds are treated as other business income. This keeps tax timing separate from the sale-matched management P&amp;L.</div>';
+021594: 
+021595:   if(selectedYear>2025){
+021596:     html+='<div style="background:var(--accent-dim);border:1px solid rgba(245,166,35,.22);border-radius:10px;padding:10px 14px;margin-bottom:14px;font-size:11px;color:var(--text-secondary);line-height:1.5"><strong style="color:var(--text)">2026/27 working estimate:</strong> tax and NI rates are current for 2026/27; SA103 box labels use the latest published HMRC form layout as a working reference until that year&#39;s return form is published.</div>';
+021597:   }
+021598: 
+021599:   // Below threshold banner
+021600:   if(belowThreshold){
+021601:     html+='<div style="background:var(--green-dim);border:1px solid rgba(34,197,94,0.2);border-radius:10px;padding:14px 16px;margin-bottom:20px;display:flex;align-items:flex-start;gap:12px">'
+021602:       +'<div style="font-size:20px;flex-shrink:0">\u2705</div>'
+021603:       +'<div><div style="font-weight:700;font-size:14px;color:var(--green);margin-bottom:3px">Within the £1,000 Trading Allowance</div>'
+021604:       +'<div style="font-size:12px;color:var(--text-secondary);line-height:1.5">Gross trading income of <strong style="color:var(--text)">'+fmt(totalIncome)+'</strong> is within the £1,000 allowance. In many straightforward cases you may not need to register solely for this trade, but HMRC exceptions can apply.</div>'
+021605:       +'</div></div>';
+021606:   } else {
+021607:     html+='<div style="background:rgba(59,130,246,0.08);border:1px solid rgba(96,165,250,0.15);border-radius:10px;padding:12px 14px;margin-bottom:20px;font-size:12px;color:var(--blue);line-height:1.6">'
+021608:       +'Income of <strong>'+fmt(totalIncome)+'</strong> exceeds the \u00a31,000 trading allowance. Tap a method to select it \u2014 the SA103 boxes update automatically.'
+021609:       +'</div>';
+021610:   }
+021611: 
+021612:   // Method comparison — clickable cards, stacks to 1 col on mobile
+021613:   html+='<div class="sl">Method Comparison</div>'
+021614:     +'<div class="tax-method-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:28px">'
+021615:     +methodCard('ta','Trading Allowance',totalIncome,'Trading allowance',Math.min(TRADING_ALLOWANCE,totalIncome),taxableTA,'Flat £1,000 deduction instead of actual expenses. Keep your income records; you cannot also deduct business expenses.')
+021616:     +methodCard('actual','Actual Expenses',totalIncome,'Total expenses',totalActualExpenses,taxableActual,'Deduct real costs. Better if expenses exceed \u00a31,000.')
+021617:     +'</div>'
+021618: 
+021619:     // Income summary
+021620:     +'<div class="sl">Income</div>'
