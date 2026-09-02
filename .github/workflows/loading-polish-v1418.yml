@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - '.github/workflows/loading-polish-v1418.yml'
+      - '.github/scripts/apply_loading_polish_v1418.py'
   workflow_dispatch:
 
 permissions:
@@ -80,10 +81,6 @@ jobs:
                   const auth=document.getElementById('auth-overlay'); if(auth)auth.style.display='none';
                   const loading=document.getElementById('app-loading'); if(loading)loading.remove();
                   document.body.classList.add('rt-app-visible');
-
-                  // Seed a tiny valid RETRADE shape in memory. This is test-only data;
-                  // it never touches Supabase. It forces the CURRENT production renderers
-                  // down their normal KPI/list/chart paths instead of first-run onboarding.
                   const seed=`(function(){
                     if(typeof DB!=='object')throw new Error('DB unavailable');
                     Object.keys(DB).forEach(function(k){if(/^[A-Z]{3}-\\d{2}$/.test(k))delete DB[k];});
@@ -100,7 +97,6 @@ jobs:
                     DB.cashLedger=Array.isArray(DB.cashLedger)?DB.cashLedger:[];
                   })()`;
                   eval(seed);
-
                   window.showRealLayoutLoading(tab,'Visual test');
                   let node=document.getElementById('p-'+tab);
                   while(node && node!==document.body){
@@ -115,6 +111,7 @@ jobs:
                 const stats=await page.evaluate(()=>({
                   busy:document.querySelectorAll('.page.on[aria-busy="true"]').length,
                   values:document.querySelectorAll('.page.on .rt-data-loading').length,
+                  charts:document.querySelectorAll('.page.on .rt-chart-loading,.page.on .rt-chart-data-loading').length,
                   lists:document.querySelectorAll('.page.on .rt-loading-list-overlay').length,
                   disabled:document.querySelectorAll('.page.on button:disabled,.page.on input:disabled,.page.on select:disabled').length,
                   fake:document.querySelectorAll('.rt-skel').length,
@@ -131,7 +128,7 @@ jobs:
                 await page.waitForTimeout(420);
                 const after=await page.evaluate(()=>({
                   loading:document.body.classList.contains('rt-real-layout-loading'),
-                  masks:document.querySelectorAll('.rt-data-loading,.rt-loading-list-overlay').length,
+                  masks:document.querySelectorAll('.rt-data-loading,.rt-loading-list-overlay,.rt-chart-loading,.rt-chart-data-loading').length,
                   pageRect:(()=>{const el=document.querySelector('.page.on');if(!el)return null;const r=el.getBoundingClientRect();return {x:r.x,y:r.y,w:r.width,h:r.height};})(),
                 }));
                 if(after.loading || after.masks!==0)throw new Error(`${vp.name}/${tab} loader did not clear ${JSON.stringify(after)}`);
