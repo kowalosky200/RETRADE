@@ -5210,3 +5210,98 @@ svg.cat-donut-draw circle.donut-seg-last{
 @media(min-width:1400px){
   .rt .page{max-width:1600px;}
 }
+
+
+/* v1.4.21 — old visual skeleton language, current production geometry. */
+.rt-real-layout-loading .rt-data-loading,
+.rt-real-layout-loading .rt-data-loading *{
+  color:transparent!important;
+  text-shadow:none!important;
+}
+.rt-real-layout-loading .rt-data-loading svg,
+.rt-real-layout-loading .rt-data-loading img{opacity:0!important;}
+
+.rt-real-layout-loading .rt-label-loading{
+  position:relative!important;
+  color:transparent!important;
+  text-shadow:none!important;
+}
+.rt-real-layout-loading .rt-label-loading::after{
+  content:'';
+  position:absolute;
+  left:0;
+  top:50%;
+  transform:translateY(-50%);
+  height:.72em;
+  border-radius:5px;
+  background:linear-gradient(90deg,var(--surface2) 0%,var(--border) 46%,var(--surface2) 100%);
+  background-size:240% 100%;
+  animation:rt-data-shimmer 1.28s ease-in-out infinite;
+  pointer-events:none;
+}
+.rt-real-layout-loading .page-title.rt-label-loading::after,
+.rt-real-layout-loading .summary-title.rt-label-loading::after{width:min(180px,75%);height:.82em;}
+.rt-real-layout-loading .page-subtitle.rt-label-loading::after,
+.rt-real-layout-loading .summary-subtitle.rt-label-loading::after{width:min(280px,82%);height:.68em;}
+.rt-real-layout-loading .kpi-label.rt-label-loading::after{width:62%;}
+.rt-real-layout-loading .sl.rt-label-loading::after{width:min(118px,70%);}
+.rt-real-layout-loading .inv-age-title.rt-label-loading::after{width:78px;}
+
+/* Charts keep their true card dimensions but all seeded detail recedes behind shimmer. */
+.rt-real-layout-loading .rt-chart-loading > *{opacity:.07!important;}
+.rt-real-layout-loading .summary-categories .cat-donut-wrap.rt-chart-loading{
+  min-height:150px;
+  border-radius:var(--r-m);
+}
+
+/* Top Flips keeps its real header/card; only its dynamic body becomes old-style rows. */
+.rt-real-layout-loading .rt-panel-list-loading{
+  position:relative;
+  overflow:hidden;
+  min-height:220px;
+}
+.rt-real-layout-loading .rt-panel-list-loading > .rt-loading-panel-overlay{
+  top:48px;
+  left:16px;
+  right:16px;
+  bottom:12px;
+  background:var(--surface);
+  border-radius:0;
+}
+.rt-real-layout-loading .rt-panel-list-loading > .rt-loading-panel-overlay .rt-loading-row{
+  min-height:48px;
+}
+
+/* Neutralise seeded progress/age colour so it reads as loading, not real data. */
+.rt-real-layout-loading .rt-neutral-loading-bar{
+  filter:grayscale(1)!important;
+  opacity:.28!important;
+}
+.rt-real-layout-loading .rt-age-loading{
+  position:relative;
+}
+.rt-real-layout-loading .rt-age-loading [style*="background"],
+.rt-real-layout-loading .rt-age-loading [class*="bar"],
+.rt-real-layout-loading .rt-age-loading [class*="seg"]{
+  filter:grayscale(1)!important;
+  opacity:.22!important;
+}
+
+/* Empty Sales month cards should look intentionally pending, not like empty account data. */
+.rt-real-layout-loading .mcard-empty .msub.rt-data-loading{
+  display:inline-block!important;
+  width:72%;
+  min-height:.72em;
+  border-radius:5px;
+}
+
+@media(max-width:600px){
+  .rt-real-layout-loading .page-title.rt-label-loading::after,
+  .rt-real-layout-loading .summary-title.rt-label-loading::after{width:min(150px,72%);}
+  .rt-real-layout-loading .page-subtitle.rt-label-loading::after,
+  .rt-real-layout-loading .summary-subtitle.rt-label-loading::after{width:min(230px,86%);}
+  .rt-real-layout-loading .rt-panel-list-loading > .rt-loading-panel-overlay{left:12px;right:12px;}
+}
+@media(prefers-reduced-motion:reduce){
+  .rt-real-layout-loading .rt-label-loading::after{animation:none!important;}
+}

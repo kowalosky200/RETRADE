@@ -4829,8 +4829,33 @@ function _markLoadingRegions(root){
     '.stat-num','.kcard-value','.run-kpi-value','.cash-balance-value',
     '.sales-kpi-value','.sales-kpi-sub','.kpi-foot','.summary-hero-sub',
     '.metric-sub','.item-row-profit','.item-row-roi','.money-value',
-    '.mf-val','.mf-foot','.fy-stat-hide'
+    '.mf-val','.mf-foot','.fy-stat-hide','.inv-stat-sub','.category-mini-meta',
+    '.mcard .msub'
   ].join(',')).forEach(function(el){el.classList.add('rt-data-loading');});
+
+  // Bring back the polished pre-v1.4.14 skeleton language without bringing back
+  // its duplicate page DOM. These are the real current labels in the real cards.
+  root.querySelectorAll([
+    '.page-title','.page-subtitle','.summary-title','.summary-subtitle',
+    '.kpi-label','.summary-panel > .sl','.summary-chart-head .sl',
+    '.summary-cat-head .sl','.snap-strip-head .sl','.inv-age-title',
+    '.monthly-profitability-card > .sl'
+  ].join(',')).forEach(function(el){el.classList.add('rt-label-loading');});
+
+  // Catch data leaves whose renderer does not expose a semantic value class.
+  root.querySelectorAll('*').forEach(function(el){
+    if(el.children&&el.children.length)return;
+    const txt=(el.textContent||'').trim();
+    if(!txt)return;
+    if(
+      /^[-+−]?£[\d,.]+(?:\s*[kKmM])?$/.test(txt) ||
+      /^[-+−]?\d+(?:[.,]\d+)?(?:%|pp|d|x)?$/.test(txt) ||
+      /^\d+\s+(?:sold|active)\b/i.test(txt) ||
+      /^No items yet\b/i.test(txt) ||
+      /^No completed sales\b/i.test(txt) ||
+      /^No sales yet\b/i.test(txt)
+    ) el.classList.add('rt-data-loading');
+  });
 
   // Sales/FY rows have several dynamic leaf values without semantic classes.
   // Mask only leaf text that represents loaded data; keep month/FY labels visible.
@@ -4842,6 +4867,7 @@ function _markLoadingRegions(root){
 
   root.querySelectorAll([
     '.summary-hero-chart','.chart-wrap','.chart-container','.summary-chart-body',
+    '.summary-categories .cat-donut-wrap',
     '.monthly-profitability-card .chart-area','.monthly-profitability-card svg',
     '#monthly-profitability-svg'
   ].join(',')).forEach(function(el){el.classList.add('rt-chart-loading');});
@@ -4865,6 +4891,26 @@ function _markLoadingRegions(root){
     }
   });
 
+
+  root.querySelectorAll('.summary-topflips').forEach(function(el){
+    el.classList.add('rt-panel-list-loading');
+    let overlay=null;
+    try{overlay=el.querySelector(':scope > .rt-loading-list-overlay');}catch(e){overlay=el.querySelector('.rt-loading-list-overlay');}
+    if(!overlay){
+      overlay=document.createElement('div');
+      overlay.className='rt-loading-list-overlay rt-loading-panel-overlay';
+      overlay.setAttribute('aria-hidden','true');
+      overlay.innerHTML=_loadingItemRows(3);
+      el.appendChild(overlay);
+    }
+  });
+
+  root.querySelectorAll('.inv-age').forEach(function(el){el.classList.add('rt-age-loading');});
+  root.querySelectorAll([
+    '.mf-bar','.mf-bar-fill','.mf-fill','.mf-track',
+    '[role="progressbar"]','progress'
+  ].join(',')).forEach(function(el){el.classList.add('rt-neutral-loading-bar');});
+
   root.querySelectorAll('.empty-state,.empty-state-v2,.no-data,.empty-list').forEach(function(el){el.classList.add('rt-hide-while-loading');});
 }
 
@@ -4872,8 +4918,8 @@ function _clearLoadingRegions(page){
   if(!page)return;
   page.removeAttribute('aria-busy');
   delete page.dataset.loading;
-  page.querySelectorAll('.rt-data-loading,.rt-chart-loading,.rt-chart-data-loading,.rt-list-loading,.rt-hide-while-loading')
-    .forEach(function(el){el.classList.remove('rt-data-loading','rt-chart-loading','rt-chart-data-loading','rt-list-loading','rt-hide-while-loading');});
+  page.querySelectorAll('.rt-data-loading,.rt-label-loading,.rt-chart-loading,.rt-chart-data-loading,.rt-list-loading,.rt-panel-list-loading,.rt-age-loading,.rt-neutral-loading-bar,.rt-hide-while-loading')
+    .forEach(function(el){el.classList.remove('rt-data-loading','rt-label-loading','rt-chart-loading','rt-chart-data-loading','rt-list-loading','rt-panel-list-loading','rt-age-loading','rt-neutral-loading-bar','rt-hide-while-loading');});
   page.querySelectorAll('.rt-loading-list-overlay').forEach(function(el){el.remove();});
 }
 
@@ -5051,6 +5097,7 @@ console.info('[RETRADE] v1.4.14 real-layout boot loading loaded');
 console.info('[RETRADE] v1.4.18 polished real-layout loading loaded');
 console.info('[RETRADE] v1.4.19 Sales month-card loading loaded');
 console.info('[RETRADE] v1.4.20 populated real-layout loading shell loaded');
+console.info('[RETRADE] v1.4.21 old-look real-layout skeleton loaded');
 
 function refreshActivePage(){
   if(typeof renderSummary==='undefined')return; // called before functions defined
