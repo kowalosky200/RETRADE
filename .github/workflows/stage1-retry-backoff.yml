@@ -1,0 +1,106 @@
+name: Apply Stage 1 retry backoff
+
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/stage1-retry-backoff.yml]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Patch retry loop
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('app.js')
+          s=p.read_text(encoding='utf-8')
+          old="""    }else if(_currentUserId&&_syncClockTargetRevision>_syncClockAppliedRevision){
+      // Local unsynced edits or an in-flight refresh may temporarily block the
+      // pull. Retry; never discard the remote revision signal.
+      _syncClockRefreshTimer=setTimeout(function(){_queueSyncClockRefresh(_syncClockTargetRevision,'retry');},900);
+    }
+"""
+          new="""    }else if(_currentUserId&&_syncClockTargetRevision>_syncClockAppliedRevision){
+      // v1.4.12 — Never turn a remote sync-clock signal into a tight local-write
+      // retry loop. If this device has durable pending work, the outbox remains
+      // authoritative and blocks the cloud pull until that work is confirmed.
+      // Normal user mutations, focus/visibility recovery and the browser 'online'
+      // event will retry the writer. We keep the remote target revision queued,
+      // but do not hammer Supabase every 900ms while a local write is unresolved.
+      if(typeof _outboxPendingCount==='function'&&_outboxPendingCount()>0){
+        console.info('[RETRADE] remote refresh deferred while local outbox is pending');
+        return;
+      }
+      // No local pending work: this is normally just an overlapping refresh.
+      // A modest delay avoids rapid pull loops while still converging quickly.
+      _syncClockRefreshTimer=setTimeout(function(){_queueSyncClockRefresh(_syncClockTargetRevision,'retry');},5000);
+    }
+"""
+          if old not in s:
+              raise SystemExit('Expected sync-clock retry block not found; refusing blind patch')
+          s=s.replace(old,new,1)
+
+          # Add an event-driven retry for durable outbox work when connectivity returns.
+          anchor="""window.addEventListener('focus',function(){setTimeout(function(){_refreshCloudOnResume(false);},150);});
+"""
+          addition="""window.addEventListener('focus',function(){setTimeout(function(){_refreshCloudOnResume(false);},150);});
+// v1.4.12 — event-driven retry. Offline/transient failures remain safely in the
+// durable outbox and retry when the browser reports connectivity has returned.
+// This replaces rapid timer-driven retries with a meaningful external trigger.
+window.addEventListener('online',function(){
+  if(!_currentUserId)return;
+  try{
+    if(typeof _outboxPendingCount==='function'&&_outboxPendingCount()>0&&typeof _persistChanges==='function')_persistChanges();
+    else if(typeof _readSyncClockRevision==='function')_readSyncClockRevision(false);
+  }catch(e){}
+});
+"""
+          if anchor not in s:
+              raise SystemExit('Expected focus listener anchor not found; refusing blind patch')
+          s=s.replace(anchor,addition,1)
+
+          marker="console.info('[RETRADE] v1.4.12 event-driven sync retry loaded');\n"
+          if marker not in s:
+              # Place a simple build marker immediately before DATABASE entry point.
+              db_anchor='// DATABASE (entry point — called on app init after auth confirmed)'
+              if db_anchor not in s:
+                  raise SystemExit('Database marker not found')
+              s=s.replace(db_anchor,marker+'\n'+db_anchor,1)
+
+          p.write_text(s,encoding='utf-8',newline='\n')
+
+          idx=Path('index.html')
+          h=idx.read_text(encoding='utf-8')
+          h2=h.replace('./app.js?v=1.4.11','./app.js?v=1.4.12')
+          if h2==h:
+              raise SystemExit('app.js v1.4.11 cache key not found')
+          idx.write_text(h2,encoding='utf-8',newline='\n')
+          PY
+
+      - name: Validate
+        shell: bash
+        run: |
+          node --check app.js
+          grep -Fq "v1.4.12 event-driven sync retry loaded" app.js
+          grep -Fq "./app.js?v=1.4.12" index.html
+          ! grep -Fq "},900);" app.js
+
+      - name: Commit source and remove temporary workflow
+        shell: bash
+        run: |
+          rm .github/workflows/stage1-retry-backoff.yml
+          git config user.name 'RETRADE Stage 1 Audit'
+          git config user.email 'actions@users.noreply.github.com'
+          git add app.js index.html .github/workflows/stage1-retry-backoff.yml
+          git commit -m 'fix(sync): replace rapid pending-write retries with event-driven recovery'
+          git push origin HEAD:main
