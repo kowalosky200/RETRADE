@@ -14410,7 +14410,7 @@ function renderMonth(){
             <span style="color:${SELECTED_ITEMS.size>0?'var(--text)':'var(--text-secondary)'}">${SELECTED_ITEMS.size>0?SELECTED_ITEMS.size+' selected':'Select all'}</span>
           </button>
           ${SELECTED_ITEMS.size>0?`
-            <select class="bulk-ctrl bulk-plat-sel" data-source="month" onchange="if(this.value){bulkChangePlatform(this.value,'month');this.value=''}"><option value="">Platform</option>${Object.values(PLATFORMS).filter(p=>p.live).map(p=>`<option value="${p.id}">${p.short}</option>`).join('')}</select>
+            <select class="bulk-ctrl bulk-plat-sel" data-source="month"><option value="">Platform</option>${Object.values(PLATFORMS).filter(p=>p.live).map(p=>`<option value="${p.id}">${p.short}</option>`).join('')}</select>
             <button class="bulk-ctrl is-danger" onclick="bulkAction('delete')">${icon('trash',14)} Delete</button>
           `:''}
           <button class="sel-exit" onclick="toggleSelectionMode()">\u2715 Done</button>
@@ -16110,34 +16110,102 @@ async function confirmLinkToSale(targetId){
 async function bulkChangePlatform(platId, source){
   if(!platId||!PLATFORMS[platId])return;
   const label=PLATFORMS[platId].label;
-  const ids = source==='stock' ? [...STOCK_SELECTED] : [...SELECTED_ITEMS];
-  if(!ids.length)return;
-  let count=0, skippedSold=0;
-  ids.forEach(id=>{
-    allDBKeys().forEach(k=>{
-      const item=(DB[k]||[]).find(i=>i.id===id);
-      if(item){
-        // A completed sale's platform is frozen at what it actually sold on —
-        // never bulk-reprice it (that would silently move fees/tax on an
-        // already-recorded sale). Only live, unsold listings change here.
-        if(item.dateSold||item.resaleSalePrice){skippedSold++;return;}
-        item.defaultPlatform=platId;
-        _stampListingFee(item); // re-stamp Sale-1 insertion fee to the new platform
-        // If eBay Biz, ensure postage mode is custom; if eBay private, set simple
-        if(platId==='ebay_biz') item._postageMode='custom';
-        else if(platId==='ebay') item._postageMode='simple';
-        count++;
+
+  // Sales History edits the ACTUAL sale-cycle platform, matching the individual
+  // receipt platform pickers. Selection is item-id based today, so if two rows
+  // for the same item are visibly selected (e.g. Sale 1 + current resale), each
+  // visible sale cycle is corrected once. Return-adjustment rows resolve back to
+  // their parent sale cycle rather than carrying an independent platform.
+  if(source==='month'){
+    const ids=new Set([...SELECTED_ITEMS].map(function(id){return String(id);}));
+    if(!ids.size)return;
+    const events=(window.__monthItems||[]).filter(function(ev){
+      return ev&&ev.item&&ids.has(String(ev.item.id));
+    });
+    if(!events.length){toast('No selected sale events to update','err');return;}
+
+    const seen=new Set();
+    let changed=0,historicalSkipped=0;
+    events.forEach(function(ev){
+      const item=ev.item;
+      const saleNo=ev.isReturnAdjustment
+        ?Math.max(1,Number(ev.returnEntry&&ev.returnEntry.saleNo)||1)
+        :Math.max(1,Number(ev.sale)||1);
+      const key=String(item.id)+'|'+saleNo;
+      if(seen.has(key))return;
+      seen.add(key);
+
+      if(saleNo===1){
+        item.salePlatform=platId;
+        item.listingFee=_listingFeeFor(_s1Platform(item));
+        changed++;
+        return;
+      }
+
+      const liveSaleNo=item.resaleSalePrice
+        ?(typeof _currentResaleSaleNo==='function'?_currentResaleSaleNo(item):2)
+        :null;
+      if(liveSaleNo===saleNo){
+        item.resalePlatform=platId;
+        item.resaleListingFee=_listingFeeFor(item.resalePlatform||_itemPlatform(item));
+        changed++;
+      }else{
+        // Historical Sale 2/3/etc. cycles are reconstructed from immutable
+        // return snapshots and are read-only in the individual receipt too.
+        historicalSkipped++;
       }
     });
-  });
-  await saveDB();
-  if(source==='stock'){
-    STOCK_SELECTED.clear();STOCK_SELECTION_MODE=false;renderStock();
-  } else {
-    SELECTED_ITEMS.clear();SELECTION_MODE=false;renderMonth();
+
+    if(changed)await saveDB();
+    SELECTED_ITEMS.clear();
+    SELECTION_MODE=false;
+    renderMonth();
+    let msg=changed+' sale cycle'+(changed===1?'':'s')+' → '+label;
+    if(historicalSkipped)msg+=' · '+historicalSkipped+' frozen historical cycle'+(historicalSkipped===1?'':'s')+' unchanged';
+    toast(msg,changed?'':'err');
+    return;
   }
-  toast(count+' item'+(count===1?'':'s')+' → '+label+(skippedSold?' · '+skippedSold+' sold item'+(skippedSold===1?'':'s')+' left unchanged':''));
+
+  // Inventory/Stock keeps its original meaning: change the platform the active
+  // listing is currently offered on. Completed sales are never repriced here.
+  const ids=[...STOCK_SELECTED];
+  if(!ids.length)return;
+  let count=0,skippedSold=0;
+  ids.forEach(function(id){
+    allDBKeys().forEach(function(k){
+      const item=(DB[k]||[]).find(function(i){return i.id===id;});
+      if(!item)return;
+      if(item.dateSold||item.resaleSalePrice){skippedSold++;return;}
+      item.defaultPlatform=platId;
+      _stampListingFee(item);
+      if(platId==='ebay_biz')item._postageMode='custom';
+      else if(platId==='ebay')item._postageMode='simple';
+      count++;
+    });
+  });
+  if(count)await saveDB();
+  STOCK_SELECTED.clear();
+  STOCK_SELECTION_MODE=false;
+  renderStock();
+  toast(count+' item'+(count===1?'':'s')+' → '+label+(skippedSold?' · '+skippedSold+' sold item'+(skippedSold===1?'':'s')+' left unchanged':''),count?'':'err');
 }
+
+// v1.4.16 — event delegation replaces the generated inline onchange string.
+// This removes the `(index):1 Invalid or unexpected token` failure mode and
+// keeps one handler for both responsive Sales and Inventory toolbars.
+document.addEventListener('change',function(e){
+  const el=e.target;
+  if(!el||!el.classList||!el.classList.contains('bulk-plat-sel'))return;
+  const platId=el.value;
+  const source=el.dataset.source||'stock';
+  if(!platId)return;
+  el.value='';
+  Promise.resolve(bulkChangePlatform(platId,source)).catch(function(err){
+    console.error('[RETRADE] bulk platform change failed:',err);
+    toast('Platform change failed: '+(err&&err.message?err.message:String(err)),'err');
+  });
+});
+console.info('[RETRADE] v1.4.16 bulk platform editing loaded');
 
 function renderStockRow(m,i){
   // Temporarily swap globals so renderItemRow uses stock selection state
@@ -16737,7 +16805,7 @@ function _renderStockCore(){
           ${STOCK_SELECTED.size>0?`
             ${_stockCanBulkSell?`<button class="bulk-ctrl is-sold" onclick="stockBulkAction('sold',window.__stockItems||[])">${icon('sold',14)} Mark Sold</button>
             ${_stockSelectedRows.length>1?`<button class="bulk-ctrl" style="background:var(--accent);color:#000;font-weight:700;" onclick="openBundleSaleModal()">${icon('sold',14)} Bundle sale</button>`:''}
-            <select class="bulk-ctrl bulk-plat-sel" data-source="stock" onchange="if(this.value){bulkChangePlatform(this.value,'stock');this.value=''}"><option value="">Platform</option>${Object.values(PLATFORMS).filter(p=>p.live).map(p=>`<option value="${p.id}">${p.short}</option>`).join('')}</select>`:''}
+            <select class="bulk-ctrl bulk-plat-sel" data-source="stock"><option value="">Platform</option>${Object.values(PLATFORMS).filter(p=>p.live).map(p=>`<option value="${p.id}">${p.short}</option>`).join('')}</select>`:''}
             ${_stockCanJobLot?`<button class="bulk-ctrl" style="color:var(--purple)" onclick="openCreateJobLotFromSelection()">${icon('joblot',14)} Job Lot</button>`:''}
             <button class="bulk-ctrl" style="color:var(--warn)" onclick="openStockBulkDispose()">${icon('dispose',14)} Dispose</button>
             <button class="bulk-ctrl is-danger" onclick="stockBulkAction('delete',window.__stockItems||[])">${icon('trash',14)} Delete</button>
