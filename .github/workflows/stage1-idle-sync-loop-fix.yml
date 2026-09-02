@@ -24,16 +24,16 @@ jobs:
           app = Path('app.js')
           text = app.read_text(encoding='utf-8')
 
-          old_cloud = """  // One-time-on-load repair for legacy linked records. Idempotent.
-          _repairRunLinkedDates(true);"""
-          new_cloud = """  // Cloud refreshes may normalise legacy linked dates in memory, but the
-          // read path must never persist them. Persisting here caused an idle
-          // read -> saveDB -> outbox -> revision -> read loop.
-          _repairRunLinkedDates(false);"""
-
-          if text.count(old_cloud) != 1:
-              raise SystemExit(f'Expected exactly one cloud repair call, found {text.count(old_cloud)}')
-          text = text.replace(old_cloud, new_cloud, 1)
+          marker = 'await _backfillDateSoldAtReturn();'
+          call_true = '_repairRunLinkedDates(true);'
+          call_false = '_repairRunLinkedDates(false);'
+          marker_pos = text.find(marker)
+          if marker_pos < 0:
+              raise SystemExit('Cloud-load anchor not found')
+          call_pos = text.find(call_true, marker_pos)
+          if call_pos < 0 or call_pos - marker_pos > 500:
+              raise SystemExit('Expected linked-date repair call not found near cloud-load anchor')
+          text = text[:call_pos] + call_false + text[call_pos + len(call_true):]
           app.write_text(text, encoding='utf-8')
 
           index = Path('index.html')
@@ -47,6 +47,23 @@ jobs:
 
       - name: Validate JavaScript
         run: node --check app.js
+
+      - name: Verify targeted change
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          text = Path('app.js').read_text(encoding='utf-8')
+          marker = 'await _backfillDateSoldAtReturn();'
+          p = text.find(marker)
+          segment = text[p:p+500]
+          if '_repairRunLinkedDates(false);' not in segment:
+              raise SystemExit('Targeted cloud-load repair is not read-only')
+          html = Path('index.html').read_text(encoding='utf-8')
+          if './app.js?v=1.4.12' not in html:
+              raise SystemExit('v1.4.12 cache-busting reference missing')
+          print('Stage 1 idle-sync fix verified')
+          PY
 
       - name: Commit patch
         shell: bash
