@@ -12,7 +12,6 @@ permissions:
 
 jobs:
   patch:
-    if: github.event.head_commit.message == 'chore(audit): stage durable outbox drain patch'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -29,68 +28,40 @@ jobs:
           path = Path('app.js')
           text = path.read_text(encoding='utf-8')
           marker = 'RETRADE v1.4.11-2026-09-02 — durable outbox drain repair'
-          if marker in text:
-              print('Stage 1 patch already present; no source change needed.')
-              raise SystemExit(0)
-
-          patch = r'''
+          if marker not in text:
+              patch = r'''
 
           /* ========================================================================
            * RETRADE v1.4.11-2026-09-02 — durable outbox drain repair
            *
-           * A durable outbox entry is unconfirmed work even when the live DB
-           * fingerprint currently equals _dbSnapshot. v1.4.9 staged correctly but
-           * only delivered keys that differed from that snapshot, allowing a valid
-           * queue to become permanently orphaned (PENDING + idle writer).
-           *
-           * This wrapper keeps the existing serialized/CAS-protected writer as the
-           * single delivery path. For orphaned entries only, it supplies a temporary
-           * synthetic baseline so the existing writer touches them, while preserving
-           * the ORIGINAL durable outbox entry (including item baseRevision/base JSON).
-           * Successful writes are acknowledged by the existing prune path; failures
-           * remain queued and their real baseline is restored for the next retry.
-           * Large/stale recovery quarantine remains owned by v1.4.9 and runs before
-           * this drain is scheduled, so quarantined historical work is never replayed.
+           * Durable outbox work must be delivered even when the live DB fingerprint
+           * equals _dbSnapshot. Preserve the original staged CAS metadata, route the
+           * retry through the existing serialized writer, and keep failures queued.
+           * v1.4.9 bulk/stale quarantine runs before this drain and is not replayed.
            * ======================================================================== */
           (function(){
             'use strict';
             var VERSION='1.4.11-2026-09-02';
             if(typeof _persistChangesPass!=='function'||typeof _dbFingerprint!=='function'||typeof _outboxRead!=='function')return;
-
             var _stage1BasePersistChangesPass=_persistChangesPass;
-
             function _stage1OrphanBatch(){
               var ob=_outboxRead()||{},now=_dbFingerprint()||{},prev=_dbSnapshot||{},batch={};
               Object.keys(ob).forEach(function(k){
                 var e=ob[k];
                 if(!e||now[k]!==prev[k])return;
                 if((e.op==='save'&&now[k]!==undefined)||(e.op==='delete'&&now[k]===undefined)){
-                  batch[k]={
-                    entry:e,
-                    value:now[k],
-                    hadPrev:Object.prototype.hasOwnProperty.call(prev,k),
-                    prevValue:prev[k]
-                  };
+                  batch[k]={entry:e,value:now[k],hadPrev:Object.prototype.hasOwnProperty.call(prev,k),prevValue:prev[k]};
                 }
               });
               return batch;
             }
-
             _persistChangesPass=async function(){
               var forced=_stage1OrphanBatch(),forcedKeys=Object.keys(forced);
               if(!forcedKeys.length)return await _stage1BasePersistChangesPass.apply(this,arguments);
-
               console.info('[RETRADE] '+VERSION+' draining '+forcedKeys.length+' durable orphaned outbox entr'+(forcedKeys.length===1?'y':'ies'));
-
-              var synthetic=Object.assign({},_dbSnapshot||{});
-              var stamp='__RETRADE_OUTBOX_FORCE__'+Date.now()+'__';
+              var synthetic=Object.assign({},_dbSnapshot||{}),stamp='__RETRADE_OUTBOX_FORCE__'+Date.now()+'__';
               forcedKeys.forEach(function(k,idx){synthetic[k]=stamp+idx;});
               _dbSnapshot=synthetic;
-
-              // The normal stage step must not regenerate these entries. Item
-              // entries carry the CAS baseRevision/baseItemJson captured when the
-              // edit was originally made; replacing that metadata here would turn
-              // a safe retry into a fresh write against the wrong base.
               var liveEntry=_outboxEntry;
               var liveDelete=(typeof _outboxDeleteEntry==='function')?_outboxDeleteEntry:null;
               _outboxEntry=function(key,json){
@@ -105,75 +76,55 @@ jobs:
                   return liveDelete.apply(this,arguments);
                 };
               }
-
-              try{
-                return await _stage1BasePersistChangesPass.apply(this,arguments);
-              }finally{
-                _outboxEntry=liveEntry;
-                if(liveDelete)_outboxDeleteEntry=liveDelete;
-
-                // If a forced entry is still pending, the existing writer failed
-                // or deliberately retained it. Put its genuine pre-pass baseline
-                // back so the next retry is classified the same way and preserves
-                // the same durable CAS metadata again.
+              try{return await _stage1BasePersistChangesPass.apply(this,arguments);}
+              finally{
+                _outboxEntry=liveEntry;if(liveDelete)_outboxDeleteEntry=liveDelete;
                 try{
                   var remaining=_outboxRead()||{},snap=_dbSnapshot||{};
                   forcedKeys.forEach(function(k){
                     if(!remaining[k])return;
-                    var f=forced[k];
-                    if(f.hadPrev)snap[k]=f.prevValue;else delete snap[k];
+                    var f=forced[k];if(f.hadPrev)snap[k]=f.prevValue;else delete snap[k];
                   });
                   _dbSnapshot=snap;
                 }catch(_e){}
               }
             };
-
-            // Cloud-first recovery in v1.4.9 intentionally runs before any local
-            // replay/quarantine decision. Kick the serialized writer only AFTER
-            // that recovery returns. If a bulk stale queue was quarantined it has
-            // already been removed from the live outbox, so it cannot reach this.
             if(typeof _recoverOutbox==='function'){
               var _stage1BaseRecoverOutbox=_recoverOutbox;
               _recoverOutbox=function(){
                 var result=_stage1BaseRecoverOutbox.apply(this,arguments);
-                try{
-                  if(typeof _outboxPendingCount==='function'&&_outboxPendingCount()>0){
-                    setTimeout(function(){
-                      try{
-                        if(_currentUserId&&typeof _persistChanges==='function')_persistChanges();
-                      }catch(_e){}
-                    },0);
-                  }
-                }catch(_e){}
+                try{if(typeof _outboxPendingCount==='function'&&_outboxPendingCount()>0){setTimeout(function(){try{if(_currentUserId&&typeof _persistChanges==='function')_persistChanges();}catch(_e){}},0);}}catch(_e){}
                 return result;
               };
             }
-
-            window.RETRADE_STAGE1_SYNC={
-              version:VERSION,
-              orphaned:function(){try{return Object.keys(_stage1OrphanBatch()).length;}catch(_e){return -1;}},
-              kick:function(){return (typeof _persistChanges==='function')?_persistChanges():Promise.resolve();}
-            };
-
+            window.RETRADE_STAGE1_SYNC={version:VERSION,orphaned:function(){try{return Object.keys(_stage1OrphanBatch()).length;}catch(_e){return -1;}},kick:function(){return (typeof _persistChanges==='function')?_persistChanges():Promise.resolve();}};
             console.info('[RETRADE] '+VERSION+' durable outbox drain loaded');
           })();
           '''
+              if not text.endswith('\n'):
+                  text += '\n'
+              path.write_text(text + patch.lstrip('\n'), encoding='utf-8', newline='\n')
+              print('Stage 1 durable outbox patch appended to app.js')
+          else:
+              print('Stage 1 patch already present.')
 
-          if not text.endswith('\n'):
-              text += '\n'
-          path.write_text(text + patch.lstrip('\n'), encoding='utf-8', newline='\n')
-          print('Stage 1 durable outbox patch appended to app.js')
+          idx = Path('index.html')
+          html = idx.read_text(encoding='utf-8')
+          html2 = html.replace('./app.js?v=1.4.10','./app.js?v=1.4.11')
+          if html2 != html:
+              idx.write_text(html2, encoding='utf-8', newline='\n')
+              print('index.html cache key advanced to app.js v1.4.11')
           PY
 
-      - name: Commit patched app.js
+      - name: Commit patched source
         shell: bash
         run: |
-          if git diff --quiet -- app.js; then
-            echo 'No app.js change to commit.'
+          if git diff --quiet -- app.js index.html; then
+            echo 'No source change to commit.'
             exit 0
           fi
           git config user.name 'RETRADE Stage 1 Audit'
           git config user.email 'actions@users.noreply.github.com'
-          git add app.js
+          git add app.js index.html
           git commit -m 'fix(sync): drain durable outbox independently of db diff'
           git push origin HEAD:audit/stage-1-sync-hardening
