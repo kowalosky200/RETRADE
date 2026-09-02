@@ -1,190 +1,1054 @@
-# RETRADE focused bulk platform audit
+# RETRADE sale-cycle platform storage audit
 
-## Monthly selection toolbar
-014380:           </div>`;
-014381:       })()}
-014382:       <select class="sort-select" onchange="setMonthSort(this.value)">
-014383:         <option value="date-sold" ${MONTH_SORT==='date-sold'?'selected':''}>Date sold</option>
-014384:         <option value="profit" ${MONTH_SORT==='profit'?'selected':''}>Profit</option>
-014385:         <option value="price" ${MONTH_SORT==='price'?'selected':''}>Price</option>
-014386:         <option value="margin" ${MONTH_SORT==='margin'?'selected':''}>Margin</option>
-014387:       </select>
-014388:     </div>
-014389: 
-014390:     ${cAll>0?_inlistSearchHTML('month'):''}
-014391:     ${cAll===0?`
-014392:       <div class="empty-state">
-014393:         <div class="empty-state-icon"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg></div>
-014394:         <div class="empty-state-text">No sales in ${keyName(m)}</div>
-014395:         <div class="empty-state-sub">${stats.listedCount>0?stats.listedCount+' item'+(stats.listedCount!==1?'s':'')+' listed in this month — view in <span style="color:var(--accent);cursor:pointer;font-weight:600" onclick="goToTab(\'stock\',document.querySelector(\'[data-tab=stock]\'))">Stock</span>':'Switch month or add new sales'}</div>
-014396:       </div>
-014397:     `:(visible.length===0&&!MONTH_SEARCH)?`
-014398:       <div class="empty-state">
-014399:         <div class="empty-state-icon"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></div>
-014400:         <div class="empty-state-text">No ${MONTH_FILTER} sales</div>
-014401:         <div class="empty-state-sub"><span style="color:var(--accent);cursor:pointer;font-weight:600" onclick="setMonthFilter('all')">Show all ${cAll}</span></div>
-014402:       </div>
-014403:     `:`
-014404:       <div class="list-toolbar">
-014405:         ${SELECTION_MODE?`
-014406:           <button class="sel-check" onclick="${SELECTED_ITEMS.size===visible.length?'SELECTED_ITEMS.clear();renderMonth()':'selectAllMonth()'}">
-014407:             <span class="sel-check-box ${SELECTED_ITEMS.size===visible.length?'all':SELECTED_ITEMS.size>0?'some':''}">
-014408:               ${SELECTED_ITEMS.size===visible.length?'\u2713':SELECTED_ITEMS.size>0?'\u2212':''}
-014409:             </span>
-014410:             <span style="color:${SELECTED_ITEMS.size>0?'var(--text)':'var(--text-secondary)'}">${SELECTED_ITEMS.size>0?SELECTED_ITEMS.size+' selected':'Select all'}</span>
-014411:           </button>
-014412:           ${SELECTED_ITEMS.size>0?`
-014413:             <select class="bulk-ctrl bulk-plat-sel" data-source="month" onchange="if(this.value){bulkChangePlatform(this.value,'month');this.value=''}"><option value="">Platform</option>${Object.values(PLATFORMS).filter(p=>p.live).map(p=>`<option value="${p.id}">${p.short}</option>`).join('')}</select>
-014414:             <button class="bulk-ctrl is-danger" onclick="bulkAction('delete')">${icon('trash',14)} Delete</button>
-014415:           `:''}
-014416:           <button class="sel-exit" onclick="toggleSelectionMode()">\u2715 Done</button>
-014417:         `:`
-014418:           <button class="select-toggle" onclick="toggleSelectionMode()">Select</button>
-014419:         `}
-014420:       </div>
-014421:       <div class="item-table" id="month-list">
-014422:         ${(()=>{window.__monthItems=visible;return visible.length?_renderMonthList(visible):(MONTH_SEARCH?'<div class="inlist-empty">No sales match \u201c'+esc(MONTH_SEARCH)+'\u201d</div>':'');})()}
-014423:       </div>
-014424:     `}
-014425:   `;
-014426:   document.getElementById('p-monthly').innerHTML=html;
-014427:   _paintSelBar('month');
-014428: }
-014429: 
-014430: // Render a single sale-event row for the Monthly sale-history list.
-014431: // Visually consistent with renderItemRow but tells a sale-lineage story:
-014432: //   - Sale 1 (standard):  "Listed {dateListed} · Sold {dateSold} · {Nd} to sell"
-014433: //   - Return adjustment: "Full return {logged date}" (separate from original sale)
-014434: //   - Sale 2 (resale):    "Relisted {_relistedAt} · Resold {resaleDateSold} · {Nd}"
-014435: function renderSaleEventRow(ev){
+## app.js 5922-6000
+005922:   let sale1Net=0;
+005923:   try{
+005924:     const _s1Cycle=_saleCycleSnapshot(i,1);
+005925:     const _s1Ev=_s1Cycle?_saleEventForCycle(i,m,_s1Cycle):null;
+005926:     if(_s1Ev)sale1Net+=_saleBreakdown(_s1Ev).netProfit;
+005927:     (i.returnHistory||[]).forEach(function(r){
+005928:       if((Number(r.saleNo)||1)!==1)return;
+005929:       sale1Net+=_saleBreakdown({item:i,sale:'R',saleNo:1,isReturnAdjustment:true,isReturned:true,returnEntry:r,snapshot:_saleCycleSnapshot(i,1)}).netProfit;
+005930:     });
+005931:     sale1Net=+sale1Net.toFixed(2);
+005932:   }catch(e){sale1Net=profit;}
+005933:   // Display-only credit lines: compare original charges with the canonical net
+005934:   // charges after eligible seller-handled refunds. Entries tagged to Sale 2 are
+005935:   // deliberately excluded from the Sale 1 receipt.
+005936:   const _psTotal=(i.returnHistory||[]).filter(function(r){return r.type==='partial_seller'&&(Number(r.saleNo)||1)===1;}).reduce(function(s,r){return s+(r.refundAmount||0);},0);
+005937:   const _origBpfBeforeCredits=calcPlatformBPF(i,_origSalePrice,_rcptPostage,_s1PlatformIdRcpt);
+005938:   const _origPromoBeforeCredits=_calcPromoFee(_s1PlatformIdRcpt,_origSalePrice,_rcptPostage,_rcptPromo);
+005939:   const _bpfCredit=+Math.max(0,_origBpfBeforeCredits-bpf).toFixed(2);
+005940:   const _promoCredit=+Math.max(0,_origPromoBeforeCredits-promoCost).toFixed(2);
+005941:   const rcp=function(label,val,color,indent){
+005942:     return'<div class="ip-receipt-row'+(indent?' indent':'')+'"><span style="flex:1;color:'+(color&&color.includes('--text')?color:'var(--text-secondary)')+'">'+label+'</span><span class="ip-receipt-val" style="color:'+(color||'var(--text)')+'">'+val+'</span></div>';
+005943:   }
+005944:   const _isResoldItem=!!i.resaleSalePrice;
+005945:   let pb='';
+005946:   pb+=_salePlatformPickerRow('rcpt-s1-platform-select',m,id,_plat); // v2.19.33 — picker at top
+005947:   pb+=_editMoneyRow(_wasRelistedDetect||_isResoldItem?'Sale price (Sale 1)':'Sale price','rcpt-s1-price-input',m,id,_origSalePrice,'var(--green)','');
+005948:   if(_wasRelistedDetect)pb+=rcp('↳ Relisted at',fmt(i.salePrice||0),'var(--muted)',true);
+005949:   // v2.19.35 — Sale 1 postage is now editable (writes the snapshot on a resold
+005950:   // item). Vinted shows the buyer-covered note instead.
+005951:   if(_plat==='vinted')pb+=rcp('Buyer pays postage','(buyer covered)','var(--muted)');
+005952:   else pb+=_editMoneyRow('+ Buyer postage','rcpt-s1-postage-input',m,id,_rcptPostage,'var(--green)','+');
+005953:   if(_showFee)pb+=rcp(_feeLabel,'−'+fmt(bpf),'var(--red)');
+005954:   // F1: Listing fee — inline editable input in receipt for eBay Biz; read-only line for others if set
+005955:   if(_plat==='ebay_biz'){
+005956:     pb+='<div class="ip-receipt-row"><span style="flex:1;color:var(--text-secondary)">Listing fee</span>'
+005957:       +'<span class="ip-receipt-val" style="color:var(--red);display:flex;align-items:center;gap:4px">'
+005958:       +'−£<input type="number" class="rcpt-listing-fee-input" data-m="'+m+'" data-id="'+id+'" value="'+( i.listingFee||0 )+'" min="0" step="0.01" '
+005959:       +'style="width:60px;padding:2px 4px;background:var(--surface2);border:1px solid var(--border);border-radius:5px;color:var(--red);font-size:13px;font-weight:600;text-align:right">'
+005960:       +'</span></div>';
+005961:   } else if((i.listingFee||0)>0){
+005962:     pb+=rcp('Listing fee','−'+fmt(i.listingFee),'var(--red)');
+005963:   }
+005964:   // Relist fees belong to their own Sale-N cycle card, never Sale 1.
+005965:   if(_showPostage)pb+=_editMoneyRow('Shipping cost (you pay)','rcpt-s1-shipping-input',m,id,_rcptShipping,'var(--red)','−'); // v2.19.36 — editable per sale
+005966:   if(_showPostage&&_rcptPackaging>0)pb+=rcp('Packaging','−'+fmt(_rcptPackaging),'var(--red)');
+005967:   if(_rcptPromo)pb+=rcp((_plat==='ebay'?'Promo fee ('+((_rcptPromo*100).toFixed(0))+'% +VAT)':'Boost fee ('+((_rcptPromo*100).toFixed(0))+'%)'),'−'+fmt(promoCost),'var(--red)');
+005968:   pb+=rcp('Item cost','−'+fmt(i.costPrice||0),'var(--red)');
+005969:   if(partsCost>0){
+005970:     const pts=i.parts||[];
+005971:     if(pts.length===1){pb+=rcp(esc(pts[0].description),'−'+fmt(partsCost),'var(--red)');}
+005972:     else{
+005973:       pb+=rcp('Parts & expenses ('+pts.length+')','−'+fmt(partsCost),'var(--red)');
+005974:       pts.forEach(function(p){pb+=rcp(esc(p.description),'−'+fmt(p.cost),'var(--red)',true);});
+005975:     }
+005976:   }
+005977:   if(hasReturn){
+005978:     pb+='<div class="ip-receipt-row section-head"><span>Return impact</span><span></span></div>';
+005979:     (i.returnHistory||[]).forEach(function(r,ri){
+005980:       if((Number(r.saleNo)||1)!==1)return; // Sale 2+ adjustments belong to their own cycle cards.
+005981:       const fullReturn=(r.type==='full_seller'||r.type==='full_ebay');
+005982:       const lbl3={full_seller:'Full refund — you handled',full_ebay:'Full refund — platform involved',partial_seller:'Partial refund — you handled',partial_ebay:'Partial refund — platform decided'}[r.type]||r.type;
+005983:       pb+=rcp(lbl3,'−'+fmt(r.refundAmount||0),'var(--accent)');
+005984:       if(i.resaleSalePrice&&(r.type==='partial_seller'||r.type==='partial_ebay')){
+005985:         const _retagTarget=typeof _currentResaleSaleNo==='function'?_currentResaleSaleNo(i):2;
+005986:         pb+='<div class="ip-receipt-row" style="padding-top:0"><span style="flex:1;color:var(--muted);font-size:11px">Against Sale 1</span>'
+005987:           +'<button class="rcpt-retag-sale-btn" data-m="'+m+'" data-id="'+id+'" data-ri="'+ri+'" data-target="'+_retagTarget+'" '
+005988:           +'style="background:var(--surface2);border:1px solid var(--border);border-radius:5px;color:var(--text-secondary);font-size:11px;padding:2px 8px;cursor:pointer">Move to Sale '+_retagTarget+'</button></div>';
+005989:       }
+005990:       if(fullReturn){
+005991:         const _retCredits=_refundCreditsForEntry(i,r);
+005992:         if(_retCredits.platformCredit>0&&_showFee)pb+=rcp('Platform fee credit','+'+fmt(_retCredits.platformCredit),'var(--green)',true);
+005993:         if(_retCredits.promoCredit>0)pb+=rcp('Advertising fee credit','+'+fmt(_retCredits.promoCredit),'var(--green)',true);
+005994:         const _restored=(Number(i.costPrice)||0)+partsCost;
+005995:         if(_restored>0)pb+=rcp('Stock cost restored','+'+fmt(_restored),'var(--green)',true);
+005996:       }
+005997:       pb+='<div class="ip-receipt-row"><span style="flex:1;color:var(--text-secondary)">Return postage</span>'
+005998:         +'<span class="ip-receipt-val" style="color:var(--red);display:flex;align-items:center;gap:4px">'
+005999:         +'−£<input type="number" class="rcpt-return-postage-input" data-m="'+m+'" data-id="'+id+'" data-ri="'+ri+'" value="'+( r.returnPostage||0 )+'" min="0" step="0.01" '
+006000:         +'style="width:60px;padding:2px 4px;background:var(--surface2);border:1px solid var(--border);border-radius:5px;color:var(--red);font-size:13px;font-weight:600;text-align:right">'
 
-## Bulk platform handler
-016090:       additionalRevenue:mode==='additional'?+additional.toFixed(2):0,
-016091:       priorAllocation:_beforeAlloc,resultingAllocation:_afterAlloc,pnlDelta:null,
-016092:       beforeSnapshot:before,afterSnapshot:mode==='link_only'?before:JSON.parse(JSON.stringify(orphan)),
-016093:       note:mode==='link_only'?'Linked for review only; no accounting values changed.':null,
-016094:       createdAt:new Date().toISOString()
-016095:     });
-016096:     _initActivityShadow();
-016097:     saveDB();
-016098:     closePanel();
-016099:     if(mode==='link_only'){
-016100:       toast('Review link saved — no accounting changed');
-016101:       if(typeof renderStock==='function')renderStock();
-016102:       return;
-016103:     }
-016104:     toast(mode==='included'?'Sale reconciled — recorded total kept':'Sale reconciled — missing revenue added');
-016105:     if(res&&res.bundleId&&typeof openBundlePage==='function')openBundlePage(res.bundleId);
-016106:   }finally{_suppressActivityCapture=false;}
-016107: }
-016108: 
-016109: // Bulk platform change — works for both Stock page (source='stock') and Monthly page (source='month')
-016110: async function bulkChangePlatform(platId, source){
-016111:   if(!platId||!PLATFORMS[platId])return;
-016112:   const label=PLATFORMS[platId].label;
-016113:   const ids = source==='stock' ? [...STOCK_SELECTED] : [...SELECTED_ITEMS];
-016114:   if(!ids.length)return;
-016115:   let count=0, skippedSold=0;
-016116:   ids.forEach(id=>{
-016117:     allDBKeys().forEach(k=>{
-016118:       const item=(DB[k]||[]).find(i=>i.id===id);
-016119:       if(item){
-016120:         // A completed sale's platform is frozen at what it actually sold on —
-016121:         // never bulk-reprice it (that would silently move fees/tax on an
-016122:         // already-recorded sale). Only live, unsold listings change here.
-016123:         if(item.dateSold||item.resaleSalePrice){skippedSold++;return;}
-016124:         item.defaultPlatform=platId;
-016125:         _stampListingFee(item); // re-stamp Sale-1 insertion fee to the new platform
-016126:         // If eBay Biz, ensure postage mode is custom; if eBay private, set simple
-016127:         if(platId==='ebay_biz') item._postageMode='custom';
-016128:         else if(platId==='ebay') item._postageMode='simple';
-016129:         count++;
-016130:       }
-016131:     });
-016132:   });
-016133:   await saveDB();
-016134:   if(source==='stock'){
-016135:     STOCK_SELECTED.clear();STOCK_SELECTION_MODE=false;renderStock();
-016136:   } else {
-016137:     SELECTED_ITEMS.clear();SELECTION_MODE=false;renderMonth();
-016138:   }
-016139:   toast(count+' item'+(count===1?'':'s')+' → '+label+(skippedSold?' · '+skippedSold+' sold item'+(skippedSold===1?'':'s')+' left unchanged':''));
-016140: }
-016141: 
-016142: function renderStockRow(m,i){
-016143:   // Temporarily swap globals so renderItemRow uses stock selection state
-016144:   const _sm=SELECTION_MODE,_si=SELECTED_ITEMS;
-016145:   SELECTION_MODE=STOCK_SELECTION_MODE;SELECTED_ITEMS=STOCK_SELECTED;
-016146:   // Override toggleSelect click to use stock version
-016147:   const html=renderItemRow(m,i)
-016148:     .replace(/onchange="toggleSelect\(/g,'onchange="toggleStockSelect(')
-016149:     .replace(/onclick="toggleSelect\(/g,'onclick="toggleStockSelect(');
-016150:   SELECTION_MODE=_sm;SELECTED_ITEMS=_si;
-016151:   return html;
-016152: }
-016153: 
-016154: // ─── SELECTION / IN-LIST SEARCH TOTALS (v2.21.18) ─────────────────────────
-016155: // ONE pure engine powers two features: (1) a live totals bar over the SELECTED
-016156: // rows, (2) a live totals bar over the SEARCH-FILTERED rows. It accepts either
-016157: // raw items (Stock Room) or sale-events (Sales History month view) and derives
-016158: // every figure LIVE through the canonical calculators — nothing computed is
-016159: // ever stored on the item (the never-store-financials invariant).
-016160: function _selEntryIsEvent(e){
-016161:   // Sale-events (from getSaleEventsInMonth) always carry a resolved .saleDate +
-016162:   // an .item + a .sale/.isReturnAdjustment marker. Raw items never do.
-016163:   return !!(e && e.item && e.saleDate!==undefined &&
-016164:             (e.sale!==undefined || e.isReturnAdjustment!==undefined));
-016165: }
-016166: function _selectionTotals(entries){
-016167:   let count=0,soldCount=0,unsoldCount=0,returnedCount=0;
-016168:   let cost=0,revenue=0,realisedProfit=0,potentialProfit=0,estValue=0;
-016169:   let soldRev=0,soldProfit=0,daysSum=0,daysCount=0;
-016170:   (entries||[]).forEach(function(e){
-016171:     if(!e)return;
-016172:     count++;
-016173:     if(_selEntryIsEvent(e)){
-016174:       // Month sale-event: use the event's OWN leg figures so a selection/filter
-016175:       // total reconciles exactly to calcMonthStatsBySale (event .profit already
+## app.js 6019-6097
+006019:       +'<span class="ip-section-title"'+(accentColor?' style="color:'+accentColor+'"':'')+'>'+title+'</span>'
+006020:       +'<span class="ip-section-meta">'+bdg+chevron+'</span>'
+006021:       +'</div>';
+006022:     return'<div class="'+cls+'">'+hdr+'<div class="ip-section-body" style="display:'+(open?'block':'none')+'">'+body+'</div></div>';
+006023:   }
+006024: 
+006025:   // Sale 2+ cards — generated from the same canonical Sale-N event source
+006026:   // as Summary, Cashflow and reports. Historical cycles are immutable/read-only;
+006027:   // the single current live resale slot remains editable regardless of whether it
+006028:   // represents Sale 2, Sale 3, Sale 4, ...
+006029:   let resaleHTML='';
+006030:   const _cycleNos=(typeof _saleCycleNumbers==='function'?_saleCycleNumbers(i):[]).filter(function(n){return n>=2;});
+006031:   const _liveCycleNo=i.resaleSalePrice?(typeof _currentResaleSaleNo==='function'?_currentResaleSaleNo(i):2):null;
+006032:   _cycleNos.forEach(function(saleNo){
+006033:     const snap=_saleCycleSnapshot(i,saleNo);if(!snap||!snap.date)return;
+006034:     const ev=_saleEventForCycle(i,m,snap);if(!ev)return;
+006035:     const br=_saleBreakdown(ev);
+006036:     const isLive=!!(i.resaleSalePrice&&saleNo===_liveCycleNo);
+006037:     const platId=snap.platformId||i.resalePlatform||_itemPlatform(i);
+006038:     const platDef=PLATFORMS[platId]||{};
+006039:     const showFee=platId!=='vinted'&&platId!=='fb';
+006040:     const feeLabel=platId==='ebay'?'eBay BPF':platId==='ebay_biz'?'eBay FVF (Biz)':platId==='depop'?'Depop fee':platId==='amazon_uk'?'Amazon fee':'Platform fee';
+006041:     let b='';
+006042:     if(isLive){
+006043:       b+=_salePlatformPickerRow('rcpt-s2-platform-select',m,id,platId);
+006044:       b+=_editMoneyRow('Sale price','rcpt-s2-price-input',m,id,Number(snap.price)||0,'var(--green)','');
+006045:       if(platId==='vinted')b+=rcp('Buyer pays postage','(buyer covered)','var(--muted)');
+006046:       else b+=_editMoneyRow('Postage paid by buyer','rcpt-s2-postage-input',m,id,Number(snap.postage)||0,'var(--green)','+');
+006047:     }else{
+006048:       b+=rcp('Platform',esc(platDef.short||platDef.label||platId),'var(--muted)');
+006049:       b+=rcp('Sale price',fmt(br.salePrice),'var(--green)');
+006050:       if(br.postage>0)b+=rcp('+ Buyer postage','+'+fmt(br.postage),'var(--green)');
+006051:     }
+006052:     if(showFee&&br.bpf>0)b+=rcp(feeLabel,'−'+fmt(br.bpf),'var(--red)');
+006053:     if(br.listingFee>0)b+=rcp('Listing / relist fee','−'+fmt(br.listingFee),'var(--red)');
+006054:     if(isLive)b+=_editMoneyRow('Shipping cost (you pay)','rcpt-s2-shipping-input',m,id,Number(snap.shipping)||0,'var(--red)','−');
+006055:     else if(br.shipping>0)b+=rcp('Shipping cost','−'+fmt(br.shipping),'var(--red)');
+006056:     if(br.packaging>0)b+=rcp('Packaging','−'+fmt(br.packaging),'var(--red)');
+006057:     if(isLive){
+006058:       const pp=(Number(snap.promoPercent)||0)*100;
+006059:       b+='<div class="ip-receipt-row"><span style="flex:1;color:var(--text-secondary)">'+(platId==='ebay'?'Promo % (+VAT)':'Boost %')+'</span>'
+006060:         +'<span class="ip-receipt-val" style="display:flex;align-items:center;gap:4px"><input type="number" class="rcpt-s2-promo-input" data-m="'+m+'" data-id="'+id+'" value="'+(+pp.toFixed(2))+'" min="0" step="0.1" style="width:52px;padding:2px 4px;background:var(--surface2);border:1px solid var(--border);border-radius:5px;color:var(--text);font-size:13px;font-weight:600;text-align:right"><span style="color:var(--muted)">%</span>'+(br.promoFee>0?'<span style="margin-left:6px;color:var(--red)">−'+fmt(br.promoFee)+'</span>':'')+'</span></div>';
+006061:     }else if(br.promoFee>0)b+=rcp('Promo / boost fee','−'+fmt(br.promoFee),'var(--red)');
+006062:     if(br.itemCost>0)b+=rcp('Item cost','−'+fmt(br.itemCost),'var(--red)');
+006063:     if(br.parts>0)b+=rcp('Parts & expenses','−'+fmt(br.parts),'var(--red)');
+006064:     if(br.partialRefund>0)b+=rcp('Partial refunds','−'+fmt(br.partialRefund),'var(--accent)');
+006065:     b+='<div class="ip-receipt-row total"><span style="flex:1">Sale '+saleNo+' net</span><span class="ip-receipt-val" style="color:'+(br.netProfit>=0?'var(--green)':'var(--red)')+'">'+fmt(br.netProfit)+'</span></div>';
+006066:     const cycleReturns=(i.returnHistory||[]).filter(function(r){return (Number(r.saleNo)||1)===saleNo;});
+006067:     let cycleNet=br.netProfit;
+006068:     if(cycleReturns.length){
+006069:       b+='<div class="ip-receipt-row section-head"><span>Return impact</span><span></span></div>';
+006070:       cycleReturns.forEach(function(r){
+006071:         const rb=_saleBreakdown({item:i,sale:'R',saleNo:saleNo,isReturnAdjustment:true,isReturned:true,returnEntry:r,snapshot:snap});
+006072:         const impact=_returnEventImpact(i,r);
+006073:         cycleNet+=rb.netProfit;
+006074:         const lbl={full_seller:'Full refund — seller handled',full_ebay:'Full refund — platform involved',partial_seller:'Partial refund — seller handled',partial_ebay:'Partial refund — platform decided'}[r.type]||'Return adjustment';
+006075:         // v1.4.10 — show the actual refund economics instead of hiding fee
+006076:         // credits inside one net number. This makes Sale 2+ boost/ad credits
+006077:         // explicit and confirms whether eBay credited the advertising charge.
+006078:         b+=rcp(lbl,'−'+fmt(impact.refund),'var(--red)');
+006079:         if(impact.platformCredit>0)b+=rcp('Platform fee credit','+'+fmt(impact.platformCredit),'var(--green)',true);
+006080:         if(impact.promoCredit>0)b+=rcp((platId==='ebay_biz'?'Boost / ad fee credit':'Promo fee credit'),'+'+fmt(impact.promoCredit),'var(--green)',true);
+006081:         if(impact.postage>0)b+=rcp('Return postage','−'+fmt(impact.postage),'var(--red)',true);
+006082:         b+=rcp('Net return impact',(rb.netProfit>=0?'+':'')+fmt(rb.netProfit),rb.netProfit>=0?'var(--green)':'var(--red)',true);
+006083:       });
+006084:       cycleNet=+cycleNet.toFixed(2);
+006085:       b+='<div class="ip-receipt-row total"><span style="flex:1">Sale '+saleNo+' cycle P&amp;L</span><span class="ip-receipt-val" style="color:'+(cycleNet>=0?'var(--green)':'var(--red)')+'">'+fmt(cycleNet)+'</span></div>';
+006086:     }
+006087:     if(isLive){
+006088:       b+='<div class="ip-receipt-row" style="margin-top:6px;padding:10px 0 2px;border-top:2px solid var(--border)"><span style="flex:1;font-weight:700;font-size:13px">Lifetime P&amp;L</span><span class="ip-receipt-val" style="font-size:16px;color:'+(profit>=0?'var(--green)':'var(--red)')+'">'+fmt(profit)+'</span></div>';
+006089:       if(roiDisplay)b+=rcp('Overall ROI',roiDisplay,'var(--muted)');
+006090:       if(marginDisplay)b+=rcp('Overall margin',marginDisplay,'var(--muted)');
+006091:     }
+006092:     const ttl='Sale '+saleNo+' P&amp;L <span style="color:var(--muted);font-weight:400;font-size:11px">sold '+esc(snap.date||'—')+'</span>';
+006093:     resaleHTML+=sec2(ttl,b,isLive,fmt(cycleReturns.length?cycleNet:br.netProfit),(cycleReturns.length?cycleNet:br.netProfit)>=0?'var(--green)':'var(--red)','ip-section-pnl','var(--purple)');
+006094:   });
+006095:   let relistHTML='';
+006096:   const hasReturnHistory=(i.returnHistory||[]).length>0;
+006097:   const notYetSold=!i.dateSold&&!i.resaleSalePrice;
 
-## Stock selection toolbar
-016715:               <div class="filter-pill-dd-backdrop" onclick="closeFilterPill('sfp-filter')"></div>
-016716:               <button class="filter-pill-dd-btn" onclick="event.stopPropagation();toggleFilterPill('sfp-filter')">
-016717:                 <span class="fpdd-label"><span class="filter-pill-dd-opt-dot" style="background:${cur.dot}"></span>${cur.label} (${cur.count})</span>
-016718:                 <span class="fpdd-chev">▾</span>
-016719:               </button>
-016720:               <div class="filter-pill-dd-menu" onclick="event.stopPropagation()">${ddOpts}</div>
-016721:             </div>
-016722:             <select class="sort-select" onchange="setStockSort(this.value)">${sortHTML}</select>
-016723:           </div>`;
-016724:       })():''}
-016725:       ${visibleLots.length?`<div class="sl" style="margin-top:14px">${icon('joblot',13)} Job Lots</div><div class="item-table" style="margin-bottom:14px">${visibleLots.map(function(l){return renderJobLotCard(l);}).join('')}</div>`:''}
-016726:       ${((window.__stockAll&&window.__stockAll.length)||STOCK_SEARCH)?_inlistSearchHTML('stock'):''}
-016727:       <div class="list-toolbar">
-016728:         ${STOCK_SELECTION_MODE?`
-016729:           <button class="sel-check" onclick="${STOCK_SELECTED.size===items.length?'STOCK_SELECTED.clear();renderStock()':'selectAllStockVisible()'}">
-016730:             <span class="sel-check-box ${STOCK_SELECTED.size===items.length?'all':STOCK_SELECTED.size>0?'some':''}">
-016731:               ${STOCK_SELECTED.size===items.length?'\u2713':STOCK_SELECTED.size>0?'\u2212':''}
-016732:             </span>
-016733:             <span style="color:${STOCK_SELECTED.size>0?'var(--text)':'var(--text-secondary)'}">
-016734:               ${STOCK_SELECTED.size>0?STOCK_SELECTED.size+' selected':'Select all'}
-016735:             </span>
-016736:           </button>
-016737:           ${STOCK_SELECTED.size>0?`
-016738:             ${_stockCanBulkSell?`<button class="bulk-ctrl is-sold" onclick="stockBulkAction('sold',window.__stockItems||[])">${icon('sold',14)} Mark Sold</button>
-016739:             ${_stockSelectedRows.length>1?`<button class="bulk-ctrl" style="background:var(--accent);color:#000;font-weight:700;" onclick="openBundleSaleModal()">${icon('sold',14)} Bundle sale</button>`:''}
-016740:             <select class="bulk-ctrl bulk-plat-sel" data-source="stock" onchange="if(this.value){bulkChangePlatform(this.value,'stock');this.value=''}"><option value="">Platform</option>${Object.values(PLATFORMS).filter(p=>p.live).map(p=>`<option value="${p.id}">${p.short}</option>`).join('')}</select>`:''}
-016741:             ${_stockCanJobLot?`<button class="bulk-ctrl" style="color:var(--purple)" onclick="openCreateJobLotFromSelection()">${icon('joblot',14)} Job Lot</button>`:''}
-016742:             <button class="bulk-ctrl" style="color:var(--warn)" onclick="openStockBulkDispose()">${icon('dispose',14)} Dispose</button>
-016743:             <button class="bulk-ctrl is-danger" onclick="stockBulkAction('delete',window.__stockItems||[])">${icon('trash',14)} Delete</button>
-016744:           `:''}
-016745:           <button class="sel-exit" onclick="toggleStockSelection()">\u2715 Done</button>
-016746:         `:`
-016747:           <button class="select-toggle" onclick="toggleStockSelection()">Select</button>
-016748:         `}
-016749:       </div>
-016750:       ${_useGroup
-016751:         ?`${(()=>{window.__stockItems=items;return groupedHTML;})()}`
-016752:         :`<div class="item-table" id="stock-list">${(()=>{window.__stockItems=items;return items.length?items.map(i=>renderStockRow(i.month,i)).join(''):(STOCK_SEARCH?'<div class="inlist-empty">No stock matches \u201c'+esc(STOCK_SEARCH)+'\u201d</div>':'');})()}</div>`}`}`;
-016753:   document.getElementById('p-stock').innerHTML=html;
-016754:   _paintSelBar('stock');
-016755: }
+## app.js 15310-15394
+015310:   let net=0;
+015311:   members.forEach(function(x){
+015312:     const share=+(Number(gross)*_jobLotMemberWeightShare(x.item,lot)).toFixed(2);
+015313:     net+=share-_estimatedPartnerCutFromProfit(x.item,share);
+015314:   });
+015315:   return +net.toFixed(2);
+015316: }
+015317: function _jobLotAllocation(total,buyerPost,shipping,packaging,weights){
+015318:   const safe=(weights||[]).some(function(v){return Number(v)>0;})?(weights||[]):(weights||[]).map(function(){return 1;});
+015319:   return {
+015320:     sale:_bundleSplit(Number(total)||0,safe),
+015321:     postage:_bundleSplit(Number(buyerPost)||0,safe),
+015322:     shipping:_bundleSplit(Number(shipping)||0,safe),
+015323:     packaging:_bundleSplit(Number(packaging)||0,safe)
+015324:   };
+015325: }
+015326: function _applyJobLotSaleLeg(i,leg){
+015327:   const hasFull=(i.returnHistory||[]).some(function(r){return (r.type==='full_seller'||r.type==='full_ebay')&&(Number(r.saleNo)||1)===1;});
+015328:   if(hasFull){
+015329:     // A returned physical unit is a Sale-2 leg. Never overwrite Sale 1 — and
+015330:     // never reuse Sale 1's bundle fields for this new order. Otherwise the
+015331:     // historical Sale 1 event would appear inside today's Job Lot.
+015332:     i.resaleDateSold=leg.date;i.resaleSalePrice=leg.salePrice;i.resalePostage=leg.postage||0;
+015333:     i.resaleShippingCost=leg.shipping||0;i.resalePackagingCost=leg.packaging||0;
+015334:     i.resalePromoPercent=leg.promo||0;i.resalePlatform=leg.platform;i.isReturned=false;i.state='sold';
+015335:     i.resaleBundleId=leg.bundleId;i.resaleBundleRef=leg.bundleRef;
+015336:     i.resaleBundleTotal=+Number(leg.bundleTotal||0).toFixed(2);
+015337:   }else{
+015338:     i.dateSold=leg.date;i.salePrice=leg.salePrice;i.postage=leg.postage||0;
+015339:     i.shippingCost=leg.shipping||0;i.packagingCost=leg.packaging||0;
+015340:     i.promoPercent=leg.promo||0;i.soldOnPlatform=leg.platform;i.salePlatform=leg.platform;i.isReturned=false;i.state='sold';
+015341:     i.bundleId=leg.bundleId;i.bundleRef=leg.bundleRef;i.bundleTotal=+Number(leg.bundleTotal||0).toFixed(2);
+015342:   }
+015343:   try{i.grossProfit=calcGrossProfit(i);}catch(e){}
+015344:   return i;
+015345: }
+015346: function _canAddToJobLot(i){
+015347:   if(!i||i.scrappedAt||_activeJobLotMembership(i.id))return false;
+015348:   if((i.item||'').trim().toUpperCase()==='MONTH END')return false;
+015349:   // Physical unit must be in hand: unsold first-sale stock OR a fully returned
+015350:   // unit awaiting a second decision. A completed resale is not in inventory.
+015351:   if(i.isReturned)return true;
+015352:   if(i.resaleSalePrice)return false;
+015353:   return !i.dateSold;
+015354: }
+015355: function _jobLotLog(item,action,lot,after){
+015356:   DB.activityLog=DB.activityLog||[];
+015357:   DB.activityLog.push({
+015358:     id:_uuidLog(),itemId:item.id,itemName:item.item||'',action:action,
+015359:     fromState:_actStatus(item),toState:'joblot',before:JSON.parse(JSON.stringify(item)),
+015360:     month:(_findItemRecordById(item.id)||{}).month||null,
+015361:     after:after||((lot&&lot.name)?lot.name:'Job Lot'),ts:Date.now(),undoable:false,undone:false
+015362:   });
+015363: }
+015364: function _newJobLotName(){
+015365:   const n=(_jobLots||[]).filter(function(l){return l&&l.status!=='archived';}).length+1;
+015366:   return 'Job Lot '+n;
+015367: }
+015368: function _createJobLot(name,itemIds){
+015369:   if(!_jobLotSchemaAvailable){toast('Job Lots need the v1.01 Supabase migration','err');return null;}
+015370:   const lot={
+015371:     id:_newId('jl'),name:(name||'').trim()||_newJobLotName(),status:'building',
+015372:     dateCreated:new Date().toISOString().split('T')[0],dateListed:null,dateSold:null,
+015373:     salePrice:0,platform:DEFAULT_PLATFORM||'ebay_biz',notes:'',createdAt:new Date().toISOString()
+015374:   };
+015375:   _jobLots.push(lot);
+015376:   (itemIds||[]).forEach(function(id){
+015377:     const rec=_findItemRecordById(id);if(!rec||!_canAddToJobLot(rec.item))return;
+015378:     const c=(Number(rec.item.costPrice)||0)+(typeof calcPartsCost==='function'?(Number(calcPartsCost(rec.item))||0):0);
+015379:     _jobLotItems.push({id:_newId('jm'),jobLotId:lot.id,itemId:id,addedAt:new Date().toISOString(),removedAt:null,costBasisAtAdd:+c.toFixed(2),notes:''});
+015380:     _jobLotLog(rec.item,'Added to Job Lot',lot,'Cost ownership moved to '+lot.name+' · '+fmt(c)+' basis');
+015381:   });
+015382:   saveDB();
+015383:   return lot;
+015384: }
+015385: function _addIdsToJobLot(lotId,itemIds){
+015386:   const lot=_jobLotById(lotId);
+015387:   if(!lot||lot.status!=='building'){toast('Only a building Job Lot can accept more items','err');return 0;}
+015388:   let count=0;
+015389:   (itemIds||[]).forEach(function(id){
+015390:     const rec=_findItemRecordById(id);if(!rec||!_canAddToJobLot(rec.item))return;
+015391:     const c=(Number(rec.item.costPrice)||0)+(typeof calcPartsCost==='function'?(Number(calcPartsCost(rec.item))||0):0);
+015392:     _jobLotItems.push({id:_newId('jm'),jobLotId:lot.id,itemId:id,addedAt:new Date().toISOString(),removedAt:null,costBasisAtAdd:+c.toFixed(2),notes:''});
+015393:     _jobLotLog(rec.item,'Added to Job Lot',lot,'Cost ownership moved to '+lot.name+' · '+fmt(c)+' basis');
+015394:     count++;
+
+## app.js 15819-15961
+015819:       const x=(DB[k]||[]).find(function(i){return i.id===id;});
+015820:       if(x&&!x.dateSold&&!x.isReturned)items.push(x);
+015821:     });
+015822:   });
+015823:   if(!items.length){toast('No unsold items found','error');return;}
+015824:   // v2.21.17 — allocate ONE bundle total across the items pro-rata by listed
+015825:   // price (largest-remainder, so the shares sum to the total exactly), and split
+015826:   // the one shipping charge the same way. Every item is stamped with a shared
+015827:   // bundleId so the app knows these were a single order to a single buyer.
+015828:   const _totalEl=document.getElementById('bundle-total');
+015829:   const askSum=items.reduce(function(a,i){return a+(i.salePrice||0);},0);
+015830:   const bundleTotal=(_totalEl&&_totalEl.value!=='')?(parseFloat(_totalEl.value)||0):askSum;
+015831:   const weights=items.map(function(i){return i.salePrice||0;});
+015832:   const shares=_bundleSplit(bundleTotal,weights);
+015833:   const buyerPostage=parseFloat((document.getElementById('bundle-buyer-postage')||{value:''}).value)||0;
+015834:   const shipShares=_bundleSplit(totalShipping,weights);
+015835:   const postShares=_bundleSplit(buyerPostage,weights);
+015836:   const bundleId=_newId('b');
+015837:   const bundleRef='BDL-'+String(dateVal||'').replace(/-/g,'').slice(2)+'-'+items.length;
+015838:   items.forEach(function(item,idx){
+015839:     const hasPriorFull=(item.returnHistory||[]).some(function(r){return r.type==='full_seller'||r.type==='full_ebay';});
+015840:     if(hasPriorFull){
+015841:       const saleNo=_currentResaleSaleNo(item);
+015842:       item.resaleDateSold=dateVal;item.resaleSalePrice=shares[idx];
+015843:       item.resalePlatform=platform||item.resalePlatform||_itemPlatform(item);
+015844:       item.resalePostage=postShares[idx]||0;item.resaleShippingCost=shipShares[idx]||0;
+015845:       item.resalePackagingCost=Number(item.packagingCost)||0;item.resalePromoPercent=Number(item.promoPercent)||0;
+015846:       item.resaleBundleId=bundleId;item.resaleBundleRef=bundleRef;item.resaleBundleTotal=+bundleTotal.toFixed(2);
+015847:       item.isReturned=false;item.state='sold';
+015848:       // saleNo is derived from the frozen return chain; no separate mutable counter.
+015849:     }else{
+015850:       item.dateSold=dateVal;if(platform)item.soldOnPlatform=platform;item.salePrice=shares[idx];
+015851:       item.postage=postShares[idx]||0;item.shippingCost=shipShares[idx]||0;
+015852:       item.bundleId=bundleId;item.bundleRef=bundleRef;item.bundleTotal=+bundleTotal.toFixed(2);item.state='sold';
+015853:     }
+015854:   });
+015855:   saveDB();
+015856:   window._bundleIds=[];
+015857:   STOCK_SELECTED.clear();
+015858:   STOCK_SELECTION_MODE=false;
+015859:   closePanel();
+015860:   toast('Bundle: '+items.length+' items sold for '+fmt(bundleTotal)+(totalShipping>0?' · '+fmt(totalShipping)+' shipping split':''));
+015861:   renderStock();
+015862: }
+015863: 
+015864: 
+015865: // ============================================================
+015866: // Combined v2.21.54 — RETROACTIVE “ADD TO A SALE”
+015867: // Reconciles an orphan/legacy record into an existing sold order. This is a
+015868: // repair tool rather than a normal sale path. It deliberately writes one
+015869: // non-undoable Activity entry because restoring only the orphan would leave the
+015870: // target bundle's reallocated sale prices inconsistent. A future grouped-undo
+015871: // model can make this atomic across every member.
+015872: // ============================================================
+015873: function _findItemRef(id){const r=_findItemRecordById(id);return r?r.item:null;}
+015874: function _linkTargetMembers(target){
+015875:   const members=[],seen={};
+015876:   function add(i){if(i&&!seen[i.id]){seen[i.id]=true;members.push(i);}}
+015877:   if(target&&target.bundleId){
+015878:     allDBKeys().forEach(function(k){(DB[k]||[]).forEach(function(i){if(i.bundleId===target.bundleId)add(i);});});
+015879:   }
+015880:   add(target);
+015881:   return members;
+015882: }
+015883: function _linkOrderTotal(target,members){
+015884:   if(target&&target.bundleId&&Number(target.bundleTotal)>0)return Number(target.bundleTotal)||0;
+015885:   return (members||[]).reduce(function(s,i){return s+(Number(i.salePrice)||0);},0);
+015886: }
+015887: function _linkOrderRef(target){
+015888:   if(!target)return 'sale';
+015889:   return target.bundleRef||target.gid||target.item||'sale';
+015890: }
+015891: function _linkCostBasis(i){return (Number(i&&i.costPrice)||0)+((typeof calcPartsCost==='function')?(Number(calcPartsCost(i))||0):0);}
+015892: function _prepareHistoricalSaleItem(item,dateSold,platform,target){
+015893:   // This is intentionally only used after the user explicitly confirms a
+015894:   // financial reconciliation. Any legacy return workaround is preserved in
+015895:   // Activity's before_snapshot before being cleared from the live stock record.
+015896:   item.isReturned=false;
+015897:   delete item.returnHistory;delete item._dateSoldAtReturn;delete item._salePriceAtReturn;
+015898:   delete item.resaleSalePrice;delete item.resaleDateSold;delete item.resalePlatform;delete item.resalePostage;
+015899:   delete item.resaleShippingCost;delete item.resalePackagingCost;delete item.resalePromoPercent;delete item.resaleListingFee;
+015900:   delete item.scrappedAt;delete item.scrapReason;delete item.scrapNote;delete item.supplierRefund;
+015901:   item.dateSold=dateSold;
+015902:   item.state='sold';
+015903:   // One historical order already owns its postage / fulfilment charge. Do not
+015904:   // invent a second delivery charge on the newly attached member.
+015905:   item.postage=0;
+015906:   item.shippingCost=0;
+015907:   if(platform){item.soldOnPlatform=platform;item.salePlatform=platform;}
+015908:   // Inherit a linear promo rate where one exists so splitting the order price
+015909:   // does not accidentally make the promotion disappear from the attached item.
+015910:   if(target&&Number(target.promoPercent)>0&&!Number(item.promoPercent))item.promoPercent=Number(target.promoPercent)||0;
+015911: }
+015912: function _ensureBundleForReconcile(members,target,total,dateSold){
+015913:   const withId=(members||[]).find(function(i){return i.bundleId;});
+015914:   const bundleId=withId?withId.bundleId:_newId('b');
+015915:   const withRef=(members||[]).find(function(i){return i.bundleRef;});
+015916:   const bundleRef=withRef?withRef.bundleRef:('BDL-'+String(dateSold||'').replace(/-/g,'').slice(2)+'-'+members.length);
+015917:   (members||[]).forEach(function(i){i.bundleId=bundleId;i.bundleRef=bundleRef;i.bundleTotal=+(Number(total)||0).toFixed(2);});
+015918:   return {bundleId:bundleId,bundleRef:bundleRef};
+015919: }
+015920: function _applyIncludedReconcile(existing,orphan,total,dateSold,platform,target){
+015921:   const all=existing.slice();all.push(orphan);
+015922:   // Use the values the records already carry as the allocation signal. This
+015923:   // mirrors normal bundle creation and avoids the old bug that weighted revenue
+015924:   // by COST, which had no relationship to what the buyer paid.
+015925:   const weights=all.map(function(i){return Math.max(0,Number(i.salePrice)||0);});
+015926:   const shares=_bundleSplit(total,weights.some(function(v){return v>0;})?weights:all.map(function(){return 1;}));
+015927:   _prepareHistoricalSaleItem(orphan,dateSold,platform,target);
+015928:   all.forEach(function(i,idx){i.salePrice=shares[idx];});
+015929:   const b=_ensureBundleForReconcile(all,target,total,dateSold);
+015930:   return {bundleId:b.bundleId,bundleRef:b.bundleRef,total:+Number(total).toFixed(2),shares:shares};
+015931: }
+015932: function _applyAdditionalReconcile(existing,orphan,additional,dateSold,platform,target){
+015933:   const oldTotal=_linkOrderTotal(target,existing);
+015934:   const newTotal=+(oldTotal+additional).toFixed(2);
+015935:   _prepareHistoricalSaleItem(orphan,dateSold,platform,target);
+015936:   orphan.salePrice=+additional.toFixed(2);
+015937:   const all=existing.slice();all.push(orphan);
+015938:   const b=_ensureBundleForReconcile(all,target,newTotal,dateSold);
+015939:   return {bundleId:b.bundleId,bundleRef:b.bundleRef,total:newTotal,additional:+additional.toFixed(2)};
+015940: }
+015941: function _pushSaleReconcileActivity(orphanRec,before,target,mode,res){
+015942:   DB.activityLog=DB.activityLog||[];
+015943:   const label=mode==='included'?'Sale reconciliation · included total':mode==='additional'?'Sale reconciliation · added revenue':'Sale reconciliation · needs review';
+015944:   const targetRef=(res&&res.bundleRef)||_linkOrderRef(target);
+015945:   const after=mode==='link_only'
+015946:     ?('Needs review · linked by note to '+targetRef+' · no financial changes')
+015947:     :(label+' · '+targetRef+' · order price '+fmt((res&&res.total)||0));
+015948:   DB.activityLog.push({
+015949:     id:_uuidLog(),itemId:orphanRec.item.id,itemName:orphanRec.item.item||'',
+015950:     action:label,fromState:_actStatus(before),toState:mode==='link_only'?_actStatus(before):'sold',
+015951:     before:JSON.parse(JSON.stringify(before)),month:orphanRec.month,after:after,
+015952:     ts:Date.now(),undoable:false,undone:false
+015953:   });
+015954: }
+015955: let _linkOrphan=null;
+015956: function openLinkToSaleModal(m,id){
+015957:   const orphan=(DB[m]||[]).find(function(x){return x.id===id;});if(!orphan){toast('Item not found','err');return;}
+015958:   if(orphan.resaleSalePrice){toast('A completed resale cannot be merged into another sale','err');return;}
+015959:   _linkOrphan={m:m,id:id,name:orphan.item||'this item'};
+015960:   const historyWarn=orphan.isReturned&&Array.isArray(orphan.returnHistory)&&orphan.returnHistory.length
+015961:     ?'<div class="info-box" style="margin-bottom:12px;color:var(--warn)"><strong>Returned-item history found.</strong> If you choose a financial reconciliation, RETRADE will preserve the current record in Activity before converting this item into the historical order. If you are not certain, use <strong>Link only · needs review</strong>.</div>':'';
+
+## app.js 20486-20612
+020486: }
+020487: function confirmSplit(m,id){
+020488:   const i=(DB[m]||[]).find(function(x){return x.id===id;}); if(!i)return;
+020489:   if(i.dateSold||i.resaleSalePrice||i.isReturned||i.scrappedAt){toast('Only unsold items can be split');return;}
+020490:   const n=_splitReadN();
+020491:   const cParts=_splitPennies(Math.round((Number(i.costPrice)||0)*100),n);
+020492:   const hasEst=(Number(i.estSalePrice)||0)>0;
+020493:   const eParts=hasEst?_splitPennies(Math.round((Number(i.estSalePrice)||0)*100),n):null;
+020494:   const rootId=i.parentId||i.id;
+020495:   const baseName=i.baseName||_splitStripSuffix(i.item);
+020496:   // unit 1 = the original, re-priced to its share
+020497:   i.costPrice=cParts[0]/100;
+020498:   if(hasEst)i.estSalePrice=eParts[0]/100;
+020499:   i.parentId=rootId; i.baseName=baseName;
+020500:   if((i.copySeq||1)===1){ i.copySeq=1; i.item=baseName; }
+020501:   // highest existing seq in this lot, so new units continue the numbering
+020502:   let startSeq=1;
+020503:   (DB[m]||[]).forEach(function(x){ const s=(typeof x.copySeq==='number')?x.copySeq:1; if((x.id===rootId||x.parentId===rootId)&&s>startSeq)startSeq=s; });
+020504:   for(let k=1;k<n;k++){
+020505:     const copy=JSON.parse(JSON.stringify(i));
+020506:     copy.id=_newId('spl');
+020507:     copy.gid='R-'+String(getNextGID()).padStart(4,'0');
+020508:     copy.dateSold=null;copy.grossProfit=null;copy.isReturned=false;
+020509:     copy.resaleSalePrice=null;copy.resaleDateSold=null;copy.resaleGrossProfit=null;
+020510:     copy.soldOnPlatform=null;copy.resalePlatform=null;copy.resaleListingFee=0;
+020511:     delete copy.scrappedAt;delete copy.scrapReason;delete copy.scrapNote;
+020512:     copy.returnHistory=[];delete copy.returnData;
+020513:     copy.accountSettled=false;
+020514:     copy.costPrice=cParts[k]/100;
+020515:     if(hasEst)copy.estSalePrice=eParts[k]/100;
+020516:     copy.parentId=rootId; copy.baseName=baseName;
+020517:     copy.copySeq=startSeq+k; copy.item=baseName+' - '+(startSeq+k);
+020518:     if(copy.state==='listed'){ copy.dateListed=new Date().toISOString().split('T')[0]; _stampListingFee(copy); }
+020519:     DB[m].push(copy);
+020520:   }
+020521:   saveDB();
+020522:   closePanel();
+020523:   toast('Split into '+n+' units');
+020524:   const cur=document.querySelector('.page.on');
+020525:   if(cur&&cur.id==='p-item'){renderItemPage(m,id);return;}
+020526:   SELECTED_MONTH=m;
+020527:   if(typeof renderStock==='function')renderStock();
+020528: }
+020529: 
+020530: function confirmDupeItem(m,id){
+020531:   var item=(DB[m]||[]).find(function(i){return i.id===id;});
+020532:   if(!item)return;
+020533:   showConfirm(
+020534:     'Duplicate item',
+020535:     '"'+esc(item.item)+'" will be copied as a new active listing.',
+020536:     {okLabel:'Duplicate',danger:false,icon:'info'}
+020537:   ).then(function(ok){if(ok)duplicateItem(m,id);});
+020538: }
+020539: function duplicateItem(m,id,context){
+020540:   const item=(DB[m]||[]).find(i=>i.id===id);
+020541:   if(!item)return;
+020542:   const copy=JSON.parse(JSON.stringify(item));
+020543:   copy.id=_newId('dup');
+020544:   copy.gid='R-'+String(getNextGID()).padStart(4,'0');
+020545:   copy.dateListed=new Date().toISOString().split('T')[0];
+020546:   // v2.09.2 — Force a clean "active listing" state. Previously only dateSold /
+020547:   // grossProfit / isReturned were cleared, so duplicating a sold-then-relisted
+020548:   // item left resaleSalePrice / resaleDateSold intact — the Account page's
+020549:   // sold-filter (i.state==='sold' || !!i.resaleSalePrice) then treated the copy
+020550:   // as a sale even though the Stock Room showed it correctly as listed.
+020551:   copy.state='listed';
+020552:   copy.dateSold=null;copy.grossProfit=null;copy.isReturned=false;
+020553:   copy.resaleSalePrice=null;copy.resaleDateSold=null;copy.resaleGrossProfit=null;
+020554:   // v2.19.40 — a clone starts as a fresh Sale 1, so it must not inherit the
+020555:   // original's per-sale platforms. soldOnPlatform (sale-time platform) and
+020556:   // resalePlatform (sale-2 platform) were left set, so a clone of an item sold
+020557:   // on a non-default platform was mispriced off that stale platform's fees.
+020558:   copy.soldOnPlatform=null;copy.resalePlatform=null;
+020559:   // v2.19.26 — the clone inherits resaleListingFee, which calcGrossProfit now
+020560:   // charges unconditionally. Left uncleared the duplicate would be billed for
+020561:   // the ORIGINAL's relist. Clear it, then stamp a fresh sale-1 fee: a
+020562:   // duplicate is a new listing and eBay bills it as one.
+020563:   copy.resaleListingFee=0;
+020564:   _stampListingFee(copy);
+020565:   copy.accountSettled=false; // new item = new debt to the partner
+020566:   copy.returnHistory=[];delete copy.returnData;
+020567:   delete copy.scrappedAt;delete copy.scrapReason;delete copy.scrapNote; // v2.21.36 — a clone is a fresh live listing, never born scrapped
+020568:   const stripSuffix=function(name){
+020569:     const m2=(name||'').match(/^(.+?) - (\d+)$/);
+020570:     return m2?m2[1]:(name||'');
+020571:   };
+020572:   const rootId=item.parentId||item.id;
+020573:   const rootItem=(DB[m]||[]).find(x=>x.id===rootId);
+020574:   const baseName=item.baseName||(rootItem&&rootItem.baseName)||stripSuffix((rootItem&&rootItem.item)||item.item);
+020575:   let maxSeq=1;
+020576:   (DB[m]||[]).forEach(function(x){
+020577:     const belongsToRoot=x.id===rootId||x.parentId===rootId;
+020578:     if(!belongsToRoot)return;
+020579:     const seq=(typeof x.copySeq==='number'&&x.copySeq>0)
+020580:       ?x.copySeq
+020581:       :(x.id===rootId?1:(function(){
+020582:         const match=(x.item||'').match(new RegExp('^'+baseName.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+' - (\\d+)$'));
+020583:         return match?parseInt(match[1],10):1;
+020584:       })());
+020585:     if(seq>maxSeq)maxSeq=seq;
+020586:   });
+020587:   const nextNum=maxSeq+1;
+020588:   copy.parentId=rootId;
+020589:   copy.baseName=baseName;
+020590:   copy.copySeq=nextNum;
+020591:   copy.item=baseName+' - '+nextNum;
+020592:   if(!Array.isArray(DB[m])) DB[m]=[];
+020593:   DB[m].push(copy);saveDB();
+020594:   toast('Duplicated');
+020595:   if(context==='panel'){
+020596:     openItemDetail(m,copy.id);
+020597:     return;
+020598:   }
+020599:   SELECTED_MONTH=m;MONTH_SORT='date-listed';MONTH_FILTER='all';
+020600:   // v2.09.1 — Duplicate is a fresh active listing. Back should return to Stock
+020601:   // Room (where the new item now lives), not the Sales/Monthly page — even when
+020602:   // the source item was sold and the user came from Sales.
+020603:   openItemPage(m,copy.id,'p-stock');
+020604: }
+020605: 
+020606: function openRelist(m,id){
+020607:   if(_jobLotActionGuard(id))return;
+020608:   const i=(DB[m]||[]).find(x=>x.id===id);
+020609:   if(!i)return;
+020610:   if(!_lifecycleCan(i,'relist')){
+020611:     toast('Relist is only available while the item is in Returned stock.','error');
+020612:     return;
+
+## app.js 20728-20914
+020728:   window._relistCondition='working';
+020729:   window._relistPostMode=postageMode;
+020730:   openPanel('Relist — '+esc(i.item),html);
+020731: }
+020732: 
+020733: function confirmRelist(m,id){
+020734:   const i=(DB[m]||[]).find(x=>x.id===id);
+020735:   if(!i)return;
+020736:   const price=parseFloat(document.getElementById('relist-price').value)||i.salePrice||0;
+020737:   const promoInput=parseFloat(document.getElementById('relist-promo').value)||0;
+020738:   // E3 P1 #3 — Capture sale 2 packaging from the relist modal so it isn't
+020739:   // silently inherited from sale 1. The input pre-fills with i.packagingCost
+020740:   // (the sale 1 value) so the user can adjust if they used a different
+020741:   // mailer for the relist. Empty / NaN falls back to sale 1's value.
+020742:   const _pkgRaw=document.getElementById('relist-packaging');
+020743:   const newPackaging=_pkgRaw&&_pkgRaw.value!==''?(parseFloat(_pkgRaw.value)||0):(i.packagingCost||0);
+020744:   const condition=window._relistCondition||'working';
+020745:   const postMode=window._relistPostMode||'simple';
+020746:   // Per-resale platform — the relist can be on a different platform than sale 1
+020747:   // (e.g. sold on eBay private, returned, relisted on eBay Business). The resale
+020748:   // fee in calcGrossProfit reads i.resalePlatform so sale-2 fees are correct.
+020749:   const _relistPlatEl=document.getElementById('relist-platform');
+020750:   const _newRelistPlatform=(_relistPlatEl&&_relistPlatEl.value&&PLATFORMS[_relistPlatEl.value])?_relistPlatEl.value:(i.resalePlatform||_itemPlatform(i));
+020751:   if(_newRelistPlatform&&PLATFORMS[_newRelistPlatform]){
+020752:     i.resalePlatform=_newRelistPlatform;
+020753:     // The relisted item is now an ACTIVE listing on the chosen platform, so its
+020754:     // live P&L must use that platform's fees — not sale 1's. Update the item's
+020755:     // own platform and clear the prior soldOnPlatform so _itemPlatform resolves
+020756:     // to the new one. resalePlatform is also kept for the resale fee path.
+020757:     i.defaultPlatform=_relistPlatEl.value;
+020758:     i.soldOnPlatform=null;
+020759:   }
+020760:   // E3 P0 #1 — Snapshot sale 1 economics into the latest returnHistory entry
+020761:   // BEFORE we overwrite shipping/postage/sdRate/promo with relist values.
+020762:   // Without this, the original sale's costs are destroyed and calcGrossProfit
+020763:   // ends up double-counting relist shipping (once as i.shippingCost, once as
+020764:   // resaleShippingCost) when the resale completes. _shippingCostAtRelist is
+020765:   // the marker name — calcGrossProfit reads these on the resold-after-return
+020766:   // path. Items that were relisted before this fix don't have the snapshot;
+020767:   // they fall back to the live (now-overwritten) values, so older relisted
+020768:   // items are still slightly wrong but new relists from this point are correct.
+020769:   const _relistReturnEntry=(i.returnHistory||[]).slice().reverse().find(function(r){return (r.type==='full_seller'||r.type==='full_ebay')&&!r._relistedAt;})||null;
+020770:   if(_relistReturnEntry){
+020771:     if(_relistReturnEntry._shippingCostAtRelist===undefined)_relistReturnEntry._shippingCostAtRelist=i.shippingCost||0;
+020772:     if(_relistReturnEntry._postageAtRelist===undefined)_relistReturnEntry._postageAtRelist=i.postage||0;
+020773:     if(_relistReturnEntry._packagingCostAtRelist===undefined)_relistReturnEntry._packagingCostAtRelist=i.packagingCost||0;
+020774:     if(_relistReturnEntry._promoPercentAtRelist===undefined)_relistReturnEntry._promoPercentAtRelist=i.promoPercent||0;
+020775:     if(_relistReturnEntry._sdRateIdxAtRelist===undefined)_relistReturnEntry._sdRateIdxAtRelist=(i._sdRateIdx!=null?i._sdRateIdx:1);
+020776:     if(_relistReturnEntry._sdBuyerPaysAtRelist===undefined)_relistReturnEntry._sdBuyerPaysAtRelist=!!i._sdBuyerPays;
+020777:     if(_relistReturnEntry._salePriceAtRelist===undefined)_relistReturnEntry._salePriceAtRelist=i.salePrice||0;
+020778:   }
+020779:   // If the return belongs to Sale 2+, that completed failed resale is now
+020780:   // fully frozen on its returnHistory row. Clear the single live resale slot so
+020781:   // the relisted unit is genuinely active again and can become Sale 3/4/etc.
+020782:   // Sale 1 fields are never cleared because they remain the item's original
+020783:   // acquisition/sale anchor.
+020784:   if(_relistReturnEntry && (Number(_relistReturnEntry.saleNo)||1)>=2){
+020785:     i.resaleSalePrice=null;
+020786:     i.resaleDateSold=null;
+020787:     i.resalePlatform=null;
+020788:     i.resalePostage=null;
+020789:     i.resaleShippingCost=null;
+020790:     i.resalePackagingCost=null;
+020791:     i.resalePromoPercent=null;
+020792:     i.resaleGrossProfit=null;
+020793:     i.resaleBundleId=null;i.resaleBundleRef=null;i.resaleBundleTotal=null;
+020794:     // The completed Sale-N slot was cleared above; restore the NEW listing's
+020795:     // platform so Sale N+1 does not silently fall back to the previous/default one.
+020796:     i.resalePlatform=_newRelistPlatform;
+020797:   }
+020798:   // Apply postage settings
+020799:   i._postageMode=postMode;
+020800:   if(postMode==='simple'){
+020801:     let sdIdx=parseInt(document.getElementById('relist-sd-rate').value);if(isNaN(sdIdx))sdIdx=1;
+020802:     const buyerPays=!document.getElementById('relist-sd-free-postage').checked;
+020803:     const rateCost=_sdRateFor(sdIdx,price);
+020804:     i._sdRateIdx=sdIdx;
+020805:     i._sdBuyerPays=buyerPays;
+020806:     i.shippingCost=rateCost;
+020807:     i.postage=buyerPays?rateCost:0;
+020808:   } else {
+020809:     i.shippingCost=parseFloat(document.getElementById('relist-shipping-cost').value)||0;
+020810:     i.postage=parseFloat(document.getElementById('relist-postage').value)||0;
+020811:   }
+020812:   // Restore to active stock
+020813:   i.isReturned=false;
+020814:   i.state='listed';
+020815:   // v2.19.26 — a relist is a second billable listing. Stamped here, after the
+020816:   // resalePlatform/defaultPlatform assignment above, so a return-then-relist
+020817:   // onto a DIFFERENT platform is priced on the platform it actually went to.
+020818:   const _thisRelistFee=_listingFeeFor(i.resalePlatform||_itemPlatform(i));
+020819:   _stampRelistFee(i);
+020820:   i.dateSold=null;
+020821:   i.salePrice=price;
+020822:   i.promoPercent=promoInput/100;
+020823:   i.packagingCost=newPackaging;
+020824:   i.condition=condition==='working'?undefined:'spares';
+020825:   i.grossProfit=null;
+020826:   // Log relist in returnHistory for audit trail
+020827:   if(_relistReturnEntry){
+020828:     const relistDate=document.getElementById('relist-date').value||new Date().toISOString().split('T')[0];
+020829:     _relistReturnEntry._relistedAt=relistDate;
+020830:     _relistReturnEntry._relistCondition=condition;
+020831:     _relistReturnEntry._platformAtRelist=i.resalePlatform||_itemPlatform(i);
+020832:     _relistReturnEntry._listingFeeAtRelist=_thisRelistFee;
+020833:     // v2.15.0 — register the relist in the maintenance log. Two reasons:
+020834:     //  1. The item-page relist COUNTER only reads refreshHistory, so a
+020835:     //     relist-after-return never registered. That's why it was being logged
+020836:     //     manually as well — which produced a second "Relisted" timeline row
+020837:     //     for one real event (the reported double-log).
+020838:     //  2. _effectiveListDate resets the freshness clock from _lastRelistAt.
+020839:     //     Without this, a relisted item kept its ORIGINAL dateListed age and
+020840:     //     drifted into the wrong Stock Room aging bucket.
+020841:     // _fromReturn marks this entry as owned by the returnHistory _relistedAt
+020842:     // record: the timeline skips it and renders the richer _relistedAt row
+020843:     // (which carries condition + price), so one relist stays one row.
+020844:     if(!i.refreshHistory)i.refreshHistory=[];
+020845:     i.refreshHistory.push({type:'relist',date:relistDate,_fromReturn:true});
+020846:     i._lastRelistAt=relistDate;
+020847:   }
+020848:   saveDB();
+020849:   window._relistCondition=null;
+020850:   window._relistPostMode=null;
+020851:   closePanel();
+020852:   toast('Relisted as '+(condition==='spares'?'Spares / Repairs':'Working'));
+020853:   const cur=document.querySelector('.page.on').id;
+020854:   if(cur==='p-item')renderItemPage(m,id);
+020855:   else if(cur==='p-monthly')renderMonth();
+020856:   else if(cur==='p-stock')renderStock();
+020857:   else renderSummary();
+020858: }
+020859: 
+020860: function _currentResaleSaleNo(i){
+020861:   // Sale 1 uses the base fields. Every later completed sale reuses the live
+020862:   // `resale*` slot, while its full-return record freezes that cycle in
+020863:   // returnHistory. The most recent relisted full return therefore tells us
+020864:   // which numbered resale is currently live (Sale 2, 3, 4, ...).
+020865:   const relistedFull=(i&&i.returnHistory||[]).filter(function(r){
+020866:     return (r.type==='full_seller'||r.type==='full_ebay')&&r._relistedAt;
+020867:   });
+020868:   let max=1;
+020869:   relistedFull.forEach(function(r){max=Math.max(max,Number(r.saleNo)||1);});
+020870:   return Math.max(2,max+1);
+020871: }
+020872: function _currentSaleForReturn(i){
+020873:   const hasResale=!!(i&&i.resaleSalePrice);
+020874:   const saleNo=hasResale?_currentResaleSaleNo(i):1;
+020875:   const isResale=saleNo>=2;
+020876:   const price=Math.max(0,Number(isResale?i.resaleSalePrice:i.salePrice)||0);
+020877:   const date=(isResale?i.resaleDateSold:i.dateSold)||null;
+020878:   const postage=Math.max(0,Number(isResale?(i.resalePostage!=null?i.resalePostage:i.postage):i.postage)||0);
+020879:   const platformId=isResale?(i.resalePlatform||_itemPlatform(i)):_s1Platform(i);
+020880:   const promoPercent=Math.max(0,Number(isResale?i.resalePromoPercent:i.promoPercent)||0);
+020881:   const shippingCost=Math.max(0,Number(isResale?(i.resaleShippingCost!=null?i.resaleShippingCost:i.shippingCost):i.shippingCost)||0);
+020882:   const packagingCost=Math.max(0,Number(isResale?(i.resalePackagingCost!=null?i.resalePackagingCost:i.packagingCost):i.packagingCost)||0);
+020883:   let listingFee=Math.max(0,Number(isResale?0:i.listingFee)||0);
+020884:   if(isResale){
+020885:     const prior=((i.returnHistory||[]).slice().reverse().find(function(r){return (r.type==='full_seller'||r.type==='full_ebay')&&(Number(r.saleNo)||1)===saleNo-1&&r._relistedAt;}));
+020886:     if(prior&&prior._listingFeeAtRelist!=null)listingFee=Math.max(0,Number(prior._listingFeeAtRelist)||0);
+020887:     else listingFee=Math.max(0,Number(i.resaleListingFee)||0); // live Sale 2/3/4+ fallback
+020888:   }
+020889:   const bundleId=isResale?(i.resaleBundleId||null):(i.bundleId||null);
+020890:   const bundleRef=isResale?(i.resaleBundleRef||''):(i.bundleRef||'');
+020891:   const bundleTotal=Number(isResale?i.resaleBundleTotal:i.bundleTotal)||0;
+020892:   return {saleNo:saleNo,is2:isResale,price:price,date:date,postage:postage,platformId:platformId,promoPercent:promoPercent,shippingCost:shippingCost,packagingCost:packagingCost,listingFee:listingFee,bundleId:bundleId,bundleRef:bundleRef,bundleTotal:bundleTotal};
+020893: }
+020894: 
+020895: function openReturn(m,id){
+020896:   if(_jobLotActionGuard(id))return;
+020897:   const i=(DB[m]||[]).find(x=>x.id===id);
+020898:   if(!i)return;
+020899:   if(!_lifecycleCan(i,'return')){toast('Return is only available after a completed sale.','error');return;}
+020900:   const cur=_currentSaleForReturn(i);
+020901:   const today=new Date().toISOString().split('T')[0];
+020902:   const _platLabel=(PLATFORMS[cur.platformId]&&PLATFORMS[cur.platformId].short)||'Platform';
+020903:   const _platformDecisionLabel=(cur.platformId==='ebay'||cur.platformId==='ebay_biz')?'eBay stepped in':(_platLabel+' decided');
+020904:   const html=`
+020905:     <div class="item-full-section" style="margin-bottom:16px">
+020906:       <div class="item-full-section-title">Item</div>
+020907:       <div style="font-weight:600;font-size:15px">${esc(i.item)}</div>
+020908:       <div style="font-size:13px;color:var(--muted);margin-top:4px">Sale ${cur.saleNo}: ${fmt(cur.price)}${cur.postage?` + ${fmt(cur.postage)} postage`:''} · Sold ${cur.date||'—'}</div>
+020909:     </div>
+020910:     <div class="fg">
+020911:       <label>Return type</label>
+020912:       <select id="rtn-type">
+020913:         <option value="full_seller">Full refund — seller handled</option>
+020914:         <option value="full_ebay">Full refund — ${_platformDecisionLabel}</option>
+
+## app.js 21068-21146
+021068: // is this return's relist, undo both atomically and restore Sale N as sold.
+021069: function _dropReturnOwnedRelistMaintenance(i,r){
+021070:   if(!i||!r||!r._relistedAt||!Array.isArray(i.refreshHistory))return;
+021071:   const d=String(r._relistedAt).slice(0,10);
+021072:   for(let k=i.refreshHistory.length-1;k>=0;k--){
+021073:     const e=i.refreshHistory[k];
+021074:     if(e&&e.type==='relist'&&e._fromReturn&&String(e.date||'').slice(0,10)===d){i.refreshHistory.splice(k,1);break;}
+021075:   }
+021076:   const prior=i.refreshHistory.slice().reverse().find(function(e){return e&&e.type==='relist';});
+021077:   i._lastRelistAt=prior?prior.date:null;
+021078: }
+021079: function _restoreCompletedSaleFromReturn(i,r){
+021080:   const saleNo=Math.max(1,Number(r.saleNo)||1);
+021081:   const num=function(v,f){return v!=null?(Number(v)||0):(Number(f)||0);};
+021082:   if(saleNo===1){
+021083:     i.salePrice=num(r._salePriceAtReturn,i.salePrice);i.dateSold=r._dateSoldAtReturn||i.dateSold||null;
+021084:     i.postage=num(r._postageAtReturn,i.postage);i.shippingCost=num(r._shippingCostAtReturn,i.shippingCost);
+021085:     i.packagingCost=num(r._packagingCostAtReturn,i.packagingCost);i.promoPercent=num(r._promoPercentAtReturn,i.promoPercent);
+021086:     if(r._platformAtReturn)i.soldOnPlatform=r._platformAtReturn;
+021087:     i.resaleSalePrice=null;i.resaleDateSold=null;i.resaleGrossProfit=null;i.resalePostage=null;i.resaleShippingCost=null;i.resalePackagingCost=null;i.resalePromoPercent=null;
+021088:   }else{
+021089:     i.resaleSalePrice=num(r._salePriceAtReturn,r._salePriceAtRelist);i.resaleDateSold=r._dateSoldAtReturn||null;
+021090:     i.resalePostage=num(r._postageAtReturn,r._postageAtRelist);i.resaleShippingCost=num(r._shippingCostAtReturn,r._shippingCostAtRelist);
+021091:     i.resalePackagingCost=num(r._packagingCostAtReturn,r._packagingCostAtRelist);i.resalePromoPercent=num(r._promoPercentAtReturn,r._promoPercentAtRelist);
+021092:     i.resaleListingFee=num(r._listingFeeAtReturn,i.resaleListingFee);i.resalePlatform=r._platformAtReturn||i.resalePlatform||_itemPlatform(i);
+021093:     i.salePrice=i.resaleSalePrice;i.postage=i.resalePostage;i.shippingCost=i.resaleShippingCost;i.packagingCost=i.resalePackagingCost;i.promoPercent=i.resalePromoPercent;
+021094:   }
+021095:   i.isReturned=false;i.state='sold';i.condition=undefined;i.grossProfit=calcGrossProfit(i);
+021096: }
+021097: async function undoReturnCascade(m,id,rtnIdx){
+021098:   const i=(DB[m]||[]).find(function(x){return x.id===id;});
+021099:   const r=i&&Array.isArray(i.returnHistory)?i.returnHistory[rtnIdx]:null;if(!r)return;
+021100:   const saleNo=Math.max(1,Number(r.saleNo)||1);const isFull=r.type==='full_seller'||r.type==='full_ebay';
+021101:   if(!isFull||!r._relistedAt)return undoReturnEntry(m,id,rtnIdx);
+021102:   const laterReturn=(i.returnHistory||[]).some(function(x){return x!==r&&(x.type==='full_seller'||x.type==='full_ebay')&&Math.max(1,Number(x.saleNo)||1)>saleNo;});
+021103:   const liveSaleNo=i.resaleSalePrice?_currentResaleSaleNo(i):0;
+021104:   if(laterReturn||(liveSaleNo&&liveSaleNo>saleNo)){toast('A later sale exists. Undo the newest sale/return first so the lifecycle stays intact.','error');return;}
+021105:   const ok=await showConfirm('Undo Sale '+saleNo+' return + relist?','This removes the Sale '+saleNo+' refund and its dependent relist for Sale '+(saleNo+1)+', then restores Sale '+saleNo+' as sold. Cashflow and lifetime P&L will recalculate from the corrected history.',{okLabel:'Undo both',danger:false});
+021106:   if(!ok)return;
+021107:   _dropReturnOwnedRelistMaintenance(i,r);_restoreCompletedSaleFromReturn(i,r);i.returnHistory.splice(rtnIdx,1);saveDB();renderItemPage(m,id);toast('Return + relist undone — Sale '+saleNo+' restored');
+021108: }
+021109: 
+021110: async function panelDeleteReturn(m,id,rtnIdx){
+021111:   const i=(DB[m]||[]).find(function(x){return x.id===id;});
+021112:   const r=i&&Array.isArray(i.returnHistory)?i.returnHistory[rtnIdx]:null;
+021113:   if(!r)return;
+021114:   const ok=await showConfirm('Remove this return entry?','This removes the refund/return adjustment from the item history and recalculates its profit.',{okLabel:'Remove entry'});
+021115:   if(!ok)return;
+021116:   if(!_removeReturnEntry(m,id,rtnIdx))return;
+021117:   toast('Return removed');
+021118:   const _pg=document.querySelector('.page.on');
+021119:   if(_pg&&_pg.id==='p-item')renderItemPage(m,id);
+021120:   openItemDetail(m,id);
+021121: }
+021122: 
+021123: // Undo the most recent full return → move the item back to Sold. Prominent
+021124: // counterpart to the timeline "✕ undo"; completes the per-state "go back".
+021125: function undoLastReturn(m,id){
+021126:   const i=(DB[m]||[]).find(function(x){return x.id===id;});
+021127:   if(!i||!i.returnHistory||!i.returnHistory.length)return;
+021128:   let idx=-1;
+021129:   for(let k=i.returnHistory.length-1;k>=0;k--){
+021130:     const r=i.returnHistory[k];
+021131:     if((r.type==='full_seller'||r.type==='full_ebay')&&!r._relistedAt){idx=k;break;}
+021132:   }
+021133:   if(idx<0)for(let k=i.returnHistory.length-1;k>=0;k--){
+021134:     const r=i.returnHistory[k];
+021135:     if(r.type==='full_seller'||r.type==='full_ebay'){idx=k;break;}
+021136:   }
+021137:   if(idx<0)for(let k=i.returnHistory.length-1;k>=0;k--){ if(i.returnHistory[k]){idx=k;break;} }
+021138:   if(idx<0){toast('No return to undo');return;}
+021139:   undoReturnEntry(m,id,idx);
+021140: }
+021141: 
+021142: // ── Unified "step back one state" ───────────────────────────────────────────
+021143: // One consistent ← Back button on any state past the item's base. Dispatches to
+021144: // the right existing revert. (v2.21.48)
+021145: function _returnedToStockDate(i){
+021146:   if(!i||!i.isReturned)return null;
+
+## app.js 21295-21373
+021295:       .map(function(e,ix){return {e:e,ix:ix};})
+021296:       .filter(function(o){return o.e.type==='relist'&&o.e._fromReturn&&o.e.date===_undoneDate;})
+021297:       .pop();
+021298:     if(_paired)i.refreshHistory.splice(_paired.ix,1);
+021299:     const _prior=i.refreshHistory.slice().reverse().find(function(e){return e.type==='relist';});
+021300:     i._lastRelistAt=_prior?_prior.date:null;
+021301:   }
+021302: 
+021303:   // confirmRelist clears the reusable resale slot after Sale 2+. Rebuild that
+021304:   // failed completed sale from the immutable return snapshot so a subsequent
+021305:   // "Undo return" can correctly move the item back to Sale N sold state.
+021306:   if(saleNo>=2){
+021307:     const _num=function(a,b,fallback){
+021308:       if(a!=null)return Number(a)||0;
+021309:       if(b!=null)return Number(b)||0;
+021310:       return Number(fallback)||0;
+021311:     };
+021312:     i.resaleSalePrice=_num(r._salePriceAtReturn,r._salePriceAtRelist,0);
+021313:     i.resaleDateSold=r._dateSoldAtReturn||null;
+021314:     i.resalePostage=_num(r._postageAtReturn,r._postageAtRelist,0);
+021315:     i.resaleShippingCost=_num(r._shippingCostAtReturn,r._shippingCostAtRelist,0);
+021316:     i.resalePackagingCost=_num(r._packagingCostAtReturn,r._packagingCostAtRelist,0);
+021317:     i.resalePromoPercent=_num(r._promoPercentAtReturn,r._promoPercentAtRelist,0);
+021318:     i.resaleListingFee=_num(r._listingFeeAtReturn,null,0);
+021319:     i.resalePlatform=r._platformAtReturn||i.resalePlatform||_itemPlatform(i);
+021320:     i.resaleBundleId=r._bundleIdAtReturn||null;
+021321:     i.resaleBundleRef=r._bundleRefAtReturn||'';
+021322:     i.resaleBundleTotal=Number(r._bundleTotalAtReturn)||0;
+021323:     // Restore live fields used as defaults by the return/relist UI.
+021324:     i.salePrice=i.resaleSalePrice;
+021325:     i.postage=i.resalePostage;
+021326:     i.shippingCost=i.resaleShippingCost;
+021327:     i.packagingCost=i.resalePackagingCost;
+021328:     i.promoPercent=i.resalePromoPercent;
+021329:   }else{
+021330:     // Sale 1 stays frozen in its original fields/snapshot; only remove the
+021331:     // active resale-cycle fee that the now-undone relist had stamped.
+021332:     i.resaleListingFee=0;
+021333:   }
+021334: 
+021335:   // Restore returned state.
+021336:   i.isReturned=true;
+021337:   i.state='returned';
+021338:   i.dateSold=null;
+021339:   i.condition=undefined;
+021340:   i.grossProfit=calcGrossProfit(i);
+021341:   saveDB();
+021342:   renderItemPage(m,id);
+021343:   toast('Relist undone — item back to Returned after Sale '+saleNo);
+021344: }
+021345: 
+021346: // ── Returned items panel (opened from KPI card) ────────────────────────────
+021347: function showReturnedItems(){
+021348:   // IMPORTANT: this panel must use the exact same attribution rule as the
+021349:   // dashboard KPI — a refund belongs to the period in which it was LOGGED.
+021350:   // Build one row per item, but only from return entries inside the selected
+021351:   // period. Older/later returns on the same item must not leak into totals.
+021352:   const items=[];
+021353:   allDBKeys().forEach(function(k){
+021354:     (DB[k]||[]).forEach(function(i){
+021355:       if((i.item||'').trim().toUpperCase()==='MONTH END')return;
+021356:       const periodReturns=(i.returnHistory||[]).map(function(r,idx){
+021357:         return {entry:r,index:idx,date:_returnEventDate(r)};
+021358:       }).filter(function(x){return x.date&&_inSummaryPeriod(x.date);});
+021359:       if(!periodReturns.length)return;
+021360:       items.push(Object.assign({},i,{month:k,_periodReturns:periodReturns}));
+021361:     });
+021362:   });
+021363: 
+021364:   items.sort(function(a,b){
+021365:     const ad=a._periodReturns[a._periodReturns.length-1].date||'';
+021366:     const bd=b._periodReturns[b._periodReturns.length-1].date||'';
+021367:     return bd.localeCompare(ad);
+021368:   });
+021369: 
+021370:   const fullyReturned=items.filter(function(i){
+021371:     return i._periodReturns.some(function(x){const r=x.entry;return r.type==='full_seller'||r.type==='full_ebay';});
+021372:   });
+021373:   const partialOnly=items.filter(function(i){
+
+## app.js 23065-23159
+023065:     const _isS1=el.classList.contains('rcpt-listing-fee-input');
+023066:     const _isS2=el.classList.contains('rcpt-relist-fee-input');
+023067:     const _isRP=el.classList.contains('rcpt-return-postage-input');
+023068:     if(!_isS1&&!_isS2&&!_isRP)return;
+023069:     const m=el.dataset.m;
+023070:     const id=el.dataset.id;
+023071:     if(!m||!id)return;
+023072:     const items=DB[m]||[];
+023073:     const it=items.find(function(x){return x.id===id;});
+023074:     if(!it)return;
+023075:     const _v=+(parseFloat(el.value)||0).toFixed(2);
+023076:     if(_isRP){
+023077:       // v2.19.30 — correct the recorded return-label charge on a specific entry.
+023078:       const ri=parseInt(el.dataset.ri,10);
+023079:       if(!Array.isArray(it.returnHistory)||!it.returnHistory[ri])return;
+023080:       it.returnHistory[ri].returnPostage=_v;
+023081:     } else if(_isS2){ it.resaleListingFee=_v; } else { it.listingFee=_v; }
+023082:     saveDB();
+023083:     renderItemPage(m,id);
+023084:   });
+023085:   // v2.19.33 — Sale 1 platform picker. Change salePlatform, re-stamp the Sale-1
+023086:   // listing fee to the new platform's insertion fee, and re-render.
+023087:   document.addEventListener('change', function(e){
+023088:     const el=e.target;
+023089:     if(!el.classList||!el.classList.contains('rcpt-s1-platform-select'))return;
+023090:     const m=el.dataset.m, id=el.dataset.id;
+023091:     const it=(DB[m]||[]).find(function(x){return x.id===id;});
+023092:     if(!it||!PLATFORMS[el.value])return;
+023093:     it.salePlatform=el.value;
+023094:     it.listingFee=_listingFeeFor(_s1Platform(it)); // re-stamp to the chosen platform
+023095:     saveDB();
+023096:     renderItemPage(m,id);
+023097:   });
+023098:   // v2.19.33 — Sale 2 platform picker.
+023099:   document.addEventListener('change', function(e){
+023100:     const el=e.target;
+023101:     if(!el.classList||!el.classList.contains('rcpt-s2-platform-select'))return;
+023102:     const m=el.dataset.m, id=el.dataset.id;
+023103:     const it=(DB[m]||[]).find(function(x){return x.id===id;});
+023104:     if(!it||!PLATFORMS[el.value])return;
+023105:     it.resalePlatform=el.value;
+023106:     it.resaleListingFee=_listingFeeFor(it.resalePlatform||_itemPlatform(it)); // re-stamp sale-2 fee
+023107:     saveDB();
+023108:     renderItemPage(m,id);
+023109:   });
+023110:   // v2.19.35 — editable per-sale price + postage. Each writes to the field the
+023111:   // calc reads (snapshot-aware for Sale 1 on a resold item) then re-renders.
+023112:   document.addEventListener('change', function(e){
+023113:     const el=e.target; if(!el.classList)return;
+023114:     const isS1P=el.classList.contains('rcpt-s1-price-input');
+023115:     const isS1Post=el.classList.contains('rcpt-s1-postage-input');
+023116:     const isS2P=el.classList.contains('rcpt-s2-price-input');
+023117:     const isS2Post=el.classList.contains('rcpt-s2-postage-input');
+023118:     const _isShip=el.classList.contains('rcpt-s1-shipping-input')||el.classList.contains('rcpt-s2-shipping-input');
+023119:     const isS2Promo=el.classList.contains('rcpt-s2-promo-input'); // v2.19.39
+023120:     const isRelistShip=el.classList.contains('rcpt-relist-shipping-input'); // v2.19.40 — live relist shipping
+023121:     if(!isS1P&&!isS1Post&&!isS2P&&!isS2Post&&!_isShip&&!isS2Promo&&!isRelistShip)return;
+023122:     const m=el.dataset.m, id=el.dataset.id;
+023123:     const it=(DB[m]||[]).find(function(x){return x.id===id;});
+023124:     if(!it)return;
+023125:     const v=+(parseFloat(el.value)||0).toFixed(2);
+023126:     const isS1Ship=el.classList.contains('rcpt-s1-shipping-input');
+023127:     const isS2Ship=el.classList.contains('rcpt-s2-shipping-input');
+023128:     if(isS1P)_writeS1Price(it,v);
+023129:     else if(isS1Post)_writeS1Postage(it,v);
+023130:     else if(isS1Ship)_writeS1Shipping(it,v);
+023131:     else if(isS2P)it.resaleSalePrice=v;
+023132:     else if(isS2Post)it.resalePostage=v;
+023133:     else if(isS2Ship)it.resaleShippingCost=v;
+023134:     else if(isS2Promo)it.resalePromoPercent=Math.max(0,parseFloat(el.value)||0)/100; // v2.19.39 — % → fraction
+023135:     else if(isRelistShip)it.shippingCost=v; // v2.19.40 — live relist shipping, independent of Sale 1 snapshot
+023136:     saveDB();
+023137:     renderItemPage(m,id);
+023138:   });
+023139:   // v2.19.31 — re-tag a refund entry between Sale 1 and Sale 2.
+023140:   document.addEventListener('click', function(e){
+023141:     const rb=e.target.closest('.rcpt-retag-sale-btn');
+023142:     if(!rb)return;
+023143:     const m=rb.dataset.m, id=rb.dataset.id, ri=parseInt(rb.dataset.ri,10), target=parseInt(rb.dataset.target,10);
+023144:     const it=(DB[m]||[]).find(function(x){return x.id===id;});
+023145:     if(!it||!Array.isArray(it.returnHistory)||!it.returnHistory[ri])return;
+023146:     it.returnHistory[ri].saleNo=target;
+023147:     saveDB();
+023148:     renderItemPage(m,id);
+023149:   });
+023150:   // F3: Delegated listeners for policy list reorder/edit/delete buttons
+023151:   document.addEventListener('click', function(e){
+023152:     const btn=e.target.closest('button');
+023153:     if(!btn)return;
+023154:     if(btn.classList.contains('ms-reorder-btn')){
+023155:       e.stopPropagation();
+023156:       reorderShippingPolicy(btn.dataset.name, parseInt(btn.dataset.dir,10));
+023157:     } else if(btn.classList.contains('ms-edit-policy-btn')){
+023158:       e.stopPropagation();
+023159:       _msOpenEditPolicy(btn.dataset.name);
+
+## app.js 23603-23682
+023603:   /* -----------------------------------------------------------------------
+023604:      D. QUICK EDIT: PRICE MUST FOLLOW THE SALE DATE IT IS EDITING
+023605:      ----------------------------------------------------------------------- */
+023606: 
+023607:   if(typeof savePanelQuickEdit==='function'){
+023608:     savePanelQuickEdit=function(m,id,silent){
+023609:       var item=_v14FindItem(m,id);
+023610:       if(!item)return;
+023611: 
+023612:       var fName=document.getElementById('pd-name');
+023613:       var fDateListed=document.getElementById('pd-date-listed');
+023614:       var fDateSold=document.getElementById('pd-date-sold');
+023615:       var fResaleDateSold=document.getElementById('pd-resale-date-sold');
+023616:       var fPlatform=document.getElementById('pd-platform');
+023617:       var fCost=document.getElementById('pd-cost');
+023618:       var fPrice=document.getElementById('pd-price');
+023619:       var fNotes=document.getElementById('pd-notes');
+023620: 
+023621:       if(fName&&fName.value.trim())item.item=fName.value.trim();
+023622:       if(fDateListed&&fDateListed.value)item.dateListed=fDateListed.value;
+023623:       if(fDateSold&&fDateSold.value)item.dateSold=fDateSold.value;
+023624:       if(fResaleDateSold&&fResaleDateSold.value)item.resaleDateSold=fResaleDateSold.value;
+023625: 
+023626:       if(fPlatform&&fPlatform.value){
+023627:         if(_v14HasCompletedResale(item))item.resalePlatform=fPlatform.value;
+023628:         else item.salePlatform=fPlatform.value;
+023629:       }
+023630: 
+023631:       if(fCost){
+023632:         var c=parseFloat(fCost.value);
+023633:         if(isFinite(c))item.costPrice=Math.max(0,c);
+023634:       }
+023635: 
+023636:       if(fPrice){
+023637:         var p=parseFloat(fPrice.value);
+023638:         if(isFinite(p)){
+023639:           p=Math.max(0,p);
+023640:           if(_v14HasCompletedResale(item))item.resaleSalePrice=p;
+023641:           else item.salePrice=p;
+023642:         }
+023643:       }
+023644: 
+023645:       if(fNotes)item.notes=fNotes.value;
+023646:       _v14Recalc(item);
+023647: 
+023648:       if(typeof saveDB==='function')saveDB();
+023649: 
+023650:       if(!silent&&typeof toast==='function')toast('Saved');
+023651:       var inPanel=typeof document!=='undefined'&&document.getElementById('item-detail-panel');
+023652:       if(inPanel&&typeof openItemDetail==='function')openItemDetail(m,id,true);
+023653:     };
+023654:   }
+023655: 
+023656:   function _v14PatchQuickEditDOM(m,id){
+023657:     var i=_v14FindItem(m,id);
+023658:     if(!i||!_v14HasCompletedResale(i)||typeof document==='undefined')return;
+023659:     var price=document.getElementById('pd-price');
+023660:     if(price)price.value=String(Number(i.resaleSalePrice)||0);
+023661:     var platform=document.getElementById('pd-platform');
+023662:     if(platform&&i.resalePlatform)platform.value=i.resalePlatform;
+023663:   }
+023664: 
+023665:   /* -----------------------------------------------------------------------
+023666:      E. PARTNER DELETE: RESTORE ATOMIC SERVER PATH
+023667:      ----------------------------------------------------------------------- */
+023668: 
+023669:   if(typeof deleteAccount==='function'){
+023670:     deleteAccount=async function(accountId){
+023671:       var acct=null;
+023672:       try{acct=(_accounts||[]).find(function(a){return a&&a.id===accountId;})||null;}catch(e){}
+023673:       if(!acct)return;
+023674: 
+023675:       var ok=await showConfirm(
+023676:         'Delete "'+acct.name+'"?',
+023677:         'Items tagged to this Partner will be un-tagged but not deleted. Settlement history stored on this Partner will also be removed.',
+023678:         {icon:'delete',okLabel:'Delete Partner'}
+023679:       );
+023680:       if(!ok)return;
+023681: 
+023682:       var cashIds=((acct&&acct.settlements)||[]).map(function(tx){
