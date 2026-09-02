@@ -1,0 +1,2552 @@
+
+===== LINES 2890-3109 =====
+02890:     sd_rate_idx:      i._sdRateIdx != null ? i._sdRateIdx : 1,
+02891:     sd_buyer_pays:    i._sdBuyerPays === true,
+02892:     resale_sale_price:    i.resaleSalePrice    || null,
+02893:     resale_date_sold:     i.resaleDateSold     || null,
+02894:     resale_platform:      i.resalePlatform     || null,
+02895:     sale_platform:        i.salePlatform       || null,   // v2.19.33
+02896:     resale_shipping_cost: i.resaleShippingCost || null,
+02897:     resale_promo_percent: i.resalePromoPercent || null,
+02898:     resale_packaging_cost:i.resalePackagingCost|| null,
+02899:     resale_postage:       i.resalePostage      || null,
+02900:     refresh_history:      (i.refreshHistory&&i.refreshHistory.length)?JSON.stringify(i.refreshHistory):null,
+02901:     last_relist_at:       i._lastRelistAt       || null,
+02902:     last_refresh_at:      i._lastRefreshAt      || null,
+02903:     gross_profit:     i.grossProfit || null,
+02904:     state:            i.state || 'listed',
+02905:     scrapped_at:      i.scrappedAt || null,
+02906:     scrap_reason:     i.scrapReason || null,
+02907:     scrap_note:       i.scrapNote || null,
+02908:     supplier_refund:  i.supplierRefund != null ? Number(i.supplierRefund) : null,
+02909:     supplier_refund_date: i.supplierRefundDate || null,
+02910:     bundle_id:        i.bundleId || null,
+02911:     bundle_ref:       i.bundleRef || null,
+02912:     bundle_total:     i.bundleTotal != null ? Number(i.bundleTotal) : null,
+02913:     resale_bundle_id:    i.resaleBundleId || null,
+02914:     resale_bundle_ref:   i.resaleBundleRef || null,
+02915:     resale_bundle_total: i.resaleBundleTotal != null ? Number(i.resaleBundleTotal) : null,
+02916:     date_sourced:     i.dateSourced || null,
+02917:     sourcing_run_id:  i.sourcingRunId || null,
+02918:     // E33 — Accounts (partners), see _rowToItem note above.
+02919:     account_id:             i.accountId || null,
+02920:     account_item_type:      i.accountType || null,
+02921:     account_split_percent:  i.accountSplitPercent != null ? i.accountSplitPercent : null,
+02922:     account_settled:        !!i.accountSettled,
+02923:     account_paid_amount:    i.accountPaidAmount != null ? i.accountPaidAmount : null,
+02924:     est_sale_price:   i.estSalePrice != null ? i.estSalePrice : null,
+02925:     default_platform: i.defaultPlatform || null,
+02926:     sold_on_platform: i.soldOnPlatform || null,
+02927:     listing_fee:      i.listingFee || null,
+02928:     resale_listing_fee: i.resaleListingFee || null,
+02929:   };
+02930: }
+02931: 
+02932: // Production schema handshake. The launch migration writes this value only
+02933: // after every DDL/RLS/storage statement succeeds inside one transaction.
+02934: async function _verifySchemaVersion(){
+02935:   if(ALLOW_SCHEMA_FALLBACK)return true;
+02936:   const res=await _sbCall(()=>_sb.from('retrade_meta').select('value').eq('key','schema_version').single());
+02937:   if(res.error)throw new Error('Database migration check failed. Run the current RETRADE Supabase migration before using this build. '+res.error.message);
+02938:   if(!res.data||res.data.value!==RETRADE_SCHEMA_VERSION){
+02939:     throw new Error('Database schema version mismatch. App expects '+RETRADE_SCHEMA_VERSION+' but Supabase reports '+((res.data&&res.data.value)||'none')+'.');
+02940:   }
+02941:   return true;
+02942: }
+02943: 
+02944: // ── LOAD ALL DATA FROM SUPABASE → DB ────────────────────────────────────────
+02945: 
+02946: function _resetBusinessStateForCloudLoad(){
+02947:   // Preserve user/settings metadata stored on DB, but rebuild every cloud-backed
+02948:   // business collection from scratch. Repeated cloud refreshes must replace the
+02949:   // current baseline, never append duplicate/stale rows.
+02950:   const meta={};
+02951:   Object.keys(DB||{}).forEach(function(k){
+02952:     if(k.charAt(0)==='_')meta[k]=DB[k];
+02953:   });
+02954:   DB=meta;
+02955:   DB.trips=[];DB.expenses=[];DB.cashLedger=[];DB.activityLog=[];
+02956:   _sourcingRuns=[];_activeSourcingRun=null;
+02957:   _accounts=[];_jobLots=[];_jobLotItems=[];_saleReconciliations=[];
+02958: }
+02959: 
+02960: async function loadFromSupabase(){
+02961:   _schemaVerified=false;
+02962:   const ok = await _ensureSession();
+02963:   if(!ok) throw new Error('Not authenticated — please sign in again.');
+02964:   // Get current user id directly from session as belt-and-braces
+02965:   const {data:{session}} = await _sb.auth.getSession();
+02966:   if(!session) throw new Error('Session missing — please sign in again.');
+02967:   _currentUserId = session.user.id;
+02968:   const uid = _currentUserId;
+02969:   await _verifySchemaVersion();
+02970:   _schemaVerified=true;
+02971:   // Fetch all tables in parallel — explicit .eq('user_id') on every query as
+02972:   // belt-and-braces on top of RLS. Prevents NULL-user_id orphan rows or
+02973:   // misconfigured policies from bleeding into the loaded DB.
+02974:   const [itemsRes, partsRes, returnsRes, tripsRes, expensesRes, runsRes, accountsRes, cashRes, activityRes, jobLotsRes, jobLotItemsRes, reconcileRes] = await Promise.all([
+02975:     _sb.from('items').select('*').eq('user_id', uid).order('date_listed', {ascending: true}),
+02976:     _sb.from('item_parts').select('*').eq('user_id', uid),
+02977:     _sb.from('item_returns').select('*').eq('user_id', uid).order('logged_at', {ascending: true}),
+02978:     _sb.from('trips').select('*').eq('user_id', uid).order('date', {ascending: true}),
+02979:     _sb.from('expenses').select('*').eq('user_id', uid).order('date', {ascending: true}),
+02980:     _sb.from('sourcing_runs').select('*').eq('user_id', uid).order('date_started', {ascending: false}),
+02981:     _sb.from('accounts').select('*').eq('user_id', uid).order('name', {ascending: true}),
+02982:     _sb.from('cash_ledger').select('*').eq('user_id', uid).order('date', {ascending: true}),
+02983:     _sb.from('activity_log').select('*').eq('user_id', uid).order('ts', {ascending: true}),
+02984:     _sb.from('job_lots').select('*').eq('user_id', uid).order('created_at', {ascending: true}),
+02985:     _sb.from('job_lot_items').select('*').eq('user_id', uid).order('added_at', {ascending: true}),
+02986:     _sb.from('sale_reconciliations').select('*').eq('user_id', uid).order('created_at', {ascending: true}),
+02987:   ]);
+02988: 
+02989:   // Core financial data must load as a complete set. Showing an apparently
+02990:   // healthy app with missing parts/returns/expenses is worse than a visible
+02991:   // sync error because it produces believable but wrong profit figures.
+02992:   const _coreLoads=[
+02993:     ['Items',itemsRes],['Item parts',partsRes],['Returns',returnsRes],
+02994:     ['Trips',tripsRes],['Expenses',expensesRes]
+02995:   ];
+02996:   _coreLoads.forEach(function(pair){if(pair[1]&&pair[1].error)throw new Error(pair[0]+' load failed: '+pair[1].error.message);});
+02997:   if(!ALLOW_SCHEMA_FALLBACK){
+02998:     const _launchLoads=[['Sourcing runs',runsRes],['Partners',accountsRes],['Cash ledger',cashRes],['Activity log',activityRes]];
+02999:     _launchLoads.forEach(function(pair){if(pair[1]&&pair[1].error)throw new Error(pair[0]+' load failed: '+pair[1].error.message);});
+03000:   }
+03001: 
+03002:   // All required reads succeeded: Supabase is now the authoritative baseline.
+03003:   _resetBusinessStateForCloudLoad();
+03004: 
+03005:   // Index parts and returns by item_id for fast lookup
+03006:   const partsMap = {};
+03007:   (partsRes.data || []).forEach(p => {
+03008:     if(!partsMap[p.item_id]) partsMap[p.item_id] = [];
+03009:     partsMap[p.item_id].push(p);
+03010:   });
+03011:   const returnsMap = {};
+03012:   (returnsRes.data || []).forEach(r => {
+03013:     if(!returnsMap[r.item_id]) returnsMap[r.item_id] = [];
+03014:     returnsMap[r.item_id].push(r);
+03015:   });
+03016: 
+03017:   // Rebuild DB — rows grouped by their month key (may be bare 'APR' or year-suffixed 'APR-26')
+03018:   // _migrateBareDBKeys() will normalise bare keys to year-suffixed after load.
+03019:   (itemsRes.data || []).forEach(row => {
+03020:     const m = row.month;
+03021:     if(!DB[m]) DB[m] = [];
+03022:     DB[m].push(_rowToItem(row, partsMap[row.id], returnsMap[row.id]));
+03023:   });
+03024:   // Private Storage URLs are signed in one batch per load. Failure only hides
+03025:   // thumbnails; it never blocks the financial dataset from loading.
+03026:   await _hydrateItemPhotoUrls();
+03027: 
+03028:   // trips / expenses stored flat on DB (same as localStorage shape)
+03029:   DB.trips = (tripsRes.data || []).map(t => ({
+03030:     id:            t.id,
+03031:     date:          t.date,
+03032:     description:   t.description || '',
+03033:     mileage:       Number(t.mileage) || 0,
+03034:     ratePerMile:   Number(t.rate_per_mile) || 0.45,
+03035:     // BUG-07: per-trip expenses (parking, entry fees, etc.). JSONB column on
+03036:     // Supabase trips table — defaults to [] if column absent / null on row.
+03037:     expenses:      Array.isArray(t.expenses) ? t.expenses : [],
+03038:     sourcingRunId: t.sourcing_run_id || null,
+03039:   }));
+03040:   DB.expenses = (expensesRes.data || []).map(e => ({
+03041:     id:            e.id,
+03042:     date:          e.date,
+03043:     description:   e.description || '',
+03044:     amount:        Number(e.amount) || 0,
+03045:     category:      e.category || null,
+03046:     sourcingRunId: e.sourcing_run_id || null,
+03047:   }));
+03048:   // v2.20.0 — cash & owner ledger (graceful: skip cleanly if table not yet created)
+03049:   if(cashRes && !cashRes.error){
+03050:     DB.cashLedger = (cashRes.data || []).map(m => ({
+03051:       id:          m.id,
+03052:       date:        m.date,
+03053:       type:        m.type || 'adjustment',
+03054:       category:    m.category || m.type || null,
+03055:       amount:      Number(m.amount) || 0,
+03056:       direction:   m.direction || 'in',
+03057:       description: m.description || '',
+03058:       reconcileAnchor: m.reconcile_anchor === true,
+03059:       systemEvent: m.type==='partner_settlement'||m.type==='supplier_refund',
+03060:       createdAt:   m.created_at || null,
+03061:     }));
+03062:   } else {
+03063:     DB.cashLedger = DB.cashLedger || [];
+03064:     if(cashRes && cashRes.error) console.warn('cash_ledger load skipped (table may not exist yet):', cashRes.error.message);
+03065:   }
+03066:   // v2.21.51 — activity log (graceful: skip cleanly if table not yet created)
+03067:   if(activityRes && !activityRes.error){
+03068:     DB.activityLog = (activityRes.data || []).map(r => ({
+03069:       id:r.id, itemId:r.item_id||null, itemName:r.item_name||'',
+03070:       action:r.action||'', fromState:r.from_state||null, toState:r.to_state||null,
+03071:       before:r.before_snapshot||null, month:r.month||null, after:r.after_summary||'',
+03072:       ts:Number(r.ts)||(r.created_at?Date.parse(r.created_at):Date.now()),
+03073:       undoable:!!r.undoable, undone:!!r.undone, origin:r.origin||null
+03074:     }));
+03075:   } else {
+03076:     DB.activityLog = DB.activityLog || [];
+03077:     if(activityRes && activityRes.error) console.warn('activity_log load skipped (table may not exist yet):', activityRes.error.message);
+03078:   }
+03079:   // v1.01 — Job Lot + historical-reconciliation support is additive. An
+03080:   // older database can still load the core app; the Job Lot UI then explains
+03081:   // that the v1.01 migration is required instead of emitting sync 400s.
+03082:   _jobLotSchemaAvailable=!!(jobLotsRes&&!jobLotsRes.error&&jobLotItemsRes&&!jobLotItemsRes.error);
+03083:   if(_jobLotSchemaAvailable){
+03084:     _jobLots=(jobLotsRes.data||[]).map(function(r){return{
+03085:       id:r.id,name:r.name||'Job Lot',status:r.status||'building',dateCreated:r.date_created||null,
+03086:       dateListed:r.date_listed||null,dateSold:r.date_sold||null,salePrice:Number(r.sale_price)||0,
+03087:       platform:r.platform||'ebay',bundleId:r.bundle_id||null,bundleRef:r.bundle_ref||null,
+03088:       notes:r.notes||'',createdAt:r.created_at||null,updatedAt:r.updated_at||null
+03089:     };});
+03090:     _jobLotItems=(jobLotItemsRes.data||[]).map(function(r){return{
+03091:       id:r.id,jobLotId:r.job_lot_id,itemId:r.item_id,addedAt:r.added_at||null,
+03092:       removedAt:r.removed_at||null,costBasisAtAdd:Number(r.cost_basis_at_add)||0,notes:r.notes||''
+03093:     };});
+03094:   }else{
+03095:     _jobLots=[];_jobLotItems=[];
+03096:     if((jobLotsRes&&jobLotsRes.error)||(jobLotItemsRes&&jobLotItemsRes.error))console.info('[RETRADE] Job Lots unavailable until v1.01 stock-lifecycle migration is applied.');
+03097:   }
+03098:   _reconciliationSchemaAvailable=!!(reconcileRes&&!reconcileRes.error);
+03099:   if(_reconciliationSchemaAvailable){
+03100:     _saleReconciliations=(reconcileRes.data||[]).map(function(r){return{
+03101:       id:r.id,attachedItemId:r.attached_item_id||null,targetSaleItemId:r.target_sale_item_id||null,
+03102:       targetBundleId:r.target_bundle_id||null,targetBundleRef:r.target_bundle_ref||null,
+03103:       treatment:r.treatment||'',status:r.status||'applied',priorOrderTotal:Number(r.prior_order_total)||0,
+03104:       resultingOrderTotal:Number(r.resulting_order_total)||0,additionalRevenue:Number(r.additional_revenue)||0,
+03105:       priorAllocation:r.prior_allocation||null,resultingAllocation:r.resulting_allocation||null,
+03106:       pnlDelta:r.pnl_delta||null,beforeSnapshot:r.before_snapshot||null,afterSnapshot:r.after_snapshot||null,
+03107:       note:r.note||'',createdAt:r.created_at||null
+03108:     };});
+03109:   }else{
+
+===== LINES 3661-3934 =====
+03661: 
+03662: function _setSyncing(val){
+03663:   _syncing = val;
+03664:   const el  = document.getElementById('sync-indicator');
+03665:   if(el) el.style.display = val ? 'flex' : 'none';
+03666:   // Drop 4 — sidebar footer sync indicator reflects the same state
+03667:   if(typeof _refreshSideNavSync==='function'){
+03668:     // v2.21.50 — after a sync attempt, if any writes are still unconfirmed
+03669:     // (sitting in the on-device outbox) show an honest "unsynced" state rather
+03670:     // than a clean "Synced".
+03671:     let _syncState = val ? 'saving' : 'synced';
+03672:     if(!val){ try{ if(typeof _outboxPendingCount==='function' && _outboxPendingCount()>0) _syncState='pending'; }catch(e){} }
+03673:     _refreshSideNavSync(_syncState);
+03674:   }
+03675:   if(!val){
+03676:     // Wake up anyone waiting (e.g. sign-out guard)
+03677:     const cbs = _syncResolvers.splice(0);
+03678:     cbs.forEach(fn => fn());
+03679:   }
+03680: }
+03681: 
+03682: // Returns a promise that resolves immediately if not syncing,
+03683: // or waits until the current sync finishes before resolving.
+03684: function _waitForSync(){
+03685:   // If a debounce is still waiting, promote it to an immediate durable/cloud
+03686:   // flush before claiming there is nothing to wait for. This matters on mobile
+03687:   // sign-out/background paths where a 400ms timer may never get CPU time again.
+03688:   if(_saveTimer){
+03689:     clearTimeout(_saveTimer);
+03690:     _saveTimer=null;
+03691:     try{ _stageDurableOutboxNow(); }catch(e){}
+03692:     return _persistChanges();
+03693:   }
+03694:   if(_persistPromise) return _persistPromise;
+03695:   if(_currentUserId && typeof _hasDirtyDurableState==='function' && _hasDirtyDurableState()) return _persistChanges();
+03696:   if(!_syncing) return Promise.resolve();
+03697:   return new Promise(res => _syncResolvers.push(res));
+03698: }
+03699: 
+03700: // ============================================================
+03701: // v2.21.50 — LOCAL WRITE-AHEAD OUTBOX (Phase 0 durability)
+03702: // Mirrors every cloud write to localStorage BEFORE it is attempted; prunes it
+03703: // once Supabase confirms. If a write never reaches the cloud (network drop, tab
+03704: // evicted mid-save, reload before the in-tab auto-retry fires), the entry
+03705: // survives on-device and replays on next boot. Supabase upserts/deletes are
+03706: // idempotent, so replaying an already-saved write is a harmless no-op. This
+03707: // only moves the same rows the diff engine already writes — it NEVER touches
+03708: // the money/tax engine (calcGrossProfit / _saleBreakdown).
+03709: // ============================================================
+03710: const OUTBOX_KEY_BASE = 'retrade_outbox_v1';
+03711: function _outboxKey(){ return OUTBOX_KEY_BASE + '_' + (_currentUserId || 'anon'); }
+03712: function _outboxRead(){
+03713:   try{ const raw = localStorage.getItem(_outboxKey()); return raw ? JSON.parse(raw) : {}; }
+03714:   catch(e){ return {}; }
+03715: }
+03716: function _outboxSave(obj){
+03717:   try{
+03718:     if(!obj || Object.keys(obj).length === 0){ localStorage.removeItem(_outboxKey()); }
+03719:     else { localStorage.setItem(_outboxKey(), JSON.stringify(obj)); }
+03720:     return true;
+03721:   }catch(e){ console.warn('[RETRADE] outbox write failed (quota?):', e && e.message); return false; }
+03722: }
+03723: function _outboxPendingCount(){ try{ return Object.keys(_outboxRead()).length; }catch(e){ return 0; } }
+03724: 
+03725: // v1.4.3 — synchronous write-ahead durability.
+03726: // saveDB() used to wait until the 400ms debounced cloud pass before placing the
+03727: // mutation in localStorage. iOS can freeze/evict a PWA before that timer runs,
+03728: // and a mutation made while another cloud pass was in flight could also be
+03729: // absorbed into that pass's final snapshot without ever being uploaded.
+03730: // Stage the FULL changed entity immediately, before any render/await/timer.
+03731: function _stageDurableOutboxNow(){
+03732:   if(_previewMode || !_currentUserId) return 0;
+03733:   try{
+03734:     const now=_dbFingerprint();
+03735:     // During an active pass compare against the exact state that pass is writing,
+03736:     // not merely _dbSnapshot. This preserves even a quick "change then revert"
+03737:     // made while the first version is still in flight.
+03738:     const ref=_persistActiveCurrent || _dbSnapshot || {};
+03739:     const ob=_outboxRead();
+03740:     const keys=new Set(Object.keys(now).concat(Object.keys(ref)));
+03741:     let staged=0;
+03742:     keys.forEach(function(k){
+03743:       if(now[k]===ref[k]) return;
+03744:       ob[k]=(now[k]!==undefined)?_outboxEntry(k,now[k]):_outboxDeleteEntry(k);
+03745:       staged++;
+03746:     });
+03747:     if(staged && _persistPromise) _persistQueued=true;
+03748:     if(staged && !_outboxSave(ob)){
+03749:       _lastSyncError='Local safety save failed — keep RETRADE open and export a backup';
+03750:       console.error('[RETRADE] CRITICAL: durable outbox could not be written');
+03751:       try{toast('Could not make a local safety save — keep RETRADE open','err');}catch(e){}
+03752:     }
+03753:     return staged;
+03754:   }catch(e){
+03755:     console.error('[RETRADE] immediate outbox stage failed:',e&&e.message);
+03756:     return 0;
+03757:   }
+03758: }
+03759: 
+03760: function _hasDirtyDurableState(){
+03761:   try{
+03762:     const now=_dbFingerprint(), prev=_dbSnapshot||{};
+03763:     const ks=new Set(Object.keys(now).concat(Object.keys(prev)));
+03764:     for(const k of ks){ if(now[k]!==prev[k]) return true; }
+03765:     return _outboxPendingCount()>0;
+03766:   }catch(e){ return _outboxPendingCount()>0; }
+03767: }
+03768: 
+03769: // Build a save entry from a fingerprint value. Item fp = JSON+'|'+monthKey;
+03770: // every other entity fp = plain JSON.
+03771: function _outboxEntry(key, fpVal){
+03772:   const ts = Date.now();
+03773:   if(key.indexOf('item:') === 0){
+03774:     const p = fpVal.lastIndexOf('|');
+03775:     return { op:'save', type:'item', month: fpVal.slice(p+1), json: fpVal.slice(0,p), ts:ts };
+03776:   }
+03777:   return { op:'save', type: key.slice(0, key.indexOf(':')), json: fpVal, ts:ts };
+03778: }
+03779: function _outboxDeleteEntry(key){
+03780:   return { op:'delete', type: key.slice(0, key.indexOf(':')), id: key.slice(key.indexOf(':')+1), ts: Date.now() };
+03781: }
+03782: // Replay unconfirmed writes found in the outbox at boot. Re-applies each to the
+03783: // in-memory DB so the diff engine (whose _dbSnapshot is already the loaded cloud
+03784: // state) sees them as dirty and re-persists them. Returns the count applied.
+03785: function _recoverOutbox(){
+03786:   let applied = 0;
+03787:   try{
+03788:     const ob = _outboxRead();
+03789:     const keys = Object.keys(ob);
+03790:     if(!keys.length) return 0;
+03791:     let pruned=false;
+03792: 
+03793:     function cloudItem(id){
+03794:       const ks=allDBKeys();
+03795:       for(let n=0;n<ks.length;n++){
+03796:         const arr=DB[ks[n]]||[];
+03797:         const hit=arr.find(function(x){return x&&x.id===id;});
+03798:         if(hit)return hit;
+03799:       }
+03800:       return null;
+03801:     }
+03802:     function staleAgainstCloud(e,obj){
+03803:       // Items have a server-maintained updated_at trigger. If Supabase changed
+03804:       // the same item after this device staged its outbox edit, cloud wins and
+03805:       // the older local write is discarded. This prevents stale Returned/List
+03806:       // states from resurrecting items scrapped/sold on another device.
+03807:       if(!e||e.type!=='item')return false;
+03808:       const id=(obj&&obj.id)||e.id;
+03809:       if(!id)return false;
+03810:       const cloud=cloudItem(id);
+03811:       if(!cloud||!cloud._cloudUpdatedAt)return false;
+03812:       const cloudTs=Date.parse(cloud._cloudUpdatedAt)||0;
+03813:       const localTs=Number(e.ts)||0;
+03814:       // Small tolerance avoids clock/sub-ms jitter around one save operation.
+03815:       return cloudTs>localTs+750;
+03816:     }
+03817: 
+03818:     keys.forEach(function(k){
+03819:       const e = ob[k];
+03820:       if(!e) return;
+03821:       try{
+03822:         if(e.op === 'save'){
+03823:           const obj = JSON.parse(e.json);
+03824:           if(staleAgainstCloud(e,obj)){
+03825:             delete ob[k];pruned=true;
+03826:             console.info('[RETRADE] Discarded stale device outbox write; newer cloud item wins:',obj.id);
+03827:             return;
+03828:           }
+03829:           // v1.01 — lifecycle records (job-lot membership, reconciliations) carry no
+03830:           // server updated_at to compare, but a removed/superseded cloud row must not be
+03831:           // resurrected by a stale local 'save' queued before that change on another device.
+03832:           if(e.type === 'jmem'){
+03833:             const cloudMem=(_jobLotItems||[]).find(function(x){return x.id===obj.id;});
+03834:             if(cloudMem&&cloudMem.removedAt&&!obj.removedAt){ delete ob[k];pruned=true;
+03835:               console.info('[RETRADE] Discarded stale job-lot membership; cloud removal wins:',obj.id); return; }
+03836:           }
+03837:           if(e.type === 'recon'){
+03838:             const cloudR=(_saleReconciliations||[]).find(function(x){return x.id===obj.id;});
+03839:             if(cloudR&&cloudR.status&&obj.status&&cloudR.status!==obj.status){ delete ob[k];pruned=true;
+03840:               console.info('[RETRADE] Discarded stale reconciliation; cloud status wins:',obj.id); return; }
+03841:           }
+03842:           if(e.type === 'item'){
+03843:             const m = e.month;
+03844:             // Remove the same id from any cloud month before applying the newer
+03845:             // offline version; an item may have moved month/state while offline.
+03846:             allDBKeys().forEach(function(km){
+03847:               if(DB[km])DB[km]=DB[km].filter(function(x){return x.id!==obj.id;});
+03848:             });
+03849:             if(!DB[m]) DB[m] = [];
+03850:             DB[m].push(obj);
+03851:           } else if(e.type === 'trip'){
+03852:             DB.trips = DB.trips || [];
+03853:             const idx = DB.trips.findIndex(function(x){return x.id===obj.id;});
+03854:             if(idx>=0) DB.trips[idx]=obj; else DB.trips.push(obj);
+03855:           } else if(e.type === 'exp'){
+03856:             DB.expenses = DB.expenses || [];
+03857:             const idx = DB.expenses.findIndex(function(x){return x.id===obj.id;});
+03858:             if(idx>=0) DB.expenses[idx]=obj; else DB.expenses.push(obj);
+03859:           } else if(e.type === 'cash'){
+03860:             DB.cashLedger = DB.cashLedger || [];
+03861:             const idx = DB.cashLedger.findIndex(function(x){return x.id===obj.id;});
+03862:             if(idx>=0) DB.cashLedger[idx]=obj; else DB.cashLedger.push(obj);
+03863:           } else if(e.type === 'run'){
+03864:             const idx = _sourcingRuns.findIndex(function(x){return x.id===obj.id;});
+03865:             if(idx>=0) _sourcingRuns[idx]=obj; else _sourcingRuns.push(obj);
+03866:           } else if(e.type === 'acct'){
+03867:             const idx = _accounts.findIndex(function(x){return x.id===obj.id;});
+03868:             if(idx>=0) _accounts[idx]=obj; else _accounts.push(obj);
+03869:           } else if(e.type === 'log'){
+03870:             DB.activityLog = DB.activityLog || [];
+03871:             const idx = DB.activityLog.findIndex(function(x){return x.id===obj.id;});
+03872:             if(idx>=0) DB.activityLog[idx]=obj; else DB.activityLog.push(obj);
+03873:           } else if(e.type === 'jlot'){
+03874:             const idx = _jobLots.findIndex(function(x){return x.id===obj.id;});
+03875:             if(idx>=0) _jobLots[idx]=obj; else _jobLots.push(obj);
+03876:           } else if(e.type === 'jmem'){
+03877:             const idx = _jobLotItems.findIndex(function(x){return x.id===obj.id;});
+03878:             if(idx>=0) _jobLotItems[idx]=obj; else _jobLotItems.push(obj);
+03879:           } else if(e.type === 'recon'){
+03880:             const idx = _saleReconciliations.findIndex(function(x){return x.id===obj.id;});
+03881:             if(idx>=0) _saleReconciliations[idx]=obj; else _saleReconciliations.push(obj);
+03882:           }
+03883:           applied++;
+03884:         } else if(e.op === 'delete'){
+03885:           if(staleAgainstCloud(e,null)){
+03886:             delete ob[k];pruned=true;
+03887:             console.info('[RETRADE] Discarded stale device delete; newer cloud item wins:',e.id);
+03888:             return;
+03889:           }
+03890:           const id = e.id;
+03891:           if(e.type === 'item'){
+03892:             allDBKeys().forEach(function(m){ if(DB[m]) DB[m] = DB[m].filter(function(x){return x.id!==id;}); });
+03893:           } else if(e.type === 'trip'){ DB.trips = (DB.trips||[]).filter(function(x){return x.id!==id;}); }
+03894:           else if(e.type === 'exp'){ DB.expenses = (DB.expenses||[]).filter(function(x){return x.id!==id;}); }
+03895:           else if(e.type === 'cash'){ DB.cashLedger = (DB.cashLedger||[]).filter(function(x){return x.id!==id;}); }
+03896:           else if(e.type === 'run'){ _sourcingRuns = _sourcingRuns.filter(function(x){return x.id!==id;}); }
+03897:           else if(e.type === 'acct'){ _accounts = _accounts.filter(function(x){return x.id!==id;}); }
+03898:           else if(e.type === 'log'){ DB.activityLog = (DB.activityLog||[]).filter(function(x){return x.id!==id;}); }
+03899:           else if(e.type === 'jlot'){ _jobLots = _jobLots.filter(function(x){return x.id!==id;}); }
+03900:           else if(e.type === 'jmem'){ _jobLotItems = _jobLotItems.filter(function(x){return x.id!==id;}); }
+03901:           else if(e.type === 'recon'){ _saleReconciliations = _saleReconciliations.filter(function(x){return x.id!==id;}); }
+03902:           applied++;
+03903:         }
+03904:       }catch(inner){ console.warn('[RETRADE] outbox replay failed', k, inner && inner.message); }
+03905:     });
+03906:     if(pruned)_outboxSave(ob);
+03907:   }catch(e){ console.warn('[RETRADE] outbox recovery failed:', e && e.message); return 0; }
+03908:   return applied;
+03909: }
+03910: 
+03911: // ============================================================
+03912: // v2.21.51 — ACTIVITY LOG + UNDO (Phase 1)
+03913: // SINGLE choke point: _captureActivity() runs at the top of every real saveDB,
+03914: // diffs each item's committed status against a shadow taken at the previous
+03915: // capture, and logs each STATE TRANSITION with the item's prior snapshot. Being
+03916: // driven by committed state, it catches modal-driven mutations too, and it
+03917: // never edits a mutation function or the money/tax engine. Undo restores a
+03918: // snapshot and only the LATEST change on an item is undoable. Log rows ride the
+03919: // same diff + outbox durability as every other entity.
+03920: // ============================================================
+03921: let _activityShadow = {};          // id -> {status,name,month,snap(JSON string)}
+03922: let _suppressActivityCapture = false;
+03923: function _newId(prefix){
+03924:   let token='';
+03925:   try{ token=(globalThis.crypto&&typeof globalThis.crypto.randomUUID==='function')?globalThis.crypto.randomUUID():''; }catch(e){}
+03926:   if(!token) token=Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,11);
+03927:   return (prefix?prefix+'_':'')+token;
+03928: }
+03929: function _uuidLog(){ return _newId('log'); }
+03930: // Money-free canonical status label (mirrors the list-row status deriver).
+03931: function _actStatus(i){
+03932:   if(!i) return 'gone';
+03933:   if(i.scrappedAt){ if(i.scrapReason==='supplier_return')return 'returned_supplier'; return (i.scrapReason==='donated')?'donated':'scrapped'; }
+03934:   if(i.isReturned) return 'returned';
+
+===== LINES 4106-4731 =====
+04106:   const latestActive={};
+04107:   allRows.forEach(function(r){ if(!r.undone && r.itemId && latestActive[r.itemId]===undefined) latestActive[r.itemId]=r.id; });
+04108:   const q=ACTIVITY_SEARCH.trim().toLowerCase();
+04109:   const matchesFilter=function(r){
+04110:     if(ACTIVITY_FILTER==='all')return true;
+04111:     if(ACTIVITY_FILTER==='undo')return _activityUndoState(r,latestActive).ok;
+04112:     return _activityCategory(r)===ACTIVITY_FILTER;
+04113:   };
+04114:   const rows=allRows.filter(function(r){
+04115:     if(!matchesFilter(r))return false;
+04116:     if(!q)return true;
+04117:     const hay=[r.itemName,r.action,r.fromState,r.toState,r.after,r.afterSummary,r.month,r.origin].filter(Boolean).join(' ').toLowerCase();
+04118:     return hay.indexOf(q)!==-1;
+04119:   });
+04120:   const now=new Date(),todayKey=now.toDateString();
+04121:   const todayCount=allRows.filter(function(r){return new Date(Number(r.ts)||0).toDateString()===todayKey;}).length;
+04122:   const reviewCount=allRows.filter(function(r){return _activityCategory(r)==='review'&&!r.undone;}).length;
+04123:   const undoCount=allRows.filter(function(r){return _activityUndoState(r,latestActive).ok;}).length;
+04124:   const activeCount=allRows.filter(function(r){return !r.undone;}).length;
+04125:   const filters=[['all','All'],['undo','Can undo'],['sales','Sales'],['stock','Stock'],['returns','Returns'],['joblot','Job Lots'],['disposals','Disposed'],['review','Review']];
+04126:   const filterHTML=filters.map(function(f){
+04127:     let n=0;
+04128:     if(f[0]==='all')n=allRows.length;
+04129:     else if(f[0]==='undo')n=undoCount;
+04130:     else n=allRows.filter(function(r){return _activityCategory(r)===f[0];}).length;
+04131:     return '<button class="act-filter'+(ACTIVITY_FILTER===f[0]?' active':'')+'" onclick="setActivityFilter(\''+f[0]+'\')"><span>'+f[1]+'</span><b>'+n+'</b></button>';
+04132:   }).join('');
+04133:   let body='';
+04134:   if(!rows.length){
+04135:     body='<div class="act-empty"><div class="act-empty-icon">'+(typeof icon==='function'?icon('undo',17):'↩')+'</div>'
+04136:       +'<div class="act-empty-title">'+(allRows.length?'No matching activity':'No activity yet')+'</div>'
+04137:       +'<div class="act-empty-copy">'+(allRows.length?'Try another filter or search term.':'RETRADE will record recoverable item changes here as you work.')+'</div></div>';
+04138:   }else{
+04139:     let lastDay='';
+04140:     rows.forEach(function(r){
+04141:       const d=new Date(Number(r.ts)||Date.now()),dayKey=d.toDateString();
+04142:       if(dayKey!==lastDay){lastDay=dayKey;body+='<div class="act-day">'+_actDayLabel(d)+'</div>';}
+04143:       const hh=String(d.getHours()).padStart(2,'0'),mm=String(d.getMinutes()).padStart(2,'0');
+04144:       const undo=_activityUndoState(r,latestActive);
+04145:       const needsReview=_activityCategory(r)==='review'||/needs review/i.test(String(r.after||r.afterSummary||''));
+04146:       const detail=String(r.after||r.afterSummary||'').trim();
+04147:       const genericDetail=(r.itemName?String(r.itemName)+' — ':'')+String(r.action||'');
+04148:       const showDetail=detail&&detail!==genericDetail?detail:'';
+04149:       const transition=(r.fromState||r.toState)?'<span class="act-transition">'+esc(_activityStateLabel(r.fromState))+' <span>→</span> '+esc(_activityStateLabel(r.toState))+'</span>':'';
+04150:       const itemExists=!!_findItemMonth(r.itemId);
+04151:       body+='<div class="act-entry'+(r.undone?' act-undone':'')+(needsReview?' act-review':'')+'">'
+04152:         +'<div class="act-rail"><div class="act-node act-node-'+_activityNodeClass(r)+'">'+_activityNodeIcon(r)+'</div></div>'
+04153:         +'<div class="act-card"><div class="act-card-top"><div class="act-title-wrap"><span class="act-title">'+esc(r.action||'Change')+'</span>'
+04154:         +(r.itemName?'<button class="act-item-link" '+(itemExists?'onclick="_actGoItem(\''+esc(r.itemId||'')+'\')"':'disabled')+'>'+esc(r.itemName)+'</button>':'')
+04155:         +'</div><span class="act-time">'+hh+':'+mm+'</span></div>'
+04156:         +(showDetail?'<div class="act-detail">'+esc(showDetail)+'</div>':'')
+04157:         +'<div class="act-meta">'+transition
+04158:         +(needsReview?'<span class="act-review-tag">Needs review</span>':'')
+04159:         +(r.undone?'<span class="act-reversed-tag">Reversed</span>':'')+'</div>'
+04160:         +'<div class="act-actions">'
+04161:         +(undo.ok?'<button class="btn btn-secondary act-undo" onclick="undoActivity(\''+esc(r.id)+'\')">'+_UNDO_SVG+'Undo change</button>'
+04162:           :(!r.undone&&r.undoable&&undo.reason?'<span class="act-undo-note" title="'+esc(undo.reason)+'">'+(typeof icon==='function'?icon('lock',11):'')+esc(undo.reason)+'</span>':''))
+04163:         +'</div></div></div>';
+04164:     });
+04165:   }
+04166:   const searchIcon='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>';
+04167:   el.innerHTML='<div class="act-shell"><div class="page-header act-page-header"><div><div class="page-title">Activity &amp; Undo</div>'
+04168:     +'<div class="page-subtitle">Review what changed and safely reverse the latest eligible item action.</div></div>'
+04169:     +'<div class="act-overview"><span><strong>'+todayCount+'</strong> today</span><i></i><span><strong>'+activeCount+'</strong> active records</span><i></i><span><strong>'+undoCount+'</strong> undoable</span>'
+04170:     +(reviewCount?'<i></i><span class="act-overview-review"><strong>'+reviewCount+'</strong> review</span>':'')+'</div></div>'
+04171:     +'<div class="act-toolbar"><div class="act-filters">'+filterHTML+'</div><div class="act-search">'+searchIcon+'<input type="search" value="'+esc(ACTIVITY_SEARCH)+'" placeholder="Search item, action, amount…" oninput="setActivitySearch(this.value)">'
+04172:     +'<button class="act-search-clear'+(ACTIVITY_SEARCH?' show':'')+'" onclick="ACTIVITY_SEARCH=\'\';renderActivity()" aria-label="Clear search">×</button></div></div>'
+04173:     +'<div class="act-feed">'+body+'</div></div>';
+04174: }
+04175: 
+04176: function saveDB(){
+04177:   if(_previewMode){
+04178:     DB._userOwned = false;
+04179:     refreshActivePage();
+04180:     clearTimeout(_saveTimer);
+04181:     _saveTimer = null;
+04182:     return;
+04183:   }
+04184:   DB._userOwned = true;
+04185:   try{ _captureActivity(); }catch(e){ console.warn('[RETRADE] capture hook failed',e); }
+04186:   // v1.4.3 P1: make the mutation durable synchronously BEFORE refresh/render
+04187:   // and before the debounce. Cloud sync may happen later; the user's change
+04188:   // must already survive a phone suspend/reload at this point.
+04189:   try{ _stageDurableOutboxNow(); }catch(e){ console.warn('[RETRADE] write-ahead stage failed',e); }
+04190:   refreshActivePage();
+04191:   // Debounce network traffic only. Durability no longer depends on this timer.
+04192:   // v1.4.4 — 200ms keeps typing/batch edits coalesced but gets confirmed writes
+04193:   // to Supabase quickly enough for near-live cross-device propagation.
+04194:   clearTimeout(_saveTimer);
+04195:   _saveTimer = setTimeout(_persistChanges, 200);
+04196: }
+04197: 
+04198: // Build a flat map of id → JSON for all items + trips + expenses + runs
+04199: function _dbFingerprint(){
+04200:   const fp = {};
+04201:   allDBKeys().forEach(k => {
+04202:     (DB[k]||[]).forEach(i => { fp['item:'+i.id] = JSON.stringify(i) + '|' + k; });
+04203:   });
+04204:   (DB.trips||[]).forEach(t => { fp['trip:'+t.id] = JSON.stringify(t); });
+04205:   (DB.expenses||[]).forEach(e => { fp['exp:'+e.id] = JSON.stringify(e); });
+04206:   (DB.cashLedger||[]).forEach(m => { fp['cash:'+m.id] = JSON.stringify(m); });
+04207:   (DB.activityLog||[]).forEach(l => { fp['log:'+l.id] = JSON.stringify(l); });
+04208:   (_sourcingRuns||[]).forEach(r => { fp['run:'+r.id] = JSON.stringify(r); });
+04209:   (_accounts||[]).forEach(a => { fp['acct:'+a.id] = JSON.stringify(a); });
+04210:   if(_jobLotSchemaAvailable){
+04211:     (_jobLots||[]).forEach(l => { fp['jlot:'+l.id] = JSON.stringify(l); });
+04212:     (_jobLotItems||[]).forEach(m => { fp['jmem:'+m.id] = JSON.stringify(m); });
+04213:   }
+04214:   if(_reconciliationSchemaAvailable)(_saleReconciliations||[]).forEach(r => { fp['recon:'+r.id] = JSON.stringify(r); });
+04215:   return fp;
+04216: }
+04217: 
+04218: async function _persistChangesPass(){
+04219:   // Never persist if no user is logged in — prevents ghost saves after sign-out
+04220:   if(!_currentUserId){ console.warn('_persistChanges: no user, skipping'); return; }
+04221:   // Snapshot the user at sync start. If the user changes mid-sync (sign-out
+04222:   // during debounce, token refresh race), abort — don't upsert rows with the
+04223:   // wrong owner. RLS would reject it, but this prevents partial writes too.
+04224:   const _uidAtStart = _currentUserId;
+04225:   try{
+04226:     // Freeze the exact batch this pass is responsible for. Never use a later
+04227:     // live fingerprint to mark this pass as synced: the UI is allowed to mutate
+04228:     // DB while network awaits are in progress.
+04229:     const current = _dbFingerprint();
+04230:     _persistActiveCurrent = current;
+04231:     const prev    = _dbSnapshot || {};
+04232:     const errors  = [];
+04233:     // Drop-1 follow-up fix: track which keys FAILED to save/delete so we
+04234:     // can exclude them from the new snapshot. Previously _dbSnapshot was
+04235:     // updated wholesale at the end of every run, which meant a failed
+04236:     // save still got marked "synced" — and the next pass thought there
+04237:     // was nothing to do until the user touched the entity again. Stale
+04238:     // failed entities (typically: accounts on a schema-mismatched DB)
+04239:     // would never recover. With this set, failed keys keep their prev
+04240:     // fingerprint in the new snapshot, so on the next save trigger
+04241:     // current[key] !== prev[key] → retry is automatic.
+04242:     const failedKeys = new Set();
+04243: 
+04244:     // v2.21.50 — stage the FULL pending batch to the on-device outbox BEFORE any
+04245:     // await, so a tab eviction mid-sync cannot lose a write. Pruned to only the
+04246:     // failures at the end. Wrapped so an outbox hiccup never breaks the sync.
+04247:     try{
+04248:       const _stage = _outboxRead();
+04249:       let _stagedCount=0;
+04250:       for(const k of Object.keys(current)){
+04251:         if(current[k] === prev[k]) continue;
+04252:         _stage[k] = _outboxEntry(k, current[k]);
+04253:         _stagedCount++;
+04254:       }
+04255:       for(const k of Object.keys(prev)){
+04256:         if(current[k] !== undefined) continue;
+04257:         _stage[k] = _outboxDeleteEntry(k);
+04258:         _stagedCount++;
+04259:       }
+04260:       if(_stagedCount) _outboxSave(_stage);
+04261:     }catch(e){ console.warn('[RETRADE] outbox stage failed:', e && e.message); }
+04262: 
+04263:     // Detect changed / new items
+04264:     for(const key of Object.keys(current)){
+04265:       if(current[key] === prev[key]) continue;  // unchanged
+04266:       if(_currentUserId !== _uidAtStart){ console.warn('_persistChanges: user changed mid-sync, aborting'); return; }
+04267:       try{
+04268:         if(key.startsWith('item:')){
+04269:           // Persist the immutable object captured at pass start, not the live DB
+04270:           // reference (which the user can edit again while network awaits run).
+04271:           const fpVal=current[key];
+04272:           const p=fpVal.lastIndexOf('|');
+04273:           const month=fpVal.slice(p+1);
+04274:           const item=JSON.parse(fpVal.slice(0,p));
+04275:           await saveItemToSupabase(month,item);
+04276:         } else if(key.startsWith('trip:')){
+04277:           await saveTripToSupabase(JSON.parse(current[key]));
+04278:         } else if(key.startsWith('exp:')){
+04279:           await saveExpenseToSupabase(JSON.parse(current[key]));
+04280:         } else if(key.startsWith('cash:')){
+04281:           await saveCashMoveToSupabase(JSON.parse(current[key]));
+04282:         } else if(key.startsWith('run:')){
+04283:           await saveRunToSupabase(JSON.parse(current[key]));
+04284:         } else if(key.startsWith('acct:')){
+04285:           await saveAccountToSupabase(JSON.parse(current[key]));
+04286:         } else if(key.startsWith('log:')){
+04287:           await saveActivityToSupabase(JSON.parse(current[key]));
+04288:         } else if(key.startsWith('jlot:')){
+04289:           await saveJobLotToSupabase(JSON.parse(current[key]));
+04290:         } else if(key.startsWith('jmem:')){
+04291:           await saveJobLotItemToSupabase(JSON.parse(current[key]));
+04292:         } else if(key.startsWith('recon:')){
+04293:           await saveSaleReconciliationToSupabase(JSON.parse(current[key]));
+04294:         }
+04295:       }catch(e){ errors.push(e.message); failedKeys.add(key); }
+04296:     }
+04297: 
+04298:     // Detect deletions
+04299:     for(const key of Object.keys(prev)){
+04300:       if(current[key] !== undefined) continue;  // still exists
+04301:       if(_currentUserId !== _uidAtStart){ console.warn('_persistChanges: user changed mid-sync, aborting'); return; }
+04302:       try{
+04303:         if(key.startsWith('item:')){
+04304:           const id = key.slice(5);
+04305:           await deleteItemFromSupabase(id);
+04306:         } else if(key.startsWith('trip:')){
+04307:           const id = key.slice(5);
+04308:           await deleteTripFromSupabase(id);
+04309:         } else if(key.startsWith('exp:')){
+04310:           const id = key.slice(4);
+04311:           await deleteExpenseFromSupabase(id);
+04312:         } else if(key.startsWith('cash:')){
+04313:           const id = key.slice(5);
+04314:           await deleteCashMoveFromSupabase(id);
+04315:         } else if(key.startsWith('run:')){
+04316:           const id = key.slice(4);
+04317:           await deleteRunFromSupabase(id);
+04318:         } else if(key.startsWith('acct:')){
+04319:           const id = key.slice(5);
+04320:           await deleteAccountFromSupabase(id);
+04321:         } else if(key.startsWith('log:')){
+04322:           const id = key.slice(4);
+04323:           await deleteActivityFromSupabase(id);
+04324:         } else if(key.startsWith('jlot:')){
+04325:           await deleteJobLotFromSupabase(key.slice(5));
+04326:         } else if(key.startsWith('jmem:')){
+04327:           await deleteJobLotItemFromSupabase(key.slice(5));
+04328:         } else if(key.startsWith('recon:')){
+04329:           await deleteSaleReconciliationFromSupabase(key.slice(6));
+04330:         }
+04331:       }catch(e){ errors.push(e.message); failedKeys.add(key); }
+04332:     }
+04333: 
+04334:     if(errors.length > 0){
+04335:       // v1.01 — a PostgREST/constraint/schema 400 is NOT a bad internet
+04336:       // connection. Keep failed writes in the durable outbox, expose the exact
+04337:       // reason in diagnostics/title text, and let the small sync indicator carry
+04338:       // the state. Routine retries never interrupt the user with a toast.
+04339:       const schemaErrors=errors.filter(function(msg){
+04340:         return msg&&(msg.includes('does not exist')||msg.includes('undefined column')||msg.includes('42703')||msg.includes('PGRST204')||msg.includes('schema'));
+04341:       });
+04342:       if(schemaErrors.length)console.warn('[RETRADE] Supabase schema mismatch:',schemaErrors);
+04343:       console.error('[RETRADE] Cloud sync pending; writes retained locally:',errors);
+04344:       _lastSyncError=errors.join(' | ')||'Cloud sync pending';
+04345:       if(_lastSyncError!==_lastSyncDiagMessage){
+04346:         try{_diagRecord('sync',new Error(_lastSyncError),{message:_lastSyncError});}catch(_e){}
+04347:         _lastSyncDiagMessage=_lastSyncError;
+04348:       }
+04349:     } else {
+04350:       _lastSyncError=null;
+04351:       _lastSyncDiagMessage=null;
+04352:     }
+04353: 
+04354:     // v1.4.3 — prune ONLY the exact batch that this pass confirmed.
+04355:     // A user can create/list/sell another item while these awaits are running.
+04356:     // Those newer mutations already live in the write-ahead outbox and MUST NOT
+04357:     // be cleared by completion of this older pass.
+04358:     try{
+04359:       const liveNow=_dbFingerprint();
+04360:       const rem=_outboxRead();
+04361:       const touched=new Set();
+04362:       Object.keys(current).forEach(function(k){ if(current[k]!==prev[k]) touched.add(k); });
+04363:       Object.keys(prev).forEach(function(k){ if(current[k]===undefined) touched.add(k); });
+04364:       touched.forEach(function(k){
+04365:         if(failedKeys.has(k)){
+04366:           // Keep the newest local version, not necessarily the version this pass
+04367:           // attempted. _outboxEntry's revision wrapper uses the latest known CAS base.
+04368:           rem[k]=(liveNow[k]!==undefined)?_outboxEntry(k,liveNow[k]):_outboxDeleteEntry(k);
+04369:           return;
+04370:         }
+04371:         // This pass confirmed its captured version. If the live object has not
+04372:         // changed since capture, the durable entry can go. Otherwise keep the
+04373:         // newer mutation queued for the next serialized pass.
+04374:         if(liveNow[k]===current[k]) delete rem[k];
+04375:         else rem[k]=(liveNow[k]!==undefined)?_outboxEntry(k,liveNow[k]):_outboxDeleteEntry(k);
+04376:       });
+04377:       _outboxSave(rem);
+04378:     }catch(e){ console.warn('[RETRADE] outbox prune failed:', e && e.message); }
+04379: 
+04380:     // Commit ONLY the fingerprint captured at pass start. The old code called
+04381:     // _dbFingerprint() here after all awaits; any edits made during the network
+04382:     // pass were therefore marked "synced" despite never being part of this batch.
+04383:     // That race is the direct sold/listing reversion data-loss path fixed here.
+04384:     const newSnapshot = Object.assign({}, current);
+04385:     failedKeys.forEach(function(k){
+04386:       if(prev[k] !== undefined){ newSnapshot[k] = prev[k]; }
+04387:       else                    { delete newSnapshot[k]; }
+04388:     });
+04389:     _dbSnapshot = newSnapshot;
+04390:     return {failed:failedKeys.size};
+04391:   } finally {
+04392:     _persistActiveCurrent = null;
+04393:   }
+04394: }
+04395: 
+04396: // v1.4.3 — serialize persistence passes. The previous implementation allowed
+04397: // overlapping async passes; an older pass could finish last, clear a newer
+04398: // outbox entry and snapshot unsent UI state. One writer owns Supabase at a time.
+04399: async function _persistChanges(){
+04400:   if(_persistPromise){
+04401:     _persistQueued=true;
+04402:     return _persistPromise;
+04403:   }
+04404:   _persistPromise=(async function(){
+04405:     _setSyncing(true);
+04406:     try{
+04407:       do{
+04408:         _persistQueued=false;
+04409:         // Failed cloud writes remain durable but must NOT cause a tight infinite
+04410:         // retry loop. A second pass is immediate only when a newer mutation was
+04411:         // staged while this pass was in flight.
+04412:         await _persistChangesPass();
+04413:       }while(_persistQueued && _currentUserId);
+04414:     }finally{
+04415:       _setSyncing(false);
+04416:     }
+04417:   })();
+04418:   try{ return await _persistPromise; }
+04419:   finally{
+04420:     _persistPromise=null;
+04421:     // Close the tiny race where a mutation lands after the loop condition was
+04422:     // checked but before the promise settles. Its durable outbox entry already
+04423:     // exists; schedule one fresh writer rather than leaving it until next boot.
+04424:     if(_persistQueued && _currentUserId){
+04425:       clearTimeout(_saveTimer);
+04426:       _saveTimer=setTimeout(_persistChanges,0);
+04427:     }
+04428:   }
+04429: }
+04430: 
+04431: let _dbLoading = false;
+04432: 
+04433: // Force-resync. Wipes the in-memory sync snapshot so every durable entity
+04434: // reads as "needs sync" on the next pass, then triggers _persistChanges
+04435: // immediately. _persistChanges deliberately retains row-level failures in the
+04436: // durable outbox instead of throwing, so success MUST be judged from the outbox
+04437: // after the pass — not merely from Promise resolution.
+04438: async function retradeForceResync(){
+04439:   if(!_currentUserId){ toast('Not signed in — cannot resync','err'); return; }
+04440:   console.log('[RETRADE] Force resync starting — wiping snapshot');
+04441:   _dbSnapshot = {};
+04442:   toast('Resyncing to cloud…');
+04443:   try{
+04444:     await _persistChanges();
+04445:     const pending=_outboxPendingCount();
+04446:     if(pending>0||_lastSyncError){
+04447:       const msg='Cloud resync incomplete — '+pending+' change'+(pending===1?'':'s')+' still queued';
+04448:       console.warn('[RETRADE] '+msg,_lastSyncError||'');
+04449:       try{_diagRecord('sync',new Error(_lastSyncError||msg),{message:_lastSyncError||msg});}catch(_e){}
+04450:       toast(msg,'err');
+04451:       return false;
+04452:     }
+04453:     toast('Resync complete','success');
+04454:     console.log('[RETRADE] Force resync complete');
+04455:     return true;
+04456:   }catch(e){
+04457:     console.error('[RETRADE] Force resync error:', e);
+04458:     try{_diagRecord('sync',e,{message:e&&e.message});}catch(_e){}
+04459:     toast('Cloud resync failed — open Diagnostics for details','err');
+04460:     return false;
+04461:   }
+04462: }
+04463: 
+04464: // Cross-device refresh. Supabase is authoritative once this device has no
+04465: // pending local writes. Switching back to the app/tab therefore pulls changes
+04466: // confirmed by another device without requiring Force Resync.
+04467: let _cloudRefreshBusy=false;
+04468: let _lastCloudRefreshAt=0;
+04469: async function _refreshCloudOnResume(force){
+04470:   if(_previewMode||!_currentUserId||_dbLoading||_cloudRefreshBusy)return false;
+04471:   if(document.visibilityState==='hidden')return false;
+04472:   const now=Date.now();
+04473:   if(!force && now-_lastCloudRefreshAt<8000)return false;
+04474:   _cloudRefreshBusy=true;
+04475:   const _activityWasSuppressed=_suppressActivityCapture;
+04476:   _suppressActivityCapture=true;
+04477:   try{
+04478:     // Give this device's own offline edits first chance to reach Supabase.
+04479:     if(_outboxPendingCount()>0||_persistPromise){
+04480:       await _waitForSync();
+04481:       if(_outboxPendingCount()>0)return false; // remain local-first until upload succeeds
+04482:     }
+04483:     await loadFromSupabase();
+04484:     _dbSnapshot=_dbFingerprint();
+04485:     _initActivityShadow();
+04486:     _lastCloudRefreshAt=Date.now();
+04487:     refreshActivePage();
+04488:     if(typeof updateSyncStatus==='function')updateSyncStatus();
+04489:     return true;
+04490:   }catch(e){
+04491:     console.warn('[RETRADE] background cloud refresh skipped:',e&&e.message);
+04492:     return false;
+04493:   }finally{
+04494:     // Reseed from the final authoritative/replayed state before re-enabling
+04495:     // capture. A passive sync must never become an Activity event.
+04496:     try{_initActivityShadow();}catch(_e){}
+04497:     _suppressActivityCapture=_activityWasSuppressed;
+04498:     _cloudRefreshBusy=false;
+04499:   }
+04500: }
+04501: 
+04502: // ============================================================
+04503: // v1.4.4 — RAPID CROSS-DEVICE SYNC
+04504: // A tiny server-side retrade_sync_clock row is bumped by database triggers after
+04505: // confirmed writes. Every signed-in device subscribes to that row through
+04506: // Supabase Realtime. The signal contains no business data: it only tells this
+04507: // client to pull the authoritative dataset. A 5s one-row poll is the reconnect/
+04508: // missed-websocket safety net; a 15s full refresh is used only if the sync-clock
+04509: // migration/realtime subscription is unavailable.
+04510: // ============================================================
+04511: let _realtimeSyncChannel=null;
+04512: let _realtimeSyncUid=null;
+04513: let _realtimeSyncConnected=false;
+04514: let _syncClockAvailable=null;
+04515: let _syncClockAppliedRevision=0;
+04516: let _syncClockTargetRevision=0;
+04517: let _syncClockRefreshTimer=null;
+04518: let _syncClockPollTimer=null;
+04519: let _syncClockPollBusy=false;
+04520: 
+04521: function _syncClockSignalRevision(payload){
+04522:   try{
+04523:     const row=(payload&&payload.new&&Object.keys(payload.new).length)?payload.new:(payload&&payload.old)||{};
+04524:     return Math.max(0,Number(row.revision)||0);
+04525:   }catch(e){return 0;}
+04526: }
+04527: function _queueSyncClockRefresh(revision,reason){
+04528:   revision=Math.max(0,Number(revision)||0);
+04529:   if(revision>_syncClockTargetRevision)_syncClockTargetRevision=revision;
+04530:   if(_syncClockTargetRevision<=_syncClockAppliedRevision)return;
+04531:   clearTimeout(_syncClockRefreshTimer);
+04532:   _syncClockRefreshTimer=setTimeout(async function(){
+04533:     _syncClockRefreshTimer=null;
+04534:     if(!_currentUserId||document.visibilityState==='hidden')return;
+04535:     const wanted=_syncClockTargetRevision;
+04536:     const ok=await _refreshCloudOnResume(true);
+04537:     if(ok){
+04538:       _syncClockAppliedRevision=Math.max(_syncClockAppliedRevision,wanted);
+04539:       console.info('[RETRADE] cross-device sync applied',reason||'signal','rev',_syncClockAppliedRevision);
+04540:     }else if(_currentUserId&&_syncClockTargetRevision>_syncClockAppliedRevision){
+04541:       // Local unsynced edits or an in-flight refresh may temporarily block the
+04542:       // pull. Retry; never discard the remote revision signal.
+04543:       _syncClockRefreshTimer=setTimeout(function(){_queueSyncClockRefresh(_syncClockTargetRevision,'retry');},900);
+04544:     }
+04545:   },650);
+04546: }
+04547: async function _readSyncClockRevision(prime){
+04548:   if(!_currentUserId||_syncClockPollBusy)return null;
+04549:   _syncClockPollBusy=true;
+04550:   try{
+04551:     const uid=_currentUserId;
+04552:     const res=await _sbCall(()=>_sb.from('retrade_sync_clock').select('revision,updated_at').eq('user_id',uid).maybeSingle());
+04553:     if(res&&res.error){
+04554:       const msg=String(res.error.message||res.error);
+04555:       if(/retrade_sync_clock|does not exist|schema cache|PGRST205|42P01/i.test(msg))_syncClockAvailable=false;
+04556:       return null;
+04557:     }
+04558:     _syncClockAvailable=true;
+04559:     const rev=Math.max(0,Number(res&&res.data&&res.data.revision)||0);
+04560:     if(prime){
+04561:       _syncClockAppliedRevision=rev;
+04562:       _syncClockTargetRevision=rev;
+04563:     }else if(rev>_syncClockAppliedRevision){
+04564:       _queueSyncClockRefresh(rev,'poll');
+04565:     }
+04566:     return rev;
+04567:   }catch(e){
+04568:     console.warn('[RETRADE] sync-clock poll failed:',e&&e.message);
+04569:     return null;
+04570:   }finally{_syncClockPollBusy=false;}
+04571: }
+04572: function _stopRealtimeSync(){
+04573:   clearTimeout(_syncClockRefreshTimer);_syncClockRefreshTimer=null;
+04574:   if(_syncClockPollTimer){clearInterval(_syncClockPollTimer);_syncClockPollTimer=null;}
+04575:   if(_realtimeSyncChannel){
+04576:     try{if(typeof _sb.removeChannel==='function')_sb.removeChannel(_realtimeSyncChannel);
+04577:         else if(typeof _realtimeSyncChannel.unsubscribe==='function')_realtimeSyncChannel.unsubscribe();}catch(e){}
+04578:   }
+04579:   _realtimeSyncChannel=null;_realtimeSyncUid=null;_realtimeSyncConnected=false;
+04580:   _syncClockAvailable=null;_syncClockAppliedRevision=0;_syncClockTargetRevision=0;
+04581: }
+04582: async function _startRealtimeSync(){
+04583:   if(_previewMode||!_currentUserId||typeof _sb.channel!=='function')return false;
+04584:   const uid=_currentUserId;
+04585:   if(_realtimeSyncChannel&&_realtimeSyncUid===uid)return true;
+04586:   _stopRealtimeSync();
+04587:   _realtimeSyncUid=uid;
+04588:   await _readSyncClockRevision(false);
+04589:   if(_currentUserId!==uid)return false;
+04590:   try{
+04591:     _realtimeSyncChannel=_sb.channel('retrade-sync-'+uid)
+04592:       .on('postgres_changes',{event:'*',schema:'public',table:'retrade_sync_clock',filter:'user_id=eq.'+uid},function(payload){
+04593:         const rev=_syncClockSignalRevision(payload);
+04594:         if(rev>_syncClockAppliedRevision)_queueSyncClockRefresh(rev,'realtime');
+04595:       })
+04596:       .subscribe(function(status){
+04597:         _realtimeSyncConnected=status==='SUBSCRIBED';
+04598:         if(status==='SUBSCRIBED')console.info('[RETRADE] realtime cross-device sync connected');
+04599:         else if(status==='CHANNEL_ERROR'||status==='TIMED_OUT')console.warn('[RETRADE] realtime sync unavailable; poll fallback active:',status);
+04600:       });
+04601:   }catch(e){
+04602:     _realtimeSyncConnected=false;
+04603:     console.warn('[RETRADE] realtime sync start failed; poll fallback active:',e&&e.message);
+04604:   }
+04605:   // Lightweight safety net: one tiny row, only while visible. This catches a
+04606:   // websocket reconnect gap without repeatedly reloading every business table.
+04607:   _syncClockPollTimer=setInterval(function(){
+04608:     if(document.visibilityState==='visible'&&_currentUserId===uid)_readSyncClockRevision(false);
+04609:   },5000);
+04610:   return true;
+04611: }
+04612: 
+04613: console.info('[RETRADE] v1.4.4 rapid cross-device sync loaded');
+04614: 
+04615: document.addEventListener('visibilitychange',function(){
+04616:   if(document.visibilityState==='visible')setTimeout(function(){
+04617:     _refreshCloudOnResume(true).then(function(ok){if(ok)_readSyncClockRevision(false);});
+04618:   },250);
+04619: });
+04620: window.addEventListener('focus',function(){setTimeout(function(){_refreshCloudOnResume(false);},150);});
+04621: // Emergency fallback only. With the v1.4.4 migration, Realtime is normally
+04622: // sub-second and the 5s clock poll catches missed websocket signals. If the
+04623: // clock/table/publication is unavailable, keep legacy clients convergent anyway.
+04624: setInterval(function(){
+04625:   if(document.visibilityState==='visible'&&(!_realtimeSyncConnected||_syncClockAvailable===false))_refreshCloudOnResume(false);
+04626: },15000);
+04627: 
+04628: // DATABASE (entry point — called on app init after auth confirmed)
+04629: async function initDB(){
+04630:   if(_dbLoading){ console.warn('initDB already in progress, skipping'); return; }
+04631:   _dbLoading = true;
+04632:   try{
+04633:     // v2.19.18 -- 7B. Resolve the boot tab BEFORE the load so the skeleton can be
+04634:     // the right page. Everything this reads (_SK.tab, _SK.lastActive) is
+04635:     // localStorage and is not written again until the end of this function, so
+04636:     // reading early is equivalent -- with one improvement: _isSameSession() is a
+04637:     // clock comparison against _SESSION_FRESH_MS, and the load can take up to
+04638:     // 15s. Computed after the load, a session sitting near the boundary could
+04639:     // resolve differently from the skeleton already on screen. Resolved ONCE and
+04640:     // reused below, the skeleton and the rendered page cannot disagree.
+04641:     const _freshSession = !_isSameSession();
+04642:     const _lastTab = (() => { if(_freshSession) return 'summary';
+04643:       try{ return localStorage.getItem(_SK.tab) || 'summary'; }catch(e){ return 'summary'; } })();
+04644:     const _safeTab = ['summary','monthly','stock','expenses','cash','returns','scrapped','tax','data','runs','activity'].includes(_lastTab) ? _lastTab : 'summary';
+04645:     showLoadingScreen('Loading your data…', _safeTab);
+04646:     await Promise.race([
+04647:       loadFromSupabase(),
+04648:       new Promise((_,reject) => setTimeout(() => reject(new Error('Request timed out. Try refreshing.')), 15000))
+04649:     ]);
+04650:     // Migrate any legacy bare keys ('APR') → year-suffixed ('APR-26')
+04651:     _migrateBareDBKeys();
+04652:     // v2.09.4 — Snapshot the pre-migration state so if _migrateItemStates
+04653:     // reconciles any ghost-sold items, the diff engine sees the change and
+04654:     // pushes it to Supabase on the next natural saveDB. Without this the fix
+04655:     // only lives in memory each session and Supabase never gets corrected.
+04656:     const _preMigrationSnapshot = _dbFingerprint();
+04657:     // Patch A — Stamp canonical state field on every item (one-time) +
+04658:     // v2.09.4 reconcile pass for ghost-sold state (returns count for logging).
+04659:     const _reconciled = _migrateItemStates();
+04660:     // v2.09 — Pre-existing supplier items with cost + no explicit settled flag
+04661:     // default to settled (historical purchases were paid on the spot). Idempotent.
+04662:     let _supplierMigrated=0,_saleNoMigrated=0,_cashAuditBackfilled=0;
+04663:     try{if(typeof _migrateSupplierSettledOnce==='function')_supplierMigrated=_migrateSupplierSettledOnce()||0;}catch(e){console.warn('supplier settle migration failed',e);}
+04664:     try{_saleNoMigrated=_migrateSaleNoTags()||0;}catch(e){console.warn('saleNo migration failed',e);}
+04665:     try{_cashAuditBackfilled=_backfillSystemCashEvents()||0;}catch(e){console.warn('system cash audit backfill failed',e);}
+04666:     // Any migration that mutates item rows must keep the PRE-migration snapshot
+04667:     // so the diff engine actually uploads the repair. Previously saleNo/account
+04668:     // repairs could become "clean" in memory and disappear again next login.
+04669:     if(_reconciled>0||_supplierMigrated>0||_saleNoMigrated>0||_cashAuditBackfilled>0){
+04670:       _dbSnapshot = _preMigrationSnapshot;
+04671:       // Schedule an async persist without blocking init — the corrections will
+04672:       // reach Supabase within seconds of the app becoming interactive.
+04673:       setTimeout(function(){ try{ saveDB(); }catch(e){ console.warn('[RETRADE] Post-migration save failed',e); } }, 500);
+04674:     } else {
+04675:       // Snapshot MUST be set immediately after load — before any renderX call
+04676:       // triggers saveDB(). Without this the diff engine thinks everything is new
+04677:       // and re-upserts the entire DB on every page load.
+04678:       _dbSnapshot = _dbFingerprint();
+04679:     }
+04680:     // v2.21.50 — replay any writes that never confirmed to the cloud (found in
+04681:     // the on-device outbox). _dbSnapshot now holds the loaded cloud state, so
+04682:     // recovered rows show as dirty and get re-persisted on the scheduled save.
+04683:     try{
+04684:       const _recovered = _recoverOutbox();
+04685:       if(_recovered>0){
+04686:         console.warn('[RETRADE] Recovered '+_recovered+' unsynced change(s) from local outbox');
+04687:         setTimeout(function(){ try{ saveDB(); }catch(e){ console.warn('[RETRADE] recovery flush failed',e); } }, 700);
+04688:       }
+04689:     }catch(e){ console.warn('[RETRADE] outbox recovery block failed:', e && e.message); }
+04690:     // v2.21.51 — seed the activity shadow from loaded data so pre-existing items
+04691:     // never log as brand-new; the first real transition after boot logs cleanly.
+04692:     try{ _initActivityShadow(); }catch(e){ console.warn('[RETRADE] shadow seed failed',e); }
+04693:     _loadUIState();
+04694:     // Render the remembered destination BEFORE dissolving the skeleton. Previously
+04695:     // Returns/Cash/Archive/Activity were valid remembered tabs but had no boot
+04696:     // renderer here: init removed the skeleton, activated an empty page, and the
+04697:     // user saw a blank canvas. Boot now has one contract: every allowed tab must
+04698:     // successfully render before the loading surface is allowed to leave.
+04699:     if(_safeTab==='summary')renderSummary();
+04700:     else if(_safeTab==='monthly')renderMonthlyPage();
+04701:     else if(_safeTab==='stock')renderStock();
+04702:     else if(_safeTab==='runs')renderRunsPage();
+04703:     else if(_safeTab==='expenses')renderExpenses();
+04704:     else if(_safeTab==='cash')renderCash();
+04705:     else if(_safeTab==='returns')renderReturns();
+04706:     else if(_safeTab==='scrapped')renderScrapped();
+04707:     else if(_safeTab==='activity')renderActivity();
+04708:     else if(_safeTab==='tax')renderTax();
+04709:     else if(_safeTab==='data')renderData();
+04710:     else renderSummary();
+04711:     _deactivatePages();
+04712:     document.querySelectorAll('.tab').forEach(t=>t.classList.remove('on'));
+04713:     document.querySelectorAll('.bnt').forEach(b=>b.classList.remove('on'));
+04714:     // v2.19.14 -- §8.1. Suppress pageFade on the boot reveal, deterministically
+04715:     // and for every tab. The class must land in the SAME task as .on: no style
+04716:     // recalc happens between them, so the browser only ever sees the end state
+04717:     // and never queues the animation. Splitting these across a rAF would paint
+04718:     // a before-state and the fade would run (§2.4, inverted).
+04719:     const _pg=document.getElementById('p-'+_safeTab);
+04720:     if(_pg){_pg.classList.add('rt-boot-noanim');_pg.classList.add('on');}
+04721:     const _tb=document.querySelector('[data-tab="'+_safeTab+'"]');if(_tb)_tb.classList.add('on');
+04722:     const _bn=document.querySelector('#bottom-nav .bnt[data-tab="'+_safeTab+'"]');if(_bn)_bn.classList.add('on');
+04723:     handleNavResize();
+04724:     if(typeof _syncFabVisibility==='function')_syncFabVisibility();
+04725:     // Destination is now rendered + active underneath the overlay; cross-fade only now.
+04726:     hideLoadingScreen();
+04727:     // Stamp this session active now so a quick reload (even with no navigation)
+04728:     // is recognised as the same session and the next save extends it.
+04729:     try{localStorage.setItem(_SK.lastActive,String(Date.now()));}catch(e){}
+04730:   }catch(e){
+04731:     console.error('initDB error:', e);
+
+===== LINES 24299-24521 =====
+24299:     };
+24300:   }
+24301: 
+24302:   /* A full cloud reload replaces the authoritative item set. Clear stale side
+24303:      metadata first so a deleted/recreated id cannot inherit an old revision. */
+24304:   if(typeof _resetBusinessStateForCloudLoad==='function'){
+24305:     var _v14OriginalResetBusinessStateForCloudLoad=_resetBusinessStateForCloudLoad;
+24306:     _resetBusinessStateForCloudLoad=function(){
+24307:       _revById.clear();_updatedAtById.clear();
+24308:       return _v14OriginalResetBusinessStateForCloudLoad.apply(this,arguments);
+24309:     };
+24310:   }
+24311: 
+24312:   /* Retrofit an already-hydrated in-memory DB if this script was hot-loaded. */
+24313:   function _retrofitLoaded(){
+24314:     try{
+24315:       if(typeof allDBKeys!=='function')return;
+24316:       allDBKeys().forEach(function(k){
+24317:         (DB[k]||[]).forEach(function(i){
+24318:           if(!i||!i.id)return;
+24319:           var r=_numRevision(i._cloudRevision);
+24320:           if(r)_setSyncMeta(i,r,i._cloudUpdatedAt||null);
+24321:           else if(i._cloudUpdatedAt)_setHidden(i,'_cloudUpdatedAt',String(i._cloudUpdatedAt));
+24322:         });
+24323:       });
+24324:     }catch(e){}
+24325:   }
+24326:   try{setTimeout(_retrofitLoaded,0);}catch(e){}
+24327: 
+24328:   /* Outbox entries carry the revision the user actually edited from. */
+24329:   if(typeof _outboxEntry==='function'){
+24330:     var _v14OriginalOutboxEntry=_outboxEntry;
+24331:     _outboxEntry=function(key,fp){
+24332:       var e=_v14OriginalOutboxEntry.apply(this,arguments);
+24333:       if(!e||String(key||'').indexOf('item:')!==0)return e;
+24334:       var id=String(key).slice(5);
+24335:       e.baseRevision=_revisionForId(id);
+24336:       var updated=_updatedAtForId(id);
+24337:       if(updated){
+24338:         e.serverUpdatedAt=updated;
+24339:         var ms=_serverMs(updated);
+24340:         if(ms)e.ts=Math.max(Number(e.ts)||0,ms+1000);
+24341:       }
+24342:       return e;
+24343:     };
+24344:   }
+24345: 
+24346:   if(typeof _outboxDeleteEntry==='function'){
+24347:     var _v14OriginalOutboxDeleteEntry=_outboxDeleteEntry;
+24348:     _outboxDeleteEntry=function(key){
+24349:       var e=_v14OriginalOutboxDeleteEntry.apply(this,arguments);
+24350:       if(!e||String(key||'').indexOf('item:')!==0)return e;
+24351:       var id=String(key).slice(5);
+24352:       e.baseRevision=_revisionForId(id);
+24353:       var updated=_updatedAtForId(id);
+24354:       if(updated){
+24355:         e.serverUpdatedAt=updated;
+24356:         var ms=_serverMs(updated);
+24357:         if(ms)e.ts=Math.max(Number(e.ts)||0,ms+1000);
+24358:       }
+24359:       return e;
+24360:     };
+24361:   }
+24362: 
+24363:   /*
+24364:    * Revision-aware outbox recovery.
+24365:    * For entries created by hotfix.2, revision wins regardless of device clock.
+24366:    * Legacy entries without baseRevision still pass through the existing
+24367:    * timestamp fallback so an upgrade does not discard pre-existing offline work.
+24368:    */
+24369:   if(typeof _recoverOutbox==='function'){
+24370:     var _v14OriginalRecoverOutbox=_recoverOutbox;
+24371:     try{window.__RETRADE_RECOVER_COVERAGE_SOURCE__=String(_v14OriginalRecoverOutbox);}catch(e){}
+24372:     _recoverOutbox=function(){
+24373:       try{
+24374:         if(typeof _outboxRead==='function'&&typeof _outboxSave==='function'){
+24375:           var ob=_outboxRead()||{};
+24376:           var changed=false;
+24377:           Object.keys(ob).forEach(function(key){
+24378:             if(key.indexOf('item:')!==0)return;
+24379:             var e=ob[key]||{};
+24380:             if(e.baseRevision===undefined||e.baseRevision===null)return; // legacy
+24381:             var id=key.slice(5);
+24382:             var base=_numRevision(e.baseRevision);
+24383:             var cloud=_itemById(id);
+24384:             var cloudRev=_revisionForId(id);
+24385: 
+24386:             if(e.op==='delete'){
+24387:               if(!cloud){
+24388:                 delete ob[key];changed=true;return; // already deleted in cloud
+24389:               }
+24390:               if(base!==cloudRev){
+24391:                 delete ob[key];changed=true;return; // stale delete: cloud wins
+24392:               }
+24393:             }else{
+24394:               if(cloud){
+24395:                 if(base!==cloudRev){
+24396:                   delete ob[key];changed=true;return; // stale save: cloud wins
+24397:                 }
+24398:               }else if(base>0){
+24399:                 delete ob[key];changed=true;return; // cloud deleted after this edit
+24400:               }
+24401:             }
+24402: 
+24403:             var updated=_updatedAtForId(id)||e.serverUpdatedAt||null;
+24404:             var ms=_serverMs(updated);
+24405:             if(ms && (Number(e.ts)||0)<=ms){
+24406:               e.ts=ms+1000;
+24407:               ob[key]=e;
+24408:               changed=true;
+24409:             }
+24410:           });
+24411:           if(changed)_outboxSave(ob);
+24412:         }
+24413:       }catch(e){
+24414:         console.warn('[RETRADE v1.4] revision-aware outbox preflight failed',e);
+24415:       }
+24416: 
+24417:       var result=_v14OriginalRecoverOutbox.apply(this,arguments);
+24418: 
+24419:       /* Original recovery may replace cloud objects with JSON-cloned outbox
+24420:          objects. Reattach non-enumerable sync metadata from the side maps. */
+24421:       try{
+24422:         if(typeof allDBKeys==='function'){
+24423:           allDBKeys().forEach(function(k){
+24424:             (DB[k]||[]).forEach(function(i){
+24425:               if(!i||!i.id)return;
+24426:               var r=_numRevision(_revById.get(i.id));
+24427:               if(r)_setSyncMeta(i,r,_updatedAtById.get(i.id)||null);
+24428:             });
+24429:           });
+24430:         }
+24431:       }catch(e){}
+24432:       return result;
+24433:     };
+24434:     try{window.__RETRADE_RECOVER_COVERAGE_SOURCE__+='\n'+String(_recoverOutbox);}catch(e){}
+24435:   }
+24436: 
+24437:   /*
+24438:    * Parent item save becomes compare-and-swap:
+24439:    *  - insert only when no server item exists;
+24440:    *  - update only revision N -> N+1;
+24441:    *  - never touch child snapshots if parent CAS was stale.
+24442:    */
+24443:   if(typeof saveItemToSupabase==='function'){
+24444:     saveItemToSupabase=async function(m,i){
+24445:       var valid=['sourced','listed','sold','returned'];
+24446:       if(!i||valid.indexOf(i.state)<0){
+24447:         var bad='[V1.4] GUARD: invalid state on save — refusing write. state='+
+24448:           JSON.stringify(i&&i.state)+' id='+(i&&i.id);
+24449:         console.error(bad,i);
+24450:         throw new Error(bad);
+24451:       }
+24452:       if(!_currentUserId)throw new Error('Not signed in.');
+24453: 
+24454:       await _ensureRevisionSchema();
+24455: 
+24456:       var row=_itemToRow(i,m);
+24457:       delete row.revision;
+24458:       delete row.client_base_revision;
+24459:       delete row.updated_at;
+24460: 
+24461:       var expected=_revisionForId(i.id);
+24462:       var parent;
+24463: 
+24464:       if(expected<=0){
+24465:         var probeNew=await _probeServer(i.id);
+24466:         if(probeNew.exists){
+24467:           throw _conflict('save',i.id,0,probeNew.revision,'No trusted base revision was loaded for an existing cloud item.');
+24468:         }
+24469: 
+24470:         parent=await _guardedWriteFallback(
+24471:           function(p){
+24472:             return _sb.from('items').insert(p).select('revision,updated_at');
+24473:           },
+24474:           row,
+24475:           'items'
+24476:         );
+24477:         if(parent.error){
+24478:           if(_isRevisionConflictError(parent.error)){
+24479:             var p1=await _probeServer(i.id);
+24480:             throw _conflict('save',i.id,0,p1.exists?p1.revision:null,parent.error.message);
+24481:           }
+24482:           throw new Error('Save item failed: '+parent.error.message);
+24483:         }
+24484:       }else{
+24485:         row.client_base_revision=expected;
+24486:         parent=await _guardedWriteFallback(
+24487:           function(p){
+24488:             return _sb.from('items')
+24489:               .update(p)
+24490:               .eq('id',i.id)
+24491:               .eq('user_id',_currentUserId)
+24492:               .eq('revision',expected)
+24493:               .select('revision,updated_at');
+24494:           },
+24495:           row,
+24496:           'items'
+24497:         );
+24498: 
+24499:         if(parent.error){
+24500:           if(_isRevisionConflictError(parent.error)){
+24501:             var p2=await _probeServer(i.id);
+24502:             throw _conflict('save',i.id,expected,p2.exists?p2.revision:null,parent.error.message);
+24503:           }
+24504:           throw new Error('Save item failed: '+parent.error.message);
+24505:         }
+24506: 
+24507:         if(!parent.data||!parent.data.length){
+24508:           var p3=await _probeServer(i.id);
+24509:           throw _conflict('save',i.id,expected,p3.exists?p3.revision:null,'Compare-and-swap matched no row.');
+24510:         }
+24511:       }
+24512: 
+24513:       if(!parent.data||!parent.data.length){
+24514:         throw new Error('Save item failed: server returned no revision.');
+24515:       }
+24516: 
+24517:       var saved=parent.data[0];
+24518:       var newRev=_numRevision(saved.revision);
+24519:       if(!newRev)throw _schemaError(new Error('Server returned no item revision.'));
+24520:       _setSyncMeta(i,newRev,saved.updated_at||null);
+24521: 
+
+===== LINES 24564-24966 =====
+24564:           platform_at_relist:r._platformAtRelist||null,
+24565:           listing_fee_at_relist:r._listingFeeAtRelist!=null?Number(r._listingFeeAtRelist):null,
+24566:           sale_price_at_relist:r._salePriceAtRelist!=null?Number(r._salePriceAtRelist):null,
+24567:           postage_at_relist:r._postageAtRelist!=null?Number(r._postageAtRelist):null,
+24568:           shipping_cost_at_relist:r._shippingCostAtRelist!=null?Number(r._shippingCostAtRelist):null,
+24569:           packaging_cost_at_relist:r._packagingCostAtRelist!=null?Number(r._packagingCostAtRelist):null,
+24570:           promo_percent_at_relist:r._promoPercentAtRelist!=null?Number(r._promoPercentAtRelist):null,
+24571:           sd_rate_idx_at_relist:r._sdRateIdxAtRelist!=null?Number(r._sdRateIdxAtRelist):null,
+24572:           sd_buyer_pays_at_relist:r._sdBuyerPaysAtRelist!=null?!!r._sdBuyerPaysAtRelist:null
+24573:         };
+24574:       });
+24575:       await _replaceChildRowsSafe('item_returns',i.id,retRows,'item_returns');
+24576:     };
+24577:   }
+24578: 
+24579:   /* Conditional delete: a stale client cannot delete a newer item revision. */
+24580:   if(typeof deleteItemFromSupabase==='function'){
+24581:     deleteItemFromSupabase=async function(id){
+24582:       if(!_currentUserId)throw new Error('Not signed in.');
+24583:       await _ensureRevisionSchema();
+24584: 
+24585:       var expected=_revisionForId(id);
+24586:       if(expected<=0){
+24587:         var unknown=await _probeServer(id);
+24588:         if(!unknown.exists)return; // local-only item, already absent remotely
+24589:         throw _conflict('delete',id,0,unknown.revision,'No trusted base revision was loaded.');
+24590:       }
+24591: 
+24592:       var run=function(){
+24593:         return _sb.from('items')
+24594:           .delete()
+24595:           .eq('id',id)
+24596:           .eq('user_id',_currentUserId)
+24597:           .eq('revision',expected)
+24598:           .select('id,revision');
+24599:       };
+24600:       var res=(typeof _sbCall==='function')?await _sbCall(run):await run();
+24601:       if(res&&res.error)throw new Error('Delete failed: '+res.error.message);
+24602: 
+24603:       if(!res||!res.data||!res.data.length){
+24604:         var p=await _probeServer(id);
+24605:         if(!p.exists){
+24606:           _revById.delete(id);_updatedAtById.delete(id);
+24607:           return; // idempotent: another path already removed it
+24608:         }
+24609:         throw _conflict('delete',id,expected,p.revision,'Conditional delete matched no row.');
+24610:       }
+24611: 
+24612:       _revById.delete(id);
+24613:       _updatedAtById.delete(id);
+24614:     };
+24615:   }
+24616: 
+24617:   window.RETRADE_V14_REVISION={
+24618:     version:VERSION,
+24619:     conflictCode:CONFLICT_CODE,
+24620:     schemaReady:function(){return _schemaOK;},
+24621:     revisionFor:function(id){return _revisionForId(id);},
+24622:     recentConflicts:function(){return _conflicts.slice();},
+24623:     ensureSchema:_ensureRevisionSchema,
+24624:     diagnostics:function(){
+24625:       return {
+24626:         version:VERSION,
+24627:         schemaReady:_schemaOK,
+24628:         trackedItems:_revById.size,
+24629:         recentConflicts:_conflicts.slice(-10)
+24630:       };
+24631:     },
+24632:     /* Exposed for deterministic regression tests and migration diagnostics. */
+24633:     _testSetRevision:function(item,rev,updatedAt){_setSyncMeta(item,rev,updatedAt);},
+24634:     _testRecoverOutbox:function(){return typeof _recoverOutbox==='function'?_recoverOutbox():null;}
+24635:   };
+24636: 
+24637:   console.info('[RETRADE] '+VERSION+' loaded — server revision guard required');
+24638: })();
+24639: 
+24640: 
+24641: console.info('[RETRADE] v1.4.2 Sale-N history repair loaded');
+24642: console.info('[RETRADE] v1.4.3 persistence serialization + immediate write-ahead durability loaded');
+24643: 
+24644: 
+24645: /* ========================================================================
+24646:  * RETRADE-UK v1.4.5 — SYNC RECOVERY + SCHEMA HARDENING + COMPACT INTEGRITY
+24647:  * 2026-09-01
+24648:  *
+24649:  * Repairs the live failure exposed by Diagnostics:
+24650:  *  - missing launch columns were keeping the durable outbox permanently dirty;
+24651:  *  - an unbounded Supabase request could leave the UI in "Syncing" forever;
+24652:  *  - a revision conflict could remain queued forever and block cloud pulls;
+24653:  *  - revision-aware boot recovery discarded a stale local save instead of
+24654:  *    preserving/rebasing it;
+24655:  *  - Data Integrity rendered every finding into the application page.
+24656:  *
+24657:  * No accounting formula is changed by this block.
+24658:  * ======================================================================== */
+24659: (function(){
+24660:   'use strict';
+24661:   var VERSION='1.4.5-2026-09-01';
+24662:   var REQUEST_TIMEOUT_MS=12000;
+24663:   var AUTH_TIMEOUT_MS=9000;
+24664: 
+24665:   function _v145DelayReject(ms,message,onTimeout){
+24666:     return new Promise(function(_,reject){
+24667:       var t=setTimeout(function(){try{if(onTimeout)onTimeout();}catch(e){} reject(new Error(message));},ms);
+24668:       // expose timer only to the local closure; Promise.race loser is harmless
+24669:       try{Object.defineProperty(_, '_retradeTimer',{value:t});}catch(e){}
+24670:     });
+24671:   }
+24672:   async function _v145Timed(promise,ms,message,onTimeout){
+24673:     var timer=null;
+24674:     try{
+24675:       return await Promise.race([
+24676:         Promise.resolve(promise),
+24677:         new Promise(function(_,reject){timer=setTimeout(function(){try{if(onTimeout)onTimeout();}catch(e){} reject(new Error(message));},ms);})
+24678:       ]);
+24679:     }finally{if(timer)clearTimeout(timer);}
+24680:   }
+24681: 
+24682:   // Bounded + abortable PostgREST calls. A dead request can no longer keep the
+24683:   // serialized persistence writer and global Syncing state alive indefinitely.
+24684:   if(typeof _sbCall==='function'){
+24685:     _sbCall=async function(fn){
+24686:       var ok;
+24687:       try{ok=await _v145Timed(_ensureSession(),AUTH_TIMEOUT_MS,'Authentication check timed out.');}
+24688:       catch(e){return {error:e};}
+24689:       if(!ok)return {error:new Error('Not authenticated')};
+24690: 
+24691:       async function runOnce(){
+24692:         var ctl=(typeof AbortController!=='undefined')?new AbortController():null;
+24693:         try{
+24694:           var q=fn();
+24695:           if(ctl&&q&&typeof q.abortSignal==='function')q=q.abortSignal(ctl.signal);
+24696:           return await _v145Timed(q,REQUEST_TIMEOUT_MS,'Supabase request timed out after 12 seconds.',function(){if(ctl)ctl.abort();});
+24697:         }catch(e){return {error:e};}
+24698:       }
+24699: 
+24700:       var result=await runOnce();
+24701:       if(result&&result.error&&(result.error.status===401||String(result.error.message||'').indexOf('JWT')>=0)){
+24702:         try{
+24703:           var refreshed=await _v145Timed(_sb.auth.refreshSession(),AUTH_TIMEOUT_MS,'Session refresh timed out.');
+24704:           if(refreshed&&refreshed.error)return result;
+24705:           if(!refreshed||!refreshed.data||!refreshed.data.session)return result;
+24706:           result=await runOnce();
+24707:         }catch(e){return {error:e};}
+24708:       }
+24709:       return result;
+24710:     };
+24711:   }
+24712: 
+24713:   function _v145FindCloudItem(id){
+24714:     try{
+24715:       var keys=allDBKeys();
+24716:       for(var a=0;a<keys.length;a++){
+24717:         var arr=DB[keys[a]]||[];
+24718:         for(var b=0;b<arr.length;b++)if(arr[b]&&arr[b].id===id)return {month:keys[a],item:arr[b]};
+24719:       }
+24720:     }catch(e){}
+24721:     return null;
+24722:   }
+24723:   function _v145ParseItemFp(fp){
+24724:     if(!fp)return null;
+24725:     try{var p=fp.lastIndexOf('|');return {item:JSON.parse(fp.slice(0,p)),month:fp.slice(p+1)};}catch(e){return null;}
+24726:   }
+24727:   function _v145Eq(a,b){try{return JSON.stringify(a)===JSON.stringify(b);}catch(e){return a===b;}}
+24728:   function _v145ThreeWay(base,local,remote){
+24729:     if(!base)return Object.assign({},remote||{},local||{}); // pending local write wins when no base survived
+24730:     var merged={};
+24731:     var keys=new Set(Object.keys(remote||{}).concat(Object.keys(base||{}),Object.keys(local||{})));
+24732:     keys.forEach(function(k){
+24733:       if(k==='_cloudUpdatedAt'||k==='_cloudRevision')return;
+24734:       var bv=base?base[k]:undefined, lv=local?local[k]:undefined, rv=remote?remote[k]:undefined;
+24735:       merged[k]=_v145Eq(lv,bv)?rv:lv;
+24736:     });
+24737:     if(local&&local.id!=null)merged.id=local.id;
+24738:     return merged;
+24739:   }
+24740:   async function _v145FetchOneItem(id){
+24741:     var rr=await _sbCall(function(){return _sb.from('items').select('*').eq('id',id).eq('user_id',_currentUserId).limit(1);});
+24742:     if(rr&&rr.error)throw new Error('Conflict refresh failed: '+rr.error.message);
+24743:     var row=(rr&&rr.data&&rr.data[0])||null;
+24744:     if(!row)return null;
+24745:     var pr=await _sbCall(function(){return _sb.from('item_parts').select('*').eq('item_id',id).eq('user_id',_currentUserId);});
+24746:     if(pr&&pr.error)throw new Error('Conflict parts refresh failed: '+pr.error.message);
+24747:     var hr=await _sbCall(function(){return _sb.from('item_returns').select('*').eq('item_id',id).eq('user_id',_currentUserId).order('logged_at',{ascending:true});});
+24748:     if(hr&&hr.error)throw new Error('Conflict return-history refresh failed: '+hr.error.message);
+24749:     return _rowToItem(row,(pr&&pr.data)||[],(hr&&hr.data)||[]);
+24750:   }
+24751: 
+24752:   // Runtime CAS conflict recovery. Untouched fields take the newer server value;
+24753:   // fields actually edited on this device keep the local value, then the merged
+24754:   // item is retried against the latest server revision exactly once.
+24755:   if(typeof saveItemToSupabase==='function'){
+24756:     var _v145BaseSaveItem=saveItemToSupabase;
+24757:     saveItemToSupabase=async function(m,i){
+24758:       try{return await _v145BaseSaveItem(m,i);}
+24759:       catch(e){
+24760:         if(!e||e.code!=='RETRADE_REVISION_CONFLICT')throw e;
+24761:         var remote=await _v145FetchOneItem(i.id);
+24762:         if(!remote)throw e; // server deletion wins; never resurrect here
+24763:         var key='item:'+i.id;
+24764:         var baseFp=_dbSnapshot&&_dbSnapshot[key];
+24765:         var parsed=_v145ParseItemFp(baseFp);
+24766:         var merged=_v145ThreeWay(parsed&&parsed.item,i,remote);
+24767:         merged.month=m||merged.month||remote.month;
+24768:         try{
+24769:           if(window.RETRADE_V14_REVISION&&typeof window.RETRADE_V14_REVISION._testSetRevision==='function'){
+24770:             window.RETRADE_V14_REVISION._testSetRevision(merged,window.RETRADE_V14_REVISION.revisionFor(i.id),remote._cloudUpdatedAt||null);
+24771:           }
+24772:         }catch(_e){}
+24773:         await _v145BaseSaveItem(m,merged);
+24774: 
+24775:         // If no newer local edit landed during the retry, mirror the merge into
+24776:         // the live object and into this pass's captured fingerprint so the writer
+24777:         // records what the server actually confirmed rather than re-queuing it.
+24778:         try{
+24779:           var rec=(typeof _findItemRecordById==='function')?_findItemRecordById(i.id):null;
+24780:           if(rec&&rec.item&&_v145Eq(rec.item,i)){
+24781:             Object.keys(rec.item).forEach(function(k){delete rec.item[k];});
+24782:             Object.assign(rec.item,merged);
+24783:             if(window.RETRADE_V14_REVISION&&typeof window.RETRADE_V14_REVISION._testSetRevision==='function'){
+24784:               window.RETRADE_V14_REVISION._testSetRevision(rec.item,window.RETRADE_V14_REVISION.revisionFor(i.id),merged._cloudUpdatedAt||remote._cloudUpdatedAt||null);
+24785:             }
+24786:           }
+24787:           if(_persistActiveCurrent)_persistActiveCurrent[key]=JSON.stringify(merged)+'|'+m;
+24788:         }catch(_e2){}
+24789:         console.info('[RETRADE] revision conflict auto-reconciled for',i.id);
+24790:       }
+24791:     };
+24792:   }
+24793: 
+24794:   // A stale delete is deliberately conservative: do NOT delete a newer cloud
+24795:   // item. Drop the local delete intent, restore from cloud on the next pull and
+24796:   // let the user decide again with the current version visible.
+24797:   if(typeof deleteItemFromSupabase==='function'){
+24798:     var _v145BaseDeleteItem=deleteItemFromSupabase;
+24799:     deleteItemFromSupabase=async function(id){
+24800:       try{return await _v145BaseDeleteItem(id);}
+24801:       catch(e){
+24802:         if(!e||e.code!=='RETRADE_REVISION_CONFLICT')throw e;
+24803:         try{var ob=_outboxRead();delete ob['item:'+id];_outboxSave(ob);}catch(_e){}
+24804:         setTimeout(function(){try{_refreshCloudOnResume(true);}catch(_e2){}},250);
+24805:         try{toast('Delete cancelled — this item changed on another device. Latest cloud version restored.','err');}catch(_e3){}
+24806:         return;
+24807:       }
+24808:     };
+24809:   }
+24810: 
+24811:   // Boot recovery policy: NEVER silently throw away a pending local item SAVE
+24812:   // just because another device advanced its revision. Rebase that pending save
+24813:   // onto the current cloud revision and let normal persistence reconcile it.
+24814:   // Stale deletes remain cloud-wins because resurrection is safer than deleting
+24815:   // an item somebody edited on another device.
+24816:   if(typeof _recoverOutbox==='function'){
+24817:     _recoverOutbox=function(){
+24818:       var applied=0,pruned=false;
+24819:       try{
+24820:         var ob=_outboxRead()||{};
+24821:         Object.keys(ob).forEach(function(k){
+24822:           var e=ob[k];if(!e)return;
+24823:           try{
+24824:             if(e.op==='save'){
+24825:               var obj=JSON.parse(e.json);
+24826:               if(e.type==='item'){
+24827:                 var cloud=_v145FindCloudItem(obj.id);
+24828:                 var cloudRev=cloud&&window.RETRADE_V14_REVISION?window.RETRADE_V14_REVISION.revisionFor(obj.id):0;
+24829:                 if(!cloud&&Number(e.baseRevision)>0){delete ob[k];pruned=true;return;} // remote delete wins
+24830:                 if(cloud&&window.RETRADE_V14_REVISION&&typeof window.RETRADE_V14_REVISION._testSetRevision==='function'){
+24831:                   window.RETRADE_V14_REVISION._testSetRevision(obj,cloudRev,cloud.item._cloudUpdatedAt||null);
+24832:                   e.baseRevision=cloudRev;e.serverUpdatedAt=cloud.item._cloudUpdatedAt||e.serverUpdatedAt||null;ob[k]=e;
+24833:                 }
+24834:                 allDBKeys().forEach(function(mm){if(DB[mm])DB[mm]=DB[mm].filter(function(x){return x.id!==obj.id;});});
+24835:                 var month=e.month||obj.month||currentMonthKey();if(!DB[month])DB[month]=[];DB[month].push(obj);applied++;
+24836:               }else if(e.type==='trip'){DB.trips=DB.trips||[];var ti=DB.trips.findIndex(function(x){return x.id===obj.id;});if(ti>=0)DB.trips[ti]=obj;else DB.trips.push(obj);applied++;}
+24837:               else if(e.type==='exp'){DB.expenses=DB.expenses||[];var ei=DB.expenses.findIndex(function(x){return x.id===obj.id;});if(ei>=0)DB.expenses[ei]=obj;else DB.expenses.push(obj);applied++;}
+24838:               else if(e.type==='cash'){DB.cashLedger=DB.cashLedger||[];var ci=DB.cashLedger.findIndex(function(x){return x.id===obj.id;});if(ci>=0)DB.cashLedger[ci]=obj;else DB.cashLedger.push(obj);applied++;}
+24839:               else if(e.type==='run'){var ri=_sourcingRuns.findIndex(function(x){return x.id===obj.id;});if(ri>=0)_sourcingRuns[ri]=obj;else _sourcingRuns.push(obj);applied++;}
+24840:               else if(e.type==='acct'){var ai=_accounts.findIndex(function(x){return x.id===obj.id;});if(ai>=0)_accounts[ai]=obj;else _accounts.push(obj);applied++;}
+24841:               else if(e.type==='log'){DB.activityLog=DB.activityLog||[];var li=DB.activityLog.findIndex(function(x){return x.id===obj.id;});if(li>=0)DB.activityLog[li]=obj;else DB.activityLog.push(obj);applied++;}
+24842:               else if(e.type==='jlot'){var ji=_jobLots.findIndex(function(x){return x.id===obj.id;});if(ji>=0)_jobLots[ji]=obj;else _jobLots.push(obj);applied++;}
+24843:               else if(e.type==='jmem'){var mi=_jobLotItems.findIndex(function(x){return x.id===obj.id;});if(mi>=0)_jobLotItems[mi]=obj;else _jobLotItems.push(obj);applied++;}
+24844:               else if(e.type==='recon'){var qi=_saleReconciliations.findIndex(function(x){return x.id===obj.id;});if(qi>=0)_saleReconciliations[qi]=obj;else _saleReconciliations.push(obj);applied++;}
+24845:             }else if(e.op==='delete'){
+24846:               var id=e.id;
+24847:               if(e.type==='item'){
+24848:                 var cloudNow=_v145FindCloudItem(id);
+24849:                 var currentRev=cloudNow&&window.RETRADE_V14_REVISION?window.RETRADE_V14_REVISION.revisionFor(id):0;
+24850:                 if(cloudNow&&e.baseRevision!=null&&Number(e.baseRevision)!==Number(currentRev)){delete ob[k];pruned=true;return;}
+24851:                 allDBKeys().forEach(function(mm){if(DB[mm])DB[mm]=DB[mm].filter(function(x){return x.id!==id;});});applied++;
+24852:               }else if(e.type==='trip'){DB.trips=(DB.trips||[]).filter(function(x){return x.id!==id;});applied++;}
+24853:               else if(e.type==='exp'){DB.expenses=(DB.expenses||[]).filter(function(x){return x.id!==id;});applied++;}
+24854:               else if(e.type==='cash'){DB.cashLedger=(DB.cashLedger||[]).filter(function(x){return x.id!==id;});applied++;}
+24855:               else if(e.type==='run'){_sourcingRuns=_sourcingRuns.filter(function(x){return x.id!==id;});applied++;}
+24856:               else if(e.type==='acct'){_accounts=_accounts.filter(function(x){return x.id!==id;});applied++;}
+24857:               else if(e.type==='log'){DB.activityLog=(DB.activityLog||[]).filter(function(x){return x.id!==id;});applied++;}
+24858:               else if(e.type==='jlot'){_jobLots=_jobLots.filter(function(x){return x.id!==id;});applied++;}
+24859:               else if(e.type==='jmem'){_jobLotItems=_jobLotItems.filter(function(x){return x.id!==id;});applied++;}
+24860:               else if(e.type==='recon'){_saleReconciliations=_saleReconciliations.filter(function(x){return x.id!==id;});applied++;}
+24861:             }
+24862:           }catch(inner){console.warn('[RETRADE] outbox recovery entry failed',k,inner&&inner.message);}
+24863:         });
+24864:         if(pruned)_outboxSave(ob);
+24865:       }catch(e){console.warn('[RETRADE] outbox recovery failed',e&&e.message);}
+24866:       return applied;
+24867:     };
+24868:   }
+24869: 
+24870:   // Legacy Sale-N repair v2: when immutable sold snapshots are incomplete, a
+24871:   // strictly ordered full-return -> relist -> next full-return chain is strong
+24872:   // enough evidence to number cycles chronologically. This fixes records such
+24873:   // as Sale 1 return / Sale 2 sold / second return incorrectly tagged Sale 1.
+24874:   if(typeof _repairSaleNoSequenceForItem==='function'){
+24875:     var _v145OldRepair=_repairSaleNoSequenceForItem;
+24876:     _repairSaleNoSequenceForItem=function(it){
+24877:       var touched=_v145OldRepair(it)||0;
+24878:       if(!it||!Array.isArray(it.returnHistory))return touched;
+24879:       var fulls=it.returnHistory.map(function(r,idx){return {r:r,idx:idx};}).filter(function(x){return x.r&&(x.r.type==='full_seller'||x.r.type==='full_ebay');});
+24880:       if(fulls.length<2)return touched;
+24881:       var nums=fulls.map(function(x){return Number(x.r.saleNo)||0;});
+24882:       if((new Set(nums)).size===fulls.length&&Math.min.apply(null,nums)>=1)return touched;
+24883:       var ordered=fulls.slice().sort(function(a,b){return String(a.r.loggedAt||'').localeCompare(String(b.r.loggedAt||''))||a.idx-b.idx;});
+24884:       var strong=true;
+24885:       for(var n=0;n<ordered.length-1;n++){
+24886:         var a=ordered[n].r,b=ordered[n+1].r;
+24887:         var ad=a.loggedAt?String(a.loggedAt).slice(0,10):'', bd=b.loggedAt?String(b.loggedAt).slice(0,10):'';
+24888:         var rel=a._relistedAt?String(a._relistedAt).slice(0,10):'';
+24889:         if(!ad||!bd||!(ad<bd)||!rel||!(rel>=ad&&rel<=bd)){strong=false;break;}
+24890:       }
+24891:       if(!strong)return touched;
+24892:       ordered.forEach(function(x,pos){var target=pos+1;if((Number(x.r.saleNo)||0)!==target){x.r.saleNo=target;touched++;}});
+24893:       try{if(touched&&typeof calcGrossProfit==='function')it.grossProfit=calcGrossProfit(it);}catch(e){}
+24894:       return touched;
+24895:     };
+24896:   }
+24897: 
+24898:   // Compact Data Integrity UI. Keep only the highest-priority sample in-app;
+24899:   // detailed review belongs in a downloadable table, not a 20-screen page.
+24900:   function _v145CsvCell(v){v=String(v==null?'':v).replace(/<[^>]*>/g,' ').replace(/\s+/g,' ').trim();return '"'+v.replace(/"/g,'""')+'"';}
+24901:   window.downloadIntegrityReport=function(){
+24902:     var scan=_runIntegrityScanner();var rows=scan.findings||[];
+24903:     var head=['Severity','Item','Item ID','Month / Area','Code','Issue','Details','Kind'];
+24904:     var lines=[head.map(_v145CsvCell).join(',')];
+24905:     rows.forEach(function(f){lines.push([f.severity,f.name,f.id,f.m,f.code,f.label,f.desc,f.kind].map(_v145CsvCell).join(','));});
+24906:     var summary=['SUMMARY','Clean items: '+scan.clean,'Findings: '+rows.length,'Errors: '+rows.filter(function(f){return f.severity==='error';}).length,'Warnings: '+rows.filter(function(f){return f.severity==='warning';}).length];
+24907:     lines.unshift(summary.map(_v145CsvCell).join(','));
+24908:     var blob=new Blob(['\ufeff'+lines.join('\r\n')],{type:'text/csv;charset=utf-8'});
+24909:     var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='RETRADE-Data-Integrity-'+new Date().toISOString().slice(0,10)+'.csv';document.body.appendChild(a);a.click();setTimeout(function(){URL.revokeObjectURL(a.href);a.remove();},0);
+24910:   };
+24911:   if(typeof runIntegrityCheck==='function'){
+24912:     runIntegrityCheck=function(){
+24913:       var out=document.getElementById('integrity-check-out');if(!out)return;
+24914:       var scan=_runIntegrityScanner(),findings=scan.findings||[],clean=scan.clean||0;
+24915:       var errors=findings.filter(function(f){return f.severity==='error';}),warnings=findings.filter(function(f){return f.severity==='warning';});
+24916:       var html='<div style="background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:14px 16px;">';
+24917:       html+='<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">';
+24918:       html+='<span style="font-size:12px;font-weight:800;color:'+(errors.length?'var(--red)':'var(--green)')+'">'+errors.length+' errors</span>';
+24919:       html+='<span style="font-size:12px;font-weight:800;color:var(--accent)">'+warnings.length+' warnings</span>';
+24920:       html+='<span style="font-size:12px;color:var(--text-secondary)">'+clean+' clean</span></div>';
+24921:       if(!findings.length){html+='<div style="margin-top:10px;font-size:13px;color:var(--green);font-weight:700">✓ All clear</div>';}
+24922:       else{
+24923:         html+='<div style="margin-top:9px;font-size:12px;color:var(--text-secondary);line-height:1.5">Showing the most important '+Math.min(5,findings.length)+' finding'+(Math.min(5,findings.length)===1?'':'s')+' here. Download the full report for detailed review without filling the app page.</div>';
+24924:         findings.slice().sort(function(a,b){return (a.severity==='error'?0:1)-(b.severity==='error'?0:1);}).slice(0,5).forEach(function(f){
+24925:           html+='<div style="margin-top:8px;padding:9px 10px;border-radius:8px;background:var(--surface);border:1px solid var(--border);display:flex;justify-content:space-between;gap:10px;align-items:flex-start">';
+24926:           html+='<div><div style="font-size:12px;font-weight:700;color:'+(f.severity==='error'?'var(--red)':'var(--accent)')+'">'+esc(f.label)+'</div><div style="font-size:11px;color:var(--text-secondary);margin-top:2px">'+esc(f.name||'RETRADE')+'</div></div>';
+24927:           if(f.m&&f.m!=='__run__')html+='<button class="btn btn-secondary" style="padding:4px 8px;font-size:10px" onclick="openItemPage(\''+f.m+'\',\''+f.id+'\',\'p-data\')">View</button>';
+24928:           html+='</div>';
+24929:         });
+24930:       }
+24931:       html+='<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px"><button class="btn btn-primary" style="font-size:12px" onclick="downloadIntegrityReport()">Download Excel-compatible report</button><button class="btn btn-secondary" style="font-size:12px" onclick="runIntegrityCheck()">↻ Re-run</button></div>';
+24932:       html+='</div>';out.innerHTML=html;
+24933:     };
+24934:   }
+24935: 
+24936:   // Floating sync status: fixed overlay, never participates in nav layout.
+24937:   var _v145PillShowTimer=null,_v145PillHideTimer=null;
+24938:   function _v145Pill(state){
+24939:     var el=document.getElementById('sync-indicator');if(!el)return;
+24940:     clearTimeout(_v145PillHideTimer);
+24941:     el.className='sync-float '+state;
+24942:     var iconHtml='';var text='';
+24943:     if(state==='syncing'){iconHtml='<span class="sync-float-spinner"></span>';text='Syncing';}
+24944:     else if(state==='success'){iconHtml='<span class="sync-float-check">✓</span>';text='Synced';}
+24945:     else if(state==='error'){iconHtml='<span class="sync-float-warn">!</span>';text='Sync issue';}
+24946:     else{iconHtml='<span class="sync-float-spinner"></span>';text='Pending';}
+24947:     el.innerHTML=iconHtml+'<span id="sync-label">'+text+'</span>';
+24948:     el.style.display='flex';
+24949:     el.onclick=(state==='error'||state==='pending')?function(){try{retradeForceResync();}catch(e){}}:null;
+24950:     el.title=state==='error'?(_lastSyncError||'Cloud sync needs attention'):(state==='pending'?'Changes are safe on this device and waiting for cloud confirmation':text);
+24951:   }
+24952:   _setSyncing=function(val){
+24953:     _syncing=!!val;
+24954:     clearTimeout(_v145PillShowTimer);
+24955:     if(val){
+24956:       clearTimeout(_v145PillHideTimer);
+24957:       _v145PillShowTimer=setTimeout(function(){if(_syncing)_v145Pill('syncing');},450);
+24958:     }else{
+24959:       var pending=0;try{pending=_outboxPendingCount();}catch(e){}
+24960:       if(_lastSyncError)_v145Pill('error');
+24961:       else if(pending>0)_v145Pill('pending');
+24962:       else{_v145Pill('success');_v145PillHideTimer=setTimeout(function(){var el=document.getElementById('sync-indicator');if(el&&!_syncing)el.style.display='none';},1500);}
+24963:     }
+24964:     try{if(typeof _refreshSideNavSync==='function')_refreshSideNavSync(val?'saving':(_lastSyncError?'error':((typeof _outboxPendingCount==='function'&&_outboxPendingCount()>0)?'pending':'synced')));}catch(e){}
+24965:     if(!val){var cbs=_syncResolvers.splice(0);cbs.forEach(function(fn){try{fn();}catch(e){}});}
+24966:   };
+
+===== LINES 25039-25832 =====
+25039:       var keys=new Set(Object.keys(base).concat(Object.keys(local),Object.keys(remote)));
+25040:       keys.forEach(function(k){
+25041:         var hb=Object.prototype.hasOwnProperty.call(base,k),hl=Object.prototype.hasOwnProperty.call(local,k),hr=Object.prototype.hasOwnProperty.call(remote,k);
+25042:         if(hb&&!hl){
+25043:           if(hr&&!_v148Eq(remote[k],base[k]))outObj[k]=_v148Clone(remote[k]);
+25044:           return;
+25045:         }
+25046:         if(!hb&&hl&&!hr){outObj[k]=_v148Clone(local[k]);return;}
+25047:         if(!hb&&!hl&&hr){outObj[k]=_v148Clone(remote[k]);return;}
+25048:         if(!hb&&hl&&hr){outObj[k]=_v148ThreeWay({},local[k],remote[k]);return;}
+25049:         if(hl&&hr){outObj[k]=_v148ThreeWay(base[k],local[k],remote[k]);return;}
+25050:         if(hl)outObj[k]=_v148Clone(local[k]);
+25051:         else if(hr)outObj[k]=_v148Clone(remote[k]);
+25052:       });
+25053:       return outObj;
+25054:     }
+25055:     // Same scalar/opaque value changed on both sides: this device's explicit
+25056:     // edit wins, but only after the remote snapshot has first been loaded.
+25057:     return _v148Clone(local);
+25058:   }
+25059: 
+25060:   function _v148CurrentEntity(type,id){
+25061:     var arr=null;
+25062:     try{
+25063:       if(type==='trip')arr=DB.trips||[];
+25064:       else if(type==='exp')arr=DB.expenses||[];
+25065:       else if(type==='cash')arr=DB.cashLedger||[];
+25066:       else if(type==='log')arr=DB.activityLog||[];
+25067:       else if(type==='run')arr=_sourcingRuns||[];
+25068:       else if(type==='acct')arr=_accounts||[];
+25069:       else if(type==='jlot')arr=_jobLots||[];
+25070:       else if(type==='jmem')arr=_jobLotItems||[];
+25071:       else if(type==='recon')arr=_saleReconciliations||[];
+25072:       if(arr)return arr.find(function(x){return x&&String(x.id)===String(id);})||null;
+25073:     }catch(e){}
+25074:     return null;
+25075:   }
+25076: 
+25077:   // New non-item outbox entries remember exactly which cloud object the user
+25078:   // edited from. This is the missing ingredient for safe offline/device merge.
+25079:   if(typeof _outboxEntry==='function'){
+25080:     var _v148BaseOutboxEntry=_outboxEntry;
+25081:     _outboxEntry=function(key,fp){
+25082:       var e=_v148BaseOutboxEntry.apply(this,arguments);
+25083:       try{
+25084:         if(e&&e.type!=='item'){
+25085:           var base=_dbSnapshot&&_dbSnapshot[key];
+25086:           if(base!==undefined)e.baseJson=base;
+25087:         }
+25088:       }catch(_e){}
+25089:       return e;
+25090:     };
+25091:   }
+25092:   if(typeof _outboxDeleteEntry==='function'){
+25093:     var _v148BaseOutboxDelete=_outboxDeleteEntry;
+25094:     _outboxDeleteEntry=function(key){
+25095:       var e=_v148BaseOutboxDelete.apply(this,arguments);
+25096:       try{
+25097:         if(e&&e.type!=='item'){
+25098:           var base=_dbSnapshot&&_dbSnapshot[key];
+25099:           if(base!==undefined)e.baseJson=base;
+25100:         }
+25101:       }catch(_e){}
+25102:       return e;
+25103:     };
+25104:   }
+25105: 
+25106:   // Before normal recovery applies a non-item pending save over the freshly
+25107:   // loaded cloud state, merge it against the cloud object using its saved base.
+25108:   // Stale deletes become cloud-wins when the row was edited elsewhere.
+25109:   if(typeof _recoverOutbox==='function'){
+25110:     var _v148BaseRecover=_recoverOutbox;
+25111:     _recoverOutbox=function(){
+25112:       try{
+25113:         var ob=_outboxRead()||{},changed=false;
+25114:         Object.keys(ob).forEach(function(k){
+25115:           var e=ob[k];if(!e||e.type==='item')return;
+25116:           var id=e.id;
+25117:           if(e.op==='save'){
+25118:             var local=null;try{local=JSON.parse(e.json);}catch(_e){return;}
+25119:             id=local&&local.id;
+25120:             if(id==null||!e.baseJson)return;
+25121:             var remote=_v148CurrentEntity(e.type,id);
+25122:             if(!remote)return;
+25123:             var base=null;try{base=JSON.parse(e.baseJson);}catch(_e2){return;}
+25124:             var merged=_v148ThreeWay(base,local,remote);
+25125:             e.json=JSON.stringify(merged);
+25126:             e.baseJson=JSON.stringify(remote);
+25127:             ob[k]=e;changed=true;
+25128:           }else if(e.op==='delete'&&id!=null&&e.baseJson){
+25129:             var cloud=_v148CurrentEntity(e.type,id);
+25130:             if(!cloud)return;
+25131:             var baseDel=null;try{baseDel=JSON.parse(e.baseJson);}catch(_e3){return;}
+25132:             if(!_v148Eq(cloud,baseDel)){
+25133:               // Destructive intent from a stale device is never replayed over a
+25134:               // newer cloud edit. The latest cloud row is already in memory.
+25135:               delete ob[k];changed=true;
+25136:               console.warn('[RETRADE] stale '+e.type+' delete cancelled; cloud row changed on another device:',id);
+25137:             }
+25138:           }
+25139:         });
+25140:         if(changed)_outboxSave(ob);
+25141:       }catch(e){console.warn('[RETRADE] v1.4.8 outbox merge preflight skipped:',e&&e.message);}
+25142:       return _v148BaseRecover.apply(this,arguments);
+25143:     };
+25144:   }
+25145: 
+25146:   async function _v148ClockRaw(){
+25147:     if(!_currentUserId)return null;
+25148:     try{
+25149:       var uid=_currentUserId;
+25150:       var rr=await _sbCall(function(){return _sb.from('retrade_sync_clock').select('revision,updated_at').eq('user_id',uid).maybeSingle();});
+25151:       if(rr&&rr.error){
+25152:         var msg=String(rr.error.message||rr.error);
+25153:         if(/retrade_sync_clock|does not exist|schema cache|PGRST205|42P01/i.test(msg)){_syncClockAvailable=false;return null;}
+25154:         throw rr.error;
+25155:       }
+25156:       _syncClockAvailable=true;
+25157:       return Math.max(0,Number(rr&&rr.data&&rr.data.revision)||0);
+25158:     }catch(e){throw new Error('Sync-clock preflight failed: '+(e&&e.message?e.message:String(e)));}
+25159:   }
+25160: 
+25161:   // Never mark an unseen server revision as "already applied". The old prime
+25162:   // path could read rev N before the Realtime subscription existed and then
+25163:   // permanently miss the business changes represented by N.
+25164:   _readSyncClockRevision=async function(){
+25165:     if(!_currentUserId||_syncClockPollBusy)return null;
+25166:     _syncClockPollBusy=true;
+25167:     try{
+25168:       var rev=await _v148ClockRaw();
+25169:       if(rev!=null&&rev>_syncClockAppliedRevision)_queueSyncClockRefresh(rev,'poll');
+25170:       return rev;
+25171:     }catch(e){console.warn('[RETRADE] sync-clock poll failed:',e&&e.message);return null;}
+25172:     finally{_syncClockPollBusy=false;}
+25173:   };
+25174: 
+25175:   // Subscribe first, then read the clock. A revision that landed during startup
+25176:   // is therefore either observed by Realtime, the post-subscribe read, or both.
+25177:   _startRealtimeSync=async function(){
+25178:     if(_previewMode||!_currentUserId||typeof _sb.channel!=='function')return false;
+25179:     var uid=_currentUserId;
+25180:     if(_realtimeSyncChannel&&_realtimeSyncUid===uid)return true;
+25181:     _stopRealtimeSync();
+25182:     _realtimeSyncUid=uid;
+25183:     var readyResolve=null,ready=new Promise(function(resolve){readyResolve=resolve;});
+25184:     try{
+25185:       _realtimeSyncChannel=_sb.channel('retrade-sync-'+uid)
+25186:         .on('postgres_changes',{event:'*',schema:'public',table:'retrade_sync_clock',filter:'user_id=eq.'+uid},function(payload){
+25187:           var rev=_syncClockSignalRevision(payload);
+25188:           if(rev>_syncClockAppliedRevision)_queueSyncClockRefresh(rev,'realtime');
+25189:         })
+25190:         .subscribe(function(status){
+25191:           _realtimeSyncConnected=status==='SUBSCRIBED';
+25192:           if(status==='SUBSCRIBED'){
+25193:             console.info('[RETRADE] realtime cross-device sync connected');
+25194:             if(readyResolve){readyResolve(true);readyResolve=null;}
+25195:           }else if(status==='CHANNEL_ERROR'||status==='TIMED_OUT'||status==='CLOSED'){
+25196:             console.warn('[RETRADE] realtime sync unavailable; poll fallback active:',status);
+25197:             if(readyResolve){readyResolve(false);readyResolve=null;}
+25198:           }
+25199:         });
+25200:     }catch(e){
+25201:       _realtimeSyncConnected=false;
+25202:       if(readyResolve){readyResolve(false);readyResolve=null;}
+25203:       console.warn('[RETRADE] realtime sync start failed; poll fallback active:',e&&e.message);
+25204:     }
+25205:     await Promise.race([ready,_v148Delay(2500)]);
+25206:     if(_currentUserId!==uid)return false;
+25207:     await _readSyncClockRevision(false);
+25208:     if(_syncClockPollTimer){clearInterval(_syncClockPollTimer);_syncClockPollTimer=null;}
+25209:     _syncClockPollTimer=setInterval(function(){
+25210:       if(document.visibilityState==='visible'&&_currentUserId===uid)_readSyncClockRevision(false);
+25211:     },5000);
+25212:     return true;
+25213:   };
+25214: 
+25215:   var _v148RebaseBusy=false;
+25216:   async function _v148RebasePendingIfNeeded(){
+25217:     if(_v148RebaseBusy||!_currentUserId||typeof _outboxPendingCount!=='function'||_outboxPendingCount()<=0)return true;
+25218:     _v148RebaseBusy=true;
+25219:     var oldSuppress=(typeof _suppressActivityCapture!=='undefined')?_suppressActivityCapture:false;
+25220:     try{
+25221:       if(typeof _suppressActivityCapture!=='undefined')_suppressActivityCapture=true;
+25222:       var remoteRev=null;
+25223:       try{remoteRev=await _v148ClockRaw();}
+25224:       catch(e){
+25225:         _lastSyncError=e.message;
+25226:         return false; // safest failure mode: keep local outbox; do not blind-write
+25227:       }
+25228:       var needFull=(_syncClockAvailable===false)||remoteRev==null||_syncClockAppliedRevision===0||remoteRev>_syncClockAppliedRevision;
+25229:       if(!needFull)return true;
+25230: 
+25231:       // Pull latest server baseline first, then replay/merge durable local intent.
+25232:       // This reverses the old "upload local before pull" ordering that allowed a
+25233:       // stale non-item object to clobber a newer row from another device.
+25234:       await loadFromSupabase();
+25235:       _dbSnapshot=_dbFingerprint();
+25236:       var recovered=_recoverOutbox();
+25237:       try{_initActivityShadow();}catch(_e){}
+25238:       if(remoteRev!=null){
+25239:         _syncClockAppliedRevision=Math.max(_syncClockAppliedRevision,remoteRev);
+25240:         _syncClockTargetRevision=Math.max(_syncClockTargetRevision,remoteRev);
+25241:       }
+25242:       if(recovered>0)console.info('[RETRADE] rebased '+recovered+' pending local change(s) on latest cloud state');
+25243:       try{refreshActivePage();}catch(_e2){}
+25244:       return true;
+25245:     }catch(e){
+25246:       _lastSyncError='Cross-device rebase pending: '+(e&&e.message?e.message:String(e));
+25247:       console.warn('[RETRADE] '+_lastSyncError);
+25248:       return false;
+25249:     }finally{
+25250:       if(typeof _suppressActivityCapture!=='undefined'){
+25251:         try{_initActivityShadow();}catch(_e3){}
+25252:         _suppressActivityCapture=oldSuppress;
+25253:       }
+25254:       _v148RebaseBusy=false;
+25255:     }
+25256:   }
+25257: 
+25258:   // Every cloud writer with a durable outbox now performs the remote-change
+25259:   // preflight before capturing/sending its batch. The remaining race window is
+25260:   // only the milliseconds between this check and the individual non-item write;
+25261:   // item writes remain fully atomic through their server revision CAS.
+25262:   if(typeof _persistChangesPass==='function'){
+25263:     var _v148BasePersistPass=_persistChangesPass;
+25264:     _persistChangesPass=async function(){
+25265:       if(typeof _outboxPendingCount==='function'&&_outboxPendingCount()>0){
+25266:         var ok=await _v148RebasePendingIfNeeded();
+25267:         if(!ok){
+25268:           setTimeout(function(){try{if(_currentUserId&&_outboxPendingCount()>0)_persistChanges();}catch(e){}},2500);
+25269:           return {failed:_outboxPendingCount()};
+25270:         }
+25271:       }
+25272:       return _v148BasePersistPass.apply(this,arguments);
+25273:     };
+25274:   }
+25275: 
+25276:   // -------------------- Durable + CAS-protected user settings ----------------
+25277:   var SETTINGS_OUTBOX_KEY='retrade_settings_outbox_v2';
+25278:   var _settingsCloudUpdatedAt=null;
+25279:   var _settingsCloudBase=null;
+25280: 
+25281:   function _v148SettingsValues(){
+25282:     return {
+25283:       default_platform:_getDefaultPlatform(),
+25284:       shipping_policies:getShippingPolicies(),
+25285:       theme:(function(){try{return localStorage.getItem('retrade_theme')||'dark';}catch(e){return'dark';}})(),
+25286:       country:COUNTRY||'uk',
+25287:       tax_region:_taxRegion(),
+25288:       tax_other_income:_taxOtherIncome()
+25289:     };
+25290:   }
+25291:   function _v148CloudSettingsValues(row){
+25292:     row=row||{};
+25293:     return {
+25294:       default_platform:row.default_platform||'ebay',
+25295:       shipping_policies:Array.isArray(row.shipping_policies)?row.shipping_policies:[],
+25296:       theme:row.theme||'dark',country:row.country||'uk',
+25297:       tax_region:row.tax_region==='scotland'?'scotland':'rUK',
+25298:       tax_other_income:Math.max(0,Number(row.tax_other_income)||0)
+25299:     };
+25300:   }
+25301:   function _v148SettingsOutboxRead(uid){
+25302:     try{
+25303:       var raw=localStorage.getItem(SETTINGS_OUTBOX_KEY);if(!raw)return null;
+25304:       var e=JSON.parse(raw);if(!e||!e.uid||e.uid!==uid)return null;return e;
+25305:     }catch(e){return null;}
+25306:   }
+25307:   function _v148SettingsOutboxWrite(e){try{localStorage.setItem(SETTINGS_OUTBOX_KEY,JSON.stringify(e));}catch(_e){}}
+25308:   function _v148SettingsOutboxClear(uid,stamp){
+25309:     try{var e=_v148SettingsOutboxRead(uid);if(e&&(!stamp||e.stamp===stamp))localStorage.removeItem(SETTINGS_OUTBOX_KEY);}catch(_e){}
+25310:   }
+25311:   function _v148ChangedKeys(base,now){
+25312:     var out=[];Object.keys(now).forEach(function(k){if(!base||!_v148Eq(now[k],base[k]))out.push(k);});return out;
+25313:   }
+25314:   function _v148StageSettings(){
+25315:     if(!_currentUserId)return null;
+25316:     var uid=_currentUserId,now=_v148SettingsValues(),old=_v148SettingsOutboxRead(uid);
+25317:     var changed=new Set((old&&old.changedKeys)||_v148ChangedKeys(_settingsCloudBase,now));
+25318:     _v148ChangedKeys(_settingsCloudBase,now).forEach(function(k){changed.add(k);});
+25319:     var e={uid:uid,values:now,baseUpdatedAt:(old&&old.baseUpdatedAt)||_settingsCloudUpdatedAt||null,
+25320:       changedKeys:Array.from(changed),stamp:Date.now()+'-'+Math.random().toString(36).slice(2),stagedAt:new Date().toISOString()};
+25321:     _v148SettingsOutboxWrite(e);return e;
+25322:   }
+25323:   async function _v148FetchSettings(uid){
+25324:     var rr=await _sbCall(function(){return _sb.from('user_settings').select('*').eq('user_id',uid).maybeSingle();});
+25325:     if(rr&&rr.error)throw rr.error;return (rr&&rr.data)||null;
+25326:   }
+25327:   async function _v148FlushSettingsEntry(entry){
+25328:     if(!entry||!entry.uid||entry.uid!==_currentUserId)return false;
+25329:     var uid=entry.uid,cloud=await _v148FetchSettings(uid),cloudVals=_v148CloudSettingsValues(cloud||{});
+25330:     var values=entry.values||{},changed=new Set(entry.changedKeys||Object.keys(values));
+25331:     var merged=Object.assign({},cloudVals);
+25332:     changed.forEach(function(k){if(Object.prototype.hasOwnProperty.call(values,k))merged[k]=_v148Clone(values[k]);});
+25333:     var writeRow=Object.assign({user_id:uid},merged,{updated_at:new Date().toISOString()});
+25334:     var res;
+25335:     if(cloud){
+25336:       var token=cloud.updated_at||null;
+25337:       if(!token)throw new Error('user_settings.updated_at is required for safe multi-device settings sync.');
+25338:       res=await _sbCall(function(){return _sb.from('user_settings').update(writeRow).eq('user_id',uid).eq('updated_at',token).select('*');});
+25339:       if(res&&res.error)throw res.error;
+25340:       if(!res||!res.data||!res.data.length){
+25341:         // Another device changed settings between our read and CAS. Refetch and
+25342:         // retry once, reapplying only the fields this device actually changed.
+25343:         cloud=await _v148FetchSettings(uid);if(!cloud)throw new Error('Settings row changed during save.');
+25344:         cloudVals=_v148CloudSettingsValues(cloud);merged=Object.assign({},cloudVals);
+25345:         changed.forEach(function(k){if(Object.prototype.hasOwnProperty.call(values,k))merged[k]=_v148Clone(values[k]);});
+25346:         writeRow=Object.assign({user_id:uid},merged,{updated_at:new Date().toISOString()});
+25347:         res=await _sbCall(function(){return _sb.from('user_settings').update(writeRow).eq('user_id',uid).eq('updated_at',cloud.updated_at).select('*');});
+25348:         if(res&&res.error)throw res.error;
+25349:         if(!res||!res.data||!res.data.length)throw new Error('Settings changed again on another device; local settings remain safely queued.');
+25350:       }
+25351:     }else{
+25352:       res=await _sbCall(function(){return _sb.from('user_settings').insert(writeRow).select('*');});
+25353:       if(res&&res.error){
+25354:         // Likely a concurrent first-row insert: refetch, then CAS merge once.
+25355:         cloud=await _v148FetchSettings(uid);if(!cloud)throw res.error;
+25356:         cloudVals=_v148CloudSettingsValues(cloud);merged=Object.assign({},cloudVals);
+25357:         changed.forEach(function(k){if(Object.prototype.hasOwnProperty.call(values,k))merged[k]=_v148Clone(values[k]);});
+25358:         writeRow=Object.assign({user_id:uid},merged,{updated_at:new Date().toISOString()});
+25359:         res=await _sbCall(function(){return _sb.from('user_settings').update(writeRow).eq('user_id',uid).eq('updated_at',cloud.updated_at).select('*');});
+25360:         if(res&&res.error)throw res.error;
+25361:         if(!res||!res.data||!res.data.length)throw new Error('Settings changed on another device; local settings remain safely queued.');
+25362:       }
+25363:     }
+25364:     var saved=res&&res.data&&res.data[0];
+25365:     if(saved){_settingsCloudUpdatedAt=saved.updated_at||writeRow.updated_at;_settingsCloudBase=_v148CloudSettingsValues(saved);}
+25366:     _v148SettingsOutboxClear(uid,entry.stamp);
+25367:     return true;
+25368:   }
+25369: 
+25370:   _syncUserSettingsToCloud=function(){
+25371:     if(!_currentUserId||typeof _sb==='undefined')return;
+25372:     var entry=_v148StageSettings();
+25373:     clearTimeout(_settingsSyncTimer);
+25374:     _settingsSyncTimer=setTimeout(async function(){
+25375:       var pending=_v148SettingsOutboxRead(_currentUserId);if(!pending)return;
+25376:       try{
+25377:         await _v148FlushSettingsEntry(pending);
+25378:         if(_lastSyncError&&/^Settings sync:/.test(_lastSyncError))_lastSyncError=null;
+25379:       }catch(e){
+25380:         _lastSyncError='Settings sync: '+(e&&e.message?e.message:String(e));
+25381:         console.warn('[RETRADE] '+_lastSyncError);
+25382:         try{if(typeof _refreshSideNavSync==='function')_refreshSideNavSync('pending');}catch(_e){}
+25383:       }
+25384:     },350);
+25385:     return entry;
+25386:   };
+25387: 
+25388:   var _v148BaseHydrateSettings=_hydrateUserSettings;
+25389:   _hydrateUserSettings=async function(uid){
+25390:     if(!uid||typeof _sb==='undefined')return;
+25391:     // A settings edit staged before a suspend/reload is local durable intent.
+25392:     // Flush/rebase it BEFORE allowing an older cloud row to overwrite cache.
+25393:     var pending=_v148SettingsOutboxRead(uid);
+25394:     if(pending){
+25395:       try{await _v148FlushSettingsEntry(pending);}catch(e){
+25396:         _lastSyncError='Settings sync: '+(e&&e.message?e.message:String(e));
+25397:         console.warn('[RETRADE] pending settings preserved locally; cloud hydration deferred:',e&&e.message);
+25398:         return;
+25399:       }
+25400:     }
+25401:     var cloud=null;
+25402:     try{cloud=await _v148FetchSettings(uid);}catch(e){console.warn('[RETRADE] settings hydrate failed:',e&&e.message);return;}
+25403:     if(!cloud){_settingsCloudUpdatedAt=null;_settingsCloudBase=_v148SettingsValues();return;}
+25404:     _settingsCloudUpdatedAt=cloud.updated_at||null;
+25405:     _settingsCloudBase=_v148CloudSettingsValues(cloud);
+25406:     await _v148BaseHydrateSettings(uid);
+25407:     // Base must reflect the values actually accepted from the cloud after
+25408:     // hydration/validation (country/platform may reject unsupported values).
+25409:     _settingsCloudBase=_v148SettingsValues();
+25410:   };
+25411: 
+25412:   window.RETRADE_V148={
+25413:     version:VERSION,
+25414:     threeWayMerge:_v148ThreeWay,
+25415:     rebasePending:_v148RebasePendingIfNeeded,
+25416:     settingsPending:function(){return _currentUserId?_v148SettingsOutboxRead(_currentUserId):null;}
+25417:   };
+25418:   console.info('[RETRADE] '+VERSION+' multi-device convergence + durable settings loaded');
+25419: })();
+25420: 
+25421: /* ========================================================================
+25422:  * RETRADE-UK v1.4.9 — AUTHORITATIVE CLOUD + LIFECYCLE EVENT DURABILITY
+25423:  * 2026-09-01
+25424:  *
+25425:  * Fixes the live regression reproduced with:
+25426:  * Sold -> Return 1 -> Relist -> Sold 2 -> Return 2.
+25427:  *
+25428:  * Key rules:
+25429:  *  - a large stale recovery queue is quarantined, never blindly replayed;
+25430:  *  - normal persistence does NOT reload/rebase the whole cloud before every
+25431:  *    local write (v1.4.8's loop could re-apply hundreds of old snapshots);
+25432:  *  - item-return rows are stable event records: existing ids are updated,
+25433:  *    new events append, and unrelated remote history is not implicitly deleted;
+25434:  *  - explicit user undo is the only path that tombstones return-event rows;
+25435:  *  - stale item recovery merges against its saved base where possible; a
+25436:  *    legacy stale snapshot with no trustworthy base is quarantined instead of
+25437:  *    silently overwriting a newer cloud lifecycle.
+25438:  * ======================================================================== */
+25439: (function(){
+25440:   'use strict';
+25441:   var VERSION='1.4.9-2026-09-01';
+25442:   var BULK_RECOVERY_LIMIT=100;
+25443:   var OUTBOX_QUARANTINE_BASE='retrade_outbox_quarantine_v149';
+25444:   var RETURN_CONFLICT_BASE='retrade_return_conflicts_v149';
+25445:   var _returnDeleteIds=new Set();
+25446: 
+25447:   function _clone(v){try{return JSON.parse(JSON.stringify(v));}catch(e){return v;}}
+25448:   function _eq(a,b){try{return JSON.stringify(a)===JSON.stringify(b);}catch(e){return a===b;}}
+25449:   function _itemCloud(id){
+25450:     try{
+25451:       var ks=allDBKeys();
+25452:       for(var n=0;n<ks.length;n++){
+25453:         var arr=DB[ks[n]]||[];
+25454:         for(var j=0;j<arr.length;j++)if(arr[j]&&String(arr[j].id)===String(id))return arr[j];
+25455:       }
+25456:     }catch(e){}
+25457:     return null;
+25458:   }
+25459:   function _rev(id){
+25460:     try{return window.RETRADE_V14_REVISION?Number(window.RETRADE_V14_REVISION.revisionFor(id))||0:0;}catch(e){return 0;}
+25461:   }
+25462:   function _parseItemFp(fp){
+25463:     if(!fp)return null;
+25464:     try{var p=fp.lastIndexOf('|');return JSON.parse(fp.slice(0,p));}catch(e){return null;}
+25465:   }
+25466:   function _returnKey(r){
+25467:     if(!r)return'';
+25468:     if(r.id!=null)return'id:'+String(r.id);
+25469:     return [
+25470:       'ev',Number(r.saleNo||r.sale_no)||1,r.type||'',
+25471:       String(r.loggedAt||r.logged_at||''),
+25472:       String(r._dateSoldAtReturn||r.date_sold_at_return||''),
+25473:       String(r._salePriceAtReturn!=null?r._salePriceAtReturn:(r.sale_price_at_return!=null?r.sale_price_at_return:''))
+25474:     ].join('|');
+25475:   }
+25476:   function _mergeReturnEvents(base,local,remote){
+25477:     base=Array.isArray(base)?base:[];local=Array.isArray(local)?local:[];remote=Array.isArray(remote)?remote:[];
+25478:     var bm=new Map(base.map(function(x){return[_returnKey(x),x];}));
+25479:     var lm=new Map(local.map(function(x){return[_returnKey(x),x];}));
+25480:     var rm=new Map(remote.map(function(x){return[_returnKey(x),x];}));
+25481:     var order=[];
+25482:     remote.concat(local).forEach(function(x){var k=_returnKey(x);if(k&&!order.includes(k))order.push(k);});
+25483:     var out=[];
+25484:     order.forEach(function(k){
+25485:       var hb=bm.has(k),hl=lm.has(k),hr=rm.has(k),b=bm.get(k),l=lm.get(k),r=rm.get(k);
+25486:       if(hb&&!hl){
+25487:         // Local explicitly removed this event. Honour the delete only when the
+25488:         // remote copy is unchanged from the user's base; otherwise preserve the
+25489:         // concurrently changed cloud event for review.
+25490:         if(hr&&!_eq(r,b))out.push(_clone(r));
+25491:         return;
+25492:       }
+25493:       if(!hb&&hl&&!hr){out.push(_clone(l));return;}
+25494:       if(!hb&&!hl&&hr){out.push(_clone(r));return;}
+25495:       if(!hb&&hl&&hr){out.push(Object.assign({},_clone(r),_clone(l)));return;}
+25496:       if(hl&&hr){
+25497:         var merged={};
+25498:         var keys=new Set(Object.keys(b||{}).concat(Object.keys(l||{}),Object.keys(r||{})));
+25499:         keys.forEach(function(key){
+25500:           var bv=b&&b[key],lv=l&&l[key],rv=r&&r[key];
+25501:           merged[key]=_eq(lv,bv)?_clone(rv):_clone(lv);
+25502:         });
+25503:         if(r&&r.id!=null)merged.id=r.id;else if(l&&l.id!=null)merged.id=l.id;
+25504:         out.push(merged);return;
+25505:       }
+25506:       if(hl)out.push(_clone(l));else if(hr)out.push(_clone(r));
+25507:     });
+25508:     return out.sort(function(a,b){return String(a.loggedAt||'').localeCompare(String(b.loggedAt||''))||((Number(a.saleNo)||1)-(Number(b.saleNo)||1));});
+25509:   }
+25510:   function _threeWayItem(base,local,remote){
+25511:     base=base||{};local=local||{};remote=remote||{};
+25512:     var out={};
+25513:     var keys=new Set(Object.keys(base).concat(Object.keys(local),Object.keys(remote)));
+25514:     keys.forEach(function(k){
+25515:       if(k==='_cloudRevision'||k==='_cloudUpdatedAt')return;
+25516:       if(k==='returnHistory'){
+25517:         out.returnHistory=_mergeReturnEvents(base.returnHistory,local.returnHistory,remote.returnHistory);
+25518:         return;
+25519:       }
+25520:       var bv=base[k],lv=local[k],rv=remote[k];
+25521:       out[k]=_eq(lv,bv)?_clone(rv):_clone(lv);
+25522:     });
+25523:     if(local.id!=null)out.id=local.id;
+25524:     return out;
+25525:   }
+25526:   function _quarantineObject(prefix,obj,reason){
+25527:     try{
+25528:       var key=prefix+'_'+(_currentUserId||'anon')+'_'+Date.now();
+25529:       localStorage.setItem(key,JSON.stringify({reason:reason,createdAt:new Date().toISOString(),entries:obj}));
+25530:       return key;
+25531:     }catch(e){console.warn('[RETRADE] quarantine write failed:',e&&e.message);return null;}
+25532:   }
+25533: 
+25534:   // Every NEW item outbox entry carries the business JSON the user actually
+25535:   // edited from. This enables a real three-way lifecycle merge on recovery.
+25536:   if(typeof _outboxEntry==='function'){
+25537:     var _baseOutboxEntry=_outboxEntry;
+25538:     _outboxEntry=function(key,fp){
+25539:       var e=_baseOutboxEntry.apply(this,arguments);
+25540:       try{
+25541:         if(e&&String(key||'').indexOf('item:')===0){
+25542:           var baseFp=_dbSnapshot&&_dbSnapshot[key];
+25543:           var base=_parseItemFp(baseFp);
+25544:           if(base)e.baseItemJson=JSON.stringify(base);
+25545:           e.v=149;
+25546:         }
+25547:       }catch(_e){}
+25548:       return e;
+25549:     };
+25550:   }
+25551: 
+25552:   // Preprocess recovery before the existing v1.4.5/v1.4.8 handlers touch DB.
+25553:   // Large queues are preserved verbatim in quarantine but are not applied to
+25554:   // live business state. This prevents a failed backup import becoming a second
+25555:   // database that endlessly overwrites current cloud data.
+25556:   if(typeof _recoverOutbox==='function'){
+25557:     var _baseRecover=_recoverOutbox;
+25558:     _recoverOutbox=function(){
+25559:       try{
+25560:         var ob=_outboxRead()||{},keys=Object.keys(ob);
+25561:         if(keys.length>BULK_RECOVERY_LIMIT){
+25562:           var q=_quarantineObject(OUTBOX_QUARANTINE_BASE,ob,'Bulk recovery queue ('+keys.length+') blocked from automatic replay. Cloud kept authoritative.');
+25563:           _outboxSave({});
+25564:           console.warn('[RETRADE] quarantined '+keys.length+' stale/bulk pending change(s); cloud state kept authoritative'+(q?' · '+q:''));
+25565:           try{toast('Old bulk sync queue isolated safely — cloud data kept current','');}catch(e){}
+25566:           return 0;
+25567:         }
+25568: 
+25569:         var changed=false,conflicts={};
+25570:         keys.forEach(function(k){
+25571:           if(k.indexOf('item:')!==0)return;
+25572:           var e=ob[k];if(!e||e.op!=='save')return;
+25573:           var local=null;try{local=JSON.parse(e.json);}catch(_e){return;}
+25574:           var id=local&&local.id;if(id==null)return;
+25575:           var remote=_itemCloud(id),cloudRev=_rev(id),baseRev=Number(e.baseRevision)||0;
+25576:           if(!remote){
+25577:             if(baseRev>0){delete ob[k];changed=true;}
+25578:             return;
+25579:           }
+25580:           if(baseRev===cloudRev)return; // exact cloud base: safe replay
+25581: 
+25582:           var base=null;
+25583:           try{base=e.baseItemJson?JSON.parse(e.baseItemJson):null;}catch(_e2){base=null;}
+25584:           if(!base){
+25585:             // Legacy stale item snapshot has no trustworthy field base. Preserve
+25586:             // it for manual recovery but never let it replace newer lifecycle.
+25587:             conflicts[k]=e;delete ob[k];changed=true;
+25588:             console.warn('[RETRADE] stale legacy item write quarantined; newer cloud lifecycle wins:',id);
+25589:             return;
+25590:           }
+25591:           var merged=_threeWayItem(base,local,remote);
+25592:           try{
+25593:             if(window.RETRADE_V14_REVISION&&typeof window.RETRADE_V14_REVISION._testSetRevision==='function'){
+25594:               window.RETRADE_V14_REVISION._testSetRevision(merged,cloudRev,remote._cloudUpdatedAt||null);
+25595:             }
+25596:           }catch(_e3){}
+25597:           e.json=JSON.stringify(merged);e.baseRevision=cloudRev;e.baseItemJson=JSON.stringify(remote);ob[k]=e;changed=true;
+25598:         });
+25599:         if(Object.keys(conflicts).length)_quarantineObject(RETURN_CONFLICT_BASE,conflicts,'Stale item recovery without a trustworthy base.');
+25600:         if(changed)_outboxSave(ob);
+25601:       }catch(e){console.warn('[RETRADE] v1.4.9 recovery preflight failed:',e&&e.message);}
+25602:       return _baseRecover.apply(this,arguments);
+25603:     };
+25604:   }
+25605: 
+25606:   // Stable return-event persistence. item_returns are lifecycle events, not a
+25607:   // disposable array snapshot. Existing events are updated by id/natural key;
+25608:   // new ones append. Cloud events absent from a generic stale item snapshot are
+25609:   // preserved. Only an explicit user undo registers a tombstone for deletion.
+25610:   if(typeof _replaceChildRowsSafe==='function'){
+25611:     var _baseReplaceChildRowsSafe=_replaceChildRowsSafe;
+25612:     _replaceChildRowsSafe=async function(table,itemId,rows,label){
+25613:       if(table!=='item_returns')return _baseReplaceChildRowsSafe.apply(this,arguments);
+25614:       var uid=_currentUserId;
+25615:       var existing=await _sbCall(function(){return _sb.from(table).select('*').eq('item_id',itemId).eq('user_id',uid);});
+25616:       if(existing&&existing.error)throw new Error('Load existing '+label+' failed: '+existing.error.message);
+25617:       var old=existing&&existing.data||[];
+25618:       function dbKey(r){
+25619:         if(r&&r.id!=null)return'id:'+String(r.id);
+25620:         return ['ev',Number(r&&r.sale_no)||1,(r&&r.type)||'',String(r&&r.logged_at||''),String(r&&r.date_sold_at_return||''),String(r&&r.sale_price_at_return!=null?r.sale_price_at_return:'')].join('|');
+25621:       }
+25622:       function desiredKey(r){
+25623:         if(r&&r.id!=null)return'id:'+String(r.id);
+25624:         return ['ev',Number(r&&r.sale_no)||1,(r&&r.type)||'',String(r&&r.logged_at||''),String(r&&r.date_sold_at_return||''),String(r&&r.sale_price_at_return!=null?r.sale_price_at_return:'')].join('|');
+25625:       }
+25626:       var oldByNatural=new Map();
+25627:       old.forEach(function(r){oldByNatural.set(dbKey(Object.assign({},r,{id:null})),r);});
+25628:       var withIds=[],newRows=[];
+25629:       (rows||[]).forEach(function(src){
+25630:         var r=Object.assign({},src);
+25631:         var hit=null;
+25632:         if(r.id!=null)hit=old.find(function(x){return String(x.id)===String(r.id);});
+25633:         if(!hit)hit=oldByNatural.get(desiredKey(Object.assign({},r,{id:null})))||null;
+25634:         if(hit&&hit.id!=null){r.id=hit.id;withIds.push(r);}else newRows.push(r);
+25635:       });
+25636:       if(withIds.length){
+25637:         var up=await _sbCall(function(){return _sb.from(table).upsert(withIds,{onConflict:'id'}).select('id');});
+25638:         if(up&&up.error)throw new Error('Update '+label+' failed: '+up.error.message);
+25639:       }
+25640:       if(newRows.length){
+25641:         var ins=await _sbWriteFallback(function(p){return _sb.from(table).insert(p).select('id');},newRows,label);
+25642:         if(ins&&ins.error)throw new Error('Save '+label+' failed: '+ins.error.message);
+25643:       }
+25644:       var deletable=old.map(function(r){return r.id;}).filter(function(id){return id!=null&&_returnDeleteIds.has(String(id));});
+25645:       if(deletable.length){
+25646:         var del=await _sbCall(function(){return _sb.from(table).delete().in('id',deletable).eq('user_id',uid);});
+25647:         if(del&&del.error)throw new Error('Delete '+label+' event failed: '+del.error.message);
+25648:         deletable.forEach(function(id){_returnDeleteIds.delete(String(id));});
+25649:       }
+25650:     };
+25651:   }
+25652: 
+25653:   // Detect explicit UI undo/removal of an already-durable return event. saveDB()
+25654:   // is called inside these functions, but the network pass is debounced, so the
+25655:   // tombstone is registered before child persistence runs.
+25656:   function _snapshotReturnIds(){
+25657:     var s=new Set();
+25658:     try{allDBKeys().forEach(function(k){(DB[k]||[]).forEach(function(i){(i.returnHistory||[]).forEach(function(r){if(r&&r.id!=null)s.add(String(r.id));});});});}catch(e){}
+25659:     return s;
+25660:   }
+25661:   function _wrapReturnUndo(name){
+25662:     try{
+25663:       var fn=window[name]||eval(name);if(typeof fn!=='function')return;
+25664:       var wrapped=function(){
+25665:         var before=_snapshotReturnIds(),res=fn.apply(this,arguments),after=_snapshotReturnIds();
+25666:         before.forEach(function(id){if(!after.has(id))_returnDeleteIds.add(id);});
+25667:         return res;
+25668:       };
+25669:       // Top-level function declarations are window properties in this app.
+25670:       window[name]=wrapped;
+25671:       try{eval(name+'=wrapped');}catch(e){}
+25672:     }catch(e){}
+25673:   }
+25674:   ['_removeReturnEntry','undoLastReturn','stepBack','undoRelist'].forEach(_wrapReturnUndo);
+25675: 
+25676:   // v1.4.8 wrapped _persistChangesPass with a cloud-rebase preflight whenever
+25677:   // ANY outbox row existed. Since every successful business write increments
+25678:   // the sync clock, that could cause the app to pull/recover its own queue over
+25679:   // and over. Replace it with the serialized durable writer itself: cloud pulls
+25680:   // happen on Realtime/resume, while local writes are CAS-protected at item row.
+25681:   _persistChangesPass=async function(){
+25682:     if(!_currentUserId){console.warn('_persistChanges: no user, skipping');return {failed:0};}
+25683:     var uidAtStart=_currentUserId;
+25684:     try{
+25685:       var current=_dbFingerprint();_persistActiveCurrent=current;
+25686:       var prev=_dbSnapshot||{},errors=[],failedKeys=new Set();
+25687:       try{
+25688:         var stage=_outboxRead(),staged=0;
+25689:         Object.keys(current).forEach(function(k){if(current[k]!==prev[k]){stage[k]=_outboxEntry(k,current[k]);staged++;}});
+25690:         Object.keys(prev).forEach(function(k){if(current[k]===undefined){stage[k]=_outboxDeleteEntry(k);staged++;}});
+25691:         if(staged)_outboxSave(stage);
+25692:       }catch(e){console.warn('[RETRADE] outbox stage failed:',e&&e.message);}
+25693: 
+25694:       var keys=Object.keys(current);
+25695:       for(var a=0;a<keys.length;a++){
+25696:         var key=keys[a];if(current[key]===prev[key])continue;
+25697:         if(_currentUserId!==uidAtStart)return {failed:1};
+25698:         try{
+25699:           if(key.indexOf('item:')===0){var fp=current[key],p=fp.lastIndexOf('|');await saveItemToSupabase(fp.slice(p+1),JSON.parse(fp.slice(0,p)));}
+25700:           else if(key.indexOf('trip:')===0)await saveTripToSupabase(JSON.parse(current[key]));
+25701:           else if(key.indexOf('exp:')===0)await saveExpenseToSupabase(JSON.parse(current[key]));
+25702:           else if(key.indexOf('cash:')===0)await saveCashMoveToSupabase(JSON.parse(current[key]));
+25703:           else if(key.indexOf('run:')===0)await saveRunToSupabase(JSON.parse(current[key]));
+25704:           else if(key.indexOf('acct:')===0)await saveAccountToSupabase(JSON.parse(current[key]));
+25705:           else if(key.indexOf('log:')===0)await saveActivityToSupabase(JSON.parse(current[key]));
+25706:           else if(key.indexOf('jlot:')===0)await saveJobLotToSupabase(JSON.parse(current[key]));
+25707:           else if(key.indexOf('jmem:')===0)await saveJobLotItemToSupabase(JSON.parse(current[key]));
+25708:           else if(key.indexOf('recon:')===0)await saveSaleReconciliationToSupabase(JSON.parse(current[key]));
+25709:         }catch(e){errors.push(e&&e.message?e.message:String(e));failedKeys.add(key);}
+25710:       }
+25711:       var prevKeys=Object.keys(prev);
+25712:       for(var b=0;b<prevKeys.length;b++){
+25713:         var dkey=prevKeys[b];if(current[dkey]!==undefined)continue;
+25714:         if(_currentUserId!==uidAtStart)return {failed:1};
+25715:         try{
+25716:           if(dkey.indexOf('item:')===0)await deleteItemFromSupabase(dkey.slice(5));
+25717:           else if(dkey.indexOf('trip:')===0)await deleteTripFromSupabase(dkey.slice(5));
+25718:           else if(dkey.indexOf('exp:')===0)await deleteExpenseFromSupabase(dkey.slice(4));
+25719:           else if(dkey.indexOf('cash:')===0)await deleteCashMoveFromSupabase(dkey.slice(5));
+25720:           else if(dkey.indexOf('run:')===0)await deleteRunFromSupabase(dkey.slice(4));
+25721:           else if(dkey.indexOf('acct:')===0)await deleteAccountFromSupabase(dkey.slice(5));
+25722:           else if(dkey.indexOf('log:')===0)await deleteActivityFromSupabase(dkey.slice(4));
+25723:           else if(dkey.indexOf('jlot:')===0)await deleteJobLotFromSupabase(dkey.slice(5));
+25724:           else if(dkey.indexOf('jmem:')===0)await deleteJobLotItemFromSupabase(dkey.slice(5));
+25725:           else if(dkey.indexOf('recon:')===0)await deleteSaleReconciliationFromSupabase(dkey.slice(6));
+25726:         }catch(e){errors.push(e&&e.message?e.message:String(e));failedKeys.add(dkey);}
+25727:       }
+25728: 
+25729:       if(errors.length){
+25730:         var schemaErrors=errors.filter(function(msg){return /PGRST204|42703|schema cache|column .* does not exist|Could not find the .* column/i.test(String(msg||''));});
+25731:         if(schemaErrors.length)console.warn('[RETRADE] Supabase schema mismatch:',schemaErrors);
+25732:         console.error('[RETRADE] Cloud sync pending; writes retained locally:',errors);
+25733:         _lastSyncError=errors.join(' | ')||'Cloud sync pending';
+25734:       }else{_lastSyncError=null;_lastSyncDiagMessage=null;}
+25735: 
+25736:       try{
+25737:         var liveNow=_dbFingerprint(),rem=_outboxRead(),touched=new Set();
+25738:         Object.keys(current).forEach(function(k){if(current[k]!==prev[k])touched.add(k);});
+25739:         Object.keys(prev).forEach(function(k){if(current[k]===undefined)touched.add(k);});
+25740:         touched.forEach(function(k){
+25741:           if(failedKeys.has(k)){rem[k]=(liveNow[k]!==undefined)?_outboxEntry(k,liveNow[k]):_outboxDeleteEntry(k);return;}
+25742:           if(liveNow[k]===current[k])delete rem[k];else rem[k]=(liveNow[k]!==undefined)?_outboxEntry(k,liveNow[k]):_outboxDeleteEntry(k);
+25743:         });
+25744:         _outboxSave(rem);
+25745:       }catch(e){console.warn('[RETRADE] outbox prune failed:',e&&e.message);}
+25746: 
+25747:       var newSnapshot=Object.assign({},current);
+25748:       failedKeys.forEach(function(k){if(prev[k]!==undefined)newSnapshot[k]=prev[k];else delete newSnapshot[k];});
+25749:       _dbSnapshot=newSnapshot;
+25750:       return {failed:failedKeys.size};
+25751:     }finally{_persistActiveCurrent=null;}
+25752:   };
+25753: 
+25754:   window.RETRADE_V149={
+25755:     version:VERSION,
+25756:     pending:function(){return typeof _outboxPendingCount==='function'?_outboxPendingCount():0;},
+25757:     returnTombstones:function(){return Array.from(_returnDeleteIds);},
+25758:     quarantinePrefix:OUTBOX_QUARANTINE_BASE
+25759:   };
+25760:   console.info('[RETRADE] '+VERSION+' authoritative cloud + lifecycle event durability loaded');
+25761: })();
+25762: 
+25763: console.info('[RETRADE] 1.4.10 expected-profit consistency + return fee-credit visibility loaded');
+25764: /* ========================================================================
+25765:  * RETRADE v1.4.11-2026-09-02 — durable outbox drain repair
+25766:  *
+25767:  * Durable outbox work must be delivered even when the live DB fingerprint
+25768:  * equals _dbSnapshot. Preserve the original staged CAS metadata, route the
+25769:  * retry through the existing serialized writer, and keep failures queued.
+25770:  * v1.4.9 bulk/stale quarantine runs before this drain and is not replayed.
+25771:  * ======================================================================== */
+25772: (function(){
+25773:   'use strict';
+25774:   var VERSION='1.4.11-2026-09-02';
+25775:   if(typeof _persistChangesPass!=='function'||typeof _dbFingerprint!=='function'||typeof _outboxRead!=='function')return;
+25776:   var _stage1BasePersistChangesPass=_persistChangesPass;
+25777:   function _stage1OrphanBatch(){
+25778:     var ob=_outboxRead()||{},now=_dbFingerprint()||{},prev=_dbSnapshot||{},batch={};
+25779:     Object.keys(ob).forEach(function(k){
+25780:       var e=ob[k];
+25781:       if(!e||now[k]!==prev[k])return;
+25782:       if((e.op==='save'&&now[k]!==undefined)||(e.op==='delete'&&now[k]===undefined)){
+25783:         batch[k]={entry:e,value:now[k],hadPrev:Object.prototype.hasOwnProperty.call(prev,k),prevValue:prev[k]};
+25784:       }
+25785:     });
+25786:     return batch;
+25787:   }
+25788:   _persistChangesPass=async function(){
+25789:     var forced=_stage1OrphanBatch(),forcedKeys=Object.keys(forced);
+25790:     if(!forcedKeys.length)return await _stage1BasePersistChangesPass.apply(this,arguments);
+25791:     console.info('[RETRADE] '+VERSION+' draining '+forcedKeys.length+' durable orphaned outbox entr'+(forcedKeys.length===1?'y':'ies'));
+25792:     var synthetic=Object.assign({},_dbSnapshot||{}),stamp='__RETRADE_OUTBOX_FORCE__'+Date.now()+'__';
+25793:     forcedKeys.forEach(function(k,idx){synthetic[k]=stamp+idx;});
+25794:     _dbSnapshot=synthetic;
+25795:     var liveEntry=_outboxEntry;
+25796:     var liveDelete=(typeof _outboxDeleteEntry==='function')?_outboxDeleteEntry:null;
+25797:     _outboxEntry=function(key,json){
+25798:       var f=forced[key];
+25799:       if(f&&f.entry&&f.entry.op==='save'&&json===f.value)return f.entry;
+25800:       return liveEntry.apply(this,arguments);
+25801:     };
+25802:     if(liveDelete){
+25803:       _outboxDeleteEntry=function(key){
+25804:         var f=forced[key];
+25805:         if(f&&f.entry&&f.entry.op==='delete'&&f.value===undefined)return f.entry;
+25806:         return liveDelete.apply(this,arguments);
+25807:       };
+25808:     }
+25809:     try{return await _stage1BasePersistChangesPass.apply(this,arguments);}
+25810:     finally{
+25811:       _outboxEntry=liveEntry;if(liveDelete)_outboxDeleteEntry=liveDelete;
+25812:       try{
+25813:         var remaining=_outboxRead()||{},snap=_dbSnapshot||{};
+25814:         forcedKeys.forEach(function(k){
+25815:           if(!remaining[k])return;
+25816:           var f=forced[k];if(f.hadPrev)snap[k]=f.prevValue;else delete snap[k];
+25817:         });
+25818:         _dbSnapshot=snap;
+25819:       }catch(_e){}
+25820:     }
+25821:   };
+25822:   if(typeof _recoverOutbox==='function'){
+25823:     var _stage1BaseRecoverOutbox=_recoverOutbox;
+25824:     _recoverOutbox=function(){
+25825:       var result=_stage1BaseRecoverOutbox.apply(this,arguments);
+25826:       try{if(typeof _outboxPendingCount==='function'&&_outboxPendingCount()>0){setTimeout(function(){try{if(_currentUserId&&typeof _persistChanges==='function')_persistChanges();}catch(_e){}},0);}}catch(_e){}
+25827:       return result;
+25828:     };
+25829:   }
+25830:   window.RETRADE_STAGE1_SYNC={version:VERSION,orphaned:function(){try{return Object.keys(_stage1OrphanBatch()).length;}catch(_e){return -1;}},kick:function(){return (typeof _persistChanges==='function')?_persistChanges():Promise.resolve();}};
+25831:   console.info('[RETRADE] '+VERSION+' durable outbox drain loaded');
+25832: })();
