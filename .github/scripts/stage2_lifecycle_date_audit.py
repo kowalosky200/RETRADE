@@ -1,48 +1,45 @@
 from pathlib import Path
 import re
 
-src = Path('app.js').read_text(encoding='utf-8', errors='replace').splitlines()
+js = Path('app.js').read_text(encoding='utf-8', errors='replace').splitlines()
+css = Path('app.css').read_text(encoding='utf-8', errors='replace').splitlines()
+idx = Path('index.html').read_text(encoding='utf-8', errors='replace').splitlines()
 
-GROUPS = {
-  'dates': [
-    r'item_returns', r'returnHistory', r'_dateSoldAtReturn', r'loggedAt',
-    r'refundDate', r'dateReturned', r'returnDate', r'resaleDateSold',
-    r'dateRelist', r'relistDate', r'relistedAt', r'dateSold',
-    r'_repairSaleNoSequenceForItem', r'_migrateSaleNoTags', r'loadFromSupabase'
-  ],
-  'returned_stock': [
-    r'dispos', r'scrap', r'donat', r'job.?lot', r'isReturned',
-    r"state\s*[:=]\s*['\"]returned", r'returned.*filter', r'filter.*returned',
-    r'returnHistory'
-  ],
-  'focus': [
-    r'function\s+_itemToRow', r'function\s+_rowToItem', r'function\s+.*return',
-    r'logged_at\s*:', r'loggedAt\s*:', r'relisted_at\s*:', r'_relistedAt\s*:',
-    r'date_sold_at_return', r'_dateSoldAtReturn', r'STOCK_STATE_FILTER',
-    r"state\s*=\s*['\"]scrapped", r"state\s*:\s*['\"]scrapped",
-    r'scrappedAt\s*=', r'scrapped_at\s*:', r'isReturned\s*=\s*false',
-    r'isReturned\s*=\s*true', r'function\s+.*scrap', r'function\s+.*dispose',
-    r'returnHistory\.push', r'new Date\(\)\.toISOString\(\)'
-  ]
-}
+out=[]
+out.append('# RETRADE current loading implementation audit')
+out.append('')
+out.append(f'app.js lines: {len(js)}')
+out.append('')
 
-def extract(patterns, max_hits=220, radius=7):
-    rx = re.compile('|'.join('(?:%s)' % p for p in patterns), re.I)
-    hits = [i for i,line in enumerate(src) if rx.search(line)]
-    windows=[]
-    for i in hits[:max_hits]:
-        a,b=max(0,i-radius),min(len(src),i+radius+1)
-        if windows and a <= windows[-1][1] + 1:
-            windows[-1]=(windows[-1][0],max(windows[-1][1],b))
-        else:
-            windows.append((a,b))
-    out=[f'app.js lines: {len(src)}; total matches: {len(hits)}; emitted windows: {len(windows)}','']
-    for n,(a,b) in enumerate(windows,1):
-        out.append(f'## Window {n}: app.js {a+1}-{b}')
-        for j in range(a,b): out.append(f'{j+1:06d}: {src[j]}')
-        out.append('')
-    return '\n'.join(out)
+# Boot/init/loading implementation is concentrated here in the current live file.
+out.append('## app.js boot/loading region')
+for n in range(max(0,4550-1), min(len(js), 5150)):
+    out.append(f'{n+1:06d}: {js[n]}')
+out.append('')
 
-Path('stage2-lifecycle-dates.txt').write_text(extract(GROUPS['dates']), encoding='utf-8')
-Path('stage2-returned-stock.txt').write_text(extract(GROUPS['returned_stock']), encoding='utf-8')
-Path('stage2-lifecycle-focus.txt').write_text(extract(GROUPS['focus'], max_hits=320, radius=12), encoding='utf-8')
+# Dispatcher/render function declarations needed to map the real boot page safely.
+out.append('## Renderer / dispatcher declarations')
+rx=re.compile(r'^\s*(?:async\s+)?function\s+(render\w+|refreshActivePage|goToTab)\s*\(')
+for n,line in enumerate(js):
+    if rx.search(line): out.append(f'{n+1:06d}: {line}')
+out.append('')
+
+# Current CSS rules that participate in the duplicate skeleton system.
+out.append('## app.css skeleton selector neighborhoods')
+hits=[i for i,line in enumerate(css) if re.search(r'rt-skel|app-loading|rt-boot-shell',line,re.I)]
+seen=[]
+for i in hits:
+    a,b=max(0,i-4),min(len(css),i+7)
+    if seen and a<=seen[-1][1]: seen[-1]=(seen[-1][0],max(seen[-1][1],b))
+    else: seen.append((a,b))
+for a,b in seen:
+    out.append(f'### app.css {a+1}-{b}')
+    for n in range(a,b): out.append(f'{n+1:06d}: {css[n]}')
+    out.append('')
+
+out.append('## index asset references / boot shell')
+for n,line in enumerate(idx):
+    if re.search(r'app\.js|app\.css|rt-boot-shell|app-loading',line,re.I):
+        out.append(f'{n+1:06d}: {line}')
+
+Path('stage2-loading-audit.txt').write_text('\n'.join(out),encoding='utf-8')
