@@ -1,0 +1,146 @@
+name: Validate old-look real-layout skeleton
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/loading-oldlook-v1421.yml'
+      - '.github/scripts/apply_loading_oldlook_v1421.py'
+permissions:
+  contents: write
+jobs:
+  patch-visual-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply v1.4.21
+        run: python .github/scripts/apply_loading_oldlook_v1421.py
+      - name: Static safety gate
+        run: |
+          node --check app.js
+          python - <<'PY'
+          from pathlib import Path
+          js=Path('app.js').read_text(encoding='utf-8')
+          css=Path('app.css').read_text(encoding='utf-8')
+          idx=Path('index.html').read_text(encoding='utf-8')
+          for token in [
+            "var VERSION='1.4.13-2026-09-02'",
+            'v1.4.15 stable return identity loaded',
+            'v1.4.16 bulk platform editing loaded',
+            'v1.4.17 terminal disposal durability loaded',
+            'v1.4.18 polished real-layout loading loaded',
+            'v1.4.19 Sales month-card loading loaded',
+            'v1.4.20 populated real-layout loading shell loaded',
+            'v1.4.21 old-look real-layout skeleton loaded',
+          ]: assert token in js, token
+          for token in ['rt-label-loading','rt-panel-list-loading','rt-age-loading','rt-neutral-loading-bar']:
+            assert token in js and token in css, token
+          assert './app.js?v=1.4.21' in idx
+          assert './app.css?v=1.4.21' in idx
+          assert css.count('{')==css.count('}')
+          print('v1.4.21 static gate passed')
+          PY
+      - name: Install Chromium
+        run: |
+          npm init -y >/dev/null 2>&1
+          npm install --silent playwright@1.55.0
+          npx playwright install --with-deps chromium >/dev/null
+      - name: Empty-DB responsive visual gate
+        run: |
+          python -m http.server 4173 >/tmp/retrade-http.log 2>&1 &
+          cat > /tmp/v1421-test.js <<'JS'
+          const {chromium}=require('playwright');
+          const fs=require('fs');
+          (async()=>{
+            const browser=await chromium.launch({headless:true});
+            const cases=[{n:'mobile',w:390,h:844},{n:'tablet',w:768,h:1024},{n:'desktop',w:1440,h:900}];
+            const tabs=['summary','monthly','stock'];
+            fs.mkdirSync('v1421-visuals',{recursive:true});
+            for(const vp of cases){
+              for(const tab of tabs){
+                const p=await browser.newPage({viewport:{width:vp.w,height:vp.h}});
+                await p.goto('http://127.0.0.1:4173/index.html',{waitUntil:'domcontentloaded'});
+                await p.waitForFunction(()=>typeof window.showRealLayoutLoading==='function');
+                await p.evaluate((tab)=>{
+                  const auth=document.getElementById('auth-overlay');if(auth)auth.style.display='none';
+                  const ol=document.getElementById('app-loading');if(ol)ol.remove();
+                  document.body.classList.add('rt-app-visible');
+                  if(typeof DB==='object'&&DB){
+                    Object.keys(DB).forEach(k=>{if(/^[A-Z]{3}-\d{2}$/.test(k))delete DB[k];});
+                    DB.expenses=[];DB.trips=[];DB.cashLedger=[];DB.sourcingRuns=[];
+                  }
+                  window.showRealLayoutLoading(tab,'Loading test');
+                  let node=document.getElementById('p-'+tab);
+                  while(node&&node!==document.body){
+                    const cs=getComputedStyle(node);
+                    if(cs.display==='none')node.style.display='block';
+                    if(cs.visibility==='hidden')node.style.visibility='visible';
+                    if(Number(cs.opacity)===0)node.style.opacity='1';
+                    node=node.parentElement;
+                  }
+                },tab);
+                await p.waitForTimeout(120);
+                const s=await p.evaluate(()=>{
+                  const page=document.querySelector('.page.on');
+                  const txt=(page?.innerText||'');
+                  const r=page?.getBoundingClientRect();
+                  const visibleLeaks=[];
+                  for(const el of page?.querySelectorAll('*')||[]){
+                    if(el.children.length)continue;
+                    const t=(el.textContent||'').trim(); if(!t)continue;
+                    if(/^(No items yet|No completed sales|No sales yet)/i.test(t)){
+                      const cs=getComputedStyle(el);
+                      const hiddenByMask=el.classList.contains('rt-data-loading')||el.closest('.rt-loading-list-overlay');
+                      if(!hiddenByMask && cs.display!=='none' && cs.visibility!=='hidden' && Number(cs.opacity)!==0) visibleLeaks.push(t);
+                    }
+                  }
+                  return {
+                    onboarding:/Start your RETRADE workspace/i.test(txt),
+                    busy:page?.getAttribute('aria-busy'),
+                    labels:page?.querySelectorAll('.rt-label-loading').length||0,
+                    values:page?.querySelectorAll('.rt-data-loading').length||0,
+                    charts:page?.querySelectorAll('.rt-chart-loading,.rt-chart-data-loading').length||0,
+                    lists:page?.querySelectorAll('.rt-loading-list-overlay').length||0,
+                    panelOverlay:page?.querySelectorAll('.summary-topflips > .rt-loading-panel-overlay').length||0,
+                    emptyMonthMasked:page?.querySelectorAll('.mcard-empty .msub.rt-data-loading').length||0,
+                    disabled:page?.querySelectorAll('button:disabled,input:disabled,select:disabled').length||0,
+                    fake:document.querySelectorAll('.rt-skel').length,
+                    visibleLeaks,
+                    rect:r?{x:r.x,y:r.y,w:r.width,h:r.height}:null
+                  };
+                });
+                if(s.onboarding)throw new Error(`${vp.n}/${tab}: onboarding leaked`);
+                if(s.busy!=='true'||s.labels<1||s.values<1||s.fake!==0||!s.rect||s.rect.w<300)throw new Error(`${vp.n}/${tab}: bad old-look shell ${JSON.stringify(s)}`);
+                if(s.visibleLeaks.length)throw new Error(`${vp.n}/${tab}: readable empty-data leak ${JSON.stringify(s.visibleLeaks)}`);
+                if(tab==='summary'&&(s.panelOverlay<1||s.charts<1))throw new Error(`${vp.n}/summary: missing panel/chart skeleton ${JSON.stringify(s)}`);
+                if(tab==='monthly'&&s.emptyMonthMasked<1)throw new Error(`${vp.n}/monthly: empty month copy not masked`);
+                if(tab==='stock'&&s.lists<1)throw new Error(`${vp.n}/stock: list skeleton missing`);
+                await p.screenshot({path:`v1421-visuals/${vp.n}-${tab}.png`,fullPage:true});
+                const before=s.rect;
+                await p.evaluate((tab)=>window.finishRealLayoutLoading(tab),tab);
+                await p.waitForTimeout(450);
+                const after=await p.evaluate(()=>{
+                  const page=document.querySelector('.page.on'); const r=page?.getBoundingClientRect();
+                  return {loading:document.body.classList.contains('rt-real-layout-loading'),masks:document.querySelectorAll('.rt-data-loading,.rt-label-loading,.rt-loading-list-overlay,.rt-chart-loading,.rt-chart-data-loading,.rt-panel-list-loading,.rt-age-loading,.rt-neutral-loading-bar').length,rect:r?{x:r.x,y:r.y,w:r.width,h:r.height}:null};
+                });
+                if(after.loading||after.masks)throw new Error(`${vp.n}/${tab}: loader failed to clear ${JSON.stringify(after)}`);
+                if(before&&after.rect&&(Math.abs(before.x-after.rect.x)>1||Math.abs(before.w-after.rect.w)>1))throw new Error(`${vp.n}/${tab}: layout width shifted ${JSON.stringify({before,after:after.rect})}`);
+                console.log(vp.n,tab,s);
+                await p.close();
+              }
+            }
+            await browser.close();
+          })().catch(e=>{console.error(e);process.exit(1)});
+          JS
+          NODE_PATH="$PWD/node_modules" node /tmp/v1421-test.js
+      - uses: actions/upload-artifact@v4
+        with:
+          name: retrade-v1421-loading-visuals
+          path: v1421-visuals/*.png
+          retention-days: 7
+      - name: Commit production patch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app.js app.css index.html
+          git commit -m "fix(ui): restore old-style skeleton polish in real layout"
+          git push
