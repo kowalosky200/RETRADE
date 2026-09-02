@@ -1,0 +1,1806 @@
+app.js lines: 25971; total matches: 763; emitted windows: 80
+
+## Window 1: app.js 60-75
+000060: // safer than refund/log dates because a historical return can be entered later.
+000061: // Same-day/ambiguous records are deliberately NOT auto-renumbered.
+000062: function _returnSaleSnapshotDate(r){
+000063:   const d=r&&r._dateSoldAtReturn;
+000064:   return d?String(d).slice(0,10):null;
+000065: }
+000066: function _repairSaleNoSequenceForItem(it){
+000067:   if(!it||!Array.isArray(it.returnHistory))return 0;
+000068:   const rh=it.returnHistory;
+000069:   const fulls=[];
+000070:   rh.forEach(function(r,idx){
+000071:     if(r&&(r.type==='full_seller'||r.type==='full_ebay')){
+000072:       fulls.push({r:r,idx:idx,sold:_returnSaleSnapshotDate(r)});
+000073:     }
+000074:   });
+000075:   if(!fulls.length)return 0;
+
+## Window 2: app.js 119-143
+000119: // then retain the old conservative fallback for any genuinely untagged rows
+000120: // whose historical snapshots are too old to reconstruct safely.
+000121: function _migrateSaleNoTags(){
+000122:   let touched=0;
+000123:   try{
+000124:     (typeof allDBKeys==='function'?allDBKeys():[]).forEach(function(k){
+000125:       (Array.isArray(DB[k])?DB[k]:[]).forEach(function(it){
+000126:         if(!it||!Array.isArray(it.returnHistory)||!it.returnHistory.length)return;
+000127:         let itemTouched=_repairSaleNoSequenceForItem(it);
+000128:         const rd=it.resaleDateSold?String(it.resaleDateSold).slice(0,10):null;
+000129:         const fullNos=it.returnHistory.filter(function(r){return r&&(r.type==='full_seller'||r.type==='full_ebay')&&r.saleNo!=null;})
+000130:           .map(function(r){return Math.max(1,Number(r.saleNo)||1);});
+000131:         const maxFullNo=fullNos.length?Math.max.apply(null,fullNos):1;
+000132:         // If the item is currently fully returned, the latest full-return row
+000133:         // already represents the current sale. Otherwise the live resale (if
+000134:         // any) is the cycle after the latest completed full return.
+000135:         const currentResaleNo=(it.isReturned&&maxFullNo>=2)?maxFullNo:Math.max(2,maxFullNo+1);
+000136:         it.returnHistory.forEach(function(r){
+000137:           if(!r||r.saleNo!=null)return;
+000138:           const logged=r.loggedAt?String(r.loggedAt).slice(0,10):null;
+000139:           if(rd&&logged&&logged>=rd){r.saleNo=currentResaleNo;itemTouched++;}
+000140:           else {r.saleNo=1;itemTouched++;}
+000141:         });
+000142:         if(itemTouched){
+000143:           touched+=itemTouched;
+
+## Window 3: app.js 190-206
+000190:   if(!Array.isArray(DB.trips)) DB.trips=[];
+000191:   if(!Array.isArray(DB.expenses)) DB.expenses=[];
+000192: }
+000193: 
+000194: // Patch A — Item state migration. One-time pass: every item must have a
+000195: // canonical `state` field of 'sourced' | 'listed' | 'sold' | 'returned'.
+000196: // State is purely for filtering/display in this patch — financial logic
+000197: // continues to read existing fields (sold/isReturned/resaleSalePrice etc).
+000198: // Derivation rules (in order):
+000199: //   active return in returnHistory[] (no resale yet)         → 'returned'
+000200: //   has dateSold or resaleSalePrice (and not returned)       → 'sold'
+000201: //   otherwise                                                → 'listed'
+000202: // Stock items (state='stock') are pre-listing and will only ever exist if
+000203: // they were created via the Stock Quick Add flow — never produced by this
+000204: // migration (no existing field can imply pre-listing intent).
+000205: //
+000206: // ALSO: backfill dateSourced for items that don't have it. Anything created
+
+## Window 4: app.js 219-251
+000219:       // 'stock' is truthy so the !i.state guard below would silently skip it.
+000220:       if(i.state==='stock'){
+000221:         i.state='sourced';
+000222:         touchedState++;
+000223:       }
+000224:       // Catch null/undefined/empty/any other unrecognised value
+000225:       if(!i.state || !_VALID_STATES.includes(i.state)){
+000226:         const _hadFullReturn=(i.returnHistory||[]).some(function(r){return r.type==='full_seller'||r.type==='full_ebay';});
+000227:         const _activeReturn=i.isReturned===true || (_hadFullReturn && !i.resaleSalePrice);
+000228:         if(_activeReturn){ i.state='returned'; }
+000229:         else if(i.dateSold || i.resaleSalePrice){ i.state='sold'; }
+000230:         else { i.state='listed'; }
+000231:         touchedState++;
+000232:       }
+000233:       // v2.09.4 — Reconcile ghost states left by pre-v2.09.2 duplicates. An item
+000234:       // with state='sold' but no dateSold AND no resaleSalePrice AND not
+000235:       // returned isn't actually sold — the source item was, the duplicate
+000236:       // inherited the state but had its sale fields cleared. Stock Room shows
+000237:       // these correctly as listed (its filter ignores state), but the account
+000238:       // page and other state-driven UIs read the wrong badge. Correct here.
+000239:       // Same pattern for state='returned' without an isReturned/return record.
+000240:       if(i.state==='sold' && !i.dateSold && !i.resaleSalePrice && !i.isReturned){
+000241:         i.state='listed';
+000242:         reconciled++;
+000243:       } else if(i.state==='returned' && !i.isReturned){
+000244:         const _hadFullReturn=(i.returnHistory||[]).some(function(r){return r.type==='full_seller'||r.type==='full_ebay';});
+000245:         if(!_hadFullReturn){
+000246:           // No supporting evidence — treat as active. If dateSold survived,
+000247:           // it was truly sold before the return got cleared; otherwise listed.
+000248:           i.state=(i.dateSold||i.resaleSalePrice)?'sold':'listed';
+000249:           reconciled++;
+000250:         }
+000251:       }
+
+## Window 5: app.js 349-363
+000349:   'Watches',
+000350:   'Vehicle Parts & Accessories',
+000351:   // 12.5% / 12.9%
+000352:   'Business, Office & Industrial',
+000353:   'Crafts',
+000354:   'Event Tickets',
+000355:   'Pet Supplies',
+000356:   'Wholesale & Job Lots',
+000357:   'Memorials & Funerals',
+000358:   // default
+000359:   'Other',
+000360: ];
+000361: 
+000362: // ============================================================================
+000363: // RETRADE ICON SYSTEM — single source of truth for all UI glyphs.
+
+## Window 6: app.js 371-386
+000371:   relist:'<path d="M9 18h6"/><path d="M6 18H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-1"/><path d="M12 14V4"/><path d="M8.5 7.5L12 4l3.5 3.5"/>', // arrow up out of box = put back out
+000372:   return:'<path d="M9 6H5a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-4"/><path d="M12 2v10"/><path d="M8.5 8.5L12 12l3.5-3.5"/>', // arrow down into box = came back
+000373:   revert:'<path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v4h4"/>',                  // undo loop
+000374:   withdraw:'<path d="M3 3v18"/><path d="M21 12H9"/><path d="M13 8l-4 4 4 4"/>',     // arrow back to the left bar = withdraw/unlist
+000375:   dupe:'<rect x="8" y="8" width="12" height="12" rx="2"/><path d="M4 16V6a2 2 0 0 1 2-2h10"/>', // copy
+000376:   edit:'<path d="M4 20h4L18.5 9.5a2.1 2.1 0 0 0-3-3L5 17v3z"/><path d="M13.5 6.5l3 3"/>',       // pencil
+000377:   trash:'<path d="M4 7h16"/><path d="M9 7V4h6v3"/><path d="M6 7l1 13a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-13"/><path d="M10 11v6M14 11v6"/>', // bin
+000378:   dispose:'<path d="M4 7h16"/><path d="M9 7V4h6v3"/><path d="M6 7l1 13a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-13"/><path d="M9.5 11.5l5 5M14.5 11.5l-5 5"/>', // bin + X = dispose / remove from stock
+000379:   joblot:'<path d="M4 7l8-4 8 4-8 4z"/><path d="M4 7v10l8 4 8-4V7"/><path d="M12 11v10"/>', // grouped physical stock / Job Lot
+000380:   fullpage:'<path d="M14 4h6v6"/><path d="M20 4l-8 8"/><path d="M18 14v4a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4"/>', // open external
+000381:   list:'<path d="M3 6h18M3 12h18M3 18h18"/>',                                      // lines = list it
+000382:   add:'<path d="M12 5v14M5 12h14"/>',                                              // plus
+000383:   back:'<path d="M15 5l-7 7 7 7"/>',                                               // chevron left
+000384:   close:'<path d="M6 6l12 12M18 6L6 18"/>',                                        // X
+000385:   check:'<path d="M5 12l5 5L19 7"/>',                                              // bare tick
+000386:   undo:'<path d="M9 14L4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-1"/>',           // step-back arrow
+
+## Window 7: app.js 462-476
+000462:   'Jewellery':               'cat_vintage',
+000463:   'Watches':                 'cat_vintage',
+000464:   'Vehicle Parts & Accessories':'cat_tech',
+000465:   // 12.9%
+000466:   'Crafts':                  'cat_other',
+000467:   'Event Tickets':           'cat_other',
+000468:   'Pet Supplies':            'cat_other',
+000469:   'Wholesale & Job Lots':    'cat_other',
+000470:   'Memorials & Funerals':    'cat_other',
+000471:   'Other':                   'cat_other',
+000472:   // Backward-compat: items saved under legacy category names still get an icon
+000473:   'Cameras & Photography':      'cat_camera',
+000474:   'Computers & Tablets':        'cat_tech',
+000475:   'Mobile Phones & Accessories':'cat_tech',
+000476:   'Mobile & Smart Phones':      'cat_tech',
+
+## Window 8: app.js 969-983
+000969: function _s1Platform(i){
+000970:   if(i&&i.salePlatform&&PLATFORMS[i.salePlatform])return i.salePlatform;
+000971:   return _itemPlatform(i);
+000972: }
+000973: // Latest SALE-1 full-return entry. Sale 2 can also be fully returned in V1,
+000974: // so every editor of Sale 1's frozen snapshot must explicitly exclude saleNo=2.
+000975: function _latestFullReturn(i){
+000976:   return (i&&i.returnHistory||[]).slice().reverse().find(function(r){return (r.type==='full_seller'||r.type==='full_ebay')&&(Number(r.saleNo)||1)===1;})||null;
+000977: }
+000978: // Write Sale 1's price to wherever the calc reads it: the relist snapshot once
+000979: // the item has been relisted (frozen Sale 1), else i.salePrice. v2.19.40 — the
+000980: // gate is now fr._relistedAt (relisted) OR resaleSalePrice (resold), so editing
+000981: // Sale 1 in the relisted state writes history, not the live relist value.
+000982: function _writeS1Price(it,v){
+000983:   const fr=_latestFullReturn(it);
+
+## Window 9: app.js 1102-1135
+001102: let MONTH_SORT='date-sold';
+001103: // Costs & Trips page: period scope + active category filter (V2 redesign)
+001104: let COST_PERIOD='mtd';       // mtd|taxyear|lastMonth|last30|last90|all — defaults to This month to mirror Sales History (v2.11.3)
+001105: let COST_CAT_FILTER='all';   // 'all' or a canonical EXPENSE_CATEGORY_DEFS label
+001106: let SELECTION_MODE=false;
+001107: let STOCK_SORT='days-asc';          // stock sort: profit | roi | price | days-desc | days-asc | cost-desc
+001108: let STOCK_FILTER='all';           // listed-age filter: all | fresh | maturing | slow | stale
+001109: let STOCK_STATE_FILTER='listed';  // v1.01 — population: 'all' | 'listed' | 'sourced'(UI: Unlisted) | 'returned'
+001110: let STOCK_SOURCED_FILTER='all';   // Patch A — sourced-age filter: all | new | soon | overdue | stagnant
+001111: let STOCK_GROUPED=false;          // Session B: false=flat list, true=group by listing month
+001112: let STOCK_SELECTION_MODE=false;   // stock page checkbox mode
+001113: let STOCK_SELECTED=new Set();     // stock page selection
+001114: let STOCK_SEARCH='';              // stock in-list search query (v2.21.18)
+001115: let MONTH_SEARCH='';              // sales-history in-list search query (v2.21.18)
+001116: let RUN_SELECTION_MODE=false;     // active-run page checkbox mode
+001117: let RUN_SELECTED=new Set();       // active-run page selection
+001118: // Patch C — Sourcing Runs
+001119: let _sourcingRuns=[];             // all runs loaded from Supabase (active + ended)
+001120: let _activeSourcingRun=null;      // convenience pointer: run with status==='active', or null
+001121: // E33 — Accounts (partners/vendors). Unlike Runs (time-boxed sourcing trips),
+001122: // an account is a standing relationship that can span many runs and months.
+001123: let _accounts=[];                 // all accounts loaded from Supabase
+001124: // v1.01 — Job Lots are inventory containers (not sale bundles). Membership
+001125: // owns the physical grouping; child sale/return history remains on the items.
+001126: let _jobLots=[];
+001127: let _jobLotItems=[];
+001128: let _jobLotSchemaAvailable=false;
+001129: let _saleReconciliations=[];
+001130: let _reconciliationSchemaAvailable=false;
+001131: let _acctSelectMode=false;        // selection mode active on account detail page
+001132: let _acctSelected=new Set();      // set of item IDs selected on account detail page
+001133: let MONTHLY_VIEW='grid';          // 'grid' | 'detail'
+001134: let SUMMARY_PERIOD='7d';  // summary period filter — default Last 7 days (daily-use framing)
+001135: let _sourcedPartsCost=0;          // parts cost carried from sourced item into List Item form (BPF preview)
+
+## Window 10: app.js 2077-2106
+002077:       state:o.state||'listed',
+002078:       dateListed:o.listed||null, dateSold:o.sold||null,
+002079:       dateSourced:o.sourced||null,
+002080:       salePrice:o.sp||0, costPrice:o.cp||0,
+002081:       postage:o.post||3.20, shippingCost:o.ship||o.post||3.20,
+002082:       packagingCost:o.pkg||0.90, promoPercent:o.promo||0,
+002083:       estSalePrice:o.est||null,
+002084:       isReturned:o.returned||false,
+002085:       resaleSalePrice:o.rsp||null, resaleDateSold:o.rsd||null,
+002086:       resaleShippingCost:o.rship||null, resalePromoPercent:o.rpromo||null,
+002087:       resalePackagingCost:o.rpkg||null, resalePostage:o.rpost||null,
+002088:       returnHistory:o.returns||[],
+002089:       parts:o.parts||[], notes:o.notes||'',
+002090:       defaultPlatform:o.plat||'ebay', soldOnPlatform:o.splat||null,
+002091:       sourcingRunId:o.runId||null,
+002092:       accountId:o.accountId||null,
+002093:       accountType:o.accountType||null,
+002094:       accountSplitPercent:o.accountSplitPercent!=null?o.accountSplitPercent:null,
+002095:       accountSettled:o.accountSettled===true,
+002096:       accountPaidAmount:o.accountPaidAmount!=null?o.accountPaidAmount:null,
+002097:       scrappedAt:o.scrappedAt||null,
+002098:       scrapReason:o.scrapReason||null,
+002099:       scrapNote:o.scrapNote||null,
+002100:       supplierRefund:o.supplierRefund!=null?o.supplierRefund:null,
+002101:       grossProfit:null,
+002102:     };
+002103:   }
+002104: 
+002105:   // ── Build month buckets ───────────────────────────────────────────────────
+002106:   const DB_={_userOwned:false,trips:[],expenses:[],cashLedger:[]};
+
+## Window 11: app.js 2171-2192
+002171:   // Partial refund, item stays sold.
+002172:   push(it({item:'Sony WH-CH710N headphones',cat:'Audio',src:'Car boot',sourced:ago(136),listed:ago(135),sold:ago(119),sp:42,cp:8,post:3.99,ship:3.99,splat:'ebay',returns:[{id:'pv-ret-2',type:'partial_seller',refundAmount:8,loggedAt:new Date(ago(114)).toISOString(),notes:'Partial refund for missing charging cable',_dateSoldAtReturn:ago(119),_salePriceAtReturn:42,_postageAtReturn:3.99,_platformAtReturn:'ebay',_promoPercentAtReturn:0}]}));
+002173:   // Full return then successful resale — tests cost restoration and Sale 2.
+002174:   push(it({item:'Nintendo Switch V1 tablet',cat:'Gaming',src:'Facebook',sourced:ago(132),listed:ago(131),sold:ago(116),sp:118,cp:42,post:4.99,ship:4.99,pkg:1.20,returned:true,rsp:112,rsd:ago(87),rship:4.99,rpkg:1.20,rpromo:0,rpost:4.99,state:'listed',returns:[{id:'pv-ret-3',type:'full_seller',refundAmount:118,returnPostage:3.50,loggedAt:new Date(ago(110)).toISOString(),notes:'Buyer changed mind after delivery; returned complete',_dateSoldAtReturn:ago(116),_salePriceAtReturn:118,_postageAtReturn:4.99,_platformAtReturn:'ebay',_promoPercentAtReturn:0,_relistedAt:ago(103),_salePriceAtRelist:118,_postageAtRelist:4.99,_shippingCostAtRelist:4.99,_packagingCostAtRelist:1.20,_promoPercentAtRelist:0}]}));
+002175:   // Platform-decided partial refund.
+002176:   push(it({item:'Fitbit Versa 2',cat:'Smartwatches',src:'Charity shop',sourced:ago(92),listed:ago(91),sold:ago(74),sp:46,cp:10,post:2.80,ship:2.80,splat:'ebay',returns:[{id:'pv-ret-4',type:'partial_ebay',refundAmount:12,loggedAt:new Date(ago(70)).toISOString(),notes:'Platform goodwill adjustment',_dateSoldAtReturn:ago(74),_salePriceAtReturn:46,_postageAtReturn:2.80,_platformAtReturn:'ebay',_promoPercentAtReturn:0}]}));
+002177:   // Full return still in returned stock, intentionally not yet relisted.
+002178:   push(it({item:'Canon EF-S 55-250mm IS II',cat:'Camera Lenses',src:'Car boot',sourced:ago(48),listed:ago(47),sold:ago(31),sp:78,cp:22,post:4.50,ship:4.50,pkg:1.20,returned:true,state:'returned',returns:[{id:'pv-ret-5',type:'full_seller',refundAmount:78,returnPostage:3.49,loggedAt:new Date(ago(24)).toISOString(),notes:'Autofocus intermittent on buyer body — checking before relist',_dateSoldAtReturn:ago(31),_salePriceAtReturn:78,_postageAtReturn:4.50,_platformAtReturn:'ebay',_promoPercentAtReturn:0}]}));
+002179:   // Consignment sold, partner paid, then returned — tests paid partner sunk-cost invariant.
+002180:   push(it({item:'iPhone 11 64GB Black',cat:'Phones',src:'Consignment',sourced:ago(52),listed:ago(51),sold:ago(37),sp:218,cp:0,post:4.99,ship:4.99,pkg:1.20,returned:true,state:'returned',accountId:'pv-acct-consign',accountType:'consignment',accountPaidAmount:91.00,accountSettled:true,returns:[{id:'pv-ret-6',type:'full_seller',refundAmount:218,returnPostage:3.49,loggedAt:new Date(ago(29)).toISOString(),notes:'Face ID issue discovered after sale; partner share had already been paid',_dateSoldAtReturn:ago(37),_salePriceAtReturn:218,_postageAtReturn:4.99,_platformAtReturn:'ebay',_promoPercentAtReturn:0}]}));
+002181: 
+002182:   // ── Removed stock / archive examples ──────────────────────────────────────
+002183:   push(it({item:'Broken Canon IXUS 185',cat:'Cameras',src:'Car boot',sourced:ago(66),cp:8,est:28,state:'scrapped',scrappedAt:ago(50),scrapReason:'scrapped',scrapNote:'Main board fault — uneconomic repair'}));
+002184:   push(it({item:'Bundle of generic phone cases',cat:'Phone Accessories',src:'Job lot',sourced:ago(59),cp:6,est:12,state:'scrapped',scrappedAt:ago(41),scrapReason:'donated',scrapNote:'Donated locally after low demand'}));
+002185:   push(it({item:'Faulty Epson scanner',cat:'Electronics',src:'Supplier',sourced:ago(34),cp:18,est:30,state:'scrapped',scrappedAt:ago(28),scrapReason:'supplier_return',scrapNote:'Returned to supplier after failed test',supplierRefund:18}));
+002186: 
+002187:   // ── run1: Taplow Car Boot (85d ago) — 5 items all sold ─────────────────
+002188:   push(it({item:'Canon EOS 1100D body',       cat:'Cameras',       src:'Car boot',     sourced:ago(85),listed:ago(84),sold:ago(70),sp:62, cp:12,post:4.99,ship:4.99,pkg:1.20,splat:'ebay',runId:'pv-run-1',notes:'Tested working, slight dust on sensor'}));
+002189:   push(it({item:'Canon 18-55mm kit lens',      cat:'Camera Lenses', src:'Car boot',     sourced:ago(85),listed:ago(84),sold:ago(68),sp:28, cp:5, post:3.20,ship:3.20,          splat:'ebay',runId:'pv-run-1'}));
+002190:   push(it({item:'Nintendo DS Lite + charger',  cat:'Gaming',        src:'Car boot',     sourced:ago(85),listed:ago(83),sold:ago(71),sp:22, cp:4, post:2.80,ship:2.80,          splat:'ebay',runId:'pv-run-1'}));
+002191:   push(it({item:'Dyson V6 Slim handheld',      cat:'Hoovers',       src:'Car boot',     sourced:ago(85),listed:ago(82),sold:ago(60),sp:45, cp:8, post:5.99,ship:5.99,pkg:1.50,splat:'ebay',runId:'pv-run-1'}));
+002192:   push(it({item:'Lego Star Wars 75177',         cat:'Lego',          src:'Car boot',     sourced:ago(85),listed:ago(83),sold:ago(55),sp:38, cp:7, post:4.50,ship:4.50,          splat:'ebay',runId:'pv-run-1'}));
+
+## Window 12: app.js 2764-2778
+002764:     costPrice:       Number(row.cost_price) || 0,
+002765:     shippingCost:    Number(row.shipping_cost) || 0,
+002766:     packagingCost:   Number(row.packaging_cost) || 0,
+002767:     promoPercent:    Number(row.promo_percent) || 0,
+002768:     notes:           row.notes || '',
+002769:     photoPath:       row.photo_path || null,
+002770:     photo:           null,
+002771:     isReturned:      !!row.is_returned,
+002772:     _postageMode:    row.postage_mode || 'simple',
+002773:     _sdRateIdx:      row.sd_rate_idx != null ? row.sd_rate_idx : 1,
+002774:     _sdBuyerPays:    row.sd_buyer_pays === true,
+002775:     resaleSalePrice:    row.resale_sale_price ? Number(row.resale_sale_price) : null,
+002776:     resaleDateSold:     row.resale_date_sold || null,
+002777:     resalePlatform:     row.resale_platform || null,
+002778:     salePlatform:       row.sale_platform || null,   // v2.19.33 — Sale 1's own platform
+
+## Window 13: app.js 2781-2797
+002781:     _lastRefreshAt:     row.last_refresh_at || null,
+002782:     resaleShippingCost:  row.resale_shipping_cost  ? Number(row.resale_shipping_cost)  : null,
+002783:     resalePromoPercent:  row.resale_promo_percent  ? Number(row.resale_promo_percent)  : null,
+002784:     resalePackagingCost: row.resale_packaging_cost ? Number(row.resale_packaging_cost) : null,
+002785:     resalePostage:       row.resale_postage        ? Number(row.resale_postage)        : null,
+002786:     grossProfit:     row.gross_profit != null ? Number(row.gross_profit) : null,
+002787:     state:           row.state || null,
+002788:       scrappedAt:      row.scrapped_at || null,
+002789:       scrapReason:     row.scrap_reason || null,
+002790:       scrapNote:       row.scrap_note || null,
+002791:       supplierRefund:  row.supplier_refund != null ? Number(row.supplier_refund) : null,
+002792:       supplierRefundDate: row.supplier_refund_date || null,
+002793:       bundleId:        row.bundle_id || null,
+002794:       bundleRef:       row.bundle_ref || null,
+002795:       bundleTotal:     row.bundle_total != null ? Number(row.bundle_total) : null,
+002796:       // v1.01 — Sale 2 needs its own order identity. A single bundleId on the
+002797:       // item makes a later resale retroactively tag Sale 1 as part of the new
+
+## Window 14: app.js 2818-2832
+002818:     resaleListingFee: row.resale_listing_fee != null ? Number(row.resale_listing_fee) : 0,
+002819:     // Server-maintained conflict timestamp. Never written back by _itemToRow;
+002820:     // used only to prevent an older device outbox from resurrecting stale state.
+002821:     _cloudUpdatedAt: row.updated_at || null,
+002822:     _shippingMigrated: true,
+002823:     returnData:      null,
+002824:     parts: (parts||[]).map(p=>({id:p.id, description:p.description||'', cost:Number(p.cost)||0, date:p.date||null})),
+002825:     returnHistory: (returns||[]).map(r=>({
+002826:       id:             r.id,
+002827:       loggedAt:       r.logged_at || null,
+002828:       saleNo:         r.sale_no != null ? Number(r.sale_no) : 1,
+002829:       type:           r.type || null,
+002830:       refundAmount:   Number(r.refund_amount) || 0,
+002831:       returnPostage:  Number(r.return_postage) || 0,
+002832:       notes:          r.notes || '',
+
+## Window 15: app.js 2881-2895
+002881:     postage:          i.postage || 0,
+002882:     cost_price:       i.costPrice || 0,
+002883:     shipping_cost:    i.shippingCost || 0,
+002884:     packaging_cost:   i.packagingCost || 0,
+002885:     promo_percent:    i.promoPercent || 0,
+002886:     notes:            i.notes || null,
+002887:     photo_path:       i.photoPath || null,
+002888:     is_returned:      !!i.isReturned,
+002889:     postage_mode:     i._postageMode || 'simple',
+002890:     sd_rate_idx:      i._sdRateIdx != null ? i._sdRateIdx : 1,
+002891:     sd_buyer_pays:    i._sdBuyerPays === true,
+002892:     resale_sale_price:    i.resaleSalePrice    || null,
+002893:     resale_date_sold:     i.resaleDateSold     || null,
+002894:     resale_platform:      i.resalePlatform     || null,
+002895:     sale_platform:        i.salePlatform       || null,   // v2.19.33
+
+## Window 16: app.js 2898-2914
+002898:     resale_packaging_cost:i.resalePackagingCost|| null,
+002899:     resale_postage:       i.resalePostage      || null,
+002900:     refresh_history:      (i.refreshHistory&&i.refreshHistory.length)?JSON.stringify(i.refreshHistory):null,
+002901:     last_relist_at:       i._lastRelistAt       || null,
+002902:     last_refresh_at:      i._lastRefreshAt      || null,
+002903:     gross_profit:     i.grossProfit || null,
+002904:     state:            i.state || 'listed',
+002905:     scrapped_at:      i.scrappedAt || null,
+002906:     scrap_reason:     i.scrapReason || null,
+002907:     scrap_note:       i.scrapNote || null,
+002908:     supplier_refund:  i.supplierRefund != null ? Number(i.supplierRefund) : null,
+002909:     supplier_refund_date: i.supplierRefundDate || null,
+002910:     bundle_id:        i.bundleId || null,
+002911:     bundle_ref:       i.bundleRef || null,
+002912:     bundle_total:     i.bundleTotal != null ? Number(i.bundleTotal) : null,
+002913:     resale_bundle_id:    i.resaleBundleId || null,
+002914:     resale_bundle_ref:   i.resaleBundleRef || null,
+
+## Window 17: app.js 2950-2964
+002950:   const meta={};
+002951:   Object.keys(DB||{}).forEach(function(k){
+002952:     if(k.charAt(0)==='_')meta[k]=DB[k];
+002953:   });
+002954:   DB=meta;
+002955:   DB.trips=[];DB.expenses=[];DB.cashLedger=[];DB.activityLog=[];
+002956:   _sourcingRuns=[];_activeSourcingRun=null;
+002957:   _accounts=[];_jobLots=[];_jobLotItems=[];_saleReconciliations=[];
+002958: }
+002959: 
+002960: async function loadFromSupabase(){
+002961:   _schemaVerified=false;
+002962:   const ok = await _ensureSession();
+002963:   if(!ok) throw new Error('Not authenticated — please sign in again.');
+002964:   // Get current user id directly from session as belt-and-braces
+
+## Window 18: app.js 2967-2992
+002967:   _currentUserId = session.user.id;
+002968:   const uid = _currentUserId;
+002969:   await _verifySchemaVersion();
+002970:   _schemaVerified=true;
+002971:   // Fetch all tables in parallel — explicit .eq('user_id') on every query as
+002972:   // belt-and-braces on top of RLS. Prevents NULL-user_id orphan rows or
+002973:   // misconfigured policies from bleeding into the loaded DB.
+002974:   const [itemsRes, partsRes, returnsRes, tripsRes, expensesRes, runsRes, accountsRes, cashRes, activityRes, jobLotsRes, jobLotItemsRes, reconcileRes] = await Promise.all([
+002975:     _sb.from('items').select('*').eq('user_id', uid).order('date_listed', {ascending: true}),
+002976:     _sb.from('item_parts').select('*').eq('user_id', uid),
+002977:     _sb.from('item_returns').select('*').eq('user_id', uid).order('logged_at', {ascending: true}),
+002978:     _sb.from('trips').select('*').eq('user_id', uid).order('date', {ascending: true}),
+002979:     _sb.from('expenses').select('*').eq('user_id', uid).order('date', {ascending: true}),
+002980:     _sb.from('sourcing_runs').select('*').eq('user_id', uid).order('date_started', {ascending: false}),
+002981:     _sb.from('accounts').select('*').eq('user_id', uid).order('name', {ascending: true}),
+002982:     _sb.from('cash_ledger').select('*').eq('user_id', uid).order('date', {ascending: true}),
+002983:     _sb.from('activity_log').select('*').eq('user_id', uid).order('ts', {ascending: true}),
+002984:     _sb.from('job_lots').select('*').eq('user_id', uid).order('created_at', {ascending: true}),
+002985:     _sb.from('job_lot_items').select('*').eq('user_id', uid).order('added_at', {ascending: true}),
+002986:     _sb.from('sale_reconciliations').select('*').eq('user_id', uid).order('created_at', {ascending: true}),
+002987:   ]);
+002988: 
+002989:   // Core financial data must load as a complete set. Showing an apparently
+002990:   // healthy app with missing parts/returns/expenses is worse than a visible
+002991:   // sync error because it produces believable but wrong profit figures.
+002992:   const _coreLoads=[
+
+## Window 19: app.js 3072-3103
+003072:       ts:Number(r.ts)||(r.created_at?Date.parse(r.created_at):Date.now()),
+003073:       undoable:!!r.undoable, undone:!!r.undone, origin:r.origin||null
+003074:     }));
+003075:   } else {
+003076:     DB.activityLog = DB.activityLog || [];
+003077:     if(activityRes && activityRes.error) console.warn('activity_log load skipped (table may not exist yet):', activityRes.error.message);
+003078:   }
+003079:   // v1.01 — Job Lot + historical-reconciliation support is additive. An
+003080:   // older database can still load the core app; the Job Lot UI then explains
+003081:   // that the v1.01 migration is required instead of emitting sync 400s.
+003082:   _jobLotSchemaAvailable=!!(jobLotsRes&&!jobLotsRes.error&&jobLotItemsRes&&!jobLotItemsRes.error);
+003083:   if(_jobLotSchemaAvailable){
+003084:     _jobLots=(jobLotsRes.data||[]).map(function(r){return{
+003085:       id:r.id,name:r.name||'Job Lot',status:r.status||'building',dateCreated:r.date_created||null,
+003086:       dateListed:r.date_listed||null,dateSold:r.date_sold||null,salePrice:Number(r.sale_price)||0,
+003087:       platform:r.platform||'ebay',bundleId:r.bundle_id||null,bundleRef:r.bundle_ref||null,
+003088:       notes:r.notes||'',createdAt:r.created_at||null,updatedAt:r.updated_at||null
+003089:     };});
+003090:     _jobLotItems=(jobLotItemsRes.data||[]).map(function(r){return{
+003091:       id:r.id,jobLotId:r.job_lot_id,itemId:r.item_id,addedAt:r.added_at||null,
+003092:       removedAt:r.removed_at||null,costBasisAtAdd:Number(r.cost_basis_at_add)||0,notes:r.notes||''
+003093:     };});
+003094:   }else{
+003095:     _jobLots=[];_jobLotItems=[];
+003096:     if((jobLotsRes&&jobLotsRes.error)||(jobLotItemsRes&&jobLotItemsRes.error))console.info('[RETRADE] Job Lots unavailable until v1.01 stock-lifecycle migration is applied.');
+003097:   }
+003098:   _reconciliationSchemaAvailable=!!(reconcileRes&&!reconcileRes.error);
+003099:   if(_reconciliationSchemaAvailable){
+003100:     _saleReconciliations=(reconcileRes.data||[]).map(function(r){return{
+003101:       id:r.id,attachedItemId:r.attached_item_id||null,targetSaleItemId:r.target_sale_item_id||null,
+003102:       targetBundleId:r.target_bundle_id||null,targetBundleRef:r.target_bundle_ref||null,
+003103:       treatment:r.treatment||'',status:r.status||'applied',priorOrderTotal:Number(r.prior_order_total)||0,
+
+## Window 20: app.js 3156-3186
+003156:   // Key is user-agnostic (preview mode also benefits) — safe to share per-browser.
+003157:   const _BACKFILL_KEY='retrade_backfill_dsar_v1';
+003158:   if(localStorage.getItem(_BACKFILL_KEY)==='1')return;
+003159:   let dirty=0;
+003160:   allDBKeys().forEach(function(k){
+003161:     if(k==='trips'||k==='expenses'||k==='_userOwned'||k==='_taxYear')return;
+003162:     (DB[k]||[]).forEach(function(i){
+003163:       const rh=i.returnHistory||[];
+003164:       if(rh.length===0)return;
+003165:       const fullEntry=rh.find(r=>r.type==='full_seller'||r.type==='full_ebay');
+003166:       const fallbackForFullReturn=fullEntry?(fullEntry.loggedAt||null):null;
+003167:       rh.forEach(function(r){
+003168:         if(r._dateSoldAtReturn)return; // already set, skip
+003169:         const filled=i.dateSold||fallbackForFullReturn||null;
+003170:         if(filled){
+003171:           r._dateSoldAtReturn=filled;
+003172:           dirty++;
+003173:         }
+003174:       });
+003175:     });
+003176:   });
+003177:   if(dirty>0){
+003178:     try{
+003179:       // Re-save every item that has returnHistory so the column gets pushed up
+003180:       // for ALL of them in a single sync. saveDB's debounced diff engine will
+003181:       // batch this into one Supabase round trip.
+003182:       await saveDB();
+003183:     }catch(e){
+003184:       console.warn('[backfill] save failed — values are correct in memory but not persisted:',e);
+003185:     }
+003186:   }
+
+## Window 21: app.js 3325-3339
+003325:     user_id:     _currentUserId || null,
+003326:     description: p.desc || p.description || '',
+003327:     cost:        Number(p.cost) || 0,
+003328:     date:        p.date || null,
+003329:   }));
+003330:   await _replaceChildRowsSafe('item_parts', i.id, partsRows, 'item_parts');
+003331: 
+003332:   const retRows = (i.returnHistory||[]).map(r => ({
+003333:     item_id:       i.id,
+003334:     user_id:       _currentUserId || null,
+003335:     logged_at:     r.loggedAt || null,
+003336:     sale_no:       r.saleNo || 1,
+003337:     type:          r.type || null,
+003338:     refund_amount: Number(r.refundAmount) || 0,
+003339:     return_postage:Number(r.returnPostage) || 0,
+
+## Window 22: app.js 3459-3504
+003459:   const {error} = await _sbCall(()=>_sb.from('activity_log').delete().eq('id', id).eq('user_id', _currentUserId));
+003460:   if(error){
+003461:     _lastSyncError='Activity log delete pending: '+error.message;
+003462:     throw new Error('Delete activity failed: '+error.message);
+003463:   }
+003464: }
+003465: 
+003466: // v1.01 — Job Lot persistence. The UI is feature-gated when the optional
+003467: // tables are absent, so these functions should only be reached after a clean load.
+003468: function _jobLotToRow(l){return{
+003469:   id:l.id,user_id:_currentUserId||null,name:l.name||'Job Lot',status:l.status||'building',
+003470:   date_created:l.dateCreated||null,date_listed:l.dateListed||null,date_sold:l.dateSold||null,
+003471:   sale_price:Number(l.salePrice)||0,platform:l.platform||null,bundle_id:l.bundleId||null,bundle_ref:l.bundleRef||null,notes:l.notes||null,
+003472:   created_at:l.createdAt||new Date().toISOString()
+003473: };}
+003474: function _jobLotItemToRow(m){return{
+003475:   id:m.id,user_id:_currentUserId||null,job_lot_id:m.jobLotId,item_id:m.itemId,
+003476:   added_at:m.addedAt||new Date().toISOString(),removed_at:m.removedAt||null,
+003477:   cost_basis_at_add:Number(m.costBasisAtAdd)||0,notes:m.notes||null
+003478: };}
+003479: async function saveJobLotToSupabase(l){
+003480:   if(!_jobLotSchemaAvailable)throw new Error('Job Lot tables are not available — run the v1.01 stock-lifecycle migration');
+003481:   const {error}=await _upsertOwned('job_lots',_jobLotToRow(l),'id,user_id');
+003482:   if(error)throw new Error('Save Job Lot failed: '+error.message);
+003483: }
+003484: async function deleteJobLotFromSupabase(id){
+003485:   if(!_jobLotSchemaAvailable)return;
+003486:   const {error}=await _sbCall(()=>_sb.from('job_lots').delete().eq('id',id).eq('user_id',_currentUserId));
+003487:   if(error)throw new Error('Delete Job Lot failed: '+error.message);
+003488: }
+003489: async function saveJobLotItemToSupabase(m){
+003490:   if(!_jobLotSchemaAvailable)throw new Error('Job Lot tables are not available — run the v1.01 stock-lifecycle migration');
+003491:   const {error}=await _upsertOwned('job_lot_items',_jobLotItemToRow(m),'id,user_id');
+003492:   if(error)throw new Error('Save Job Lot membership failed: '+error.message);
+003493: }
+003494: async function deleteJobLotItemFromSupabase(id){
+003495:   if(!_jobLotSchemaAvailable)return;
+003496:   const {error}=await _sbCall(()=>_sb.from('job_lot_items').delete().eq('id',id).eq('user_id',_currentUserId));
+003497:   if(error)throw new Error('Delete Job Lot membership failed: '+error.message);
+003498: }
+003499: function _saleReconcileToRow(r){return{
+003500:   id:r.id,user_id:_currentUserId||null,attached_item_id:r.attachedItemId||null,
+003501:   target_sale_item_id:r.targetSaleItemId||null,target_bundle_id:r.targetBundleId||null,
+003502:   target_bundle_ref:r.targetBundleRef||null,treatment:r.treatment||'link_only',
+003503:   status:r.status||'applied',prior_order_total:Number(r.priorOrderTotal)||0,
+003504:   resulting_order_total:Number(r.resultingOrderTotal)||0,additional_revenue:Number(r.additionalRevenue)||0,
+
+## Window 23: app.js 3799-3813
+003799:       }
+003800:       return null;
+003801:     }
+003802:     function staleAgainstCloud(e,obj){
+003803:       // Items have a server-maintained updated_at trigger. If Supabase changed
+003804:       // the same item after this device staged its outbox edit, cloud wins and
+003805:       // the older local write is discarded. This prevents stale Returned/List
+003806:       // states from resurrecting items scrapped/sold on another device.
+003807:       if(!e||e.type!=='item')return false;
+003808:       const id=(obj&&obj.id)||e.id;
+003809:       if(!id)return false;
+003810:       const cloud=cloudItem(id);
+003811:       if(!cloud||!cloud._cloudUpdatedAt)return false;
+003812:       const cloudTs=Date.parse(cloud._cloudUpdatedAt)||0;
+003813:       const localTs=Number(e.ts)||0;
+
+## Window 24: app.js 3822-3842
+003822:         if(e.op === 'save'){
+003823:           const obj = JSON.parse(e.json);
+003824:           if(staleAgainstCloud(e,obj)){
+003825:             delete ob[k];pruned=true;
+003826:             console.info('[RETRADE] Discarded stale device outbox write; newer cloud item wins:',obj.id);
+003827:             return;
+003828:           }
+003829:           // v1.01 — lifecycle records (job-lot membership, reconciliations) carry no
+003830:           // server updated_at to compare, but a removed/superseded cloud row must not be
+003831:           // resurrected by a stale local 'save' queued before that change on another device.
+003832:           if(e.type === 'jmem'){
+003833:             const cloudMem=(_jobLotItems||[]).find(function(x){return x.id===obj.id;});
+003834:             if(cloudMem&&cloudMem.removedAt&&!obj.removedAt){ delete ob[k];pruned=true;
+003835:               console.info('[RETRADE] Discarded stale job-lot membership; cloud removal wins:',obj.id); return; }
+003836:           }
+003837:           if(e.type === 'recon'){
+003838:             const cloudR=(_saleReconciliations||[]).find(function(x){return x.id===obj.id;});
+003839:             if(cloudR&&cloudR.status&&obj.status&&cloudR.status!==obj.status){ delete ob[k];pruned=true;
+003840:               console.info('[RETRADE] Discarded stale reconciliation; cloud status wins:',obj.id); return; }
+003841:           }
+003842:           if(e.type === 'item'){
+
+## Window 25: app.js 3867-3885
+003867:             const idx = _accounts.findIndex(function(x){return x.id===obj.id;});
+003868:             if(idx>=0) _accounts[idx]=obj; else _accounts.push(obj);
+003869:           } else if(e.type === 'log'){
+003870:             DB.activityLog = DB.activityLog || [];
+003871:             const idx = DB.activityLog.findIndex(function(x){return x.id===obj.id;});
+003872:             if(idx>=0) DB.activityLog[idx]=obj; else DB.activityLog.push(obj);
+003873:           } else if(e.type === 'jlot'){
+003874:             const idx = _jobLots.findIndex(function(x){return x.id===obj.id;});
+003875:             if(idx>=0) _jobLots[idx]=obj; else _jobLots.push(obj);
+003876:           } else if(e.type === 'jmem'){
+003877:             const idx = _jobLotItems.findIndex(function(x){return x.id===obj.id;});
+003878:             if(idx>=0) _jobLotItems[idx]=obj; else _jobLotItems.push(obj);
+003879:           } else if(e.type === 'recon'){
+003880:             const idx = _saleReconciliations.findIndex(function(x){return x.id===obj.id;});
+003881:             if(idx>=0) _saleReconciliations[idx]=obj; else _saleReconciliations.push(obj);
+003882:           }
+003883:           applied++;
+003884:         } else if(e.op === 'delete'){
+003885:           if(staleAgainstCloud(e,null)){
+
+## Window 26: app.js 3892-3907
+003892:             allDBKeys().forEach(function(m){ if(DB[m]) DB[m] = DB[m].filter(function(x){return x.id!==id;}); });
+003893:           } else if(e.type === 'trip'){ DB.trips = (DB.trips||[]).filter(function(x){return x.id!==id;}); }
+003894:           else if(e.type === 'exp'){ DB.expenses = (DB.expenses||[]).filter(function(x){return x.id!==id;}); }
+003895:           else if(e.type === 'cash'){ DB.cashLedger = (DB.cashLedger||[]).filter(function(x){return x.id!==id;}); }
+003896:           else if(e.type === 'run'){ _sourcingRuns = _sourcingRuns.filter(function(x){return x.id!==id;}); }
+003897:           else if(e.type === 'acct'){ _accounts = _accounts.filter(function(x){return x.id!==id;}); }
+003898:           else if(e.type === 'log'){ DB.activityLog = (DB.activityLog||[]).filter(function(x){return x.id!==id;}); }
+003899:           else if(e.type === 'jlot'){ _jobLots = _jobLots.filter(function(x){return x.id!==id;}); }
+003900:           else if(e.type === 'jmem'){ _jobLotItems = _jobLotItems.filter(function(x){return x.id!==id;}); }
+003901:           else if(e.type === 'recon'){ _saleReconciliations = _saleReconciliations.filter(function(x){return x.id!==id;}); }
+003902:           applied++;
+003903:         }
+003904:       }catch(inner){ console.warn('[RETRADE] outbox replay failed', k, inner && inner.message); }
+003905:     });
+003906:     if(pruned)_outboxSave(ob);
+003907:   }catch(e){ console.warn('[RETRADE] outbox recovery failed:', e && e.message); return 0; }
+
+## Window 27: app.js 3926-3976
+003926:   if(!token) token=Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,11);
+003927:   return (prefix?prefix+'_':'')+token;
+003928: }
+003929: function _uuidLog(){ return _newId('log'); }
+003930: // Money-free canonical status label (mirrors the list-row status deriver).
+003931: function _actStatus(i){
+003932:   if(!i) return 'gone';
+003933:   if(i.scrappedAt){ if(i.scrapReason==='supplier_return')return 'returned_supplier'; return (i.scrapReason==='donated')?'donated':'scrapped'; }
+003934:   if(i.isReturned) return 'returned';
+003935:   if(i.resaleSalePrice) return 'resold';
+003936:   if(i.dateSold) return 'sold';
+003937:   if(i.state==='sourced') return 'sourced';
+003938:   return 'listed';
+003939: }
+003940: const _ACT_LABEL = { listed:'Listed', sold:'Marked sold', returned:'Returned', resold:'Re-sold', scrapped:'Scrapped', donated:'Donated', returned_supplier:'Returned to supplier', sourced:'Moved to unlisted', deleted:'Deleted' };
+003941: function _findItemMonth(id){ const ks=allDBKeys(); for(const m of ks){ if((DB[m]||[]).some(x=>x.id===id)) return m; } return null; }
+003942: function _activityAfterSummary(beforeObj,afterObj,toState){
+003943:   try{
+003944:     const i=afterObj||{};
+003945:     if(toState==='sold'||toState==='resold'){
+003946:       const saleNo=(typeof _currentResaleSaleNo==='function'&&i.resaleSalePrice)?_currentResaleSaleNo(i):1;
+003947:       const snap=(typeof _saleCycleSnapshot==='function')?_saleCycleSnapshot(i,saleNo):null;
+003948:       const price=snap?Number(snap.price)||0:Number(i.resaleSalePrice||i.salePrice)||0;
+003949:       const platform=snap&&snap.platformId?(typeof _platformLabel==='function'?_platformLabel(snap.platformId):snap.platformId):'';
+003950:       return 'Sale '+saleNo+' · '+(typeof fmt==='function'?fmt(price):('£'+price.toFixed(2)))+(platform?' · '+platform:'');
+003951:     }
+003952:     if(toState==='returned'){
+003953:       const r=(i.returnHistory||[]).slice().reverse().find(function(x){return x&&(x.type==='full_seller'||x.type==='full_ebay');});
+003954:       if(r){
+003955:         const saleNo=Math.max(1,Number(r.saleNo)||1),refund=Math.max(0,Number(r.refundAmount)||0);
+003956:         return 'Sale '+saleNo+' returned'+(refund?(' · refund '+(typeof fmt==='function'?fmt(refund):('£'+refund.toFixed(2)))):'');
+003957:       }
+003958:       return 'Item returned to stock';
+003959:     }
+003960:     if(toState==='listed'){
+003961:       if(beforeObj&&beforeObj.isReturned)return 'Returned stock relisted';
+003962:       return i.dateListed?('Listed '+i.dateListed):'Listed for sale';
+003963:     }
+003964:     if(toState==='sourced')return i.dateSourced?('Unlisted stock · sourced '+i.dateSourced):'Moved to unlisted stock';
+003965:     if(toState==='returned_supplier'){
+003966:       const refund=Math.max(0,Number(i.supplierRefund)||0);
+003967:       return 'Returned to supplier'+(refund?(' · refund '+(typeof fmt==='function'?fmt(refund):('£'+refund.toFixed(2)))):'');
+003968:     }
+003969:     if(toState==='scrapped'||toState==='donated')return i.scrapNotes||(_ACT_LABEL[toState]||toState);
+003970:   }catch(e){}
+003971:   return '';
+003972: }
+003973: function _pushActivity(itemId,itemName,fromState,toState,beforeObj,month,origin,afterObj){
+003974:   try{
+003975:     DB.activityLog = DB.activityLog || [];
+003976:     const detail=_activityAfterSummary(beforeObj,afterObj,toState);
+
+## Window 28: app.js 4060-4105
+004060:   toast('Item not found (it may have been deleted)','err');
+004061: }
+004062: const _UNDO_SVG='<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"/></svg>';
+004063: let ACTIVITY_FILTER='all', ACTIVITY_SEARCH='';
+004064: function _activityCategory(r){
+004065:   const a=String((r&&r.action)||'').toLowerCase(),s=String((r&&r.toState)||'').toLowerCase();
+004066:   if(a.indexOf('reconcil')>=0||a.indexOf('needs review')>=0)return 'review';
+004067:   if(s==='joblot'||a.indexOf('job lot')>=0)return 'joblot';
+004068:   if(s==='returned'||a.indexOf('return')>=0)return 'returns';
+004069:   if(['scrapped','deleted','donated','disposed','returned_supplier'].includes(s)||/(scrap|delete|donat|dispos|recycl)/.test(a))return 'disposals';
+004070:   if(['sold','resold'].includes(s)||/(sold|sale|resold)/.test(a))return 'sales';
+004071:   return 'stock';
+004072: }
+004073: function _activityUndoState(r,latestActive){
+004074:   if(!r||r.undone||!r.undoable||!r.before||!r.itemId)return {ok:false,reason:''};
+004075:   if(latestActive[r.itemId]!==r.id)return {ok:false,reason:'A newer change must be undone first'};
+004076:   const rec=(typeof _findItemRecordById==='function')?_findItemRecordById(r.itemId):null;
+004077:   const cur=rec&&rec.item;
+004078:   const before=r.before||{};
+004079:   const grouped=!!(before.bundleId||before.resaleBundleId||(cur&&(cur.bundleId||cur.resaleBundleId)));
+004080:   if(grouped)return {ok:false,reason:'Grouped order — reverse from the order or item workflow'};
+004081:   try{if(cur&&typeof _activeJobLotMembership==='function'&&_activeJobLotMembership(cur.id))return {ok:false,reason:'Item is currently in a Job Lot'};}catch(e){}
+004082:   return {ok:true,reason:''};
+004083: }
+004084: function _activityNodeIcon(r){
+004085:   const cat=_activityCategory(r);
+004086:   if(cat==='sales')return typeof icon==='function'?icon('sold',14):'✓';
+004087:   if(cat==='returns')return typeof icon==='function'?icon('return',14):'↩';
+004088:   if(cat==='disposals')return typeof icon==='function'?icon('dispose',14):'×';
+004089:   if(cat==='joblot')return typeof icon==='function'?icon('joblot',14):'◇';
+004090:   if(cat==='review')return typeof icon==='function'?icon('warn',14):'!';
+004091:   return typeof icon==='function'?icon((r&&r.toState)==='listed'?'list':'inbox',14):'•';
+004092: }
+004093: function _activityNodeClass(r){
+004094:   const cat=_activityCategory(r);
+004095:   return cat==='sales'?'sale':cat==='returns'?'return':cat==='disposals'?'disposal':cat==='joblot'?'joblot':cat==='review'?'review':'stock';
+004096: }
+004097: function _activityStateLabel(v){
+004098:   const map={sourced:'Unlisted',listed:'Listed',sold:'Sold',resold:'Resold',returned:'Returned',scrapped:'Scrapped',donated:'Donated',returned_supplier:'Supplier return',deleted:'Deleted',joblot:'Job Lot',gone:'Deleted'};
+004099:   return map[v]||String(v||'').replace(/_/g,' ');
+004100: }
+004101: function setActivityFilter(f){ACTIVITY_FILTER=f||'all';renderActivity();}
+004102: function setActivitySearch(v){ACTIVITY_SEARCH=String(v||'');renderActivity();}
+004103: function renderActivity(){
+004104:   const el=document.getElementById('p-activity'); if(!el) return;
+004105:   const allRows=(DB.activityLog||[]).slice().sort(function(a,b){return (Number(b.ts)||0)-(Number(a.ts)||0);});
+
+## Window 29: app.js 4118-4132
+004118:     return hay.indexOf(q)!==-1;
+004119:   });
+004120:   const now=new Date(),todayKey=now.toDateString();
+004121:   const todayCount=allRows.filter(function(r){return new Date(Number(r.ts)||0).toDateString()===todayKey;}).length;
+004122:   const reviewCount=allRows.filter(function(r){return _activityCategory(r)==='review'&&!r.undone;}).length;
+004123:   const undoCount=allRows.filter(function(r){return _activityUndoState(r,latestActive).ok;}).length;
+004124:   const activeCount=allRows.filter(function(r){return !r.undone;}).length;
+004125:   const filters=[['all','All'],['undo','Can undo'],['sales','Sales'],['stock','Stock'],['returns','Returns'],['joblot','Job Lots'],['disposals','Disposed'],['review','Review']];
+004126:   const filterHTML=filters.map(function(f){
+004127:     let n=0;
+004128:     if(f[0]==='all')n=allRows.length;
+004129:     else if(f[0]==='undo')n=undoCount;
+004130:     else n=allRows.filter(function(r){return _activityCategory(r)===f[0];}).length;
+004131:     return '<button class="act-filter'+(ACTIVITY_FILTER===f[0]?' active':'')+'" onclick="setActivityFilter(\''+f[0]+'\')"><span>'+f[1]+'</span><b>'+n+'</b></button>';
+004132:   }).join('');
+
+## Window 30: app.js 4203-4219
+004203:   });
+004204:   (DB.trips||[]).forEach(t => { fp['trip:'+t.id] = JSON.stringify(t); });
+004205:   (DB.expenses||[]).forEach(e => { fp['exp:'+e.id] = JSON.stringify(e); });
+004206:   (DB.cashLedger||[]).forEach(m => { fp['cash:'+m.id] = JSON.stringify(m); });
+004207:   (DB.activityLog||[]).forEach(l => { fp['log:'+l.id] = JSON.stringify(l); });
+004208:   (_sourcingRuns||[]).forEach(r => { fp['run:'+r.id] = JSON.stringify(r); });
+004209:   (_accounts||[]).forEach(a => { fp['acct:'+a.id] = JSON.stringify(a); });
+004210:   if(_jobLotSchemaAvailable){
+004211:     (_jobLots||[]).forEach(l => { fp['jlot:'+l.id] = JSON.stringify(l); });
+004212:     (_jobLotItems||[]).forEach(m => { fp['jmem:'+m.id] = JSON.stringify(m); });
+004213:   }
+004214:   if(_reconciliationSchemaAvailable)(_saleReconciliations||[]).forEach(r => { fp['recon:'+r.id] = JSON.stringify(r); });
+004215:   return fp;
+004216: }
+004217: 
+004218: async function _persistChangesPass(){
+004219:   // Never persist if no user is logged in — prevents ghost saves after sign-out
+
+## Window 31: app.js 4282-4298
+004282:         } else if(key.startsWith('run:')){
+004283:           await saveRunToSupabase(JSON.parse(current[key]));
+004284:         } else if(key.startsWith('acct:')){
+004285:           await saveAccountToSupabase(JSON.parse(current[key]));
+004286:         } else if(key.startsWith('log:')){
+004287:           await saveActivityToSupabase(JSON.parse(current[key]));
+004288:         } else if(key.startsWith('jlot:')){
+004289:           await saveJobLotToSupabase(JSON.parse(current[key]));
+004290:         } else if(key.startsWith('jmem:')){
+004291:           await saveJobLotItemToSupabase(JSON.parse(current[key]));
+004292:         } else if(key.startsWith('recon:')){
+004293:           await saveSaleReconciliationToSupabase(JSON.parse(current[key]));
+004294:         }
+004295:       }catch(e){ errors.push(e.message); failedKeys.add(key); }
+004296:     }
+004297: 
+004298:     // Detect deletions
+
+## Window 32: app.js 4318-4334
+004318:         } else if(key.startsWith('acct:')){
+004319:           const id = key.slice(5);
+004320:           await deleteAccountFromSupabase(id);
+004321:         } else if(key.startsWith('log:')){
+004322:           const id = key.slice(4);
+004323:           await deleteActivityFromSupabase(id);
+004324:         } else if(key.startsWith('jlot:')){
+004325:           await deleteJobLotFromSupabase(key.slice(5));
+004326:         } else if(key.startsWith('jmem:')){
+004327:           await deleteJobLotItemFromSupabase(key.slice(5));
+004328:         } else if(key.startsWith('recon:')){
+004329:           await deleteSaleReconciliationFromSupabase(key.slice(6));
+004330:         }
+004331:       }catch(e){ errors.push(e.message); failedKeys.add(key); }
+004332:     }
+004333: 
+004334:     if(errors.length > 0){
+
+## Window 33: app.js 4637-4651
+004637:     // clock comparison against _SESSION_FRESH_MS, and the load can take up to
+004638:     // 15s. Computed after the load, a session sitting near the boundary could
+004639:     // resolve differently from the skeleton already on screen. Resolved ONCE and
+004640:     // reused below, the skeleton and the rendered page cannot disagree.
+004641:     const _freshSession = !_isSameSession();
+004642:     const _lastTab = (() => { if(_freshSession) return 'summary';
+004643:       try{ return localStorage.getItem(_SK.tab) || 'summary'; }catch(e){ return 'summary'; } })();
+004644:     const _safeTab = ['summary','monthly','stock','expenses','cash','returns','scrapped','tax','data','runs','activity'].includes(_lastTab) ? _lastTab : 'summary';
+004645:     showLoadingScreen('Loading your data…', _safeTab);
+004646:     await Promise.race([
+004647:       loadFromSupabase(),
+004648:       new Promise((_,reject) => setTimeout(() => reject(new Error('Request timed out. Try refreshing.')), 15000))
+004649:     ]);
+004650:     // Migrate any legacy bare keys ('APR') → year-suffixed ('APR-26')
+004651:     _migrateBareDBKeys();
+
+## Window 34: app.js 4699-4713
+004699:     if(_safeTab==='summary')renderSummary();
+004700:     else if(_safeTab==='monthly')renderMonthlyPage();
+004701:     else if(_safeTab==='stock')renderStock();
+004702:     else if(_safeTab==='runs')renderRunsPage();
+004703:     else if(_safeTab==='expenses')renderExpenses();
+004704:     else if(_safeTab==='cash')renderCash();
+004705:     else if(_safeTab==='returns')renderReturns();
+004706:     else if(_safeTab==='scrapped')renderScrapped();
+004707:     else if(_safeTab==='activity')renderActivity();
+004708:     else if(_safeTab==='tax')renderTax();
+004709:     else if(_safeTab==='data')renderData();
+004710:     else renderSummary();
+004711:     _deactivatePages();
+004712:     document.querySelectorAll('.tab').forEach(t=>t.classList.remove('on'));
+004713:     document.querySelectorAll('.bnt').forEach(b=>b.classList.remove('on'));
+
+## Window 35: app.js 5037-5058
+005037:   }
+005038:   else if(tab === 'runs')        body = _skelGeneric('110px');
+005039:   else if(tab === 'expenses')    body = _skelGeneric('220px');
+005040:   else if(tab === 'tax')         body = _skelGeneric('170px', false);
+005041:   else if(tab === 'data')        body = _skelGeneric('90px', false);
+005042:   else if(tab === 'cash')        body = _skelGeneric('120px', false);
+005043:   else if(tab === 'returns')     body = _skelGeneric('120px', false);
+005044:   else if(tab === 'scrapped')    body = _skelGeneric('120px', false);
+005045:   else if(tab === 'activity')    body = _skelGeneric('90px', false);
+005046:   else                           body = _skelSummary();
+005047:   // .page (not .page.on — see the .rt-skel CSS note) so the box model is shared.
+005048:   // rt-skel-<tab> is what lets the ID-scoped page rules reach this element --
+005049:   // see the .rt-skel-summary note in the CSS. Emitted for every tab so a future
+005050:   // ID rule on any page has a selector waiting for it.
+005051:   const _t = ['summary','monthly','stock','expenses','cash','returns','scrapped','tax','data','runs','activity'].includes(tab) ? tab : 'summary';
+005052:   return '<div class="page rt-skel rt-skel-' + _t + '">' + body
+005053:     + '<div id="app-loading-msg" role="status" aria-live="polite" style="position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0;"></div>'
+005054:     + '</div>';
+005055: }
+005056: // v2.19.0 -- 7C boot cross-fade.
+005057: // Failsafe only. The teardown is driven by transitionend (see hideLoadingScreen);
+005058: // this timer exists solely for the case where the transition never fires at all.
+
+## Window 36: app.js 5133-5163
+005133:   const id=active.id;
+005134:   if(id==='p-summary')renderSummary();
+005135:   else if(id==='p-monthly')renderMonth();
+005136:   else if(id==='p-stock')renderStock();
+005137:   else if(id==='p-expenses')renderExpenses();
+005138:   else if(id==='p-cash'&&typeof renderCash==='function')renderCash();
+005139:   else if(id==='p-returns'&&typeof renderReturns==='function')renderReturns();
+005140:   else if(id==='p-scrapped'&&typeof renderScrapped==='function')renderScrapped();
+005141:   else if(id==='p-activity'&&typeof renderActivity==='function')renderActivity();
+005142:   else if(id==='p-accounts'&&typeof renderAccountsPage==='function')renderAccountsPage();
+005143:   else if(id==='p-tax'&&typeof renderTax==='function')renderTax();
+005144:   else if(id==='p-active-run'&&typeof renderActiveRunPage==='function')renderActiveRunPage();
+005145:   else if(id==='p-runs'&&typeof renderRunsPage==='function')renderRunsPage();
+005146:   // p-item is intentionally skipped for the item detail view (would flicker
+005147:   // mid-edit) — but account detail ALSO renders into p-item, so mutations from
+005148:   // elsewhere (marking sold, returning, relisting, etc.) never reached it.
+005149:   // v2.09.6: if p-item is currently showing an account, refresh just that.
+005150:   else if(id==='p-item'){
+005151:     try{
+005152:       const _acct=(typeof _acctCurrentAcct==='function')?_acctCurrentAcct():null;
+005153:       if(_acct && typeof _renderAccountPage==='function')_renderAccountPage(_acct);
+005154:     }catch(e){/* stay silent — item detail still safely skipped */}
+005155:   }
+005156:   // Search results are live too — re-run the last query so a sale/return/scrap
+005157:   // updates the item's status in the results immediately (v2.21.43).
+005158:   else if(id==='p-search'&&typeof renderSearchResults==='function'){ if(typeof _lastSearchQuery!=='undefined'&&_lastSearchQuery)renderSearchResults(_lastSearchQuery); }
+005159: }
+005160: 
+005161: // BUYER PROTECTION FEE (Tiered eBay UK formula)
+005162: // calcBuyerProtectionFee: now uses unified iterative calcEbayBPF
+005163: function calcBuyerProtectionFee(p){return calcEbayBPF(p);}
+
+## Window 37: app.js 5242-5256
+005242:   const picker=document.getElementById('ip-plat-picker-'+id);
+005243:   if(picker)_closeItemPlatformPicker(picker);
+005244: 
+005245:   const items=DB[m]||[];
+005246:   const i=items.find(x=>x.id===id);
+005247:   if(!i)return;
+005248: 
+005249:   const _isSold=(i.dateSold||i.resaleSalePrice)&&!i.isReturned;
+005250:   if(_isSold){
+005251:     // Sold item: the fee source-of-truth is soldOnPlatform. Update it (and keep
+005252:     // defaultPlatform in sync), then re-store grossProfit so totals/tax follow.
+005253:     if(i.soldOnPlatform===platId&&i.defaultPlatform===platId)return; // no change
+005254:     i.soldOnPlatform=platId;
+005255:     i.defaultPlatform=platId;
+005256:   }else{
+
+## Window 38: app.js 5297-5311
+005297: // Missing/old timestamp → treat as a new session (return false).
+005298: function _isSameSession(){try{const t=parseInt(localStorage.getItem(_SK.lastActive),10);if(!t||isNaN(t))return false;return (Date.now()-t)<_SESSION_FRESH_MS;}catch(e){return false;}}
+005299: function _loadUIState(){try{
+005300:   // New session → keep the clean JS defaults (Summary, no stock filters) rather
+005301:   // than resuming stale page/filter state. Collapsed-group state is harmless to
+005302:   // restore either way, but we skip it too for a fully clean start.
+005303:   if(!_isSameSession())return;
+005304:   const sf=localStorage.getItem(_SK.stockF);const ssf=localStorage.getItem(_SK.stockSF);const sso=localStorage.getItem(_SK.stockSo);const ssof=localStorage.getItem(_SK.stockSoF);const sgr=localStorage.getItem(_SK.stockGr);const sc=localStorage.getItem(_SK.stkCol);const rs=localStorage.getItem(_SK.runsSort);const sp=localStorage.getItem(_SK.sumPer);const mv=localStorage.getItem(_SK.monthV);if(sf)STOCK_FILTER=sf;if(ssf){const _ssf=(ssf==='removed'?'listed':ssf);STOCK_STATE_FILTER=['all','listed','sourced','returned'].includes(_ssf)?_ssf:'listed';}if(sso)STOCK_SORT=sso;if(ssof)STOCK_SOURCED_FILTER=ssof;if(sgr)STOCK_GROUPED=sgr==='1';if(sc){try{STOCK_COLLAPSED=new Set(JSON.parse(sc));}catch(e){}}if(rs)RUNS_SORT=rs;if(sp)SUMMARY_PERIOD=sp;if(mv)MONTHLY_VIEW=mv;}catch(e){}}
+005305: function _saveTabScroll(){const a=document.querySelector('.page.on');if(a)_scrollMap[a.id.replace('p-','')]=window.scrollY||window.pageYOffset||0;}
+005306: function _restoreTabScroll(tab){const y=_scrollMap[tab];if(y)requestAnimationFrame(function(){requestAnimationFrame(function(){window.scrollTo(0,y);});});}
+005307: 
+005308: // v2.19.14 -- §8.1. The one place that takes .on off every page. Was ten
+005309: // identical inline sweeps; it is a helper now because it has to do a second
+005310: // thing atomically:
+005311: //   .rt-boot-noanim (the boot pageFade suppressor) MUST come off while .on is
+
+## Window 39: app.js 5399-5413
+005399:     if(!_monthOpenFromContext){_monthOrigin='calendar-top';SELECTED_MONTH=currentMonthKey();MONTHLY_VIEW='detail';MONTH_FILTER='all';MONTH_SORT='date-sold';}
+005400:     renderMonthlyPage();
+005401:   }
+005402:   else if(name==='stock'){_stockFromSummary=false;renderStock();}
+005403:   else if(name==='expenses')renderExpenses();
+005404:   else if(name==='cash')renderCash();
+005405:   else if(name==='returns')renderReturns();
+005406:   else if(name==='scrapped')renderScrapped();
+005407:   else if(name==='activity')renderActivity();
+005408:   else if(name==='accounts')renderAccountsPage();
+005409:   else if(name==='tax')renderTax();
+005410:   else if(name==='data')renderData();
+005411:   else if(name==='search')renderSearchResults();
+005412:   else if(name==='runs')renderRunsPage();
+005413:   _restoreTabScroll(name);
+
+## Window 40: app.js 5485-5499
+005485:     _restoreTabScroll('summary');
+005486:     return;
+005487:   }
+005488:   if(origin==='panel'&&_savedPanelState){
+005489:     // Restore the page the panel was on top of
+005490:     const pageId=_savedPanelState.pageId||'p-summary';
+005491:     document.getElementById(pageId).classList.add('on');
+005492:     const tabMap={'p-summary':'summary','p-monthly':'monthly','p-stock':'stock','p-expenses':'expenses','p-cash':'cash','p-tax':'tax','p-data':'data','p-runs':'runs','p-accounts':'accounts','p-returns':'returns','p-scrapped':'scrapped','p-activity':'activity'};
+005493:     const tabName=tabMap[pageId];
+005494:     if(tabName){const tab=document.querySelector('[data-tab="'+tabName+'"]');if(tab)tab.classList.add('on');}
+005495:     handleNavResize();
+005496:     if(pageId==='p-monthly'){renderMonth();_restoreTabScroll('monthly');}
+005497:     else if(pageId==='p-stock'){renderStock();_restoreTabScroll('stock');}
+005498:     else if(pageId==='p-summary'){renderSummary();_restoreTabScroll('summary');}
+005499:     // Re-render the item detail panel live so any changes made on the item page are reflected
+
+## Window 41: app.js 5512-5526
+005512:     } else {
+005513:       goToTab('runs',document.querySelector('[data-tab="runs"]'));
+005514:       if(typeof renderRunsPage==='function')renderRunsPage();
+005515:     }
+005516:     return;
+005517:   }
+005518:   document.getElementById(origin).classList.add('on');
+005519:   const tabMap={'p-summary':'summary','p-monthly':'monthly','p-stock':'stock','p-expenses':'expenses','p-cash':'cash','p-tax':'tax','p-data':'data','p-runs':'runs','p-accounts':'accounts','p-returns':'returns','p-scrapped':'scrapped','p-activity':'activity'};
+005520:   const tabName=tabMap[origin];
+005521:   if(tabName){const tab=document.querySelector('[data-tab="'+tabName+'"]');if(tab)tab.classList.add('on');}
+005522:   handleNavResize();
+005523:   if(origin==='p-monthly'){renderMonth();_restoreTabScroll('monthly');}
+005524:   else if(origin==='p-stock'){renderStock();_restoreTabScroll('stock');}
+005525:   else if(origin==='p-summary'){renderSummary();_restoreTabScroll('summary');}
+005526:   else if(origin==='p-accounts'){
+
+## Window 42: app.js 5560-5574
+005560:   }
+005561:   else if(origin==='p-runs'&&typeof renderRunsPage==='function'){renderRunsPage();_restoreTabScroll('runs');}
+005562:   // v2.12.6: Costs & Trips / Tax / Data had no scroll restore, so returning from
+005563:   // an item snapped them to the top (openItemDetail does scrollTo(0,0)).
+005564:   else if(origin==='p-expenses'&&typeof renderExpenses==='function'){renderExpenses();_restoreTabScroll('expenses');}
+005565:   else if(origin==='p-cash'&&typeof renderCash==='function'){renderCash();_restoreTabScroll('cash');}
+005566:   else if(origin==='p-returns'&&typeof renderReturns==='function'){renderReturns();_restoreTabScroll('returns');}
+005567:   else if(origin==='p-scrapped'&&typeof renderScrapped==='function'){renderScrapped();_restoreTabScroll('scrapped');}
+005568:   else if(origin==='p-tax'&&typeof renderTax==='function'){renderTax();_restoreTabScroll('tax');}
+005569:   else if(origin==='p-data'&&typeof renderData==='function'){renderData();_restoreTabScroll('data');}
+005570: }
+005571: 
+005572: // ── Simple Delivery rate bands (UK, current as of late 2025) ─────────────────
+005573: // Each entry: {label, cost, buyerPays} — cost = what eBay charges you, buyerPays = default buyer-facing charge
+005574: // ── Simple Delivery rate bands (UK, current as of early 2026, both carriers enabled, items under £100)
+
+## Window 43: app.js 5682-5696
+005682:   const commit=function(save){
+005683:     if(committed)return;
+005684:     committed=true;
+005685:     if(save){
+005686:       const v=parseFloat(inp.value)||0;
+005687:       if(field==='promoPercent'){i.promoPercent=+(v/100).toFixed(4);}
+005688:       else{i[field]=+v.toFixed(2);}
+005689:       if(i.dateSold||i.isReturned||i.resaleSalePrice)i.grossProfit=calcGrossProfit(i);
+005690:       saveDB();
+005691:     }
+005692:     const pending=_nextTokenField;
+005693:     const pm=_tokenM||m;
+005694:     const pid=_tokenId||id;
+005695:     _nextTokenField=null;
+005696:     _tokenM=null;
+
+## Window 44: app.js 5728-5753
+005728: // These act on a LIVE, unsold listing (distinct from the returned-then-relisted
+005729: // flow). Both append to i.refreshHistory; only a relist resets the freshness
+005730: // clock (sets _lastRelistAt). Refresh just logs the touch-up, keeping the age.
+005731: function _todayISO(){return new Date().toISOString().split('T')[0];}
+005732: function markRefreshed(m,id){
+005733:   const i=(DB[m]||[]).find(x=>x.id===id);
+005734:   if(!i)return;
+005735:   if(i.dateSold||i.resaleSalePrice||i.isReturned){toast('Only active listings can be refreshed');return;}
+005736:   if(!i.refreshHistory)i.refreshHistory=[];
+005737:   i.refreshHistory.push({type:'refresh',date:_todayISO()});
+005738:   i._lastRefreshAt=_todayISO();
+005739:   saveDB();
+005740:   toast('Marked as refreshed');
+005741:   const s=_getSecStates();renderItemPage(m,id);_applySecStates(s);
+005742: }
+005743: function markRelisted(m,id){
+005744:   const i=(DB[m]||[]).find(x=>x.id===id);
+005745:   if(!i)return;
+005746:   if(i.dateSold||i.resaleSalePrice||i.isReturned){toast('Only active listings can be relisted');return;}
+005747:   if(!i.refreshHistory)i.refreshHistory=[];
+005748:   i.refreshHistory.push({type:'relist',date:_todayISO()});
+005749:   i._lastRelistAt=_todayISO();   // resets the cycle/freshness clock
+005750:   saveDB();
+005751:   toast('Marked as relisted \u2014 freshness clock reset');
+005752:   const s=_getSecStates();renderItemPage(m,id);_applySecStates(s);
+005753: }
+
+## Window 45: app.js 5772-5796
+005772:   const i=(DB[m]||[]).find(x=>x.id===id);
+005773:   if(!i)return;
+005774:   i._sdRateIdx=parseInt(idx);if(isNaN(i._sdRateIdx))i._sdRateIdx=1;
+005775:   const rateCost=_sdRateFor(i._sdRateIdx,i.salePrice||0);
+005776:   i.shippingCost=rateCost;
+005777:   // _sdBuyerPays=true means buyer pays postage; false/undefined means free shipping
+005778:   i.postage=i._sdBuyerPays?rateCost:0;
+005779:   if(i.dateSold||i.isReturned||i.resaleSalePrice)i.grossProfit=calcGrossProfit(i);
+005780:   saveDB();
+005781:   const s=_getSecStates();renderItemPage(m,id);_applySecStates(s);
+005782: }
+005783: function saveSDFree(m,id,buyerPays){
+005784:   const i=(DB[m]||[]).find(x=>x.id===id);
+005785:   if(!i)return;
+005786:   i._sdBuyerPays=buyerPays;
+005787:   const rateCost=_sdRateFor(i._sdRateIdx!=null?i._sdRateIdx:1,i.salePrice||0);
+005788:   i.postage=buyerPays?rateCost:0;
+005789:   if(i.dateSold||i.isReturned||i.resaleSalePrice)i.grossProfit=calcGrossProfit(i);
+005790:   saveDB();
+005791:   const s=_getSecStates();renderItemPage(m,id);_applySecStates(s);
+005792: }
+005793: 
+005794: // Patch A — Stock item page. Minimal layout for pre-listing items: cost,
+005795: // title, sourcing date, age in stock, photo, notes. A "List this item"
+005796: // CTA stub points to a future patch that handles the stock→listed transition.
+
+## Window 46: app.js 5913-5927
+005913: }
+005914: // v2.21.12 — unsold-item net estimate. LISTED items (real asking price already
+005915: // set + real postage/shipping/packaging known) use the realistic estimate with
+005916: // their actual charges (calcEstProfit). SOURCED items (only a guess) use a
+005917: // conservative estimate: real fee model on the est price + estimated promo drag
+005918: // + MEDIAN fulfilment drag. Always modest — never assumes zero fees/postage/promo.
+005919: function _estPotentialGross(i){
+005920:   if(i.salePrice&&!i.dateSold&&!i.isReturned){
+005921:     const e=calcEstGrossProfit(i);
+005922:     if(e!=null)return e;
+005923:   }
+005924:   const est=i.estSalePrice||0;
+005925:   if(est<=0)return null;
+005926:   const bpf=calcPlatformBPF(i,est,0,_itemPlatform(i));
+005927:   const promo=est*_avgPromoRate()*1.20;
+
+## Window 47: app.js 5981-6000
+005981:   // no BPF breakdown, no fees — none of those concepts apply pre-listing).
+005982:   // The full listed-item page lights up automatically once the item transitions
+005983:   // to state='listed' in a future patch.
+005984:   if(i.state==='sourced'){
+005985:     return _renderStockItemPage(m,i);
+005986:   }
+005987: 
+005988:   const _wasRelistedDetect = !i.isReturned && !i.dateSold && !i.resaleSalePrice &&
+005989:     (i.returnHistory||[]).some(r=>r.type==='full_seller'||r.type==='full_ebay');
+005990:   // _origSalePrice = the Sale 1 price. For any item that went through a full return
+005991:   // (active relist OR completed resale), read from the snapshot on the return entry.
+005992:   // i.salePrice is now the sale 2 price for resold items so we cannot use it for sale 1.
+005993:   const _s1FullReturns=(i.returnHistory||[]).filter(function(r){return (r.type==='full_seller'||r.type==='full_ebay')&&(Number(r.saleNo)||1)===1;});
+005994:   const _hasFullReturn=_s1FullReturns.length>0;
+005995:   const _origSalePrice = (_wasRelistedDetect||i.resaleSalePrice)&&_hasFullReturn
+005996:     ? (function(){
+005997:         const fe=_s1FullReturns;
+005998:         if(!fe.length)return i.salePrice||0;
+005999:         const last=fe[fe.length-1];
+006000:         return last._salePriceAtRelist||last._salePriceAtReturn||last.refundAmount||i.salePrice||0;
+
+## Window 48: app.js 6020-6043
+006020:   const roi=calcROI(i);
+006021:   const margin=calcMargin(i);
+006022:   // T-06: display guard for £0-cost items — calcROI returns null when totalInvested<=0
+006023:   // (mathematically correct), but the render layer should show ∞ rather than nothing.
+006024:   const _isZeroCost=(i.costPrice==null||i.costPrice===0)&&!(_rcptShipping>0)&&!(_rcptPackaging>0)&&!calcPartsCost(i);
+006025:   const roiDisplay=_isZeroCost&&profit!==null?'∞':(roi!==null?roi.toFixed(1)+'%':null);
+006026:   const marginDisplay=(margin!==null?margin.toFixed(1)+'%':null);
+006027:   const status=i.scrappedAt?(i.scrapReason==='donated'?'donated':'scrapped'):i.isReturned?'returned':i.resaleSalePrice?'resold':i.dateSold?'sold':i.condition==='spares'?'spares':'active';
+006028:   const hasReturn=(i.returnHistory||[]).length>0;
+006029:   const _plat=_s1Platform(i); // v2.19.33 — Sale 1 receipt reflects Sale 1's platform
+006030:   const _showPostage=(_plat!=='vinted');
+006031:   const _showSimpleDelivery=(_plat==='ebay'); // Simple Delivery: eBay private only; Biz uses postage policies
+006032:   const _showFee=(_plat!=='vinted'&&_plat!=='fb');
+006033:   const _feeLabel=_plat==='ebay'?'eBay BPF':_plat==='ebay_biz'?('eBay FVF (Biz · '+_ebayBizRateLabel(i.category,(i.salePrice||0),i.salePrice||0)+')'):_plat==='depop'?'Depop fee':_plat==='amazon_uk'?'Amazon fee':'Platform fee';
+006034:   const _promoLabel=_plat==='ebay'?'Promo %':'Boost %';
+006035:   const totalRefunded=(i.returnHistory||[]).reduce((s,r)=>s+(r.refundAmount||0),0);
+006036:   const totalReturnPostage=(i.returnHistory||[]).reduce((s,r)=>s+(r.returnPostage||0),0);
+006037:   // Platform-aware postage default:
+006038:   // ebay private → simple (eBay manages delivery); ebay_biz + others → custom
+006039:   // Falls back to cost-sniff only if _postageMode truly unset AND platform unclear
+006040:   const _defaultPostageMode=(function(plat){
+006041:     if(plat==='ebay')return 'simple';          // eBay private: Simple Delivery
+006042:     if(plat==='ebay_biz')return 'custom';      // eBay Biz: own courier/rates
+006043:     return 'custom';                            // all other platforms: custom
+
+## Window 49: app.js 6066-6080
+006066:     const ev=(typeof _saleEventForCycle==='function')?_saleEventForCycle(i,m,snap):{item:i,month:m,sale:String(saleNo),saleDate:snap.date,isReturnAdjustment:false,snapshot:snap};
+006067:     const br=(typeof _saleBreakdown==='function')?_saleBreakdown(ev):null;
+006068:     const plat=(PLATFORMS[snap.platformId]||{}).short||snap.platformId||'Platform';
+006069:     const detail=['Sale price: '+fmt(Number(snap.price)||0),plat];
+006070:     if(br)detail.push('Net P&L: '+fmt(br.netProfit));
+006071:     timeline.push({date:snap.date,badge:saleNo===1?'sale':'resale',label:'Sale '+saleNo+' sold',detail:detail.join(' · '),saleNo:saleNo});
+006072:   });
+006073:   (i.returnHistory||[]).forEach(function(r,rtnIdx){
+006074:     const lbl2={full_seller:'Full refund — seller handled',full_ebay:'Full refund — platform stepped in',partial_seller:'Partial refund — seller agreed',partial_ebay:'Partial refund — platform decided'};
+006075:     const bc=String(r.type||'').startsWith('full')?'return-full':'return-partial';
+006076:     const saleNo=Math.max(1,Number(r.saleNo)||1);
+006077:     const parts2=['Refund: '+fmt(r.refundAmount||0)];
+006078:     if(r.returnPostage>0)parts2.push('Return postage: '+fmt(r.returnPostage));
+006079:     if(r.notes)parts2.push('Note: '+esc(r.notes));
+006080:     timeline.push({date:r.loggedAt||'',badge:bc,label:'Sale '+saleNo+' · '+(lbl2[r.type]||r.type),detail:parts2.join(' · '),rtnIdx:rtnIdx,saleNo:saleNo});
+
+## Window 50: app.js 6115-6138
+006115:   // This guarantees the receipt's displayed net uses the SAME fee logic as calcGrossProfit
+006116:   // (including partial_seller fee-base reduction), so line items reconcile to the total.
+006117:   let sale1Net=0;
+006118:   try{
+006119:     const _s1Cycle=_saleCycleSnapshot(i,1);
+006120:     const _s1Ev=_s1Cycle?_saleEventForCycle(i,m,_s1Cycle):null;
+006121:     if(_s1Ev)sale1Net+=_saleBreakdown(_s1Ev).netProfit;
+006122:     (i.returnHistory||[]).forEach(function(r){
+006123:       if((Number(r.saleNo)||1)!==1)return;
+006124:       sale1Net+=_saleBreakdown({item:i,sale:'R',saleNo:1,isReturnAdjustment:true,isReturned:true,returnEntry:r,snapshot:_saleCycleSnapshot(i,1)}).netProfit;
+006125:     });
+006126:     sale1Net=+sale1Net.toFixed(2);
+006127:   }catch(e){sale1Net=profit;}
+006128:   // Display-only credit lines: compare original charges with the canonical net
+006129:   // charges after eligible seller-handled refunds. Entries tagged to Sale 2 are
+006130:   // deliberately excluded from the Sale 1 receipt.
+006131:   const _psTotal=(i.returnHistory||[]).filter(function(r){return r.type==='partial_seller'&&(Number(r.saleNo)||1)===1;}).reduce(function(s,r){return s+(r.refundAmount||0);},0);
+006132:   const _origBpfBeforeCredits=calcPlatformBPF(i,_origSalePrice,_rcptPostage,_s1PlatformIdRcpt);
+006133:   const _origPromoBeforeCredits=_calcPromoFee(_s1PlatformIdRcpt,_origSalePrice,_rcptPostage,_rcptPromo);
+006134:   const _bpfCredit=+Math.max(0,_origBpfBeforeCredits-bpf).toFixed(2);
+006135:   const _promoCredit=+Math.max(0,_origPromoBeforeCredits-promoCost).toFixed(2);
+006136:   const rcp=function(label,val,color,indent){
+006137:     return'<div class="ip-receipt-row'+(indent?' indent':'')+'"><span style="flex:1;color:'+(color&&color.includes('--text')?color:'var(--text-secondary)')+'">'+label+'</span><span class="ip-receipt-val" style="color:'+(color||'var(--text)')+'">'+val+'</span></div>';
+006138:   }
+
+## Window 51: app.js 6167-6181
+006167:     else{
+006168:       pb+=rcp('Parts & expenses ('+pts.length+')','−'+fmt(partsCost),'var(--red)');
+006169:       pts.forEach(function(p){pb+=rcp(esc(p.description),'−'+fmt(p.cost),'var(--red)',true);});
+006170:     }
+006171:   }
+006172:   if(hasReturn){
+006173:     pb+='<div class="ip-receipt-row section-head"><span>Return impact</span><span></span></div>';
+006174:     (i.returnHistory||[]).forEach(function(r,ri){
+006175:       if((Number(r.saleNo)||1)!==1)return; // Sale 2+ adjustments belong to their own cycle cards.
+006176:       const fullReturn=(r.type==='full_seller'||r.type==='full_ebay');
+006177:       const lbl3={full_seller:'Full refund — you handled',full_ebay:'Full refund — platform involved',partial_seller:'Partial refund — you handled',partial_ebay:'Partial refund — platform decided'}[r.type]||r.type;
+006178:       pb+=rcp(lbl3,'−'+fmt(r.refundAmount||0),'var(--accent)');
+006179:       if(i.resaleSalePrice&&(r.type==='partial_seller'||r.type==='partial_ebay')){
+006180:         const _retagTarget=typeof _currentResaleSaleNo==='function'?_currentResaleSaleNo(i):2;
+006181:         pb+='<div class="ip-receipt-row" style="padding-top:0"><span style="flex:1;color:var(--muted);font-size:11px">Against Sale 1</span>'
+
+## Window 52: app.js 6254-6273
+006254:       b+='<div class="ip-receipt-row"><span style="flex:1;color:var(--text-secondary)">'+(platId==='ebay'?'Promo % (+VAT)':'Boost %')+'</span>'
+006255:         +'<span class="ip-receipt-val" style="display:flex;align-items:center;gap:4px"><input type="number" class="rcpt-s2-promo-input" data-m="'+m+'" data-id="'+id+'" value="'+(+pp.toFixed(2))+'" min="0" step="0.1" style="width:52px;padding:2px 4px;background:var(--surface2);border:1px solid var(--border);border-radius:5px;color:var(--text);font-size:13px;font-weight:600;text-align:right"><span style="color:var(--muted)">%</span>'+(br.promoFee>0?'<span style="margin-left:6px;color:var(--red)">−'+fmt(br.promoFee)+'</span>':'')+'</span></div>';
+006256:     }else if(br.promoFee>0)b+=rcp('Promo / boost fee','−'+fmt(br.promoFee),'var(--red)');
+006257:     if(br.itemCost>0)b+=rcp('Item cost','−'+fmt(br.itemCost),'var(--red)');
+006258:     if(br.parts>0)b+=rcp('Parts & expenses','−'+fmt(br.parts),'var(--red)');
+006259:     if(br.partialRefund>0)b+=rcp('Partial refunds','−'+fmt(br.partialRefund),'var(--accent)');
+006260:     b+='<div class="ip-receipt-row total"><span style="flex:1">Sale '+saleNo+' net</span><span class="ip-receipt-val" style="color:'+(br.netProfit>=0?'var(--green)':'var(--red)')+'">'+fmt(br.netProfit)+'</span></div>';
+006261:     const cycleReturns=(i.returnHistory||[]).filter(function(r){return (Number(r.saleNo)||1)===saleNo;});
+006262:     let cycleNet=br.netProfit;
+006263:     if(cycleReturns.length){
+006264:       b+='<div class="ip-receipt-row section-head"><span>Return impact</span><span></span></div>';
+006265:       cycleReturns.forEach(function(r){
+006266:         const rb=_saleBreakdown({item:i,sale:'R',saleNo:saleNo,isReturnAdjustment:true,isReturned:true,returnEntry:r,snapshot:snap});
+006267:         const impact=_returnEventImpact(i,r);
+006268:         cycleNet+=rb.netProfit;
+006269:         const lbl={full_seller:'Full refund — seller handled',full_ebay:'Full refund — platform involved',partial_seller:'Partial refund — seller handled',partial_ebay:'Partial refund — platform decided'}[r.type]||'Return adjustment';
+006270:         // v1.4.10 — show the actual refund economics instead of hiding fee
+006271:         // credits inside one net number. This makes Sale 2+ boost/ad credits
+006272:         // explicit and confirms whether eBay credited the advertising charge.
+006273:         b+=rcp(lbl,'−'+fmt(impact.refund),'var(--red)');
+
+## Window 53: app.js 6284-6307
+006284:       if(roiDisplay)b+=rcp('Overall ROI',roiDisplay,'var(--muted)');
+006285:       if(marginDisplay)b+=rcp('Overall margin',marginDisplay,'var(--muted)');
+006286:     }
+006287:     const ttl='Sale '+saleNo+' P&amp;L <span style="color:var(--muted);font-weight:400;font-size:11px">sold '+esc(snap.date||'—')+'</span>';
+006288:     resaleHTML+=sec2(ttl,b,isLive,fmt(cycleReturns.length?cycleNet:br.netProfit),(cycleReturns.length?cycleNet:br.netProfit)>=0?'var(--green)':'var(--red)','ip-section-pnl','var(--purple)');
+006289:   });
+006290:   let relistHTML='';
+006291:   const hasReturnHistory=(i.returnHistory||[]).length>0;
+006292:   const notYetSold=!i.dateSold&&!i.resaleSalePrice;
+006293:   if(hasReturnHistory&&notYetSold){
+006294:     const rlBPF=calcPlatformBPF(i,i.salePrice||0,i.postage||0);
+006295:     const rlSalePrice=i.salePrice||0;
+006296:     const rlShipping=i.shippingCost||0;
+006297:     const rlPackaging=i.packagingCost||0;
+006298:     const rlPostage=i.postage||0;
+006299:     const rlDefaultPromo=+((i.promoPercent||0)*100).toFixed(1);
+006300:     const projTitle=i.isReturned?'Re-list Projection — at current price':'Relist Projection — if sold at '+fmt(rlSalePrice);
+006301:     const rlGrossInc=rlSalePrice-rlBPF;
+006302:     const rlPromo=_calcPromoFee(_itemPlatform(i),rlSalePrice,rlPostage,i.promoPercent||0);
+006303:     const rlRev=rlSalePrice+rlPostage-rlBPF;
+006304:     const rlCost=rlShipping+rlPackaging+rlPromo;
+006305:     // v1.4.10 — use the same canonical expected-profit function as the
+006306:     // Inventory row/header so this projection can never disagree with Stock.
+006307:     const combinedP=calcEstGrossProfit(i);
+
+## Window 54: app.js 6362-6408
+006362:       :(postageMode==='simple'
+006363:         ?'<select class="ip-postage-select" onchange="saveSDRate(\''+m+'\',\''+id+'\',this.value)">'+sdOpts+'</select>'
+006364:          +'<div class="ip-postage-buyer"><label><input type="checkbox" '+(i._sdBuyerPays===true?'':'checked')+' onchange="saveSDFree(\''+m+'\',\''+id+'\',!this.checked)"> Free postage</label></div>'
+006365:         :_ipPolSel+'<div class="ip-postage-custom">'
+006366:          +'<div class="ip-postage-custom-field"><label>You pay</label><input id="ip-ship2-'+id+'" type="number" step="0.01" value="'+(i.shippingCost||0)+'" onchange="ipSaveNum(\''+m+'\',\''+id+'\',\'shippingCost\',this.value)" onkeydown="if(event.key===\'Enter\')this.blur()"></div>'
+006367:          +'<div class="ip-postage-custom-field"><label>Buyer pays</label><input id="ip-post2-'+id+'" type="number" step="0.01" value="'+(i.postage||0)+'" onchange="ipSaveNum(\''+m+'\',\''+id+'\',\'postage\',this.value)" onkeydown="if(event.key===\'Enter\')this.blur()"></div>'
+006368:          +'</div>');
+006369:   const saleEditable=!i.dateSold&&!i.resaleSalePrice&&!i.isReturned;
+006370:   const profitClass=profit===null?'':profit>=0?'pos':'neg';
+006371:   const promoDisplay=((i.promoPercent||0)*100);
+006372:   const promoStr=promoDisplay%1===0?promoDisplay.toFixed(0):promoDisplay.toFixed(1);
+006373:   let html='<div class="item-full-page">';
+006374: 
+006375:   // Top bar — title is directly editable
+006376:   html+='<div class="ip-topbar">';
+006377:   html+='<div class="ip-topbar-row1">';
+006378:   html+='<button class="btn btn-secondary ip-back" onclick="exitItemPage()">'+icon('back',14)+'<span class="ip-back-label"> Back</span></button>';
+006379: 
+006380:   if(_lifecycleCan(i,'markSold')&&!_activeJobLotMembership(id))html+='<button class="btn btn-primary ip-act-btn" onclick="markSold(\''+m+'\',\''+id+'\')">'+icon('sold',15)+'<span class="ip-act-label-always">Mark Sold</span></button>';
+006381:   if(_lifecycleCan(i,'relist')&&!_activeJobLotMembership(id))html+='<button class="btn btn-primary ip-act-btn" onclick="openRelist(\''+m+'\',\''+id+'\')">'+icon('relist',15)+'<span class="ip-act-label-always">Relist</span></button>';
+006382:   if(_lifecycleCan(i,'moveUnlisted')&&!_activeJobLotMembership(id))html+='<button class="btn btn-secondary ip-act-btn" onclick="moveReturnedToUnlisted(\''+m+'\',\''+id+'\')" title="Keep the return history but move this unit to Unlisted">'+icon('inbox',15)+'<span class="ip-act-label">Unlisted</span></button>';
+006383:   if(_lifecycleCan(i,'return'))html+='<button class="btn btn-secondary ip-act-btn" onclick="openReturn(\''+m+'\',\''+id+'\')">'+icon('return',15)+'<span class="ip-act-label-always">Return</span></button>';
+006384:   if(_stepBackTitle(i))html+='<button class="btn btn-secondary ip-act-btn" onclick="stepBack(\''+m+'\',\''+id+'\')" title="'+_stepBackTitle(i)+' \u2014 step back one state" style="color:var(--accent)">'+icon('revert',15)+'<span class="ip-act-label">Undo</span></button>';
+006385:   html+='<button class="btn btn-secondary ip-act-btn" onclick="confirmDupeItem(\''+m+'\',\''+id+'\')">'+icon('dupe',15)+'<span class="ip-act-label">Dupe</span></button>';
+006386:   if(!i.dateSold&&!i.resaleSalePrice&&!i.isReturned&&!i.scrappedAt&&!_activeJobLotMembership(id)&&(i.state==='sourced'||i.state==='listed'))html+='<button class="btn btn-secondary ip-act-btn" onclick="openSplitModal(\''+m+'\',\''+id+'\')" title="Split a multi-buy lot into separate units"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3v6a3 3 0 0 0 3 3h6a3 3 0 0 1 3 3v6"/><path d="M6 3v6a3 3 0 0 1-3 3"/><polyline points="15 9 18 12 15 15"/></svg><span class="ip-act-label">Split</span></button>';
+006387: 
+006388:   if(_canAddToJobLot(i))html+='<button class="btn btn-secondary ip-act-btn" onclick="openAddToJobLot(\''+m+'\',\''+id+'\')" title="Group this physical item into a Job Lot" style="color:var(--purple)">'+icon('joblot',15)+'<span class="ip-act-label">Job Lot</span></button>';
+006389:   {const _jl=_activeJobLotForItem(id);if(_jl)html+='<button class="btn btn-secondary ip-act-btn" onclick="openJobLotPage(\''+_jl.id+'\')" title="Managed through '+esc(_jl.name)+'" style="color:var(--purple)">'+icon('joblot',15)+'<span class="ip-act-label">'+esc(_jl.name)+'</span></button>';}
+006390:   if(_canScrap(i))html+='<button class="btn btn-secondary ip-act-btn" onclick="openScrapModal(\''+m+'\',\''+id+'\')" title="Dispose of item — scrap or donate" style="color:var(--warn)">'+icon('dispose',15)+'<span class="ip-act-label">Dispose</span></button>';
+006391:   if(!i.bundleId&&!i.scrappedAt&&!i.resaleSalePrice&&!_activeJobLotMembership(id)&&(i.isReturned||!i.dateSold))html+='<button class="btn btn-secondary ip-act-btn" onclick="openLinkToSaleModal(\''+m+'\',\''+id+'\')" title="Reconcile this item with an existing historical sale" style="color:var(--accent)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 17H7A5 5 0 0 1 7 7h2"/><path d="M15 7h2a5 5 0 0 1 0 10h-2"/><line x1="8" y1="12" x2="16" y2="12"/></svg><span class="ip-act-label">Reconcile sale</span></button>';
+006392:   html+='<button class="btn btn-secondary ip-act-btn ip-act-danger" onclick="deleteItem(\''+m+'\',\''+id+'\')">'+icon('trash',15)+'</button>';
+006393:   html+='</div>'; // close ip-topbar-row1
+006394:   html+='<div class="ip-topbar-row2">';
+006395:   html+='<div class="ip-title-wrap">';
+006396:   html+='<div class="ip-title" onclick="startTitleEdit(\''+m+'\',\''+id+'\')" title="Click to rename">'+esc(i.item)+'</div>';
+006397:   html+='<div class="ip-meta-chips">';
+006398:   if(i.gid)html+='<span class="ip-chip mono">'+esc(i.gid)+'</span>';
+006399:   html+='<span class="ip-chip">'+m+'</span>';
+006400:   html+='<div class="item-badge '+status+'">'+status+'</div>';
+006401:   {const _jlMeta=_activeJobLotForItem(id);if(_jlMeta)html+='<span class="ip-chip" style="color:var(--purple);border-color:rgba(167,139,250,.35);cursor:pointer" onclick="openJobLotPage(\''+_jlMeta.id+'\')">'+icon('joblot',11)+' '+esc(_jlMeta.name)+'</span>';}
+006402:   {
+006403:     // Tappable platform selector — change & instantly see P&L impact. Available
+006404:     // on sold/returned items too (a sale can be recorded on the wrong platform;
+006405:     // editing here writes soldOnPlatform and re-stores profit — no undo dance).
+006406:     const _curPlat=_itemPlatform(i);
+006407:     const _livePlats=Object.values(PLATFORMS).filter(p=>p.live);
+006408:     // Match .plat-badge colours per platform (same as the CSS definitions)
+
+## Window 55: app.js 6462-6478
+006462: 
+006463:   // Listing fee moved to inline P&L receipt input (F1) — no longer a KPI token
+006464: 
+006465: 
+006466:   // v1.4.10 — For anything still physically available to sell, the headline
+006467:   // operational number is Expected Profit. Returned/relisted stock therefore
+006468:   // shows the lifetime result IF the next sale completes, while realised P&L
+006469:   // remains visible in the detailed receipt/projection below. Final sold/disposed
+006470:   // stock continues to show the realised accounting result.
+006471:   const _onHandForExpected=!i.scrappedAt&&(!!i.isReturned||(!i.dateSold&&!i.resaleSalePrice));
+006472:   const _expectedHeadline=_onHandForExpected?calcEstProfit(i):null;
+006473:   const _headlineVal=_onHandForExpected?_expectedHeadline:profit;
+006474:   const _headlineClass=_headlineVal===null?'':_headlineVal>=0?'pos':'neg';
+006475:   const _expectedAsk=(Number(i.estSalePrice)>0)?Number(i.estSalePrice):Number(i.salePrice)||0;
+006476:   html+='<div class="ip-token locked '+_headlineClass+'">';
+006477:   html+='<div class="ip-token-label">'+(_onHandForExpected?'Expected Profit':(hasReturn||i.resaleSalePrice?'Lifetime P&amp;L':'Net Profit'))+'</div>';
+006478:   html+='<div class="ip-token-val">'+(_headlineVal!==null?fmt(_headlineVal):'—')+'</div>';
+
+## Window 56: app.js 6508-6522
+006508:     _detailNos.slice().sort(function(a,b){return b-a;}).some(function(n){
+006509:       const s=(typeof _saleCycleSnapshot==='function')?_saleCycleSnapshot(i,n):null;
+006510:       if(s&&s.date){_detailLastSaleDate=s.date;_detailLastSaleNo=n;return true;}
+006511:       return false;
+006512:     });
+006513:   }catch(e){}
+006514:   if(!_detailLastSaleDate){
+006515:     const _detailReturn=(i.returnHistory||[]).slice().sort(function(a,b){
+006516:       return String(_returnSaleSnapshotDate(b)||b.loggedAt||'').localeCompare(String(_returnSaleSnapshotDate(a)||a.loggedAt||''));
+006517:     })[0];
+006518:     if(_detailReturn){
+006519:       _detailLastSaleDate=_returnSaleSnapshotDate(_detailReturn);
+006520:       _detailLastSaleNo=Math.max(1,Number(_detailReturn.saleNo)||1);
+006521:     }
+006522:   }
+
+## Window 57: app.js 6550-6564
+006550:   // E4 P2 — Sale 1 details editor. Only relevant when the item has been
+006551:   // relisted (i.e. its sale 1 economics may differ from current i.* values
+006552:   // because confirmRelist overwrote them). Surfaces 4 editable fields that
+006553:   // write through applyRelistSnapshot so calcGrossProfit reads the user-
+006554:   // confirmed sale 1 values on the resold-after-return path. Closed by
+006555:   // default — shows a status badge so user can see at a glance whether the
+006556:   // snapshot is captured or falling back to live values.
+006557:   const _s1FullReturn=(i.returnHistory||[]).slice().reverse().find(function(r){return (r.type==='full_seller'||r.type==='full_ebay')&&r._relistedAt;});
+006558:   if(_s1FullReturn){
+006559:     const _s1HasSnap=_s1FullReturn._salePriceAtRelist!==undefined&&_s1FullReturn._shippingCostAtRelist!==undefined;
+006560:     const _s1Price=(_s1FullReturn._salePriceAtRelist!==undefined)?_s1FullReturn._salePriceAtRelist:(_s1FullReturn._salePriceAtReturn||_s1FullReturn.refundAmount||i.salePrice||0);
+006561:     const _s1Ship=(_s1FullReturn._shippingCostAtRelist!==undefined)?_s1FullReturn._shippingCostAtRelist:(i.shippingCost||0);
+006562:     const _s1Post=(_s1FullReturn._postageAtRelist!==undefined)?_s1FullReturn._postageAtRelist:(i.postage||0);
+006563:     const _s1Pkg=(_s1FullReturn._packagingCostAtRelist!==undefined)?_s1FullReturn._packagingCostAtRelist:(i.packagingCost||0);
+006564:     const _s1PromoDec=(_s1FullReturn._promoPercentAtRelist!==undefined)?_s1FullReturn._promoPercentAtRelist:(i.promoPercent||0);
+
+## Window 58: app.js 6601-6615
+006601:   const hasParts=(i.parts||[]).length>0;
+006602:   html+=sec('Parts &amp; Expenses'+(hasParts?' ('+i.parts.length+')':''),partsHTML(m,id,'page'),hasParts,null);
+006603: 
+006604:   // Timeline — always open
+006605:   // Listing maintenance — only for active (unsold, not returned) listings.
+006606:   // Shows cycle age (this listing) + lifetime age (total holding) and lets the
+006607:   // seller log a refresh or relist they did on the marketplace.
+006608:   const _isActiveListing=!i.dateSold&&!i.resaleSalePrice&&!i.isReturned&&!!i.dateListed;
+006609:   if(_isActiveListing){
+006610:     const _eld=_effectiveListDate(i);
+006611:     const _cycleDays=_eld?daysBetween(_eld,_todayISO()):0;
+006612:     const _lifeDays=_lifetimeListDays(i);
+006613:     const _relistCount=(i.refreshHistory||[]).filter(e=>e.type==='relist').length;
+006614:     const _refreshCount=(i.refreshHistory||[]).filter(e=>e.type==='refresh').length;
+006615:     const _lastTouch=i._lastRefreshAt||i._lastRelistAt;
+
+## Window 59: app.js 6705-6720
+006705:         results.push({...i,month:k});
+006706:       }
+006707:     });
+006708:   });
+006709:   // Sort: active first, then sold, then returned
+006710:   const order={listed:0,sold:1,returned:2};
+006711:   results.sort((a,b)=>{
+006712:     const sa=a.isReturned?'returned':a.resaleSalePrice?'resold':a.dateSold?'sold':'listed';
+006713:     const sb=b.isReturned?'returned':b.resaleSalePrice?'resold':b.dateSold?'sold':'listed';
+006714:     return (order[sa]??1)-(order[sb]??1);
+006715:   });
+006716:   return results;
+006717: }
+006718: 
+006719: function highlightMatch(text,q){
+006720:   if(!text||!q.trim())return esc(text||'');
+
+## Window 60: app.js 6748-6762
+006748:   const extra=_searchResults.length-MAX;
+006749:   if(!shown.length){
+006750:     dd.innerHTML=`<div class="search-empty">No items found for "<strong>${esc(q)}</strong>"</div>`;
+006751:     dd.classList.add('open');
+006752:     return;
+006753:   }
+006754:   const rows=shown.map((i,idx)=>{
+006755:     const status=i.scrappedAt?(i.scrapReason==='donated'?'donated':'scrapped'):i.isReturned?'returned':i.resaleSalePrice?'resold':i.dateSold?'sold':i.condition==='spares'?'spares':'active';
+006756:     const catGlyph=catIcon(i.category,18);
+006757:     const price=i.salePrice?fmt(i.salePrice):'—';
+006758:     return`<div class="search-result" data-idx="${idx}" onclick="selectSearchResult(${idx})" onmouseenter="setSearchActive(${idx})">
+006759:       <div class="sr-icon">${catGlyph}</div>
+006760:       <div class="sr-body">
+006761:         <div class="sr-name">${highlightMatch(i.item,q)}</div>
+006762:         <div class="sr-meta">
+
+## Window 61: app.js 6827-6841
+006827:   if(!results.length){
+006828:     resultsEl.innerHTML='<div style="padding:16px;text-align:center;color:var(--muted);font-size:13px;">No results for "'+esc(q)+'"</div>';
+006829:     return;
+006830:   }
+006831:   // Delegated click — avoids inline quoting issues with dynamic data
+006832:   _mobileSearchItems=results;
+006833:   resultsEl.innerHTML=results.map(function(item,idx){
+006834:     const status=item.scrappedAt?(item.scrapReason==='donated'?'donated':'scrapped'):item.isReturned?'returned':item.resaleSalePrice?'resold':item.dateSold?'sold':item.state==='sourced'?'sourced':'listed';
+006835:     return '<div data-mob-idx="'+idx+'" style="display:flex;align-items:center;gap:10px;padding:11px 16px;'+(idx>0?'border-top:1px solid var(--border)':'')+';cursor:pointer;background:var(--surface);">'+
+006836:       '<div style="flex:1;min-width:0;">'+
+006837:         '<div style="font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(item.item)+'</div>'+
+006838:         '<div style="font-size:11px;color:var(--muted);">'+status+(item.salePrice?' · '+fmt(item.salePrice):'')+'</div>'+
+006839:       '</div>'+
+006840:       '<span class="item-badge '+status+'" style="flex-shrink:0">'+status+'</span>'+
+006841:     '</div>';
+
+## Window 62: app.js 6981-7000
+006981:   // q may be passed directly or read from the input
+006982:   if(q===undefined)q=document.getElementById('global-search').value.trim();
+006983:   if(q)_lastSearchQuery=q; // persist so back-nav can restore
+006984:   const page=document.getElementById('p-search');
+006985:   if(!q){page.innerHTML='<div style="padding:40px;text-align:center;color:var(--muted)">No search query</div>';return;}
+006986:   const results=searchAllItems(q);
+006987:   const total=results.length;
+006988:   const soldItems=results.filter(i=>(i.dateSold||i.resaleSalePrice)&&!i.isReturned);
+006989:   const totalProfit=soldItems.reduce((s,i)=>s+calcGrossProfit(i),0);
+006990: 
+006991:   const rows=results.map(i=>{
+006992:     const status=i.scrappedAt?(i.scrapReason==='donated'?'donated':'scrapped'):i.isReturned?'returned':i.resaleSalePrice?'resold':i.dateSold?'sold':i.condition==='spares'?'spares':'listed';
+006993:     const profit=(i.dateSold||i.resaleSalePrice)&&!i.isReturned?calcGrossProfit(i):null;
+006994:     const margin=calcMargin(i);
+006995:     const catGlyph=catIcon(i.category,16);
+006996:     return`<div class="item-row" onclick="openItemPage('${i.month}','${i.id}','p-search')">
+006997:       <div class="item-main">
+006998:         <div class="item-header">
+006999:           <div class="item-name">${catGlyph} ${esc(i.item)}</div>
+007000:           <div class="item-badge ${status}">${status}</div>
+
+## Window 63: app.js 7351-7365
+007351:   'p-expenses':    ['expense','trip'],     // Costs: record business spend/mileage
+007352:   'p-cash':        ['cash'],               // Cashflow: owner contribution/draw/adjustment
+007353:   'p-runs':        ['sourcerun'],          // Sourcing: start run; dynamic when active
+007354:   'p-active-run':  ['sourced','endrun'],   // Active run: add finds without losing context
+007355:   'p-accounts':    ['account']             // Partners: create a partner/account
+007356: };
+007357: const _FAB_HIDDEN_PAGES = new Set([
+007358:   'p-search','p-returns','p-scrapped','p-activity','p-tax','p-data','p-run'
+007359: ]);
+007360: 
+007361: function _fabAccountContext(){
+007362:   const active=(document.querySelector('.page.on')||{id:''}).id;
+007363:   if(active!=='p-item'||typeof _acctCurrentAcct!=='function')return null;
+007364:   try{return _acctCurrentAcct()||null;}catch(e){return null;}
+007365: }
+
+## Window 64: app.js 8231-8248
+008231:     return s+(t.mileage||0)*(t.ratePerMile||0.45)+((Array.isArray(t.expenses)?t.expenses:[]).reduce(function(a,e){return a+(e.amount||0);},0));
+008232:   },0);
+008233:   const expCost=runExps.reduce(function(s,e){return s+(e.amount||0);},0);
+008234:   const totalSpent=itemCost+tripCost+expCost;
+008235:   const totalMiles=runTrips.reduce(function(s,t){return s+(t.mileage||0);},0);
+008236: 
+008237:   // ── Item state buckets ─────────────────────────────────────────────────────
+008238:   const sourcedItems=items.filter(function(i){return i.state==='sourced'&&!i.scrappedAt;});
+008239:   const listedItems=items.filter(function(i){return i.state==='listed'&&!i.dateSold&&!i.resaleSalePrice&&!i.scrappedAt;});
+008240:   const soldItems=items.filter(function(i){return i.state==='sold'||!!i.resaleSalePrice;});
+008241:   const returnedItems=items.filter(function(i){return !!i.isReturned;});
+008242: 
+008243:   // ── Realised ──────────────────────────────────────────────────────────────
+008244:   const revenue=soldItems.reduce(function(s,i){return s+calcItemRevenue(i);},0);
+008245:   const realisedProfit=soldItems.reduce(function(s,i){return s+(calcNetProfit(i)||0);},0);
+008246: 
+008247:   // ── Potential ─────────────────────────────────────────────────────────────
+008248:   const unsoldItems=[...sourcedItems,...listedItems];
+
+## Window 65: app.js 8824-8839
+008824:   if(!badge)return;
+008825:   let count=0;
+008826:   try{
+008827:     if(typeof allDBKeys==='function' && typeof DB!=='undefined'){
+008828:       allDBKeys().forEach(function(k){
+008829:         (DB[k]||[]).forEach(function(i){
+008830:           if(!i)return;
+008831:           const isActiveSourced=(i.state==='sourced'&&!i.scrappedAt);
+008832:           const isActiveListed =(i.state==='listed' && !i.dateSold && !i.isReturned && !i.resaleSalePrice && !i.scrappedAt);
+008833:           if(isActiveSourced||isActiveListed)count++;
+008834:         });
+008835:       });
+008836:     }
+008837:   }catch(e){count=0;}
+008838:   if(count>0){
+008839:     badge.textContent = count>99 ? '99+' : String(count);
+
+## Window 66: app.js 8985-8999
+008985: // (whether their share has actually been paid out).
+008986: // Canonical sold check for account reporting. Some older/imported items can have
+008987: // a stale state='listed' even though their sale fields are populated. Accounts must
+008988: // follow the financial evidence so sold items expose their real profit and settlement.
+008989: function _accountItemIsSold(i){
+008990:   // A full return means there is currently no completed sale to settle, even
+008991:   // if historical resale fields remain for the audit trail.
+008992:   return !!(i && !i.isReturned && (i.dateSold || i.resaleSalePrice || i.resaleDateSold || i.state==='sold'));
+008993: }
+008994: 
+008995: function _accountItems(accountId){
+008996:   const items=[];
+008997:   allDBKeys().forEach(function(k){
+008998:     (DB[k]||[]).forEach(function(i){
+008999:       if(i.accountId===accountId) items.push(Object.assign({},i,{_month:k}));
+
+## Window 67: app.js 9093-9148
+009093:   const t=acct.accountType||'supplier';
+009094:   if(t!=='supplier')return true;
+009095:   return (acct.paymentTerms||'upfront')==='on_sale';
+009096: }
+009097: 
+009098: // Lifetime stats for one account: total items, sold count, your-side profit,
+009099: // partner's total owed, and how much of that owed amount is still unsettled.
+009100: // v1.01 — when an account item belongs to an active Job Lot, the lot owns
+009101: // the operational asking price/profit while the child still owns its physical
+009102: // cost and account relationship. Allocate the lot's operational values by the
+009103: // frozen membership cost basis so account totals never count the full lot once
+009104: // for every child.
+009105: function _jobLotMemberWeightShare(item,lot){
+009106:   if(!item||!lot)return 0;
+009107:   const members=_jobLotMembers(lot.id,false);
+009108:   if(!members.length)return 0;
+009109:   const weights=members.map(function(x){
+009110:     const raw=x.membership.costBasisAtAdd;
+009111:     const snap=(raw===null||raw===undefined||raw==='')?NaN:Number(raw);
+009112:     return isFinite(snap)&&snap>=0?snap:((Number(x.item.costPrice)||0)+calcPartsCost(x.item));
+009113:   });
+009114:   const total=weights.reduce(function(a,b){return a+b;},0);
+009115:   const idx=members.findIndex(function(x){return x.item.id===item.id;});
+009116:   if(idx<0)return 0;
+009117:   return total>0?(weights[idx]/total):(1/members.length);
+009118: }
+009119: function _jobLotMemberAskingShare(item,lot){
+009120:   return +((Number(lot&&lot.salePrice)||0)*_jobLotMemberWeightShare(item,lot)).toFixed(2);
+009121: }
+009122: function _jobLotMemberPotentialShare(item,lot){
+009123:   const p=_jobLotEstimatedProfit(lot);
+009124:   if(p===null||p===undefined)return null;
+009125:   return +(Number(p)*_jobLotMemberWeightShare(item,lot)).toFixed(2);
+009126: }
+009127: 
+009128: function _accountStats(accountId){
+009129:   const _acctForTerms=_accounts.find(function(a){return a.id===accountId;});
+009130:   const _paysOnSale=_accountPaysOnSale(_acctForTerms);
+009131:   const items=_accountItems(accountId);
+009132:   const sold=items.filter(_accountItemIsSold);
+009133:   // Active Job Lot membership resolves a returned/listed/unlisted child into the
+009134:   // lot's operational state without changing the child's historical flags.
+009135:   const active=items.filter(function(i){return !_accountItemIsSold(i)&&!i.scrappedAt&&(!i.isReturned||!!_activeJobLotMembership(i.id));});
+009136:   const returned=items.filter(function(i){return i.isReturned&&!i.scrappedAt&&!i.resaleSalePrice&&!_activeJobLotMembership(i.id);});
+009137:   const listedStock=active.filter(function(i){const l=_activeJobLotForItem(i.id);return l?l.status==='listed':i.state==='listed';});
+009138:   const unlistedStock=active.filter(function(i){const l=_activeJobLotForItem(i.id);return l?l.status==='building':i.state==='sourced';});
+009139:   const stockOnHand=active.concat(returned);
+009140:   const _stockCost=function(i){
+009141:     const mem=_activeJobLotMembership(i.id);
+009142:     if(mem&&mem.costBasisAtAdd!==null&&mem.costBasisAtAdd!==undefined&&mem.costBasisAtAdd!==''&&isFinite(Number(mem.costBasisAtAdd)))return Number(mem.costBasisAtAdd);
+009143:     return (Number(i.costPrice)||0)+(typeof calcPartsCost==='function'?(Number(calcPartsCost(i))||0):0);
+009144:   };
+009145:   const grossProfit=sold.reduce(function(s,i){return s+(calcGrossProfit(i)||0);},0);
+009146:   let totalOwed=0,unsettledOwed=0,settledOwed=0,splitItemCount=0,partnerProfitCut=0,unsettledCount=0,unsettledSoldCount=0,unsettledUnsoldCount=0,unsettledUnsoldOwed=0,unsettledSoldOwed=0;
+009147:   // Iterate ALL items — supplier debt is per-purchase (returns non-null even when
+009148:   // unsold), consignment/hybrid debt is per-sale (returns null when unsold).
+
+## Window 68: app.js 9164-9179
+009164: 
+009165:   // Forecast remaining active stock before and after the partner split.
+009166:   // This is intentionally profit-based (not revenue-based): consignment splits
+009167:   // are agreements over profit, so the forecast must use the same economics as
+009168:   // realised account settlement.
+009169:   let forecastProfitPool=0,forecastPartnerShare=0,forecastYourShare=0;
+009170:   active.forEach(function(i){
+009171:     const lot=_activeJobLotForItem(i.id);
+009172:     const est=lot?_jobLotMemberPotentialShare(i,lot):calcEstGrossProfit(i);
+009173:     if(est==null)return;
+009174:     const estNum=Number(est)||0;
+009175:     forecastProfitPool+=estNum;
+009176: 
+009177:     const effType=_itemAccountType(i);
+009178:     let partner=0;
+009179:     if(effType!=='supplier'){
+
+## Window 69: app.js 9191-9218
+009191:   });
+009192:   const activePotential=forecastYourShare;
+009193: 
+009194:   // Operational stock value: listed asking price plus an estimate for unlisted
+009195:   // stock where the user has supplied estSalePrice. Returned/action-needed
+009196:   // stock is intentionally excluded until a resale decision is made.
+009197:   const forecastStockValue=active.reduce(function(sum,i){
+009198:     const lot=_activeJobLotForItem(i.id);
+009199:     if(lot)return sum+_jobLotMemberAskingShare(i,lot);
+009200:     const v=(i.state==='listed')
+009201:       ? (Number(i.salePrice)||0)
+009202:       : (Number(i.estSalePrice)||0);
+009203:     return sum+v;
+009204:   },0);
+009205: 
+009206:   return{
+009207:     itemCount:items.length, soldCount:sold.length, activeCount:active.length,
+009208:     listedCount:listedStock.length, unlistedCount:unlistedStock.length, returnedCount:returned.length,
+009209:     stockOnHandCount:stockOnHand.length,
+009210:     stockCost:+stockOnHand.reduce(function(s,i){return s+_stockCost(i);},0).toFixed(2),
+009211:     activeStockValue:+listedStock.reduce(function(s,i){const lot=_activeJobLotForItem(i.id);return s+(lot?_jobLotMemberAskingShare(i,lot):(i.salePrice||0));},0).toFixed(2),
+009212:     forecastStockValue:+forecastStockValue.toFixed(2),
+009213:     forecastProfitPool:+forecastProfitPool.toFixed(2),
+009214:     forecastPartnerShare:+forecastPartnerShare.toFixed(2),
+009215:     forecastYourShare:+forecastYourShare.toFixed(2),
+009216:     projectedYourTotal:+(yourShare+forecastYourShare).toFixed(2),
+009217:     projectedPartnerTotal:+(totalOwed+forecastPartnerShare).toFixed(2),
+009218:     activePotential:+activePotential.toFixed(2),
+
+## Window 70: app.js 9744-9764
+009744:   const items=_accountItems(acct.id);
+009745:   const sold=items.filter(_accountItemIsSold)
+009746:     .sort(function(a,b){
+009747:       const da=(a.resaleSalePrice?a.resaleDateSold:a.dateSold)||'';
+009748:       const db=(b.resaleSalePrice?b.resaleDateSold:b.dateSold)||'';
+009749:       return db.localeCompare(da);
+009750:     });
+009751:   const active=items.filter(function(i){return !_accountItemIsSold(i)&&!i.scrappedAt&&(!i.isReturned||!!_activeJobLotMembership(i.id));});
+009752:   const returned=items.filter(function(i){return i.isReturned&&!i.scrappedAt&&!i.resaleSalePrice&&!_activeJobLotMembership(i.id);});
+009753:   // v1.01 fix — referenced below for the listed/unlisted stock rows but only defined
+009754:   // in the KPI-summary helper's scope; the merge dropped them here, crashing the whole
+009755:   // Partner page with "listedStock is not defined". Same logic as _accountStats.
+009756:   const listedStock=active.filter(function(i){const l=_activeJobLotForItem(i.id);return l?l.status==='listed':i.state==='listed';});
+009757:   const unlistedStock=active.filter(function(i){const l=_activeJobLotForItem(i.id);return l?l.status==='building':i.state==='sourced';});
+009758: 
+009759:   const mc=function(label,val,sub,valCol){
+009760:     // Keep semantic value colour (green/red/--warn); omit when neutral.
+009761:     const vc=(valCol&&valCol!=='var(--text)')?' style="color:'+valCol+';"':'';
+009762:     return '<div class="card kpi"><div class="kpi-label">'+label+'</div>'
+009763:       +'<div class="kpi-value num"'+vc+'>'+val+'</div>'
+009764:       +(sub?'<div class="kpi-foot">'+sub+'</div>':'')+'</div>';
+
+## Window 71: app.js 9918-9940
+009918:       +_moneyBlock(i,profit,owed)
+009919:     +'</div>';
+009920:   }).join('') : '<div style="padding:20px;text-align:center;color:var(--muted);font-size:13px;">No sales yet from this account</div>';
+009921: 
+009922:   const _activeAccountRow=function(i){
+009923:     const owed=_accountItemDebt(i);
+009924:     const isSel=_acctSelected.has(i.id);
+009925:     const _jl=_activeJobLotForItem(i.id);
+009926:     const isUnlisted=_jl?_jl.status==='building':i.state==='sourced';
+009927:     const stateLabel=_jl?('Job Lot · '+(_jl.name||'Job Lot')):(isUnlisted?'Unlisted':'Listed');
+009928:     const askingValue=_jl?_jobLotMemberAskingShare(i,_jl):(Number(i.salePrice)||0);
+009929:     const askingStr=fmt(askingValue);
+009930:     const stockCostStr=fmt((Number(i.costPrice)||0)+(typeof calcPartsCost==='function'?(Number(calcPartsCost(i))||0):0));
+009931:     const badgeClass=_jl?'joblot':(isUnlisted?'sourced':'listed');
+009932:     const detailClick=_jl?("openJobLotPage('"+_jl.id+"')"):"openItemDetail(this.dataset.month,this.dataset.itemid)";
+009933:     const estGross=_jl?_jobLotMemberPotentialShare(i,_jl):calcEstGrossProfit(i);
+009934:     const estNet=_jl
+009935:       ? (estGross==null?null:+(estGross-_estimatedPartnerCutFromProfit(i,estGross)).toFixed(2))
+009936:       : calcEstProfit(i);
+009937:     const partnerEst=estGross==null?null:_estimatedPartnerCutFromProfit(i,estGross);
+009938: 
+009939:     if(_acctSelectMode){
+009940:       return '<div class="metric-inline" style="align-items:center;cursor:pointer;" onclick="_acctToggleSelect(\''+i.id+'\')">'
+
+## Window 72: app.js 9973-9987
+009973:     : '<div style="padding:18px;text-align:center;color:var(--muted);font-size:12px;">No listed stock</div>';
+009974:   const unlistedRows=unlistedStock.length
+009975:     ? unlistedStock.map(_activeAccountRow).join('')
+009976:     : '<div style="padding:18px;text-align:center;color:var(--muted);font-size:12px;">No unlisted stock waiting to be listed</div>';
+009977: 
+009978:   const returnedRows=returned.length?returned.map(function(i){
+009979:     const isSel=_acctSelected.has(i.id);
+009980:     const rr=(i.returnHistory||[]).slice().reverse().find(function(r){return r.type==='full_seller'||r.type==='full_ebay';});
+009981:     const rd=(rr&&rr.loggedAt)||'';
+009982:     const cost=fmt((Number(i.costPrice)||0)+(typeof calcPartsCost==='function'?(Number(calcPartsCost(i))||0):0));
+009983:     const returnRight=isSupplierAcct?('Cost '+cost):_splitLine(i);
+009984:     if(_acctSelectMode){
+009985:       return '<div class="metric-inline" style="align-items:center;cursor:pointer;" onclick="_acctToggleSelect(\''+i.id+'\')">'
+009986:         +_selCheckbox(isSel)+'<div style="min-width:0;flex:1;"><div style="font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(i.item||'Untitled')+'</div>'
+009987:         +'<div style="font-size:11px;color:var(--text-secondary);"><span class="item-badge returned" style="font-size:10px;padding:2px 6px;">Returned</span>'+(rd?' · '+rd:'')+'</div></div>'
+
+## Window 73: app.js 11122-11139
+011122:   const qaItem=document.getElementById('qa-item');
+011123:   if(qaItem)qaItem.focus();
+011124: }
+011125: 
+011126: // ── Patch B — Sourced → Listed transition ────────────────────────────────────
+011127: // Opens the standard List Quick Add form pre-filled with the sourced item's
+011128: // data. On save, mutates the existing item record in place (preserving id,
+011129: // gid, parts, returnHistory, dateSourced, photo) rather than creating a new
+011130: // one. This keeps all history intact and avoids duplicate GIDs.
+011131: function openListFromSourced(m, id){
+011132:   if(_jobLotActionGuard(id))return;
+011133:   const i=(DB[m]||[]).find(x=>x.id===id);
+011134:   if(!i||i.state!=='sourced'){toast('Item not found or already listed','error');return;}
+011135:   // Track parts cost so updateBPFPreview can include it in profit estimate
+011136:   _sourcedPartsCost = calcPartsCost(i);
+011137:   _listFromSourcedM = m;
+011138:   _listFromSourcedId = id;
+011139:   // Use current month so the bucket is correct for today's listing date
+
+## Window 74: app.js 11236-11250
+011236:   }else{
+011237:     _postageMode='custom';
+011238:     postage=parseFloat(document.getElementById('qa-postage')?.value)||0;
+011239:     shippingCost=parseFloat(document.getElementById('qa-shipping')?.value)||0;
+011240:   }
+011241:   packagingCost=parseFloat(document.getElementById('qa-packaging')?.value)||0;
+011242: 
+011243:   // Mutate the sourced item in place — preserve id, gid, parts, returnHistory, dateSourced, photo
+011244:   const newMonth=monthKeyFromDate(_qaDate);
+011245:   srcItem.state='listed';
+011246:   srcItem.dateListed=_qaDate;
+011247:   srcItem.item=rawName;
+011248:   srcItem.source=document.getElementById('qa-source').value||srcItem.source||'';
+011249:   srcItem.category=(document.getElementById('qa-category').value||srcItem.category||autoCategory(rawName));
+011250:   srcItem.location=document.getElementById('qa-location').value||srcItem.location||'';
+
+## Window 75: app.js 11253-11267
+011253:   srcItem.salePrice=+_qaSalePrice.toFixed(2);
+011254:   srcItem.postage=postage; srcItem.shippingCost=shippingCost; srcItem.packagingCost=packagingCost;
+011255:   srcItem._postageMode=_postageMode; srcItem._sdRateIdx=_sdRateIdx; srcItem._sdBuyerPays=_sdBuyerPays;
+011256:   srcItem.promoPercent=(parseFloat(document.getElementById('qa-promo').value)||0)/100;
+011257:   srcItem.defaultPlatform=_qaPlat;
+011258:   // v2.19.26 — sourced stock becoming a live listing for the first time.
+011259:   _stampListingFee(srcItem);
+011260:   srcItem.dateSold=null; srcItem.grossProfit=null; srcItem.isReturned=false;
+011261:   // Patch C: preserve existing run tag (withdraw→sourced already keeps it);
+011262:   // if item has no tag and a run is active, tag it now (e.g. user added item
+011263:   // outside a run but is listing during one — edge case, auto-tag is fine).
+011264:   _autoTagToActiveRun(srcItem);
+011265:   // Patch C-2: estSalePrice is preserved through the transition (not cleared) to allow
+011266:   // future "estimate accuracy" analysis (actual vs estimated sale price).
+011267: 
+
+## Window 76: app.js 11346-11367
+011346:     costPrice:rawCost,
+011347:     salePrice:parseFloat(document.getElementById('qa-price').value)||0,
+011348:     postage,shippingCost,packagingCost,
+011349:     _postageMode,_sdRateIdx,_sdBuyerPays,
+011350:     // T-11 verified 2026-05-07: promoPercent stored as decimal (÷100 here). Input is integer % from UI.
+011351:     promoPercent:(parseFloat(document.getElementById('qa-promo').value)||0)/100,
+011352:     defaultPlatform:(document.getElementById('qa-platform')?.value)||DEFAULT_PLATFORM,
+011353:     dateSold:null,grossProfit:null,isReturned:false
+011354:   };
+011355:   _applyQuickAddAccount(item,_quickAddAccountId);
+011356:   _stampListingFee(item); // v2.19.26 — new listing = insertion fee
+011357:   item.category=item.category||autoCategory(item.item);
+011358:   if(!item.notes)item.notes='';if(!item.parts)item.parts=[];
+011359:   if(!item.returnHistory)item.returnHistory=[];
+011360:   if(item.isReturned===undefined)item.isReturned=false;
+011361:   _autoTagToActiveRun(item); // Patch C: tag to active sourcing run if one is running
+011362:   if(!Array.isArray(DB[m])) DB[m]=[];
+011363:   DB[m].push(item);saveDB();closePanel();
+011364:   SELECTED_MONTH=m;MONTH_SORT='date-listed';MONTH_FILTER='all';
+011365:   SELECTION_MODE=false;SELECTED_ITEMS.clear();
+011366:   const _ctxAcct=_quickAddAccount(_quickAddAccountId);
+011367:   if(_ctxAcct){_renderAccountPage(_ctxAcct);}
+
+## Window 77: app.js 11501-11516
+011501:     dateSourced:_date,
+011502:     item:(titleEl?.value||'').trim()||'Untitled stock item',
+011503:     costPrice:+cost.toFixed(2),
+011504:     estSalePrice:_estSalePrice,
+011505:     notes:(notesEl?.value||'').trim(),
+011506:     // Defaults so legacy code paths (filter, render, return-history) don't crash
+011507:     parts:[],
+011508:     returnHistory:[],
+011509:     isReturned:false,
+011510:     dateListed:null,
+011511:     dateSold:null,
+011512:     salePrice:0,
+011513:     postage:0,
+011514:     shippingCost:0,
+011515:     packagingCost:0,
+011516:     promoPercent:0,
+
+## Window 78: app.js 11594-11608
+011594: const _WITHDRAW_CLEAR_FIELDS = [
+011595:   'salePrice','platform','defaultPlatform','dateListed',
+011596:   'postageMode','_postageMode','shippingCost','postage','packagingCost',
+011597:   'promoPercent','sdRateIdx','sdBuyerPays'
+011598: ];
+011599: 
+011600: function withdrawToSourced(m, id){
+011601:   if(_jobLotActionGuard(id))return;
+011602:   // Find item — search all months (same pattern as submitListFromSourced)
+011603:   let srcMonth = m, item = null;
+011604:   allDBKeys().forEach(function(k){
+011605:     const found = (DB[k]||[]).find(function(x){ return x.id===id; });
+011606:     if(found){ srcMonth=k; item=found; }
+011607:   });
+011608:   if(!item){ toast('Item not found','error'); return; }
+
+## Window 79: app.js 11611-11629
+011611:       toast('Cannot withdraw a '+item.state+' item — relist it first, then withdraw','error');
+011612:     } else {
+011613:       toast('Only listed items can be moved back to sourced','error');
+011614:     }
+011615:     return;
+011616:   }
+011617: 
+011618:   const hasReturnHistory = item.returnHistory && item.returnHistory.length > 0;
+011619:   const itemName = esc(item.item || 'this item');
+011620: 
+011621:   // Confirmation modal — builds inline modal overlay
+011622:   const returnWarning = hasReturnHistory
+011623:     ? `<div style="background:var(--accent-dim);border:1px solid rgba(212,136,10,0.25);border-radius:8px;padding:10px 12px;margin:12px 0;font-size:12px;color:var(--warn)">
+011624:         <strong>⚠ Note:</strong> This item was previously sold and returned. Withdrawing preserves the return history but clears the current listing.
+011625:       </div>` : '';
+011626: 
+011627:   const modalHtml = `
+011628:     <div id="withdraw-modal-backdrop" onclick="closeWithdrawModal()"
+011629:          style="position:fixed;inset:0;background:var(--overlay);z-index:1000;display:flex;align-items:center;justify-content:center;padding:20px;">
+
+## Window 80: app.js 11653-11667
+011653:   document.body.insertAdjacentHTML('beforeend', modalHtml);
+011654: }
+011655: 
+011656: // v1.01 — A returned unit can be parked in Unlisted without pretending the
+011657: // failed sale never happened. Full-return history stays intact, so when it
+011658: // eventually sells markSold() correctly records Sale 2 rather than a new Sale 1.
+011659: async function moveReturnedToUnlisted(m,id){
+011660:   if(_jobLotActionGuard(id))return;
+011661:   const rec=_findItemRecordById(id),item=rec&&rec.item;
+011662:   if(!item||!item.isReturned||item.resaleSalePrice||item.scrappedAt){toast('This item is not waiting in Returned','err');return;}
+011663:   const ok=await showConfirm(
+011664:     'Move to Unlisted?',
+011665:     'The item will leave the Returned queue and sit in Unlisted until you decide what to do with it. The failed sale and full-return history stay intact, and no revenue or cost is changed.',
+011666:     {okLabel:'Move to Unlisted',danger:false}
+011667:   );
