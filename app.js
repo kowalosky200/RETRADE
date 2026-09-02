@@ -3139,7 +3139,7 @@ async function loadFromSupabase(){
   // Idempotent: only writes when at least one entry was missing the field.
   await _backfillDateSoldAtReturn();
   // One-time-on-load repair for legacy linked records. Idempotent.
-  _repairRunLinkedDates(true);
+  _repairRunLinkedDates(false);
 }
 
 // Fills the snapshot on legacy return entries created before the column existed.
