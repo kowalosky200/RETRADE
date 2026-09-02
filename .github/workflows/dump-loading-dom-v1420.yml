@@ -46,9 +46,26 @@ jobs:
                     out.push({text:t,tag:el.tagName,cls:el.className||'',p1:p1?`${p1.tagName}.${p1.className||''}`:'',p2:p2?`${p2.tagName}.${p2.className||''}`:''});
                   }
                 }
-                return out;
+                const findCard=(needle)=>{
+                  const all=[...page.querySelectorAll('*')];
+                  const hit=all.find(el=>(el.textContent||'').includes(needle));
+                  if(!hit)return null;
+                  let n=hit;while(n&&n!==page&&!((n.className||'').toString().includes('card'))&&!((n.className||'').toString().includes('panel')))n=n.parentElement;
+                  return n?n.outerHTML.slice(0,9000):hit.parentElement?.outerHTML.slice(0,9000);
+                };
+                return {
+                  rows,
+                  age:page.querySelector('.inv-age')?.outerHTML.slice(0,9000)||null,
+                  topflips:page.querySelector('.summary-topflips')?.outerHTML.slice(0,9000)||null,
+                  categories:page.querySelector('.summary-categories')?.outerHTML.slice(0,9000)||null,
+                  money:findCard('WHERE THE MONEY WENT'),
+                  month:page.querySelector('.mcard:not(.mcard-empty)')?.outerHTML.slice(0,9000)||null,
+                  emptyMonth:page.querySelector('.mcard.mcard-empty')?.outerHTML.slice(0,9000)||null,
+                  stockSegments:page.querySelector('.stock-segments-v2,.stock-segments,.stock-filters-v2')?.outerHTML.slice(0,9000)||null
+                };
               });
-              console.log('\nTAB',tab,JSON.stringify(rows,null,2));
+              console.log('\nTAB',tab,'ROWS',JSON.stringify(rows.rows,null,2));
+              for(const k of ['age','topflips','categories','money','month','emptyMonth','stockSegments'])if(rows[k])console.log(`\n${tab.toUpperCase()}_${k.toUpperCase()}_START\n${rows[k]}\n${tab.toUpperCase()}_${k.toUpperCase()}_END`);
               await p.close();
             }
             await b.close();
