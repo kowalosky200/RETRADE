@@ -1,4 +1,4 @@
-name: Stage 2 implementation audit
+name: Stage 2 lifecycle persistence audit
 
 on:
   push:
@@ -16,16 +16,16 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Extract current implementation
+      - name: Extract lifecycle persistence paths
         run: python .github/scripts/stage2_lifecycle_date_audit.py
       - name: Commit audit report
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add stage2-loading-audit.txt
+          git add stage2-lifecycle-rootcause.txt
           if git diff --cached --quiet; then
             echo "No audit report changes"
           else
-            git commit -m "chore(audit): capture current loading implementation [skip ci]"
+            git commit -m "chore(audit): capture lifecycle persistence paths [skip ci]"
             git push
           fi
