@@ -1,0 +1,24 @@
+name: Stage 2 extract Supabase contract
+
+on:
+  push:
+    paths:
+      - '.github/workflows/stage2-extract-supabase-contract.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  extract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Extract contract
+        run: python .github/scripts/stage2_extract_supabase_contract.py
+      - name: Commit audit output
+        run: |
+          git config user.name 'RETRADE Audit'
+          git config user.email 'actions@users.noreply.github.com'
+          git add stage2-supabase-contract.md
+          git commit -m 'chore(audit): capture Supabase client contract'
+          git push
