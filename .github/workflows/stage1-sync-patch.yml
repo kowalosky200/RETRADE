@@ -116,6 +116,15 @@ jobs:
               print('index.html cache key advanced to app.js v1.4.11')
           PY
 
+      - name: Validate patched source
+        shell: bash
+        run: |
+          node --check app.js
+          grep -Fq 'RETRADE v1.4.11-2026-09-02 — durable outbox drain repair' app.js
+          grep -Fq './app.js?v=1.4.11' index.html
+          ! grep -Fq './app.js?v=1.4.10' index.html
+          echo 'Stage 1 source syntax and cache-key checks passed.'
+
       - name: Commit patched source
         shell: bash
         run: |
