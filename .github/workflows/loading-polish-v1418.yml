@@ -81,6 +81,17 @@ jobs:
                   const loading=document.getElementById('app-loading'); if(loading)loading.remove();
                   document.body.classList.add('rt-app-visible');
                   window.showRealLayoutLoading(tab,'Visual test');
+                  // Local test boot is unauthenticated, so expose only the ancestor chain
+                  // of the real page. This recreates showApp visibility without inventing
+                  // a second layout or changing any responsive component CSS.
+                  let node=document.getElementById('p-'+tab);
+                  while(node && node!==document.body){
+                    const cs=getComputedStyle(node);
+                    if(cs.display==='none')node.style.display='block';
+                    if(cs.visibility==='hidden')node.style.visibility='visible';
+                    if(Number(cs.opacity)===0)node.style.opacity='1';
+                    node=node.parentElement;
+                  }
                 },tab);
                 await page.waitForTimeout(110);
                 const stats=await page.evaluate(()=>({
@@ -92,7 +103,7 @@ jobs:
                   bodyLoading:document.body.classList.contains('rt-real-layout-loading'),
                   pageRect:(()=>{const el=document.querySelector('.page.on');if(!el)return null;const r=el.getBoundingClientRect();return {x:r.x,y:r.y,w:r.width,h:r.height};})(),
                 }));
-                if(!stats.bodyLoading || stats.busy!==1 || stats.values<1 || stats.fake!==0){
+                if(!stats.bodyLoading || stats.busy!==1 || stats.values<1 || stats.fake!==0 || !stats.pageRect || stats.pageRect.w<100){
                   throw new Error(`${vp.name}/${tab} bad loading state ${JSON.stringify(stats)}`);
                 }
                 await page.screenshot({path:`loading-visual-artifacts/${vp.name}-${tab}.png`,fullPage:true});
