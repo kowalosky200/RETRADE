@@ -22,10 +22,10 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add stage2-lifecycle-rootcause.txt
+          git add stage2-lifecycle-focus2.txt
           if git diff --cached --quiet; then
             echo "No audit report changes"
           else
-            git commit -m "chore(audit): capture lifecycle persistence paths [skip ci]"
+            git commit -m "chore(audit): capture focused return persistence [skip ci]"
             git push
           fi
