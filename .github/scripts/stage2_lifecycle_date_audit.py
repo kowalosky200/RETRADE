@@ -2,42 +2,38 @@ from pathlib import Path
 import re
 
 src = Path('app.js').read_text(encoding='utf-8', errors='replace').splitlines()
-patterns = [
-    r'item_returns', r'returnHistory', r'resaleDateSold', r'dateSold',
-    r'_dateSoldAtReturn', r'loggedAt', r'refundDate', r'dateRelist',
-    r'relist', r'_itemReturn', r'ItemReturn', r'return.*ToRow',
-    r'row.*return', r'loadFromSupabase', r'_migrateSaleNoTags',
-    r'_repairSaleNoSequenceForItem', r'new Date\('
-]
-rx = re.compile('|'.join('(?:%s)' % p for p in patterns), re.I)
 
-# Capture merged windows around all lifecycle/date-related hits.
-hits = [i for i, line in enumerate(src) if rx.search(line)]
-windows = []
-for i in hits:
-    a, b = max(0, i-18), min(len(src), i+19)
-    if windows and a <= windows[-1][1] + 4:
-        windows[-1] = (windows[-1][0], max(windows[-1][1], b))
-    else:
-        windows.append((a,b))
+GROUPS = {
+  'dates': [
+    r'item_returns', r'returnHistory', r'_dateSoldAtReturn', r'loggedAt',
+    r'refundDate', r'dateReturned', r'returnDate', r'resaleDateSold',
+    r'dateRelist', r'relistDate', r'relistedAt', r'dateSold',
+    r'_repairSaleNoSequenceForItem', r'_migrateSaleNoTags', r'loadFromSupabase'
+  ],
+  'returned_stock': [
+    r'dispos', r'scrap', r'donat', r'job.?lot', r'isReturned',
+    r"state\s*[:=]\s*['\"]returned", r'returned.*filter', r'filter.*returned',
+    r'returnHistory'
+  ]
+}
 
-# Keep the report bounded while retaining the most relevant lifecycle regions.
-# Prioritise windows containing normalized-return/save/load identifiers.
-def score(w):
-    text='\n'.join(src[w[0]:w[1]]).lower()
-    keys=['item_returns','returnhistory','resaledatesold','_datesoldatreturn','loadfromsupabase','loggedat','refunddate','relist']
-    return sum(text.count(k) for k in keys)
-windows = sorted(windows, key=lambda w:(-score(w), w[0]))[:40]
-windows = sorted(windows)
+def extract(patterns, max_hits=220, radius=7):
+    rx = re.compile('|'.join('(?:%s)' % p for p in patterns), re.I)
+    hits = [i for i,line in enumerate(src) if rx.search(line)]
+    # merge small contextual windows
+    windows=[]
+    for i in hits[:max_hits]:
+        a,b=max(0,i-radius),min(len(src),i+radius+1)
+        if windows and a <= windows[-1][1] + 1:
+            windows[-1]=(windows[-1][0],max(windows[-1][1],b))
+        else:
+            windows.append((a,b))
+    out=[f'app.js lines: {len(src)}; total matches: {len(hits)}; emitted windows: {len(windows)}','']
+    for n,(a,b) in enumerate(windows,1):
+        out.append(f'## Window {n}: app.js {a+1}-{b}')
+        for j in range(a,b): out.append(f'{j+1:06d}: {src[j]}')
+        out.append('')
+    return '\n'.join(out)
 
-out=[]
-out.append('# RETRADE lifecycle date audit extraction')
-out.append('')
-out.append(f'app.js lines: {len(src)}; matched lines: {len(hits)}; windows: {len(windows)}')
-out.append('')
-for n,(a,b) in enumerate(windows,1):
-    out.append(f'## Window {n}: lines {a+1}-{b}')
-    for j in range(a,b):
-        out.append(f'{j+1:06d}: {src[j]}')
-    out.append('')
-Path('stage2-lifecycle-date-audit.txt').write_text('\n'.join(out), encoding='utf-8')
+Path('stage2-lifecycle-dates.txt').write_text(extract(GROUPS['dates']), encoding='utf-8')
+Path('stage2-returned-stock.txt').write_text(extract(GROUPS['returned_stock']), encoding='utf-8')
