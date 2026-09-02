@@ -25953,3 +25953,57 @@ console.info('[RETRADE] 1.4.10 expected-profit consistency + return fee-credit v
   console.info('[RETRADE] v1.4.15 stable return identity loaded');
 })();
 
+/* ========================================================================
+ * RETRADE v1.4.17 — terminal disposal durability (2026-09-02)
+ *
+ * saveDB() stages every mutation into the durable local outbox immediately but
+ * intentionally waits 200ms before starting the Supabase writer. That debounce
+ * is desirable for typing/batch edits, but a terminal inventory action should
+ * not leave a cloud-acknowledgement window. Dispose / supplier-return / restore
+ * now start the existing serialized CAS writer immediately after saveDB.
+ *
+ * No lifecycle or accounting fields are changed here. scrappedAt remains the
+ * authoritative terminal overlay and returnHistory remains intact for audit.
+ * ======================================================================== */
+(function(){
+  'use strict';
+  var VERSION='1.4.17-2026-09-02';
+
+  async function _flushTerminalMutation(){
+    if(!_currentUserId||typeof _persistChanges!=='function')return;
+    clearTimeout(_saveTimer);
+    _saveTimer=null;
+    await _persistChanges();
+  }
+
+  if(typeof confirmStockBulkDispose==='function'){
+    var _baseConfirmStockBulkDispose=confirmStockBulkDispose;
+    confirmStockBulkDispose=async function(){
+      var result=await _baseConfirmStockBulkDispose.apply(this,arguments);
+      await _flushTerminalMutation();
+      return result;
+    };
+  }
+
+  if(typeof confirmScrap==='function'){
+    var _baseConfirmScrap=confirmScrap;
+    confirmScrap=async function(){
+      var result=_baseConfirmScrap.apply(this,arguments);
+      await _flushTerminalMutation();
+      return result;
+    };
+  }
+
+  if(typeof unScrap==='function'){
+    var _baseUnScrap=unScrap;
+    unScrap=async function(){
+      var result=_baseUnScrap.apply(this,arguments);
+      await _flushTerminalMutation();
+      return result;
+    };
+  }
+
+  window.RETRADE_V1417={version:VERSION,flushTerminal:_flushTerminalMutation};
+  console.info('[RETRADE] v1.4.17 terminal disposal durability loaded');
+})();
+
