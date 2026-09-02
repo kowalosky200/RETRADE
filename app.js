@@ -25761,3 +25761,72 @@ console.log('[RETRADE] v1.4.7 verified full-backup export/import loaded');
 })();
 
 console.info('[RETRADE] 1.4.10 expected-profit consistency + return fee-credit visibility loaded');
+/* ========================================================================
+ * RETRADE v1.4.11-2026-09-02 — durable outbox drain repair
+ *
+ * Durable outbox work must be delivered even when the live DB fingerprint
+ * equals _dbSnapshot. Preserve the original staged CAS metadata, route the
+ * retry through the existing serialized writer, and keep failures queued.
+ * v1.4.9 bulk/stale quarantine runs before this drain and is not replayed.
+ * ======================================================================== */
+(function(){
+  'use strict';
+  var VERSION='1.4.11-2026-09-02';
+  if(typeof _persistChangesPass!=='function'||typeof _dbFingerprint!=='function'||typeof _outboxRead!=='function')return;
+  var _stage1BasePersistChangesPass=_persistChangesPass;
+  function _stage1OrphanBatch(){
+    var ob=_outboxRead()||{},now=_dbFingerprint()||{},prev=_dbSnapshot||{},batch={};
+    Object.keys(ob).forEach(function(k){
+      var e=ob[k];
+      if(!e||now[k]!==prev[k])return;
+      if((e.op==='save'&&now[k]!==undefined)||(e.op==='delete'&&now[k]===undefined)){
+        batch[k]={entry:e,value:now[k],hadPrev:Object.prototype.hasOwnProperty.call(prev,k),prevValue:prev[k]};
+      }
+    });
+    return batch;
+  }
+  _persistChangesPass=async function(){
+    var forced=_stage1OrphanBatch(),forcedKeys=Object.keys(forced);
+    if(!forcedKeys.length)return await _stage1BasePersistChangesPass.apply(this,arguments);
+    console.info('[RETRADE] '+VERSION+' draining '+forcedKeys.length+' durable orphaned outbox entr'+(forcedKeys.length===1?'y':'ies'));
+    var synthetic=Object.assign({},_dbSnapshot||{}),stamp='__RETRADE_OUTBOX_FORCE__'+Date.now()+'__';
+    forcedKeys.forEach(function(k,idx){synthetic[k]=stamp+idx;});
+    _dbSnapshot=synthetic;
+    var liveEntry=_outboxEntry;
+    var liveDelete=(typeof _outboxDeleteEntry==='function')?_outboxDeleteEntry:null;
+    _outboxEntry=function(key,json){
+      var f=forced[key];
+      if(f&&f.entry&&f.entry.op==='save'&&json===f.value)return f.entry;
+      return liveEntry.apply(this,arguments);
+    };
+    if(liveDelete){
+      _outboxDeleteEntry=function(key){
+        var f=forced[key];
+        if(f&&f.entry&&f.entry.op==='delete'&&f.value===undefined)return f.entry;
+        return liveDelete.apply(this,arguments);
+      };
+    }
+    try{return await _stage1BasePersistChangesPass.apply(this,arguments);}
+    finally{
+      _outboxEntry=liveEntry;if(liveDelete)_outboxDeleteEntry=liveDelete;
+      try{
+        var remaining=_outboxRead()||{},snap=_dbSnapshot||{};
+        forcedKeys.forEach(function(k){
+          if(!remaining[k])return;
+          var f=forced[k];if(f.hadPrev)snap[k]=f.prevValue;else delete snap[k];
+        });
+        _dbSnapshot=snap;
+      }catch(_e){}
+    }
+  };
+  if(typeof _recoverOutbox==='function'){
+    var _stage1BaseRecoverOutbox=_recoverOutbox;
+    _recoverOutbox=function(){
+      var result=_stage1BaseRecoverOutbox.apply(this,arguments);
+      try{if(typeof _outboxPendingCount==='function'&&_outboxPendingCount()>0){setTimeout(function(){try{if(_currentUserId&&typeof _persistChanges==='function')_persistChanges();}catch(_e){}},0);}}catch(_e){}
+      return result;
+    };
+  }
+  window.RETRADE_STAGE1_SYNC={version:VERSION,orphaned:function(){try{return Object.keys(_stage1OrphanBatch()).length;}catch(_e){return -1;}},kick:function(){return (typeof _persistChanges==='function')?_persistChanges():Promise.resolve();}};
+  console.info('[RETRADE] '+VERSION+' durable outbox drain loaded');
+})();
