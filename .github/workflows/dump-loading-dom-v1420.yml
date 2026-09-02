@@ -14,15 +14,15 @@ jobs:
           npm init -y >/dev/null 2>&1
           npm install --silent playwright@1.55.0
           npx playwright install --with-deps chromium >/dev/null
-      - name: Dump leak selectors
+      - name: Identify residual coloured data visuals
         run: |
           python -m http.server 4173 >/tmp/http.log 2>&1 &
-          cat >/tmp/dump.js <<'JS'
+          cat >/tmp/colors.js <<'JS'
           const {chromium}=require('playwright');
           (async()=>{
             const b=await chromium.launch({headless:true});
-            for(const tab of ['summary','monthly','stock']){
-              const p=await b.newPage({viewport:{width:1440,height:900}});
+            for(const spec of [{tab:'summary',w:390,h:844},{tab:'stock',w:1440,h:900}]){
+              const p=await b.newPage({viewport:{width:spec.w,height:spec.h}});
               await p.goto('http://127.0.0.1:4173/index.html',{waitUntil:'domcontentloaded'});
               await p.waitForFunction(()=>typeof window.showRealLayoutLoading==='function');
               await p.evaluate((tab)=>{
@@ -32,43 +32,27 @@ jobs:
                 if(typeof DB==='object'&&DB){Object.keys(DB).forEach(k=>{if(/^[A-Z]{3}-\d{2}$/.test(k))delete DB[k];});DB.expenses=[];DB.trips=[];DB.cashLedger=[];DB.sourcingRuns=[];}
                 showRealLayoutLoading(tab,'inspect');
                 let n=document.getElementById('p-'+tab);while(n&&n!==document.body){const cs=getComputedStyle(n);if(cs.display==='none')n.style.display='block';if(cs.visibility==='hidden')n.style.visibility='visible';if(+cs.opacity===0)n.style.opacity='1';n=n.parentElement;}
-              },tab);
+              },spec.tab);
               await p.waitForTimeout(100);
-              const rows=await p.evaluate(()=>{
+              const found=await p.evaluate(()=>{
                 const page=document.querySelector('.page.on');
-                const needles=[/No sales yet/i,/No completed sales/i,/No items yet/i,/100%/i,/54\.1pp/i,/0\.0pp/i,/Fresh/i,/Maturing/i,/Slow/i,/Stale/i,/sold\s*·/i];
+                const parse=(s)=>{const m=s&&s.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);return m?[+m[1],+m[2],+m[3]]:null};
                 const out=[];
                 for(const el of page.querySelectorAll('*')){
-                  if(el.children.length)continue;
-                  const t=(el.textContent||'').trim(); if(!t)continue;
-                  if(needles.some(r=>r.test(t))){
-                    const p1=el.parentElement,p2=p1&&p1.parentElement;
-                    out.push({text:t,tag:el.tagName,cls:el.className||'',p1:p1?`${p1.tagName}.${p1.className||''}`:'',p2:p2?`${p2.tagName}.${p2.className||''}`:''});
+                  const cs=getComputedStyle(el), bg=parse(cs.backgroundColor), col=parse(cs.color), fill=parse(cs.fill), stroke=parse(cs.stroke);
+                  const green=(rgb)=>rgb&&rgb[1]>rgb[0]*1.25&&rgb[1]>rgb[2]*1.08&&rgb[1]>75;
+                  if(green(bg)||green(col)||green(fill)||green(stroke)){
+                    const r=el.getBoundingClientRect();
+                    if(r.width<2||r.height<2)continue;
+                    out.push({tag:el.tagName,id:el.id||'',cls:(el.className&&el.className.baseVal)||el.className||'',style:el.getAttribute('style')||'',bg:cs.backgroundColor,color:cs.color,fill:cs.fill,stroke:cs.stroke,rect:{x:Math.round(r.x),y:Math.round(r.y),w:Math.round(r.width),h:Math.round(r.height)}});
                   }
                 }
-                const findCard=(needle)=>{
-                  const all=[...page.querySelectorAll('*')];
-                  const hit=all.find(el=>(el.textContent||'').includes(needle));
-                  if(!hit)return null;
-                  let n=hit;while(n&&n!==page&&!((n.className||'').toString().includes('card'))&&!((n.className||'').toString().includes('panel')))n=n.parentElement;
-                  return n?n.outerHTML.slice(0,9000):hit.parentElement?.outerHTML.slice(0,9000);
-                };
-                return {
-                  rows,
-                  age:page.querySelector('.inv-age')?.outerHTML.slice(0,9000)||null,
-                  topflips:page.querySelector('.summary-topflips')?.outerHTML.slice(0,9000)||null,
-                  categories:page.querySelector('.summary-categories')?.outerHTML.slice(0,9000)||null,
-                  money:findCard('WHERE THE MONEY WENT'),
-                  month:page.querySelector('.mcard:not(.mcard-empty)')?.outerHTML.slice(0,9000)||null,
-                  emptyMonth:page.querySelector('.mcard.mcard-empty')?.outerHTML.slice(0,9000)||null,
-                  stockSegments:page.querySelector('.stock-segments-v2,.stock-segments,.stock-filters-v2')?.outerHTML.slice(0,9000)||null
-                };
+                return out;
               });
-              console.log('\nTAB',tab,'ROWS',JSON.stringify(rows.rows,null,2));
-              for(const k of ['age','topflips','categories','money','month','emptyMonth','stockSegments'])if(rows[k])console.log(`\n${tab.toUpperCase()}_${k.toUpperCase()}_START\n${rows[k]}\n${tab.toUpperCase()}_${k.toUpperCase()}_END`);
+              console.log('\nTAB',spec.tab,JSON.stringify(found,null,2));
               await p.close();
             }
             await b.close();
           })().catch(e=>{console.error(e);process.exit(1)});
           JS
-          NODE_PATH="$PWD/node_modules" node /tmp/dump.js
+          NODE_PATH="$PWD/node_modules" node /tmp/colors.js
