@@ -5098,6 +5098,7 @@ console.info('[RETRADE] v1.4.18 polished real-layout loading loaded');
 console.info('[RETRADE] v1.4.19 Sales month-card loading loaded');
 console.info('[RETRADE] v1.4.20 populated real-layout loading shell loaded');
 console.info('[RETRADE] v1.4.21 old-look real-layout skeleton loaded');
+console.info('[RETRADE] v1.4.22 neutral loading visuals loaded');
 
 function refreshActivePage(){
   if(typeof renderSummary==='undefined')return; // called before functions defined

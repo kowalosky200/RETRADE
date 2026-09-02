@@ -5305,3 +5305,19 @@ svg.cat-donut-draw circle.donut-seg-last{
 @media(prefers-reduced-motion:reduce){
   .rt-real-layout-loading .rt-label-loading::after{animation:none!important;}
 }
+
+
+/* v1.4.22 — remove the last seeded data colours from the loading presentation. */
+.rt-real-layout-loading .age-bar-seg,
+.rt-real-layout-loading .age-legend-dot,
+.rt-real-layout-loading .legend-dot{
+  background:var(--border)!important;
+  border-color:var(--border)!important;
+  opacity:.62!important;
+}
+.rt-real-layout-loading #p-summary .summary-hero-card svg{
+  opacity:0!important;
+}
+.rt-real-layout-loading .rt-chart-loading > *{
+  opacity:0!important;
+}
