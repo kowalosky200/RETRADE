@@ -1,10 +1,11 @@
-name: Stage 2 lifecycle date audit
+name: Stage 2 implementation audit
 
 on:
   push:
     branches: [main]
     paths:
       - '.github/workflows/stage2-lifecycle-date-audit.yml'
+      - '.github/scripts/stage2_lifecycle_date_audit.py'
   workflow_dispatch:
 
 permissions:
@@ -15,16 +16,16 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Extract lifecycle and returned-stock paths
+      - name: Extract current implementation
         run: python .github/scripts/stage2_lifecycle_date_audit.py
-      - name: Commit audit reports
+      - name: Commit audit report
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add stage2-lifecycle-dates.txt stage2-returned-stock.txt stage2-lifecycle-focus.txt
+          git add stage2-loading-audit.txt
           if git diff --cached --quiet; then
             echo "No audit report changes"
           else
-            git commit -m "chore(audit): refresh lifecycle traces [skip ci]"
+            git commit -m "chore(audit): capture current loading implementation [skip ci]"
             git push
           fi
