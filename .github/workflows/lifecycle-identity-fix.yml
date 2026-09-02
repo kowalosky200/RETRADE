@@ -1,4 +1,4 @@
-name: Apply bulk platform correction
+name: Apply terminal disposal durability fix
 
 on:
   push:
@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Apply v1.4.16 bulk platform correction
+      - name: Apply v1.4.17 terminal disposal durability
         run: python .github/scripts/apply_lifecycle_identity_fix.py
       - name: Validate
         run: |
@@ -28,12 +28,11 @@ jobs:
           assert 'v1.4.14 real-layout boot loading loaded' in js
           assert 'v1.4.15 stable return identity loaded' in js
           assert 'v1.4.16 bulk platform editing loaded' in js
-          assert './app.js?v=1.4.16' in idx
-          assert 'data-source="month" onchange=' not in js
-          assert 'data-source="stock" onchange=' not in js
-          assert "item.salePlatform=platId;" in js
-          assert "item.resalePlatform=platId;" in js
-          print('v1.4.16 bulk platform validation passed')
+          assert 'v1.4.17 terminal disposal durability loaded' in js
+          assert './app.js?v=1.4.17' in idx
+          assert 'await _flushTerminalMutation();' in js
+          assert 'async function _persistChanges(){' in js
+          print('v1.4.17 terminal disposal durability validation passed')
           PY
       - name: Commit production patch
         run: |
@@ -43,6 +42,6 @@ jobs:
           if git diff --cached --quiet; then
             echo "No production changes"
           else
-            git commit -m "fix(sales): repair bulk platform editing"
+            git commit -m "fix(stock): flush dispose and restore changes immediately"
             git push
           fi
