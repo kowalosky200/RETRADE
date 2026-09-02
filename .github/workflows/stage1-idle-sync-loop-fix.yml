@@ -1,0 +1,71 @@
+name: Stage 1 idle sync loop fix
+
+on:
+  push:
+    paths:
+      - '.github/workflows/stage1-idle-sync-loop-fix.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Patch idle sync loop
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          app = Path('app.js')
+          text = app.read_text(encoding='utf-8')
+
+          old_cloud = """  // One-time-on-load repair: run-linked trip/expense dates
+          _repairRunLinkedDates(true);"""
+          new_cloud = """  // Routine cloud reads may normalise run-linked dates in memory, but must
+          // never persist from the read path. Persisting here caused a read -> saveDB ->
+          // outbox -> revision -> read loop while the app was completely idle.
+          _repairRunLinkedDates(false);"""
+
+          if text.count(old_cloud) != 1:
+              raise SystemExit(f'Expected exactly one cloud repair call, found {text.count(old_cloud)}')
+          text = text.replace(old_cloud, new_cloud, 1)
+
+          # The bootstrap section currently invokes the same persisting repair twice.
+          # Keep the named call (used for diagnostics) and remove the redundant call.
+          pattern = r'(_migrateSupplierSettledOnce\(\);\s*)_repairRunLinkedDates\(true\);\s*(const _initRunDateRepair=_repairRunLinkedDates\(true\);)'
+          text, n = re.subn(pattern, r'\1\2', text, count=1)
+          if n != 1:
+              raise SystemExit(f'Expected exactly one duplicate bootstrap repair pair, found {n}')
+
+          app.write_text(text, encoding='utf-8')
+
+          index = Path('index.html')
+          html = index.read_text(encoding='utf-8')
+          old_ver = './app.js?v=1.4.11'
+          new_ver = './app.js?v=1.4.12'
+          if html.count(old_ver) != 1:
+              raise SystemExit(f'Expected exactly one {old_ver} reference, found {html.count(old_ver)}')
+          index.write_text(html.replace(old_ver, new_ver, 1), encoding='utf-8')
+          PY
+
+      - name: Validate JavaScript
+        run: node --check app.js
+
+      - name: Commit patch
+        shell: bash
+        run: |
+          git config user.name "RETRADE Audit"
+          git config user.email "actions@users.noreply.github.com"
+          git add app.js index.html
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+            exit 0
+          fi
+          git commit -m "fix(sync): stop cloud reads creating idle outbox writes"
+          git push
