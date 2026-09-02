@@ -33,19 +33,15 @@ replacement=r'''function _markLoadingRegions(root){
   root.setAttribute('aria-busy','true');
   root.dataset.loading='true';
 
-  // Keep real labels/titles visible. Only values that depend on loaded data shimmer.
   root.querySelectorAll([
     '[data-cv]','.kpi-value','.summary-hero-value','.metric-v','.inv-stat-v',
     '.snap-stat-v','.category-mini-val','.age-legend-count','.rh-profit',
     '.stat-num','.kcard-value','.run-kpi-value','.cash-balance-value',
     '.sales-kpi-value','.sales-kpi-sub','.kpi-foot','.summary-hero-sub',
     '.metric-sub','.item-row-profit','.item-row-roi','.money-value',
-    // Current V2 Sales markup
     '.mf-val','.mf-foot','.fy-stat-hide'
   ].join(',')).forEach(function(el){el.classList.add('rt-data-loading');});
 
-  // FY accordion profit values currently have no semantic value class. Scope the
-  // fallback tightly to FY sections and only mask text that is actually currency.
   root.querySelectorAll('.fy-section span').forEach(function(el){
     if(/^[-+−]?£[\d,.]+$/.test((el.textContent||'').trim()))el.classList.add('rt-data-loading');
   });
@@ -57,7 +53,6 @@ replacement=r'''function _markLoadingRegions(root){
   ].join(',')).forEach(function(el){el.classList.add('rt-chart-loading');});
   root.querySelectorAll('svg[id*="chart"],canvas,#monthly-profitability-svg').forEach(function(el){el.classList.add('rt-chart-data-loading');});
 
-  // Lists use an overlay INSIDE the production container. Never replace innerHTML.
   const listTargets=root.querySelectorAll([
     '.item-table','.run-history-list','.activity-list','.cash-list','.expense-list',
     '.returns-list','.return-list','.scrapped-list','.data-list',
@@ -89,7 +84,7 @@ function _clearLoadingRegions(page){
 }
 
 function _disableLoadingControls(){'''
-js,n=pat.subn(replacement,js,count=1)
+js,n=pat.subn(lambda _m: replacement,js,count=1)
 if n!=1: raise SystemExit('Could not replace _markLoadingRegions block')
 
 old_err="""  page.removeAttribute('aria-busy');\n  delete page.dataset.loading;\n  page.querySelectorAll('.rt-data-loading,.rt-chart-loading,.rt-chart-data-loading,.rt-list-loading,.rt-hide-while-loading')\n    .forEach(function(el){el.classList.remove('rt-data-loading','rt-chart-loading','rt-chart-data-loading','rt-list-loading','rt-hide-while-loading');});"""
@@ -105,9 +100,6 @@ finish_pat=re.compile(r"function finishRealLayoutLoading\(tab\)\{.*?\n\}\n\ncons
 finish_new=r'''function finishRealLayoutLoading(tab){
   const safe=tab||_realLayoutLoadingTab||'summary';
   const page=document.getElementById('p-'+safe);
-
-  // initDB has just rendered the hydrated page and therefore replaced parts of the
-  // initial loading DOM. Mask the NEW real DOM once more so the handoff is 1:1.
   if(page)_markLoadingRegions(page);
 
   const now=(window.performance&&performance.now)?performance.now():Date.now();
@@ -133,7 +125,7 @@ finish_new=r'''function finishRealLayoutLoading(tab){
 
 console.info('[RETRADE] v1.4.14 real-layout boot loading loaded');
 console.info('[RETRADE] v1.4.18 polished real-layout loading loaded');'''
-js,n=finish_pat.subn(finish_new,js,count=1)
+js,n=finish_pat.subn(lambda _m: finish_new,js,count=1)
 if n!=1: raise SystemExit('Could not replace finishRealLayoutLoading')
 
 css_anchor="""@media(prefers-reduced-motion:reduce){\n  .rt-real-layout-loading .rt-data-loading,\n  .rt-real-layout-loading .rt-chart-loading::after{animation:none!important;}\n}"""
