@@ -120,8 +120,9 @@ else:
 
 if './app.js?v=1.4.19' not in idx: raise SystemExit('expected app.js v1.4.19 ref missing')
 idx=idx.replace('./app.js?v=1.4.19','./app.js?v=1.4.20',1)
-# CSS behavior is unchanged from v1.4.19; bump it anyway to prevent mixed cached loader styling.
-idx=re.sub(r'\./app\.css\?v=1\.4\.19','./app.css?v=1.4.20',idx,count=1)
+# Keep JS/CSS cache-busting aligned even though the v1.4.20 fix is JS-only.
+idx,ncss=re.subn(r'\./app\.css\?v=1\.4\.(?:18|19)','./app.css?v=1.4.20',idx,count=1)
+if ncss!=1: raise SystemExit('expected app.css v1.4.18/19 ref missing')
 
 JS.write_text(js,encoding='utf-8')
 IDX.write_text(idx,encoding='utf-8')
