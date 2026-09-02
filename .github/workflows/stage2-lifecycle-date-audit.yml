@@ -1,4 +1,4 @@
-name: Stage 2 lifecycle persistence audit
+name: Stage 2 bulk platform audit
 
 on:
   push:
@@ -16,16 +16,16 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Extract lifecycle persistence paths
+      - name: Extract bulk selection and platform paths
         run: python .github/scripts/stage2_lifecycle_date_audit.py
       - name: Commit audit report
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add stage2-lifecycle-focus2.txt
+          git add stage2-bulk-platform-audit.txt
           if git diff --cached --quiet; then
             echo "No audit report changes"
           else
-            git commit -m "chore(audit): capture focused return persistence [skip ci]"
+            git commit -m "chore(audit): capture bulk platform handlers [skip ci]"
             git push
           fi
