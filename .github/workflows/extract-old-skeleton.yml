@@ -1,0 +1,53 @@
+name: Extract old skeleton reference
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/extract-old-skeleton.yml'
+permissions:
+  contents: read
+jobs:
+  extract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Extract v1.4.13 skeleton code
+        run: |
+          git show 5746989b1e0c867f5b0c958852e9a5f6c97c8714:app.js > /tmp/old-app.js
+          git show 5746989b1e0c867f5b0c958852e9a5f6c97c8714:app.css > /tmp/old-app.css
+          python - <<'PY'
+          from pathlib import Path
+          import re
+          js=Path('/tmp/old-app.js').read_text(encoding='utf-8',errors='replace')
+          css=Path('/tmp/old-app.css').read_text(encoding='utf-8',errors='replace')
+          pats=[
+            r'function _skelSummary\(.*?(?=\nfunction |\nconst |\nlet |\nvar )',
+            r'function _skelGeneric\(.*?(?=\nfunction |\nconst |\nlet |\nvar )',
+            r'function _skPageHead\(.*?(?=\nfunction |\nconst |\nlet |\nvar )',
+            r'function _skKpi\(.*?(?=\nfunction |\nconst |\nlet |\nvar )',
+            r'function _skRows\(.*?(?=\nfunction |\nconst |\nlet |\nvar )',
+            r'function _skListControls\(.*?(?=\nfunction |\nconst |\nlet |\nvar )',
+          ]
+          out=[]
+          for pat in pats:
+            m=re.search(pat,js,re.S)
+            if m: out.append(m.group(0))
+          # collect CSS rules mentioning rt-skel and surrounding media blocks
+          css_lines=css.splitlines()
+          hits=[]
+          for i,line in enumerate(css_lines):
+            if 'rt-skel' in line or 'skeleton' in line.lower():
+              a=max(0,i-8); b=min(len(css_lines),i+18)
+              hits.extend(css_lines[a:b])
+              hits.append('\n/* --- */\n')
+          Path('old-skeleton-reference.txt').write_text('\n\n'.join(out)+'\n\n/* CSS */\n'+'\n'.join(hits),encoding='utf-8')
+          print(Path('old-skeleton-reference.txt').read_text(encoding='utf-8')[:6000])
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: old-skeleton-reference
+          path: old-skeleton-reference.txt
+          retention-days: 2
