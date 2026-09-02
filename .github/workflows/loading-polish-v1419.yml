@@ -1,0 +1,87 @@
+name: Validate final real-layout loading
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/loading-polish-v1419.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  visual-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Apply v1.4.19 refinement
+        run: python .github/scripts/apply_loading_polish_v1418.py
+
+      - name: Static safety gate
+        run: |
+          node --check app.js
+          python - <<'PY'
+          from pathlib import Path
+          js=Path('app.js').read_text(encoding='utf-8')
+          idx=Path('index.html').read_text(encoding='utf-8')
+          for token in [
+            "var VERSION='1.4.13-2026-09-02'",
+            'v1.4.14 real-layout boot loading loaded',
+            'v1.4.15 stable return identity loaded',
+            'v1.4.16 bulk platform editing loaded',
+            'v1.4.17 terminal disposal durability loaded',
+            'v1.4.18 polished real-layout loading loaded',
+            'v1.4.19 Sales month-card loading loaded',
+          ]: assert token in js, token
+          assert './app.js?v=1.4.19' in idx
+          assert 'rt-skel' not in Path('app.css').read_text(encoding='utf-8')
+          print('v1.4.19 static gate passed')
+          PY
+
+      - name: Install Chromium test runner
+        run: |
+          npm init -y >/dev/null 2>&1
+          npm install --silent playwright@1.55.0
+          npx playwright install --with-deps chromium >/dev/null
+
+      - name: Responsive loading test and screenshots
+        run: |
+          python -m http.server 4173 >/tmp/retrade-http.log 2>&1 &
+          cat > loading-test.js <<'JS'
+          const {chromium}=require('playwright'); const fs=require('fs');
+          const seed=`(function(){
+            Object.keys(DB).forEach(k=>{/^[A-Z]{3}-\\d{2}$/.test(k)&&delete DB[k]});
+            DB['AUG-26']=[
+              {id:'vs1',gid:'R-V1',item:'Sold',state:'sold',dateSourced:'2026-08-01',dateListed:'2026-08-03',dateSold:'2026-08-20',salePrice:79.99,costPrice:20,postage:0,shippingCost:3.65,packagingCost:0,promoPercent:.05,listingFee:.36,isReturned:false,returnHistory:[],parts:[],defaultPlatform:'ebay_biz'},
+              {id:'vr1',gid:'R-V2',item:'Returned',state:'returned',dateSourced:'2026-08-02',dateListed:'2026-08-04',dateSold:null,salePrice:49.99,costPrice:12,postage:0,shippingCost:3.65,packagingCost:0,promoPercent:.05,listingFee:.36,isReturned:true,returnHistory:[{id:9001,saleNo:1,type:'full_seller',loggedAt:'2026-08-25',refundAmount:49.99,_dateSoldAtReturn:'2026-08-18',_salePriceAtReturn:49.99}],parts:[],defaultPlatform:'ebay_biz'}];
+            DB['SEP-26']=[
+              {id:'vl1',gid:'R-V3',item:'Listed',state:'listed',dateSourced:'2026-09-01',dateListed:'2026-09-01',dateSold:null,salePrice:39.99,costPrice:8,postage:0,shippingCost:3.65,packagingCost:0,promoPercent:.05,listingFee:.36,isReturned:false,returnHistory:[],parts:[],defaultPlatform:'ebay_biz'},
+              {id:'vu1',gid:'R-V4',item:'Unlisted',state:'sourced',dateSourced:'2026-09-02',dateListed:null,dateSold:null,salePrice:0,estSalePrice:55,costPrice:10,isReturned:false,returnHistory:[],parts:[],defaultPlatform:'ebay_biz'}];
+            DB.expenses=[];DB.trips=[];DB.cashLedger=[];
+          })()`;
+          (async()=>{const b=await chromium.launch({headless:true});fs.mkdirSync('loading-v1419',{recursive:true});
+            for(const v of [{n:'mobile',w:390,h:844},{n:'tablet',w:768,h:1024},{n:'desktop',w:1440,h:900}])for(const tab of ['summary','monthly','stock']){
+              const p=await b.newPage({viewport:{width:v.w,height:v.h}});await p.goto('http://127.0.0.1:4173/index.html',{waitUntil:'domcontentloaded'});await p.waitForFunction(()=>typeof showRealLayoutLoading==='function');
+              await p.evaluate(({tab,seed})=>{document.getElementById('auth-overlay')?.remove();document.getElementById('app-loading')?.remove();eval(seed);showRealLayoutLoading(tab,'test');let n=document.getElementById('p-'+tab);while(n&&n!==document.body){if(getComputedStyle(n).display==='none')n.style.display='block';n=n.parentElement;}},{tab,seed});await p.waitForTimeout(110);
+              const s=await p.evaluate(tab=>{const page=document.querySelector('.page.on');const dynamic=[...page.querySelectorAll('.fy-section *')].filter(e=>!e.children.length&&(/^[-+−]?£[\d,.]+$/.test(e.textContent.trim())||/^\d+\s+sold\b/i.test(e.textContent.trim())));return {busy:page.getAttribute('aria-busy'),values:page.querySelectorAll('.rt-data-loading').length,lists:page.querySelectorAll('.rt-loading-list-overlay').length,fake:document.querySelectorAll('.rt-skel').length,leaks:tab==='monthly'?dynamic.filter(e=>!e.classList.contains('rt-data-loading')).map(e=>e.textContent.trim()):[]}},tab);
+              if(s.busy!=='true'||s.values<1||s.fake||s.leaks.length)throw new Error(`${v.n}/${tab} ${JSON.stringify(s)}`);
+              await p.screenshot({path:`loading-v1419/${v.n}-${tab}.png`,fullPage:true});await p.evaluate(tab=>finishRealLayoutLoading(tab),tab);await p.waitForTimeout(420);if(await p.evaluate(()=>document.querySelectorAll('.rt-data-loading,.rt-loading-list-overlay,.rt-chart-loading,.rt-chart-data-loading').length))throw new Error(`${v.n}/${tab} masks remained`);console.log(v.n,tab,s);await p.close();}
+            await b.close();})().catch(e=>{console.error(e);process.exit(1)});
+          JS
+          node loading-test.js
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: retrade-v1419-loading-visuals
+          path: loading-v1419/*.png
+          retention-days: 7
+
+      - name: Commit production refinement
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app.js index.html
+          git commit -m "fix(ui): mask Sales month data during loading"
+          git push
