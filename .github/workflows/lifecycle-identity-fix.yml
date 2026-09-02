@@ -1,4 +1,4 @@
-name: Apply lifecycle identity fix
+name: Apply bulk platform correction
 
 on:
   push:
@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Apply v1.4.15 return identity hardening
+      - name: Apply v1.4.16 bulk platform correction
         run: python .github/scripts/apply_lifecycle_identity_fix.py
       - name: Validate
         run: |
@@ -27,9 +27,13 @@ jobs:
           assert "var VERSION='1.4.13-2026-09-02'" in js
           assert 'v1.4.14 real-layout boot loading loaded' in js
           assert 'v1.4.15 stable return identity loaded' in js
-          assert './app.js?v=1.4.15' in idx
-          assert "showRealLayoutLoading(_safeTab, 'Loading your data…');" in js
-          print('v1.4.15 lifecycle identity validation passed')
+          assert 'v1.4.16 bulk platform editing loaded' in js
+          assert './app.js?v=1.4.16' in idx
+          assert 'data-source="month" onchange=' not in js
+          assert 'data-source="stock" onchange=' not in js
+          assert "item.salePlatform=platId;" in js
+          assert "item.resalePlatform=platId;" in js
+          print('v1.4.16 bulk platform validation passed')
           PY
       - name: Commit production patch
         run: |
@@ -39,6 +43,6 @@ jobs:
           if git diff --cached --quiet; then
             echo "No production changes"
           else
-            git commit -m "fix(lifecycle): preserve stable return event identity"
+            git commit -m "fix(sales): repair bulk platform editing"
             git push
           fi
