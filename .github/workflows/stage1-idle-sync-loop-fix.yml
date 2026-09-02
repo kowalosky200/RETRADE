@@ -20,29 +20,20 @@ jobs:
         run: |
           python - <<'PY'
           from pathlib import Path
-          import re
 
           app = Path('app.js')
           text = app.read_text(encoding='utf-8')
 
-          old_cloud = """  // One-time-on-load repair: run-linked trip/expense dates
+          old_cloud = """  // One-time-on-load repair for legacy linked records. Idempotent.
           _repairRunLinkedDates(true);"""
-          new_cloud = """  // Routine cloud reads may normalise run-linked dates in memory, but must
-          // never persist from the read path. Persisting here caused a read -> saveDB ->
-          // outbox -> revision -> read loop while the app was completely idle.
+          new_cloud = """  // Cloud refreshes may normalise legacy linked dates in memory, but the
+          // read path must never persist them. Persisting here caused an idle
+          // read -> saveDB -> outbox -> revision -> read loop.
           _repairRunLinkedDates(false);"""
 
           if text.count(old_cloud) != 1:
               raise SystemExit(f'Expected exactly one cloud repair call, found {text.count(old_cloud)}')
           text = text.replace(old_cloud, new_cloud, 1)
-
-          # The bootstrap section currently invokes the same persisting repair twice.
-          # Keep the named call (used for diagnostics) and remove the redundant call.
-          pattern = r'(_migrateSupplierSettledOnce\(\);\s*)_repairRunLinkedDates\(true\);\s*(const _initRunDateRepair=_repairRunLinkedDates\(true\);)'
-          text, n = re.subn(pattern, r'\1\2', text, count=1)
-          if n != 1:
-              raise SystemExit(f'Expected exactly one duplicate bootstrap repair pair, found {n}')
-
           app.write_text(text, encoding='utf-8')
 
           index = Path('index.html')
