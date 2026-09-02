@@ -15,16 +15,16 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Extract lifecycle date paths
+      - name: Extract lifecycle and returned-stock paths
         run: python .github/scripts/stage2_lifecycle_date_audit.py
-      - name: Commit audit report
+      - name: Commit audit reports
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add stage2-lifecycle-date-audit.txt
+          git add stage2-lifecycle-dates.txt stage2-returned-stock.txt
           if git diff --cached --quiet; then
             echo "No audit report changes"
           else
-            git commit -m "chore(audit): capture lifecycle date paths [skip ci]"
+            git commit -m "chore(audit): refresh lifecycle traces [skip ci]"
             git push
           fi
