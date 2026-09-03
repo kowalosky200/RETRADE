@@ -15,29 +15,20 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Settlement reversal and settled edit audit
+      - name: Mixed arrangement settlement audit
         shell: bash
         run: |
-          echo '=== SETTLEMENT DETAIL 9540-9635 ==='
-          sed -n '9540,9635p' app.js
+          echo '=== BULK SETTLE ROUTING 9310-9370 ==='
+          sed -n '9310,9370p' app.js
           echo
-          echo '=== BULK REMOVE ACCOUNT 9710-9750 ==='
-          sed -n '9710,9750p' app.js
+          echo '=== BULK ACCOUNT ASSIGN 10480-10620 ==='
+          sed -n '10480,10620p' app.js
           echo
-          echo '=== ITEM SPLIT MUTATIONS 10230-10285 ==='
-          sed -n '10230,10285p' app.js
+          echo '=== ACCOUNT CORE CALL SITES ==='
+          grep -n "_assignItemAccountCore" app.js || true
           echo
-          echo '=== ACCOUNT DELETE/UNLINK LEGACY 10435-10480 ==='
-          sed -n '10435,10480p' app.js
+          echo '=== ITEM EDIT / COST MUTATIONS 20235-20420 ==='
+          sed -n '20235,20420p' app.js
           echo
-          echo '=== ITEM ACCOUNT ASSIGNMENT 11055-11105 ==='
-          sed -n '11055,11105p' app.js
-          echo
-          echo '=== ALL accountPaidAmount WRITES ==='
-          grep -n "accountPaidAmount[[:space:]]*=" app.js | head -n 220 || true
-          echo
-          echo '=== COST WRITES NEAR ACCOUNT / SETTLEMENT ==='
-          grep -n "costPrice[[:space:]]*=" app.js | head -n 260 || true
-          echo
-          echo '=== SETTLEMENT DETAIL CALL SITES ==='
-          grep -n "_openSettlementDetail\|settlement.*reverse\|reverse.*settlement" app.js || true
+          echo '=== ACCOUNT TYPE CHANGE / SETTLEMENT KIND USE ==='
+          grep -nEi "tx\.kind|kind:.*supplier|kind:.*consignment|accountType=.*acc-type|defaultSplitPercent" app.js accounting.js | head -n 260 || true
