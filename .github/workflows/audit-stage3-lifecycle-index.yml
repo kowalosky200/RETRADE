@@ -15,16 +15,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Mutation bypass blocks
+      - name: Grouped-order mutation audit
         shell: bash
         run: |
-          echo '=== ACTIVITY UNDO 4015-4110 ==='
-          sed -n '4015,4110p' app.js
-          echo '=== BULK ACTIONS 15295-15525 ==='
-          sed -n '15295,15525p' app.js
-          echo '=== BUNDLE SALE 15995-16135 ==='
-          sed -n '15995,16135p' app.js
-          echo '=== DELETE SPLIT DUPLICATE 20585-20915 ==='
-          sed -n '20585,20915p' app.js
-          echo '=== SCRAP / RESTORE 17470-17580 ==='
-          sed -n '17470,17580p' app.js
+          echo '=== SALES ROW ACTIONS 14720-15070 ==='
+          sed -n '14720,15070p' app.js
+          echo '=== BUNDLE PAGE / SUMMARY 15835-15995 ==='
+          sed -n '15835,15995p' app.js
+          echo '=== BUNDLE HELPERS / RETURNS ==='
+          grep -nEi "function[[:space:]]+.*bundle|bundle.*(delete|undo|reverse|remove|unlink)|delete.*bundle|undo.*bundle" app.js | head -n 220 || true
