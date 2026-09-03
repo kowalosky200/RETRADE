@@ -1,0 +1,38 @@
+# RETRADE repository hygiene
+
+# Secrets / local configuration
+.env
+.env.*
+!.env.example
+*.local
+
+# Local dependencies / tooling
+node_modules/
+.npm/
+.cache/
+coverage/
+
+# OS / editor noise
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Local RETRADE exports / backups containing business data
+Backup/data.json
+exports/
+local-backups/
+retrade-backup*.json
+retrade-export*.json
+*.backup.json
+*.backup.zip
+
+# Business data files should not be committed to the public application repo
+*.csv
+*.xls
+*.xlsx
+
+# Temporary archives
+*.zip
+*.tmp
+*.log
