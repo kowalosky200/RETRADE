@@ -1,0 +1,106 @@
+name: TEMP apply loading motion and route fix
+
+on:
+  push:
+    branches: [fix/loading-motion-route-restore]
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/loading-motion-route-restore
+          fetch-depth: 0
+
+      - name: Patch loading motion and route persistence
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          app_path=Path('app.js')
+          css_path=Path('app.css')
+          app=app_path.read_text(encoding='utf-8')
+          css=css_path.read_text(encoding='utf-8')
+
+          anchor="function _saveTabScroll(){const a=document.querySelector('.page.on');if(a)_scrollMap[a.id.replace('p-','')]=window.scrollY||window.pageYOffset||0;}\n"
+          if app.count(anchor)!=1:
+              raise SystemExit(f'UI-state anchor count was {app.count(anchor)}, expected 1')
+
+          persistence="""// v1.4.23 — refresh-safe route + Sales subview persistence.\n// A hard refresh is continuation of the page the user is actively working on,\n// even if that page has been open longer than the four-hour fresh-session window.\nconst _rtBaseIsSameSession=_isSameSession;\nfunction _isHardReload(){\n  try{\n    const entries=(window.performance&&performance.getEntriesByType)?performance.getEntriesByType('navigation'):[];\n    if(entries&&entries[0])return entries[0].type==='reload';\n    return !!(window.performance&&performance.navigation&&performance.navigation.type===1);\n  }catch(e){return false;}\n}\n_isSameSession=function(){return _isHardReload()||_rtBaseIsSameSession();};\n\nconst _rtBaseSaveUIState=_saveUIState;\n_saveUIState=function(){\n  _rtBaseSaveUIState();\n  try{\n    localStorage.setItem('_rt_mon_sel',SELECTED_MONTH||currentMonthKey());\n    localStorage.setItem('_rt_mon_filter',MONTH_FILTER||'all');\n    localStorage.setItem('_rt_mon_sort',MONTH_SORT||'date-sold');\n    localStorage.setItem('_rt_mon_origin',_monthOrigin||'calendar-top');\n  }catch(e){}\n};\n\nconst _rtBaseLoadUIState=_loadUIState;\n_loadUIState=function(){\n  _rtBaseLoadUIState();\n  if(!_isSameSession())return;\n  try{\n    const selected=localStorage.getItem('_rt_mon_sel');\n    const filter=localStorage.getItem('_rt_mon_filter');\n    const sort=localStorage.getItem('_rt_mon_sort');\n    const origin=localStorage.getItem('_rt_mon_origin');\n    if(selected&&/^[A-Z]{3}-\\d{2}$/.test(selected)&&MONTHS.includes(keyCode(selected)))SELECTED_MONTH=selected;\n    if(filter)MONTH_FILTER=filter;\n    if(sort)MONTH_SORT=sort;\n    if(origin)_monthOrigin=origin;\n  }catch(e){}\n};\n\n"""
+          if 'v1.4.23 — refresh-safe route + Sales subview persistence' not in app:
+              app=app.replace(anchor,persistence+anchor,1)
+
+          old_monthly="""    if(!_monthOpenFromContext){_monthOrigin='calendar-top';SELECTED_MONTH=currentMonthKey();MONTHLY_VIEW='detail';MONTH_FILTER='all';MONTH_SORT='date-sold';}\n    renderMonthlyPage();\n  }\n"""
+          new_monthly="""    if(!_monthOpenFromContext){_monthOrigin='calendar-top';SELECTED_MONTH=currentMonthKey();MONTHLY_VIEW='detail';MONTH_FILTER='all';MONTH_SORT='date-sold';}\n    renderMonthlyPage();\n    // Save AFTER the Sales route has chosen current-month detail vs calendar.\n    // The old save happened earlier in goToTab and could persist the previous subview.\n    _saveUIState();\n  }\n"""
+          if app.count(old_monthly)!=1:
+              raise SystemExit(f'Sales tab routing block count was {app.count(old_monthly)}, expected 1')
+          app=app.replace(old_monthly,new_monthly,1)
+
+          old_go_month="""  if(cur&&cur.id==='p-monthly'){\n    renderMonthlyPage();\n  } else {\n"""
+          new_go_month="""  if(cur&&cur.id==='p-monthly'){\n    // _monthOrigin is final now, so persist the exact detail context before render.\n    _saveUIState();\n    renderMonthlyPage();\n  } else {\n"""
+          if app.count(old_go_month)!=1:
+              raise SystemExit(f'goToMonth render block count was {app.count(old_go_month)}, expected 1')
+          app=app.replace(old_go_month,new_go_month,1)
+
+          old_pick="""  SELECTED_MONTH=m;MONTH_FILTER='all';SELECTION_MODE=false;SELECTED_ITEMS.clear();\n  renderMonth();\n"""
+          new_pick="""  SELECTED_MONTH=m;MONTH_FILTER='all';SELECTION_MODE=false;SELECTED_ITEMS.clear();\n  _saveUIState();\n  renderMonth();\n"""
+          if app.count(old_pick)!=1:
+              raise SystemExit(f'pickMonth block count was {app.count(old_pick)}, expected 1')
+          app=app.replace(old_pick,new_pick,1)
+
+          finish_anchor="function finishRealLayoutLoading(tab){\n"
+          if app.count(finish_anchor)!=1:
+              raise SystemExit(f'finishRealLayoutLoading anchor count was {app.count(finish_anchor)}, expected 1')
+          motion_helper="""// Boot data is rendered while chart regions are masked. Re-arm the dashboard\n// reveal only AFTER the mask is removed so the user actually sees the line draw\n// and category-donut sweep/recoil instead of those animations expiring invisibly.\nfunction _replayDashboardMotionAfterLoading(page){\n  if(!page||page.id!=='p-summary')return;\n  try{if(window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches)return;}catch(e){}\n  requestAnimationFrame(function(){requestAnimationFrame(function(){\n    const donut=page.querySelector('.cat-donut-svg');\n    const legend=page.querySelector('.cat-donut-legend');\n    if(donut&&donut.querySelector('circle[style*="--seg-len"]')){\n      donut.classList.remove('cat-donut-draw');\n      if(legend)legend.classList.remove('cat-legend-draw');\n      void donut.getBoundingClientRect();\n      donut.classList.add('cat-donut-draw');\n      if(legend)legend.classList.add('cat-legend-draw');\n    }\n    page.querySelectorAll('#summary-chart-svg,#summary-chart-svg-mobile').forEach(function(svg){\n      let any=false;\n      svg.querySelectorAll('.rt-chart-line').forEach(function(path){\n        try{\n          const len=path.getTotalLength();\n          if(isFinite(len)&&len>0){path.style.setProperty('--rt-len',len.toFixed(1)+'px');any=true;}\n        }catch(e){}\n      });\n      svg.classList.remove('rt-chart-draw');\n      if(any){void svg.getBoundingClientRect();svg.classList.add('rt-chart-draw');}\n    });\n  });});\n}\n\n"""
+          if '_replayDashboardMotionAfterLoading' not in app:
+              app=app.replace(finish_anchor,motion_helper+finish_anchor,1)
+
+          final_anchor="""    _realLayoutLoading=false;\n    _realLayoutLoadingTab=null;\n    _realLayoutFinishTimer=null;\n    if(typeof _syncFabVisibility==='function')_syncFabVisibility();\n"""
+          final_repl="""    _realLayoutLoading=false;\n    _realLayoutLoadingTab=null;\n    _realLayoutFinishTimer=null;\n    if(typeof _syncFabVisibility==='function')_syncFabVisibility();\n    if(safe==='summary')_replayDashboardMotionAfterLoading(page);\n"""
+          if app.count(final_anchor)!=1:
+              raise SystemExit(f'loading finalize block count was {app.count(final_anchor)}, expected 1')
+          app=app.replace(final_anchor,final_repl,1)
+
+          css_marker='/* v1.4.23 — dashboard donut real-layout skeleton */'
+          css_patch=r'''\n\n/* v1.4.23 — dashboard donut real-layout skeleton */\n/* The Top Categories card is circular data, so a full rectangular chart shimmer\n   reads like a broken/blank panel. Keep the real layout and paint a ring + legend\n   placeholders in the exact slots the hydrated content will occupy. */\n.rt-real-layout-loading #p-summary .summary-categories .cat-donut-wrap.rt-chart-loading{\n  background:transparent!important;overflow:visible!important;\n}\n.rt-real-layout-loading #p-summary .summary-categories .cat-donut-wrap.rt-chart-loading::after{display:none!important;}\n.rt-real-layout-loading #p-summary .summary-categories .cat-donut-wrap.rt-chart-loading>.cat-donut-chart,\n.rt-real-layout-loading #p-summary .summary-categories .cat-donut-wrap.rt-chart-loading>.cat-donut-legend{opacity:1!important;}\n.rt-real-layout-loading #p-summary .summary-categories .cat-donut-wrap.rt-chart-loading .cat-donut-svg,\n.rt-real-layout-loading #p-summary .summary-categories .cat-donut-wrap.rt-chart-loading .cat-donut-legend>*{opacity:0!important;}\n.rt-real-layout-loading #p-summary .summary-categories .cat-donut-wrap.rt-chart-loading .cat-donut-chart{\n  position:relative;width:132px;height:132px;min-width:132px;\n}\n.rt-real-layout-loading #p-summary .summary-categories .cat-donut-wrap.rt-chart-loading .cat-donut-chart::before{\n  content:'';position:absolute;inset:0;border-radius:50%;\n  background:conic-gradient(from 25deg,\n    color-mix(in srgb,var(--border) 52%,transparent) 0 20%,\n    color-mix(in srgb,var(--border2) 82%,transparent) 34%,\n    color-mix(in srgb,var(--border) 45%,transparent) 52% 100%);\n  -webkit-mask:radial-gradient(farthest-side,transparent calc(100% - 18px),#000 calc(100% - 17px));\n  mask:radial-gradient(farthest-side,transparent calc(100% - 18px),#000 calc(100% - 17px));\n  animation:rtDonutSkeletonSpin 1.35s linear infinite;\n}\n.rt-real-layout-loading #p-summary .summary-categories .cat-donut-wrap.rt-chart-loading .cat-donut-legend{\n  position:relative;min-width:min(190px,42vw);min-height:118px;\n}\n.rt-real-layout-loading #p-summary .summary-categories .cat-donut-wrap.rt-chart-loading .cat-donut-legend::before{\n  content:'';position:absolute;inset:4px 0;\n  background:\n    linear-gradient(90deg,color-mix(in srgb,var(--border) 78%,transparent),color-mix(in srgb,var(--border) 42%,transparent)) 0 0/82% 11px no-repeat,\n    linear-gradient(90deg,color-mix(in srgb,var(--border) 72%,transparent),color-mix(in srgb,var(--border) 36%,transparent)) 0 30px/68% 11px no-repeat,\n    linear-gradient(90deg,color-mix(in srgb,var(--border) 66%,transparent),color-mix(in srgb,var(--border) 32%,transparent)) 0 60px/76% 11px no-repeat,\n    linear-gradient(90deg,color-mix(in srgb,var(--border) 60%,transparent),color-mix(in srgb,var(--border) 28%,transparent)) 0 90px/58% 11px no-repeat;\n  border-radius:6px;animation:rtDonutLegendPulse 1.15s ease-in-out infinite alternate;\n}\n@keyframes rtDonutSkeletonSpin{to{transform:rotate(360deg)}}\n@keyframes rtDonutLegendPulse{from{opacity:.55}to{opacity:1}}\n@media(max-width:560px){\n  .rt-real-layout-loading #p-summary .summary-categories .cat-donut-wrap.rt-chart-loading .cat-donut-chart{width:110px;height:110px;min-width:110px;}\n}\n@media(prefers-reduced-motion:reduce){\n  .rt-real-layout-loading #p-summary .summary-categories .cat-donut-wrap.rt-chart-loading .cat-donut-chart::before,\n  .rt-real-layout-loading #p-summary .summary-categories .cat-donut-wrap.rt-chart-loading .cat-donut-legend::before{animation:none!important;}\n}\n'''
+          if css_marker not in css:
+              css += css_patch
+
+          app_path.write_text(app,encoding='utf-8')
+          css_path.write_text(css,encoding='utf-8')
+          PY
+
+      - name: Verify syntax and contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check app.js
+          python - <<'PY'
+          from pathlib import Path
+          a=Path('app.js').read_text(encoding='utf-8')
+          c=Path('app.css').read_text(encoding='utf-8')
+          assert a.count('v1.4.23 — refresh-safe route + Sales subview persistence')==1
+          assert a.count('_replayDashboardMotionAfterLoading(page)')>=2
+          assert "localStorage.setItem('_rt_mon_sel'" in a
+          assert "localStorage.getItem('_rt_mon_origin')" in a
+          assert "if(safe==='summary')_replayDashboardMotionAfterLoading(page);" in a
+          assert a.count("// Save AFTER the Sales route has chosen current-month detail vs calendar.")==1
+          assert c.count('v1.4.23 — dashboard donut real-layout skeleton')==1
+          assert 'rtDonutSkeletonSpin' in c
+          print('Loading motion + route persistence contracts passed')
+          PY
+
+      - name: Commit production change and self-remove
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/tmp-loading-motion-route-fix.yml
+          git add app.js app.css
+          git commit -m "fix(ui): restore loading motion and refresh route context"
+          git push origin HEAD:fix/loading-motion-route-restore
