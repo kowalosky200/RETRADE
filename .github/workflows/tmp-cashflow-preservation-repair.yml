@@ -16,6 +16,31 @@ jobs:
         with:
           ref: ui/loading-cashflow-polish
 
+      - name: Correct duplicate cleanup assertion
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('.github/scripts/tmp_repair_cashflow_ui.py')
+          s=p.read_text(encoding='utf-8')
+          old="""def replace_once(text, old, new, label):
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'{label}: expected exactly 1 occurrence, found {count}')
+              return text.replace(old, new, 1)
+          """
+          new="""def replace_once(text, old, new, label):
+              count = text.count(old)
+              expected = 2 if label == 'reduced-motion loading cleanup' else 1
+              if count != expected:
+                  raise SystemExit(f'{label}: expected exactly {expected} occurrence(s), found {count}')
+              return text.replace(old, new, 1)
+          """
+          if old not in s:
+              raise SystemExit('replace_once helper did not match expected repair script')
+          p.write_text(s.replace(old,new,1),encoding='utf-8')
+          PY
+
       - name: Apply preservation repair
         run: python .github/scripts/tmp_repair_cashflow_ui.py
 
