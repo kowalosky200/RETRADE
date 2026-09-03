@@ -15,29 +15,29 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Settlement state mutation map
+      - name: Settlement reversal and settled edit audit
         shell: bash
         run: |
-          echo '=== ACCOUNT DEBT / PAYMENT HELPERS 9025-9165 ==='
-          sed -n '9025,9165p' app.js
+          echo '=== SETTLEMENT DETAIL 9540-9635 ==='
+          sed -n '9540,9635p' app.js
           echo
-          echo '=== SETTLEMENT ROW ACTIONS 9875-9925 ==='
-          sed -n '9875,9925p' app.js
+          echo '=== BULK REMOVE ACCOUNT 9710-9750 ==='
+          sed -n '9710,9750p' app.js
           echo
-          echo '=== ALL accountSettled WRITES ==='
-          grep -n "accountSettled[[:space:]]*=" app.js | head -n 260 || true
+          echo '=== ITEM SPLIT MUTATIONS 10230-10285 ==='
+          sed -n '10230,10285p' app.js
           echo
-          echo '=== LEGACY SUPPLIER MIGRATION CALLS ==='
-          grep -n "_migrateSupplierSettledOnce" app.js || true
+          echo '=== ACCOUNT DELETE/UNLINK LEGACY 10435-10480 ==='
+          sed -n '10435,10480p' app.js
           echo
-          echo '=== INIT AROUND MIGRATION CALL 4620-4710 ==='
-          sed -n '4620,4710p' app.js
+          echo '=== ITEM ACCOUNT ASSIGNMENT 11055-11105 ==='
+          sed -n '11055,11105p' app.js
           echo
-          echo '=== PAID SETTLEMENT LOOKUP accounting.js 995-1060 ==='
-          sed -n '995,1060p' accounting.js
+          echo '=== ALL accountPaidAmount WRITES ==='
+          grep -n "accountPaidAmount[[:space:]]*=" app.js | head -n 220 || true
           echo
-          echo '=== SETTLEMENT INTEGRITY AUDIT 19080-19130 ==='
-          sed -n '19080,19130p' app.js
+          echo '=== COST WRITES NEAR ACCOUNT / SETTLEMENT ==='
+          grep -n "costPrice[[:space:]]*=" app.js | head -n 260 || true
           echo
-          echo '=== ACCOUNT DELETE / PAYMENT CLEANUP 24025-24090 ==='
-          sed -n '24025,24090p' app.js
+          echo '=== SETTLEMENT DETAIL CALL SITES ==='
+          grep -n "_openSettlementDetail\|settlement.*reverse\|reverse.*settlement" app.js || true
