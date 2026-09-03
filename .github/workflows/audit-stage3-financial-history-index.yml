@@ -1,0 +1,28 @@
+name: Stage 3 financial history index
+
+on:
+  push:
+    branches:
+      - audit/stage-3-data-integrity
+    paths:
+      - '.github/workflows/audit-stage3-financial-history-index.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  index:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Locate financial-history mutation paths
+        shell: bash
+        run: |
+          echo '=== ACCOUNT DELETE / EDIT ==='
+          grep -n -E -C 18 "function .*Account|delete.*account|Delete account|accountType|defaultSplitPercent" app.js | head -n 900 || true
+          echo
+          echo '=== ITEM ACCOUNT / SPLIT / COST MUTATIONS ==='
+          grep -n -E -C 14 "accountId|accountSplitPercent|accountItemType|costPrice|accountSettled" app.js | head -n 1400 || true
+          echo
+          echo '=== ITEM EDIT / SAVE FUNCTIONS ==='
+          grep -n -E -C 18 "function .*Item|save.*Item|edit.*Item|update.*Item" app.js | head -n 1200 || true
