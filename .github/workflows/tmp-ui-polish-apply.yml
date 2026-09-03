@@ -15,6 +15,23 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ui/loading-cashflow-polish
+      - name: Drop brittle legacy keyframe literals
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('.github/scripts/tmp_apply_ui_loading_cashflow_polish.py')
+          s=p.read_text(encoding='utf-8')
+          for line in [
+            "css = replace_once(css, 'transform:translateY(-0.35px) scale(1.010);', 'transform:translateY(-0.45px) scale(1.014);', 'donut first overshoot')\n",
+            "css = replace_once(css, 'transform:translateY(0.15px) scale(0.996);', 'transform:translateY(0.20px) scale(0.994);', 'donut recoil settle')\n",
+            "css = replace_once(css, 'transform:translateY(-0.08px) scale(1.002);', 'transform:translateY(-0.10px) scale(1.003);', 'donut second settle')\n",
+          ]:
+            if line not in s:
+              raise SystemExit('Expected legacy keyframe patch line missing')
+            s=s.replace(line,'')
+          p.write_text(s,encoding='utf-8')
+          PY
       - name: Apply deterministic patch
         run: python .github/scripts/tmp_apply_ui_loading_cashflow_polish.py
       - name: JavaScript syntax
@@ -40,6 +57,7 @@ jobs:
             'premium reveal':'rtHydratedReveal',
             '540ms donut settle':'--dur-bounce: 540ms;',
             '760ms donut draw':'--dur-draw: 760ms;',
+            'stronger donut overshoot':'const OVER=Math.min(RECOIL*0.30, g.rest*0.5);',
           }
           for label,needle in checks.items():
             hay=css if needle.startswith('--dur-') or needle=='rtHydratedReveal' else app
