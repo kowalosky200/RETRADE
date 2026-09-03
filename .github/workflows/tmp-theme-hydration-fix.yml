@@ -1,0 +1,121 @@
+name: TEMP apply theme hydration stability fix
+
+on:
+  push:
+    branches: [fix/theme-hydration-stability]
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/theme-hydration-stability
+          fetch-depth: 0
+
+      - name: Patch theme source-of-truth conflict
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          p=Path('app.js')
+          text=p.read_text(encoding='utf-8')
+
+          old_migrate="""function _migrateThemePref(){
+  // Run once. If rt-theme is unset but retrade_theme has an explicit value,
+  // carry it over so existing users don't get reset to 'system'.
+  try{
+    if(_readThemePref())return; // already set
+    const legacy=localStorage.getItem(THEME_KEY);
+    if(legacy==='dark'||legacy==='light'){
+      localStorage.setItem(THEME_PREF_KEY,legacy);
+    }else{
+      localStorage.setItem(THEME_PREF_KEY,'system');
+    }
+  }catch(e){}
+}
+"""
+          new_migrate="""function _migrateThemePref(){
+  // Run once. If rt-theme is unset but retrade_theme has an explicit value,
+  // carry it over so existing users don't get reset to 'system'. A genuinely
+  // fresh device stays unset here: getThemePref() still resolves to System,
+  // while cloud hydration gets one chance to seed its resolved theme.
+  try{
+    if(_readThemePref())return; // already set, including an explicit System choice
+    const legacy=localStorage.getItem(THEME_KEY);
+    if(legacy==='dark'||legacy==='light'){
+      localStorage.setItem(THEME_PREF_KEY,legacy);
+    }
+  }catch(e){}
+}
+"""
+          if text.count(old_migrate)!=1:
+              raise SystemExit(f'Expected exactly one _migrateThemePref block, found {text.count(old_migrate)}')
+          text=text.replace(old_migrate,new_migrate,1)
+
+          old_hydrate="""    // theme
+    if(data.theme&&(data.theme==='dark'||data.theme==='light')){
+      const current=document.documentElement.getAttribute('data-theme')||'dark';
+      if(data.theme!==current){
+        document.documentElement.setAttribute('data-theme',data.theme);
+        try{localStorage.setItem('retrade_theme',data.theme);}catch(e){}
+        if(typeof updateThemeIcon==='function')updateThemeIcon(data.theme);
+        if(typeof _syncThemeColorMeta==='function')_syncThemeColorMeta(data.theme);
+      }
+    }
+"""
+          new_hydrate="""    // theme — rt-theme is the device-local user preference and must remain
+    // authoritative throughout boot. The cloud's binary dark/light value may
+    // seed a genuinely fresh device, but must never cause a saved preference to
+    // flash to the opposite theme while login settings hydrate.
+    if(data.theme&&(data.theme==='dark'||data.theme==='light')){
+      const localPref=(typeof _readThemePref==='function')?_readThemePref():null;
+      if(localPref==='system'||localPref==='dark'||localPref==='light'){
+        const resolved=(typeof _resolveTheme==='function')?_resolveTheme(localPref):localPref;
+        const current=document.documentElement.getAttribute('data-theme')||'dark';
+        if(resolved!==current&&typeof _applyResolvedTheme==='function')_applyResolvedTheme(resolved);
+        try{localStorage.setItem(THEME_KEY,resolved);}catch(e){}
+      }else{
+        // First use on this device: adopt the cloud's last resolved theme once.
+        try{localStorage.setItem(THEME_PREF_KEY,data.theme);}catch(e){}
+        if(typeof _applyResolvedTheme==='function')_applyResolvedTheme(data.theme);
+        else document.documentElement.setAttribute('data-theme',data.theme);
+        try{localStorage.setItem(THEME_KEY,data.theme);}catch(e){}
+      }
+      if(typeof _updateThemePrefButtons==='function')_updateThemePrefButtons();
+    }
+"""
+          if text.count(old_hydrate)!=1:
+              raise SystemExit(f'Expected exactly one base hydrate theme block, found {text.count(old_hydrate)}')
+          text=text.replace(old_hydrate,new_hydrate,1)
+
+          p.write_text(text,encoding='utf-8')
+          PY
+
+      - name: Verify syntax and boot-theme contract
+        shell: bash
+        run: |
+          node --check app.js
+          python - <<'PY'
+          from pathlib import Path
+          t=Path('app.js').read_text(encoding='utf-8')
+          assert "localStorage.setItem(THEME_PREF_KEY,'system')" not in t, 'fresh-device migration still persists System before cloud hydration'
+          assert "const localPref=(typeof _readThemePref==='function')?_readThemePref():null;" in t
+          assert "must remain\n    // authoritative throughout boot" in t
+          assert t.count("First use on this device: adopt the cloud's last resolved theme once.")==1
+          print('Theme hydration stability contract passed')
+          PY
+
+      - name: Commit production change and self-remove
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/tmp-theme-hydration-fix.yml
+          git add app.js
+          git commit -m "fix(ui): keep saved theme stable through cloud hydration"
+          git push origin HEAD:fix/theme-hydration-stability
