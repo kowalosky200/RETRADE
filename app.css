@@ -1842,12 +1842,10 @@ nav:not(#bottom-nav){background:color-mix(in srgb,var(--surface) 88%, transparen
 @media(prefers-reduced-motion:reduce){*{animation-duration:.01ms!important;transition-duration:.01ms!important;}}
 
 /* Page transition */
-@keyframes pageFade{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
-/* v2.16.1 — the ONE page transition. Was --dur-base (200ms) + 5px travel, which
-   measured as firing correctly on every switch but was imperceptible: ease-out
-   front-loads, so ~80% of a 5px move completed inside 60ms. --dur-medium +10px
-   is visible without feeling slow. */
-.page.on{animation:pageFade var(--dur-medium) var(--ease-out) both;}
+@keyframes pageFade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+/* v1.4.27 — navigation acknowledgement is immediate; keep the page motion short
+   and refined so it confirms the switch without making the app feel delayed. */
+.page.on{animation:pageFade 200ms var(--ease-out) both;}
 /* Boot hydration uses the real page from the first frame. Suppress pageFade
    while that page is being hydrated; _deactivatePages removes the class before
    normal navigation, so subsequent page switches keep the standard motion. */
@@ -5405,4 +5403,22 @@ svg.cat-donut-draw circle.donut-seg-last{
   #p-summary .cat-donut-svg.rt-motion-hold circle[style*="--seg-len"]{
     animation:none!important;
   }
+}
+
+
+/* v1.4.27 — interaction responsiveness */
+/* Explicit manipulation removes any gesture arbitration delay on app chrome.
+   Existing component-specific :active transforms remain the visual language. */
+.rt .tab,.rt .nav-more-btn,.rt .side-nav-item,.rt .btn,.rt .chip,
+.rt .mcard,.rt .kpi.clickable,.rt .cashflow-action-btn,.rt .clickable{
+  touch-action:manipulation;-webkit-tap-highlight-color:transparent;
+}
+@media(hover:none) and (pointer:coarse){
+  .rt .tab:active,.rt .nav-more-btn:active,.rt .side-nav-item:active,
+  .rt .btn:active,.rt .cashflow-action-btn:active{opacity:.78;}
+}
+/* Large local ledgers/lists do not need off-screen rows painted on every filter
+   or page refresh. Layout size is reserved so scroll position remains stable. */
+.rt #p-stock .item-row,.rt #p-monthly .item-row,.rt .cashflow-ledger-row{
+  content-visibility:auto;contain-intrinsic-size:auto 76px;
 }
