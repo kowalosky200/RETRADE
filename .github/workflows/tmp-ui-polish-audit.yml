@@ -19,35 +19,21 @@ jobs:
           python - <<'PY'
           from pathlib import Path
 
-          targets = {
-              'app.js': [
-                  'function _markLoadingRegions',
-                  'function _clearLoadingRegions',
-                  'function _disableLoadingControls',
-                  'function _enableLoadingControls',
-                  'function renderCash',
-                  'XLSX.writeFile',
-                  'XLSX.utils',
-              ],
-              'app.css': [
-                  '--dur-draw',
-                  '--dur-bounce',
-                  '@keyframes donutClose',
-                  '@media(prefers-reduced-motion:reduce)',
-              ],
-              'index.html': ['xlsx', 'app.css?v=', 'app.js?v='],
-          }
-
-          for filename, needles in targets.items():
-              lines = Path(filename).read_text(encoding='utf-8').splitlines()
-              print(f'\n===== {filename} ({len(lines)} lines) =====')
-              for needle in needles:
-                  hits = [i for i, line in enumerate(lines) if needle in line]
-                  print(f'\n--- {needle!r}: {len(hits)} hit(s) ---')
-                  for i in hits[:10]:
-                      lo = max(0, i - 35)
-                      hi = min(len(lines), i + 55)
-                      print(f'\n### lines {lo+1}-{hi} (hit {i+1})')
-                      for n in range(lo, hi):
-                          print(f'{n+1:06d}: {lines[n]}')
+          lines = Path('app.js').read_text(encoding='utf-8').splitlines()
+          needles = [
+              'data-cash-edit',
+              'cash-ledger-edit',
+              'list.appendChild(entries)',
+              'sourceStats()',
+              'data-cash-type',
+              'resetCashFlow',
+          ]
+          print(f'app.js lines: {len(lines)}')
+          for needle in needles:
+              hits=[i for i,line in enumerate(lines) if needle in line]
+              print(f'\n--- {needle!r}: {len(hits)} hit(s) ---')
+              for i in hits[:12]:
+                  lo=max(0,i-45); hi=min(len(lines),i+75)
+                  print(f'\n### lines {lo+1}-{hi} (hit {i+1})')
+                  for n in range(lo,hi): print(f'{n+1:06d}: {lines[n]}')
           PY
