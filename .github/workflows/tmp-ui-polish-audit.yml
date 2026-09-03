@@ -21,22 +21,21 @@ jobs:
 
           targets = {
               'app.js': [
-                  'Math.max(0,260-elapsed)',
+                  'function _markLoadingRegions',
+                  'function _clearLoadingRegions',
+                  'function _disableLoadingControls',
+                  'function _enableLoadingControls',
                   'function renderCash',
-                  'led.forEach',
-                  '--seg-len-r',
-                  'rt-real-layout-loading',
-                  'showLoadingScreen',
-                  'hideLoadingScreen',
+                  'XLSX.writeFile',
+                  'XLSX.utils',
               ],
               'app.css': [
-                  'donutDraw',
-                  'donutClose',
-                  'REAL-LAYOUT LOADING',
-                  'rt-real-layout-loading',
-                  'donut-animating',
+                  '--dur-draw',
+                  '--dur-bounce',
+                  '@keyframes donutClose',
+                  '@media(prefers-reduced-motion:reduce)',
               ],
-              'index.html': ['app.css?v=', 'app.js?v='],
+              'index.html': ['xlsx', 'app.css?v=', 'app.js?v='],
           }
 
           for filename, needles in targets.items():
@@ -45,9 +44,9 @@ jobs:
               for needle in needles:
                   hits = [i for i, line in enumerate(lines) if needle in line]
                   print(f'\n--- {needle!r}: {len(hits)} hit(s) ---')
-                  for i in hits[:8]:
-                      lo = max(0, i - 28)
-                      hi = min(len(lines), i + 42)
+                  for i in hits[:10]:
+                      lo = max(0, i - 35)
+                      hi = min(len(lines), i + 55)
                       print(f'\n### lines {lo+1}-{hi} (hit {i+1})')
                       for n in range(lo, hi):
                           print(f'{n+1:06d}: {lines[n]}')
