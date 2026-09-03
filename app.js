@@ -5077,6 +5077,36 @@ function showRealLayoutLoading(tab,msg){
   status.textContent=msg||'Loading your data…';
 }
 
+// Boot data is rendered while chart regions are masked. Re-arm the dashboard
+// reveal only AFTER the mask is removed so the user actually sees the line draw
+// and category-donut sweep/recoil instead of those animations expiring invisibly.
+function _replayDashboardMotionAfterLoading(page){
+  if(!page||page.id!=='p-summary')return;
+  try{if(window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches)return;}catch(e){}
+  requestAnimationFrame(function(){requestAnimationFrame(function(){
+    const donut=page.querySelector('.cat-donut-svg');
+    const legend=page.querySelector('.cat-donut-legend');
+    if(donut&&donut.querySelector('circle[style*="--seg-len"]')){
+      donut.classList.remove('cat-donut-draw');
+      if(legend)legend.classList.remove('cat-legend-draw');
+      void donut.getBoundingClientRect();
+      donut.classList.add('cat-donut-draw');
+      if(legend)legend.classList.add('cat-legend-draw');
+    }
+    page.querySelectorAll('#summary-chart-svg,#summary-chart-svg-mobile').forEach(function(svg){
+      let any=false;
+      svg.querySelectorAll('.rt-chart-line').forEach(function(path){
+        try{
+          const len=path.getTotalLength();
+          if(isFinite(len)&&len>0){path.style.setProperty('--rt-len',len.toFixed(1)+'px');any=true;}
+        }catch(e){}
+      });
+      svg.classList.remove('rt-chart-draw');
+      if(any){void svg.getBoundingClientRect();svg.classList.add('rt-chart-draw');}
+    });
+  });});
+}
+
 function finishRealLayoutLoading(tab){
   const safe=tab||_realLayoutLoadingTab||'summary';
   const page=document.getElementById('p-'+safe);
@@ -5096,6 +5126,7 @@ function finishRealLayoutLoading(tab){
     _realLayoutLoadingTab=null;
     _realLayoutFinishTimer=null;
     if(typeof _syncFabVisibility==='function')_syncFabVisibility();
+    if(safe==='summary')_replayDashboardMotionAfterLoading(page);
   };
 
   requestAnimationFrame(function(){requestAnimationFrame(function(){
@@ -5286,6 +5317,46 @@ function _loadUIState(){try{
   // restore either way, but we skip it too for a fully clean start.
   if(!_isSameSession())return;
   const sf=localStorage.getItem(_SK.stockF);const ssf=localStorage.getItem(_SK.stockSF);const sso=localStorage.getItem(_SK.stockSo);const ssof=localStorage.getItem(_SK.stockSoF);const sgr=localStorage.getItem(_SK.stockGr);const sc=localStorage.getItem(_SK.stkCol);const rs=localStorage.getItem(_SK.runsSort);const sp=localStorage.getItem(_SK.sumPer);const mv=localStorage.getItem(_SK.monthV);if(sf)STOCK_FILTER=sf;if(ssf){const _ssf=(ssf==='removed'?'listed':ssf);STOCK_STATE_FILTER=['all','listed','sourced','returned'].includes(_ssf)?_ssf:'listed';}if(sso)STOCK_SORT=sso;if(ssof)STOCK_SOURCED_FILTER=ssof;if(sgr)STOCK_GROUPED=sgr==='1';if(sc){try{STOCK_COLLAPSED=new Set(JSON.parse(sc));}catch(e){}}if(rs)RUNS_SORT=rs;if(sp)SUMMARY_PERIOD=sp;if(mv)MONTHLY_VIEW=mv;}catch(e){}}
+// v1.4.23 — refresh-safe route + Sales subview persistence.
+// A hard refresh is continuation of the page the user is actively working on,
+// even if that page has been open longer than the four-hour fresh-session window.
+const _rtBaseIsSameSession=_isSameSession;
+function _isHardReload(){
+  try{
+    const entries=(window.performance&&performance.getEntriesByType)?performance.getEntriesByType('navigation'):[];
+    if(entries&&entries[0])return entries[0].type==='reload';
+    return !!(window.performance&&performance.navigation&&performance.navigation.type===1);
+  }catch(e){return false;}
+}
+_isSameSession=function(){return _isHardReload()||_rtBaseIsSameSession();};
+
+const _rtBaseSaveUIState=_saveUIState;
+_saveUIState=function(){
+  _rtBaseSaveUIState();
+  try{
+    localStorage.setItem('_rt_mon_sel',SELECTED_MONTH||currentMonthKey());
+    localStorage.setItem('_rt_mon_filter',MONTH_FILTER||'all');
+    localStorage.setItem('_rt_mon_sort',MONTH_SORT||'date-sold');
+    localStorage.setItem('_rt_mon_origin',_monthOrigin||'calendar-top');
+  }catch(e){}
+};
+
+const _rtBaseLoadUIState=_loadUIState;
+_loadUIState=function(){
+  _rtBaseLoadUIState();
+  if(!_isSameSession())return;
+  try{
+    const selected=localStorage.getItem('_rt_mon_sel');
+    const filter=localStorage.getItem('_rt_mon_filter');
+    const sort=localStorage.getItem('_rt_mon_sort');
+    const origin=localStorage.getItem('_rt_mon_origin');
+    if(selected&&/^[A-Z]{3}-\d{2}$/.test(selected)&&MONTHS.includes(keyCode(selected)))SELECTED_MONTH=selected;
+    if(filter)MONTH_FILTER=filter;
+    if(sort)MONTH_SORT=sort;
+    if(origin)_monthOrigin=origin;
+  }catch(e){}
+};
+
 function _saveTabScroll(){const a=document.querySelector('.page.on');if(a)_scrollMap[a.id.replace('p-','')]=window.scrollY||window.pageYOffset||0;}
 function _restoreTabScroll(tab){const y=_scrollMap[tab];if(y)requestAnimationFrame(function(){requestAnimationFrame(function(){window.scrollTo(0,y);});});}
 
@@ -5382,6 +5453,9 @@ function goToTab(name,sourceEl){
     // through this same tab switch so an explicit month/origin is not overwritten.
     if(!_monthOpenFromContext){_monthOrigin='calendar-top';SELECTED_MONTH=currentMonthKey();MONTHLY_VIEW='detail';MONTH_FILTER='all';MONTH_SORT='date-sold';}
     renderMonthlyPage();
+    // Save AFTER the Sales route has chosen current-month detail vs calendar.
+    // The old save happened earlier in goToTab and could persist the previous subview.
+    _saveUIState();
   }
   else if(name==='stock'){_stockFromSummary=false;renderStock();}
   else if(name==='expenses')renderExpenses();
@@ -13922,6 +13996,8 @@ function goToMonth(m){
     _monthOrigin=(cur&&cur.id)||'p-summary';
   }
   if(cur&&cur.id==='p-monthly'){
+    // _monthOrigin is final now, so persist the exact detail context before render.
+    _saveUIState();
     renderMonthlyPage();
   } else {
     // Route through the normal tab switch for nav/UI syncing, but preserve the
@@ -14362,6 +14438,7 @@ function pickMonth(m){
   const el=document.getElementById('month-picker');
   if(el)el.classList.remove('open');
   SELECTED_MONTH=m;MONTH_FILTER='all';SELECTION_MODE=false;SELECTED_ITEMS.clear();
+  _saveUIState();
   renderMonth();
 }
 // Generic open/close for the mobile filter pill dropdowns. The element is

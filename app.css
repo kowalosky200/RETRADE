@@ -5321,3 +5321,51 @@ svg.cat-donut-draw circle.donut-seg-last{
 .rt-real-layout-loading .rt-chart-loading > *{
   opacity:0!important;
 }
+
+
+/* v1.4.23 — dashboard donut real-layout skeleton */
+/* The Top Categories card is circular data, so a full rectangular chart shimmer
+   reads like a broken/blank panel. Keep the real layout and paint a ring + legend
+   placeholders in the exact slots the hydrated content will occupy. */
+.rt-real-layout-loading #p-summary .summary-categories .cat-donut-wrap.rt-chart-loading{
+  background:transparent!important;overflow:visible!important;
+}
+.rt-real-layout-loading #p-summary .summary-categories .cat-donut-wrap.rt-chart-loading::after{display:none!important;}
+.rt-real-layout-loading #p-summary .summary-categories .cat-donut-wrap.rt-chart-loading>.cat-donut-chart,
+.rt-real-layout-loading #p-summary .summary-categories .cat-donut-wrap.rt-chart-loading>.cat-donut-legend{opacity:1!important;}
+.rt-real-layout-loading #p-summary .summary-categories .cat-donut-wrap.rt-chart-loading .cat-donut-svg,
+.rt-real-layout-loading #p-summary .summary-categories .cat-donut-wrap.rt-chart-loading .cat-donut-legend>*{opacity:0!important;}
+.rt-real-layout-loading #p-summary .summary-categories .cat-donut-wrap.rt-chart-loading .cat-donut-chart{
+  position:relative;width:132px;height:132px;min-width:132px;
+}
+.rt-real-layout-loading #p-summary .summary-categories .cat-donut-wrap.rt-chart-loading .cat-donut-chart::before{
+  content:'';position:absolute;inset:0;border-radius:50%;
+  background:conic-gradient(from 25deg,
+    color-mix(in srgb,var(--border) 52%,transparent) 0 20%,
+    color-mix(in srgb,var(--border2) 82%,transparent) 34%,
+    color-mix(in srgb,var(--border) 45%,transparent) 52% 100%);
+  -webkit-mask:radial-gradient(farthest-side,transparent calc(100% - 18px),#000 calc(100% - 17px));
+  mask:radial-gradient(farthest-side,transparent calc(100% - 18px),#000 calc(100% - 17px));
+  animation:rtDonutSkeletonSpin 1.35s linear infinite;
+}
+.rt-real-layout-loading #p-summary .summary-categories .cat-donut-wrap.rt-chart-loading .cat-donut-legend{
+  position:relative;min-width:min(190px,42vw);min-height:118px;
+}
+.rt-real-layout-loading #p-summary .summary-categories .cat-donut-wrap.rt-chart-loading .cat-donut-legend::before{
+  content:'';position:absolute;inset:4px 0;
+  background:
+    linear-gradient(90deg,color-mix(in srgb,var(--border) 78%,transparent),color-mix(in srgb,var(--border) 42%,transparent)) 0 0/82% 11px no-repeat,
+    linear-gradient(90deg,color-mix(in srgb,var(--border) 72%,transparent),color-mix(in srgb,var(--border) 36%,transparent)) 0 30px/68% 11px no-repeat,
+    linear-gradient(90deg,color-mix(in srgb,var(--border) 66%,transparent),color-mix(in srgb,var(--border) 32%,transparent)) 0 60px/76% 11px no-repeat,
+    linear-gradient(90deg,color-mix(in srgb,var(--border) 60%,transparent),color-mix(in srgb,var(--border) 28%,transparent)) 0 90px/58% 11px no-repeat;
+  border-radius:6px;animation:rtDonutLegendPulse 1.15s ease-in-out infinite alternate;
+}
+@keyframes rtDonutSkeletonSpin{to{transform:rotate(360deg)}}
+@keyframes rtDonutLegendPulse{from{opacity:.55}to{opacity:1}}
+@media(max-width:560px){
+  .rt-real-layout-loading #p-summary .summary-categories .cat-donut-wrap.rt-chart-loading .cat-donut-chart{width:110px;height:110px;min-width:110px;}
+}
+@media(prefers-reduced-motion:reduce){
+  .rt-real-layout-loading #p-summary .summary-categories .cat-donut-wrap.rt-chart-loading .cat-donut-chart::before,
+  .rt-real-layout-loading #p-summary .summary-categories .cat-donut-wrap.rt-chart-loading .cat-donut-legend::before{animation:none!important;}
+}
