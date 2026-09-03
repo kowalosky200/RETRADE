@@ -4042,7 +4042,11 @@ function undoActivity(logId){
   const laterActive = (DB.activityLog||[]).some(l=>l.itemId===log.itemId && !l.undone && l.ts>log.ts);
   if(laterActive){ toast('Undo the newer change on this item first','err'); return; }
   const before = log.before;
-  const targetMonth = log.month || _findItemMonth(log.itemId) || allDBKeys().slice(-1)[0];
+  const currentRec=(typeof _findItemRecordById==='function')?_findItemRecordById(log.itemId):null;
+    const currentItem=currentRec&&currentRec.item;
+    if(_itemHasGroupedSale(before)||_itemHasGroupedSale(currentItem)){toast('Grouped order — reverse from the order or item workflow','err');return;}
+    if(typeof _activeJobLotMembership==='function'&&_activeJobLotMembership(log.itemId)){toast('Item is currently in a Job Lot','err');return;}
+    const targetMonth = log.month || _findItemMonth(log.itemId) || allDBKeys().slice(-1)[0];
   _suppressActivityCapture = true;
   try{
     allDBKeys().forEach(function(m){ if(DB[m]) DB[m]=DB[m].filter(x=>x.id!==log.itemId); });
@@ -15302,22 +15306,29 @@ function selectAllMonth(){
 async function bulkAction(action){
   if(action==='sold'){
     const today=new Date().toISOString().split('T')[0];
+    let changed=0,relistedSkipped=0,protectedSkipped=0,invalidSkipped=0;
     SELECTED_ITEMS.forEach(function(id){
-      const rec=_findItemRecordById(id);
-      const item=rec&&rec.item;
-      if(item&&!item.dateSold&&!item.resaleSalePrice){
-        item.dateSold=today;
-        item.isReturned=false;
-        item.state='sold';
-        if(!item.soldOnPlatform)item.soldOnPlatform=_itemPlatform(item);
-        item.grossProfit=calcGrossProfit(item);
-      }
+      const rec=_findItemRecordById(id),item=rec&&rec.item;
+      if(!item){invalidSkipped++;return;}
+      if(_activeJobLotMembership(id)){protectedSkipped++;return;}
+      if(!_lifecycleCan(item,'markSold')){invalidSkipped++;return;}
+      if(_itemHasPriorFullReturn(item)){relistedSkipped++;return;}
+      item.dateSold=today;item.isReturned=false;item.state='sold';
+      if(!item.soldOnPlatform)item.soldOnPlatform=_itemPlatform(item);
+      item.grossProfit=calcGrossProfit(item);changed++;
     });
-    saveDB();
-    SELECTED_ITEMS.clear();SELECTION_MODE=false;
-    toast('Marked items as sold');
-    renderMonth();
+    if(!changed){
+      const msg=relistedSkipped?'Relisted items must be sold individually so Sale 2+ is recorded correctly':protectedSkipped?'Selected item is managed through a Job Lot':'No selected listed items can be sold';
+      toast(msg,'err');return;
+    }
+    saveDB();SELECTED_ITEMS.clear();SELECTION_MODE=false;
+    let msg='Marked '+changed+' item'+(changed===1?'':'s')+' as sold';
+    if(relistedSkipped)msg+=' · skipped '+relistedSkipped+' relisted item'+(relistedSkipped===1?'':'s');
+    if(protectedSkipped)msg+=' · skipped '+protectedSkipped+' Job Lot item'+(protectedSkipped===1?'':'s');
+    toast(msg);renderMonth();
   }else if(action==='delete'){
+    const grouped=[...SELECTED_ITEMS].filter(function(id){const r=_findItemRecordById(id);return !!(r&&_itemHasGroupedSale(r.item));});
+    if(grouped.length){toast('Grouped-order items can’t be deleted individually. Correct the grouped order first.','err');return;}
     const ok=await showConfirm('Delete '+SELECTED_ITEMS.size+' items?','This cannot be undone.',{icon:'delete',okLabel:'Delete all'});
     if(!ok)return;
     SELECTED_ITEMS.forEach(function(id){
@@ -15465,18 +15476,27 @@ async function stockBulkAction(action,items){
   const protectedIds=selected.filter(function(id){return !!_activeJobLotMembership(id);});
   const actionable=selected.filter(function(id){return !_activeJobLotMembership(id);});
   if(action==='sold'){
-    const today=new Date().toISOString().split('T')[0];let changed=0;
+    const today=new Date().toISOString().split('T')[0];let changed=0,relistedSkipped=0,invalidSkipped=0;
     actionable.forEach(function(id){
-      const rec=_findItemRecordById(id);const found=rec&&rec.item;
-      if(found&&found.state==='listed'&&!found.isReturned&&!found.dateSold&&!found.resaleSalePrice&&!found.scrappedAt){
-        found.dateSold=today;found.isReturned=false;found.state='sold';
-        if(!found.soldOnPlatform)found.soldOnPlatform=_itemPlatform(found);
-        found.grossProfit=calcGrossProfit(found);changed++;
-      }
+      const rec=_findItemRecordById(id),found=rec&&rec.item;
+      if(!found||!_lifecycleCan(found,'markSold')){invalidSkipped++;return;}
+      if(_itemHasPriorFullReturn(found)){relistedSkipped++;return;}
+      found.dateSold=today;found.isReturned=false;found.state='sold';
+      if(!found.soldOnPlatform)found.soldOnPlatform=_itemPlatform(found);
+      found.grossProfit=calcGrossProfit(found);changed++;
     });
-    if(!changed){toast(protectedIds.length?'Selected item is managed through a Job Lot':'No selected listed items can be sold','err');return;}
-    saveDB();STOCK_SELECTED.clear();STOCK_SELECTION_MODE=false;toast('Marked '+changed+' item'+(changed===1?'':'s')+' as sold');renderStock();
+    if(!changed){
+      const msg=relistedSkipped?'Relisted items must be sold individually so Sale 2+ is recorded correctly':protectedIds.length?'Selected item is managed through a Job Lot':'No selected listed items can be sold';
+      toast(msg,'err');return;
+    }
+    saveDB();STOCK_SELECTED.clear();STOCK_SELECTION_MODE=false;
+    let msg='Marked '+changed+' item'+(changed===1?'':'s')+' as sold';
+    if(relistedSkipped)msg+=' · skipped '+relistedSkipped+' relisted item'+(relistedSkipped===1?'':'s');
+    if(protectedIds.length)msg+=' · skipped '+protectedIds.length+' Job Lot item'+(protectedIds.length===1?'':'s');
+    toast(msg);renderStock();
   }else if(action==='delete'){
+    const grouped=actionable.filter(function(id){const r=_findItemRecordById(id);return !!(r&&_itemHasGroupedSale(r.item));});
+    if(grouped.length){toast('Grouped-order items can’t be deleted individually. Correct the grouped order first.','err');return;}
     if(protectedIds.length){toast('Remove Job Lot items from their lot before deleting them','err');return;}
     if(!actionable.length)return;
     const ok=await showConfirm('Delete '+actionable.length+' items?','This cannot be undone.',{icon:'delete',okLabel:'Delete all'});
@@ -16015,9 +16035,10 @@ function openBundleSaleModal(){
   ids.forEach(function(id){
     allDBKeys().forEach(function(k){
       const x=(DB[k]||[]).find(function(i){return i.id===id;});
-      if(x&&!x.dateSold&&!x.isReturned)items.push({...x,_month:k});
+      if(x&&_lifecycleCan(x,'markSold')&&!_activeJobLotMembership(x.id))items.push({...x,_month:k});
     });
   });
+  if(items.length!==ids.length){toast('Some selected items are no longer available to sell. Review the selection and try again.','error');return;}
   if(items.length<2){toast('Select at least 2 unsold items','error');return;}
   const today=new Date().toISOString().split('T')[0];
   const totalAsk=items.reduce(function(s,i){return s+(i.salePrice||0);},0);
@@ -16073,10 +16094,10 @@ function submitBundleSale(){
   ids.forEach(function(id){
     allDBKeys().forEach(function(k){
       const x=(DB[k]||[]).find(function(i){return i.id===id;});
-      if(x&&!x.dateSold&&!x.isReturned)items.push(x);
+      if(x&&_lifecycleCan(x,'markSold')&&!_activeJobLotMembership(x.id))items.push(x);
     });
   });
-  if(!items.length){toast('No unsold items found','error');return;}
+  if(items.length!==ids.length||items.length<2){toast('Bundle selection changed while the sale form was open. Reopen the bundle sale and review the items.','error');return;}
   // v2.21.17 — allocate ONE bundle total across the items pro-rata by listed
   // price (largest-remainder, so the shares sum to the total exactly), and split
   // the one shipping charge the same way. Every item is stamped with a shared
@@ -17526,8 +17547,10 @@ function openScrapModal(m,id){
   openPanel('Dispose of item',html);
 }
 function confirmScrap(m,id){
-  const i=(DB[m]||[]).find(function(x){return x.id===id;});
-  if(!i)return;
+    if(_jobLotActionGuard(id))return;
+    const i=(DB[m]||[]).find(function(x){return x.id===id;});
+    if(!i)return;
+    if(!_canScrap(i)){toast('This item is no longer eligible to leave active inventory','err');return;}
   const reasonEl=document.getElementById('scrap-reason');
   const noteEl=document.getElementById('scrap-note');
   i.scrapReason=(reasonEl&&reasonEl.value)||'scrapped';
@@ -20448,6 +20471,19 @@ function _lifecycleCan(i,action){
   if(action==='moveUnlisted')return s==='returned';
   return false;
 }
+
+// Stage 3 lifecycle integrity — mutation helpers. UI visibility is not a
+// data-integrity boundary: destructive shortcuts re-check these at commit.
+function _itemHasPriorFullReturn(i){
+  return !!(i&&Array.isArray(i.returnHistory)&&i.returnHistory.some(function(r){return r&&(r.type==='full_seller'||r.type==='full_ebay');}));
+}
+function _itemGroupedSaleIds(i){
+  const ids=new Set();if(!i)return [];
+  if(i.bundleId)ids.add(i.bundleId);if(i.resaleBundleId)ids.add(i.resaleBundleId);
+  (Array.isArray(i.returnHistory)?i.returnHistory:[]).forEach(function(r){if(r&&r._bundleIdAtReturn)ids.add(r._bundleIdAtReturn);});
+  return Array.from(ids);
+}
+function _itemHasGroupedSale(i){return _itemGroupedSaleIds(i).length>0;}
 function _lifecycleActionSummary(i){
   const s=_itemLifecycleState(i);
   return {state:s,list:_lifecycleCan(i,'list'),markSold:_lifecycleCan(i,'markSold'),returnItem:_lifecycleCan(i,'return'),relist:_lifecycleCan(i,'relist'),moveUnlisted:_lifecycleCan(i,'moveUnlisted')};
@@ -20605,7 +20641,8 @@ let _deletedThisSession = [];
 async function deleteItem(m,id){
   if(_jobLotActionGuard(id))return;
   const item=(DB[m]||[]).find(i=>i.id===id);
-  const name=item?item.item:'this item';
+  if(item&&_itemHasGroupedSale(item)){toast('Grouped order — correct or reverse the order before deleting an individual item','err');return;}
+    const name=item?item.item:'this item';
   const ok=await showConfirm('Delete item?',esc(name)+' will be removed. You can restore it from Data \u2192 Recently deleted until you reload.',{icon:'delete',okLabel:'Delete'});
   if(!ok)return;
   const idx=(DB[m]||[]).findIndex(i=>i.id===id);
@@ -20775,8 +20812,10 @@ function _splitReadN(){
   if(!(n>=2))n=2; if(n>50)n=50; return n;
 }
 function openSplitModal(m,id){
-  const i=(DB[m]||[]).find(function(x){return x.id===id;});
-  if(!i)return;
+    if(_jobLotActionGuard(id))return;
+    const i=(DB[m]||[]).find(function(x){return x.id===id;});
+    if(!i)return;
+    if(_itemHasPriorFullReturn(i)||_itemHasGroupedSale(i)){toast('Items with sale or return history can’t be split because that would rewrite historical cost basis','err');return;}
   const cost=Number(i.costPrice)||0, est=Number(i.estSalePrice)||0;
   const html=''
     +'<div class="item-full-section" style="margin-bottom:14px">'
@@ -20809,8 +20848,9 @@ function _inventorySplitPreview(m,id){
   el.innerHTML=txt;
 }
 function confirmSplit(m,id){
-  const i=(DB[m]||[]).find(function(x){return x.id===id;}); if(!i)return;
-  if(i.dateSold||i.resaleSalePrice||i.isReturned||i.scrappedAt){toast('Only unsold items can be split');return;}
+    if(_jobLotActionGuard(id))return;
+    const i=(DB[m]||[]).find(function(x){return x.id===id;}); if(!i)return;
+    if(_itemHasPriorFullReturn(i)||_itemHasGroupedSale(i)||!['sourced','listed'].includes(_itemLifecycleState(i))){toast('Only never-sold active inventory can be split','err');return;}
   const n=_splitReadN();
   const cParts=_splitPennies(Math.round((Number(i.costPrice)||0)*100),n);
   const hasEst=(Number(i.estSalePrice)||0)>0;
@@ -20887,6 +20927,8 @@ function duplicateItem(m,id,context){
   copy.resaleListingFee=0;
   _stampListingFee(copy);
   copy.accountSettled=false; // new item = new debt to the partner
+  delete copy.bundleId;delete copy.bundleRef;delete copy.bundleTotal;
+  delete copy.resaleBundleId;delete copy.resaleBundleRef;delete copy.resaleBundleTotal;
   copy.returnHistory=[];delete copy.returnData;
   delete copy.scrappedAt;delete copy.scrapReason;delete copy.scrapNote; // v2.21.36 — a clone is a fresh live listing, never born scrapped
   const stripSuffix=function(name){
