@@ -5376,3 +5376,33 @@ svg.cat-donut-draw circle.donut-seg-last{
   .rt-real-layout-revealing .rt-data-reveal,.rt-real-layout-revealing .rt-chart-reveal{animation:none!important;}
   .rt-real-layout-revealing .rt-loading-overlay-exit{transition:none!important;opacity:0!important;}
 }
+
+
+/* v1.4.26 — deterministic dashboard motion replay after skeleton reveal */
+/* During boot the real chart frame may crossfade in, but its data strokes stay
+   parked at 0% until that reveal has completed. This prevents slower phones from
+   first seeing the line halfway through its draw animation. */
+#p-summary svg.rt-motion-hold .rt-chart-line{
+  stroke-dasharray:var(--rt-len)!important;
+  stroke-dashoffset:var(--rt-len)!important;
+  animation:none!important;
+}
+#p-summary svg.rt-motion-hold .rt-chart-area,
+#p-summary svg.rt-motion-hold .rt-chart-col circle{
+  opacity:0!important;
+  animation:none!important;
+}
+#p-summary .cat-donut-svg.rt-motion-hold circle[style*="--seg-len"]{
+  stroke-dasharray:0 var(--seg-c)!important;
+  animation:none!important;
+}
+#p-summary .cat-donut-legend.rt-motion-hold{
+  opacity:0!important;
+  animation:none!important;
+}
+@media(prefers-reduced-motion:reduce){
+  #p-summary svg.rt-motion-hold .rt-chart-line,
+  #p-summary .cat-donut-svg.rt-motion-hold circle[style*="--seg-len"]{
+    animation:none!important;
+  }
+}
