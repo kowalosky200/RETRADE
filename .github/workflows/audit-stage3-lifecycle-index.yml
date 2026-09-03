@@ -15,12 +15,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Grouped-order mutation audit
+      - name: Helper namespace and mutation anchors
         shell: bash
         run: |
-          echo '=== SALES ROW ACTIONS 14720-15070 ==='
-          sed -n '14720,15070p' app.js
-          echo '=== BUNDLE PAGE / SUMMARY 15835-15995 ==='
-          sed -n '15835,15995p' app.js
-          echo '=== BUNDLE HELPERS / RETURNS ==='
-          grep -nEi "function[[:space:]]+.*bundle|bundle.*(delete|undo|reverse|remove|unlink)|delete.*bundle|undo.*bundle" app.js | head -n 220 || true
+          echo '=== HELPER NAME COLLISIONS ==='
+          grep -nE "_itemHasPriorFullReturn|_itemGroupedSaleIds|_itemHasGroupedSale|_safeFirstCycleBulkSale" app.js || true
+          echo '=== LIFECYCLE HELPERS ==='
+          grep -nE "function _itemLifecycleState|function _lifecycleCan|function _saleCycleNumbers|function _saleCycleSnapshot" app.js || true
+          echo '=== BULK / DELETE / UNDO / SCRAP / SPLIT ANCHORS ==='
+          grep -nE "async function bulkAction|async function stockBulkAction|function openBundleSaleModal|function submitBundleSale|function undoActivity|async function deleteItem|function confirmScrap|function openSplitModal|function confirmSplit" app.js || true
