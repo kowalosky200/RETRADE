@@ -777,15 +777,25 @@ async function _hydrateUserSettings(uid){
       try{localStorage.setItem('retrade_shipping_policies',JSON.stringify(data.shipping_policies));}catch(e){}
       _refreshShippingPolicyDropdowns();
     }
-    // theme
+    // theme — rt-theme is the device-local user preference and must remain
+    // authoritative throughout boot. The cloud's binary dark/light value may
+    // seed a genuinely fresh device, but must never cause a saved preference to
+    // flash to the opposite theme while login settings hydrate.
     if(data.theme&&(data.theme==='dark'||data.theme==='light')){
-      const current=document.documentElement.getAttribute('data-theme')||'dark';
-      if(data.theme!==current){
-        document.documentElement.setAttribute('data-theme',data.theme);
-        try{localStorage.setItem('retrade_theme',data.theme);}catch(e){}
-        if(typeof updateThemeIcon==='function')updateThemeIcon(data.theme);
-        if(typeof _syncThemeColorMeta==='function')_syncThemeColorMeta(data.theme);
+      const localPref=(typeof _readThemePref==='function')?_readThemePref():null;
+      if(localPref==='system'||localPref==='dark'||localPref==='light'){
+        const resolved=(typeof _resolveTheme==='function')?_resolveTheme(localPref):localPref;
+        const current=document.documentElement.getAttribute('data-theme')||'dark';
+        if(resolved!==current&&typeof _applyResolvedTheme==='function')_applyResolvedTheme(resolved);
+        try{localStorage.setItem(THEME_KEY,resolved);}catch(e){}
+      }else{
+        // First use on this device: adopt the cloud's last resolved theme once.
+        try{localStorage.setItem(THEME_PREF_KEY,data.theme);}catch(e){}
+        if(typeof _applyResolvedTheme==='function')_applyResolvedTheme(data.theme);
+        else document.documentElement.setAttribute('data-theme',data.theme);
+        try{localStorage.setItem(THEME_KEY,data.theme);}catch(e){}
       }
+      if(typeof _updateThemePrefButtons==='function')_updateThemePrefButtons();
     }
     // country
     if(data.country&&COUNTRIES[data.country]&&COUNTRIES[data.country].live){
@@ -1249,14 +1259,14 @@ function _readThemePref(){
 }
 function _migrateThemePref(){
   // Run once. If rt-theme is unset but retrade_theme has an explicit value,
-  // carry it over so existing users don't get reset to 'system'.
+  // carry it over so existing users don't get reset to 'system'. A genuinely
+  // fresh device stays unset here: getThemePref() still resolves to System,
+  // while cloud hydration gets one chance to seed its resolved theme.
   try{
-    if(_readThemePref())return; // already set
+    if(_readThemePref())return; // already set, including an explicit System choice
     const legacy=localStorage.getItem(THEME_KEY);
     if(legacy==='dark'||legacy==='light'){
       localStorage.setItem(THEME_PREF_KEY,legacy);
-    }else{
-      localStorage.setItem(THEME_PREF_KEY,'system');
     }
   }catch(e){}
 }
