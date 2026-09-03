@@ -1,0 +1,54 @@
+name: Temporary UI polish audit
+
+on:
+  push:
+    branches:
+      - ui/loading-cashflow-polish
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Print targeted implementation contexts
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          targets = {
+              'app.js': [
+                  'Math.max(0,260-elapsed)',
+                  'function renderCash',
+                  'led.forEach',
+                  '--seg-len-r',
+                  'rt-real-layout-loading',
+                  'showLoadingScreen',
+                  'hideLoadingScreen',
+              ],
+              'app.css': [
+                  'donutDraw',
+                  'donutClose',
+                  'REAL-LAYOUT LOADING',
+                  'rt-real-layout-loading',
+                  'donut-animating',
+              ],
+              'index.html': ['app.css?v=', 'app.js?v='],
+          }
+
+          for filename, needles in targets.items():
+              lines = Path(filename).read_text(encoding='utf-8').splitlines()
+              print(f'\n===== {filename} ({len(lines)} lines) =====')
+              for needle in needles:
+                  hits = [i for i, line in enumerate(lines) if needle in line]
+                  print(f'\n--- {needle!r}: {len(hits)} hit(s) ---')
+                  for i in hits[:8]:
+                      lo = max(0, i - 28)
+                      hi = min(len(lines), i + 42)
+                      print(f'\n### lines {lo+1}-{hi} (hit {i+1})')
+                      for n in range(lo, hi):
+                          print(f'{n+1:06d}: {lines[n]}')
+          PY
