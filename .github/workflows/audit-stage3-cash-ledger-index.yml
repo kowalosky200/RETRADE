@@ -15,17 +15,32 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Cash and ledger flow index
+      - name: Settlement and cash reconciliation blocks
         shell: bash
         run: |
-          echo '=== LEDGER DEFINITIONS ==='
-          grep -nEi "function[[:space:]]+.*(cash|ledger|settle|withdraw|deposit)|_recordSystemCashEvent|_removeSystemCashEvent|cash_ledger|cashLedger|CASH_" app.js accounting.js reports.js | head -n 420 || true
+          echo '=== SETTLEMENT CONFIRM 9360-9550 ==='
+          sed -n '9360,9550p' app.js
           echo
-          echo '=== SYSTEM CASH EVENT CALL SITES ==='
-          grep -n "_recordSystemCashEvent\|_removeSystemCashEvent" app.js accounting.js reports.js || true
+          echo '=== BULK UNSETTLE / LEGACY SETTLE 9635-9775 ==='
+          sed -n '9635,9775p' app.js
           echo
-          echo '=== SUPPLIER / PARTNER / SETTLEMENT CALL SITES ==='
-          grep -nEi "supplier.*refund|partner.*settle|settlement|accountSettled|settledAt|withdrawal|deposit" app.js accounting.js reports.js | head -n 420 || true
+          echo '=== SETTLE ALL / ITEM TOGGLE 10120-10335 ==='
+          sed -n '10120,10335p' app.js
           echo
-          echo '=== CASH PAGE CORE ==='
-          grep -nEi "function[[:space:]]+renderCash|cashflow|cash flow" app.js accounting.js reports.js | head -n 260 || true
+          echo '=== SETTLE TOGGLE CALL SITES ==='
+          grep -n "_acctBulkUnsettle\|settleAllForAccount\|toggleItemSettled" app.js || true
+          echo
+          echo '=== CASH SYSTEM MIRRORS 17230-17315 ==='
+          sed -n '17230,17315p' app.js
+          echo
+          echo '=== SYSTEM MIRROR RECONCILIATION 23615-23765 ==='
+          sed -n '23615,23765p' app.js
+          echo
+          echo '=== MIRROR RECONCILIATION CALL SITES ==='
+          grep -n "_backfillSystemCashEvents\|_v14ReconcileSystemCashEvents" app.js || true
+          echo
+          echo '=== AUTHORITATIVE CASH EVENTS accounting.js 70-255 ==='
+          sed -n '70,255p' accounting.js
+          echo
+          echo '=== CASH REGRESSION 1845-1950 ==='
+          sed -n '1845,1950p' accounting.js
