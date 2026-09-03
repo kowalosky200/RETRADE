@@ -1,0 +1,65 @@
+name: TEMP UI polish trace
+
+on:
+  push:
+    branches:
+      - ui/filter-motion-sales-loading-polish
+
+permissions:
+  contents: read
+
+jobs:
+  trace:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Trace targeted UI paths
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          def contexts(path, patterns, radius=900):
+              text=Path(path).read_text(encoding='utf-8')
+              print(f'===== {path} =====')
+              for pat in patterns:
+                  print(f'\n--- {pat} ---')
+                  start=0
+                  found=0
+                  while True:
+                      i=text.find(pat,start)
+                      if i<0: break
+                      found+=1
+                      a=max(0,i-radius); b=min(len(text),i+len(pat)+radius)
+                      print(text[a:b])
+                      print('\n<<< END CONTEXT >>>')
+                      start=i+len(pat)
+                      if found>=6: break
+                  if not found: print('NOT FOUND')
+
+          contexts('app.js',[
+              'function setSummaryPeriod',
+              'SUMMARY_PERIOD=',
+              'CURRENT_SALE',
+              'SALE_VIEW',
+              'renderSales',
+              'setSale',
+              '_rt_mon_v',
+              'MON_SELECTED',
+              '_loadingRendererForTab',
+              '_activateBootPage',
+              'beginRealLayoutLoading',
+              'function renderMonthly',
+              'function renderCash',
+              'function cashflowSearchInput',
+              'function setCashflowFilter',
+              'function buildCategoryDonut',
+          ],1100)
+          contexts('app.css',[
+              'donut-seg-last',
+              'segBounce',
+              '--dur-draw',
+              'chart-line',
+              'cat-donut-draw',
+          ],1000)
+          PY
