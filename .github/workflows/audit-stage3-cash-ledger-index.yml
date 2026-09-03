@@ -15,29 +15,23 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Settlement mutation anchors
+      - name: Settlement migration and account anchors
         shell: bash
         run: |
-          echo '=== BULK SPLIT / UNSETTLE / COST 9600-9745 ==='
-          sed -n '9600,9745p' app.js
+          echo '=== MIGRATION CALL SITES ==='
+          grep -n "_migrateSupplierSettledOnce" app.js || true
           echo
-          echo '=== LEGACY SUPPLIER MIGRATION 9745-9785 ==='
-          sed -n '9745,9785p' app.js
+          echo '=== INIT AROUND CALLS ==='
+          grep -n -B12 -A18 "_migrateSupplierSettledOnce" app.js || true
           echo
-          echo '=== SETTLE ALL + TOGGLE 10130-10325 ==='
-          sed -n '10130,10325p' app.js
+          echo '=== ACCOUNT ASSIGN HELPER 11075-11125 ==='
+          sed -n '11075,11125p' app.js
           echo
-          echo '=== SUPPLIER SETTLEMENT 9380-9460 ==='
-          sed -n '9380,9460p' app.js
+          echo '=== ACCOUNT EDIT/DELETE 10425-10480 ==='
+          sed -n '10425,10480p' app.js
           echo
-          echo '=== CONSIGNMENT SETTLEMENT 9460-9550 ==='
-          sed -n '9460,9550p' app.js
+          echo '=== SAVE STOCK EDIT 20335-20385 ==='
+          sed -n '20335,20385p' app.js
           echo
-          echo '=== ACCOUNT ASSIGN CONFIRM 10570-10615 ==='
-          sed -n '10570,10615p' app.js
-          echo
-          echo '=== ACCOUNTING TAX CASH 1010-1065 ==='
-          sed -n '1010,1065p' accounting.js
-          echo
-          echo '=== CASH REGRESSION TESTS 1845-1965 ==='
-          sed -n '1845,1965p' accounting.js
+          echo '=== PANEL QUICK EDIT 20385-20425 ==='
+          sed -n '20385,20425p' app.js
