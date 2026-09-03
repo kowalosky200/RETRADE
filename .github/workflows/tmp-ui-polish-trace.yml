@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Trace exact UI blocks
+      - name: Trace final patch anchors
         shell: bash
         run: |
           python - <<'PY'
@@ -18,35 +18,21 @@ jobs:
           app=Path('app.js').read_text(encoding='utf-8')
           css=Path('app.css').read_text(encoding='utf-8')
 
-          def block(text,start,end,label,extra=0):
-              a=text.find(start)
-              if a<0:
-                  print(f'===== {label}: START NOT FOUND ====='); return
-              b=text.find(end,a+len(start))
-              if b<0:
-                  print(f'===== {label}: END NOT FOUND ====='); return
-              print(f'===== {label} =====')
-              print(text[max(0,a-extra):min(len(text),b+extra)])
+          for label,needle,length in [
+            ('donut function','function buildCategoryDonut',9000),
+            ('extended load state','const _rtBaseLoadUIState',5000),
+            ('init before loader','const _freshSession = !_isSameSession();',3300),
+            ('cashflow manager','let _cashflowSearch=',14500),
+          ]:
+            i=app.find(needle)
+            print('\n===== '+label+' =====')
+            print('NOT FOUND' if i<0 else app[i:i+length])
 
-          def occurrences(text,needle,label,radius=650):
-              print(f'===== OCCURRENCES {label} =====')
-              pos=0;n=0
-              while True:
-                  i=text.find(needle,pos)
-                  if i<0:break
-                  n+=1
-                  print(f'--- {n} @ {i} ---')
-                  print(text[max(0,i-radius):min(len(text),i+len(needle)+radius)])
-                  pos=i+len(needle)
-              if not n: print('NONE')
-
-          block(app,'const _SK={','// NAV HELPERS','UI state + navigation',0)
-          occurrences(app,'_loadUIState();','load UI state calls',800)
-          occurrences(app,'showRealLayoutLoading(','show loading calls',900)
-          occurrences(app,'MONTHLY_VIEW=','monthly view writes',700)
-          block(app,'function _bootRendererForTab','function _loadingItemRows','boot renderer',0)
-          block(app,'function renderMonthlyPage','function _getFYLabel','monthly page switch + grid start',0)
-          block(app,'function buildCategoryDonut','function _animateSummaryCharts','category donut function',0)
-          block(app,'let _cashflowSearch=','function _cashMoveForm','cashflow manager + render',0)
-          block(css,'@keyframes rtChartDraw','/* Panel */','dashboard chart/donut CSS',0)
+          for label,needle,length in [
+            ('motion tokens','--dur-bounce:',1800),
+            ('donut motion','@keyframes donutSweep',6000),
+          ]:
+            i=css.find(needle)
+            print('\n===== '+label+' =====')
+            print('NOT FOUND' if i<0 else css[i:i+length])
           PY
