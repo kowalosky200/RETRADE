@@ -1,0 +1,42 @@
+name: TEMP interaction responsiveness
+on:
+  push:
+    branches: [ui/interaction-responsiveness]
+permissions:
+  contents: write
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ui/interaction-responsiveness
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Apply deterministic responsiveness patch
+        run: python tools/tmp_interaction_responsiveness.py
+      - name: JavaScript syntax
+        run: |
+          node --check app.js
+          node --check accounting.js
+          node --check reports.js
+          node --check sw.js
+      - name: Responsiveness contracts
+        run: |
+          grep -q "function _queueInteractionRender(fn)" app.js
+          grep -q "animation:pageFade 200ms" app.css
+          grep -q "content-visibility:auto" app.css
+          grep -q "app.js?v=1.4.27" index.html
+          grep -q "app.css?v=1.4.27" index.html
+      - name: Remove temporary patch machinery
+        run: rm -f tools/tmp_interaction_responsiveness.py .github/workflows/tmp-interaction-responsiveness.yml
+      - name: Commit production-only diff
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add app.js app.css index.html tools/tmp_interaction_responsiveness.py .github/workflows/tmp-interaction-responsiveness.yml
+          git commit -m "perf(ui): acknowledge interactions before heavy renders"
+          git push origin HEAD:ui/interaction-responsiveness
