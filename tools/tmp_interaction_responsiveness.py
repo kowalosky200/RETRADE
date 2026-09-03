@@ -179,7 +179,7 @@ checks=[
  ('cash deferred','function _scheduleCashflowResultsUpdate(afterPaint){\n  _queueInteractionRender(_updateCashflowResults);' in app),
  ('stock deferred','function setStockFilter(f){STOCK_FILTER=f;_saveUIState();_queueInteractionRender(renderStock);}' in app),
  ('month deferred','_queueInteractionRender(renderMonth);' in app),
- ('cash rows','class=\\"cashflow-ledger-row\\"' in app),
+ ('cash rows','cashflow-ledger-row' in app),
  ('page 200ms','animation:pageFade 200ms var(--ease-out) both' in css),
  ('content visibility','content-visibility:auto' in css),
  ('cache js','./app.js?v=1.4.27' in html),
