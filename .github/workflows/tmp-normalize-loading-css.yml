@@ -1,0 +1,59 @@
+name: TEMP normalize loading skeleton css
+
+on:
+  push:
+    branches: [fix/loading-motion-route-restore]
+
+permissions:
+  contents: write
+
+jobs:
+  normalize:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/loading-motion-route-restore
+          fetch-depth: 0
+
+      - name: Normalize appended CSS newlines
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('app.css')
+          text=p.read_text(encoding='utf-8')
+          marker='/* v1.4.23 — dashboard donut real-layout skeleton */'
+          idx=text.find(marker)
+          if idx<0:
+              raise SystemExit('CSS marker not found')
+          # The first patch used a Python raw string, so only the appended block
+          # contains literal backslash-n sequences. Normalize that block only.
+          head=text[:idx]
+          tail=text[idx:].replace('\\n','\n')
+          p.write_text(head+tail,encoding='utf-8')
+          PY
+
+      - name: Validate CSS block shape
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          t=Path('app.css').read_text(encoding='utf-8')
+          marker='/* v1.4.23 — dashboard donut real-layout skeleton */'
+          tail=t[t.index(marker):]
+          assert '\\n' not in tail
+          assert tail.count('@keyframes rtDonutSkeletonSpin')==1
+          assert tail.count('@media(prefers-reduced-motion:reduce)')>=1
+          print('CSS newline normalization passed')
+          PY
+
+      - name: Commit production-only result and self-remove
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/tmp-normalize-loading-css.yml
+          git add app.css
+          git commit -m "chore(ui): normalize loading skeleton css"
+          git push origin HEAD:fix/loading-motion-route-restore
