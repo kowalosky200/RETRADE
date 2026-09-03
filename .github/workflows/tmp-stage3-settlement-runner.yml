@@ -21,11 +21,12 @@ jobs:
         run: |
           python - <<'PY'
           from pathlib import Path
-          import textwrap
           src = Path('.github/workflows/tmp-stage3-settlement-transactions-v2.yml').read_text(encoding='utf-8')
           start = src.index("          python - <<'PY'\n") + len("          python - <<'PY'\n")
           end = src.index("\n          PY", start)
-          code = textwrap.dedent(src[start:end])
+          raw = src[start:end]
+          lines = raw.splitlines()
+          code = '\n'.join((line[10:] if line.startswith('          ') else line) for line in lines) + '\n'
           Path('/tmp/stage3_settlement_patch.py').write_text(code, encoding='utf-8')
           PY
           python /tmp/stage3_settlement_patch.py
