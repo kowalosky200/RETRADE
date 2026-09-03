@@ -1,0 +1,74 @@
+name: TEMP apply first-paint theme fix
+
+on:
+  push:
+    branches: [fix/theme-first-paint-loading]
+    paths:
+      - '.github/workflows/tmp-theme-first-paint.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/theme-first-paint-loading
+
+      - name: Apply deterministic index patch
+        run: python .github/scripts/tmp_apply_theme_first_paint.py
+
+      - name: Static verification
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          s=Path('index.html').read_text(encoding='utf-8')
+          assert s.count('id="rt-theme-first-paint"') == 1
+          assert s.index('id="rt-theme-first-paint"') < s.index('href="./app.css?v=')
+          assert "localStorage.getItem('rt-theme')" in s
+          assert "localStorage.getItem('retrade_theme')" in s
+          assert "root.setAttribute('data-theme',resolved)" in s
+          print('theme first-paint static gate passed')
+          PY
+
+      - name: Browser verification
+        run: |
+          npm init -y >/dev/null 2>&1
+          npm install --silent playwright@1.55.0
+          npx playwright install --with-deps chromium >/dev/null
+          python -m http.server 4173 >/tmp/retrade-theme-http.log 2>&1 &
+          cat >/tmp/theme-first-paint-test.js <<'JS'
+          const {chromium}=require('playwright');
+          (async()=>{
+            const browser=await chromium.launch({headless:true});
+            const cases=[
+              {pref:'dark',scheme:'light',want:'dark'},
+              {pref:'light',scheme:'dark',want:'light'},
+              {pref:'system',scheme:'dark',want:'dark'},
+              {pref:'system',scheme:'light',want:'light'}
+            ];
+            for(const c of cases){
+              const ctx=await browser.newContext({colorScheme:c.scheme});
+              const p=await ctx.newPage();
+              await p.addInitScript(pref=>localStorage.setItem('rt-theme',pref),c.pref);
+              await p.goto('http://127.0.0.1:4173/index.html',{waitUntil:'domcontentloaded'});
+              const got=await p.evaluate(()=>document.documentElement.getAttribute('data-theme'));
+              if(got!==c.want)throw new Error(JSON.stringify({...c,got}));
+              console.log(`${c.pref}/${c.scheme} -> ${got}`);
+              await ctx.close();
+            }
+            await browser.close();
+          })().catch(e=>{console.error(e);process.exit(1)});
+          JS
+          NODE_PATH="$PWD/node_modules" node /tmp/theme-first-paint-test.js
+
+      - name: Commit only the production fix and self-remove
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/tmp-theme-first-paint.yml .github/scripts/tmp_apply_theme_first_paint.py
+          git add index.html
+          git commit -m "fix(ui): preserve theme before first paint"
+          git push origin HEAD:fix/theme-first-paint-loading
