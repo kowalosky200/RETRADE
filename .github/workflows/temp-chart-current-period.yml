@@ -1,0 +1,53 @@
+name: TEMP chart current period accent
+
+on:
+  push:
+    branches:
+      - ui/chart-current-period-accent
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: ui/chart-current-period-accent
+          fetch-depth: 0
+
+      - name: Apply exact chart motion patch
+        run: python .github/patches/temp_chart_current_period.py
+
+      - name: Verify patch is additions-only
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --check
+          row="$(git diff --numstat -- index.html)"
+          test -n "$row"
+          additions="$(printf '%s\n' "$row" | awk '{print $1}')"
+          deletions="$(printf '%s\n' "$row" | awk '{print $2}')"
+          path="$(printf '%s\n' "$row" | awk '{print $3}')"
+          test "$path" = "index.html"
+          test "$deletions" = "0"
+          test "$additions" -ge "35"
+          test "$additions" -le "50"
+          grep -q 'id="rt-chart-current-period-motion"' index.html
+          grep -q 'rtChartCurrentTailIn 220ms' index.html
+          grep -q 'calc(var(--dur-draw) + 55ms)' index.html
+
+      - name: Commit production-only change
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f .github/workflows/temp-chart-current-period.yml
+          rm -f .github/patches/temp_chart_current_period.py
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --check
+          git commit -m "style(ui): animate current-period chart tail"
+          git push origin HEAD:ui/chart-current-period-accent
