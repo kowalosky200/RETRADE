@@ -15,12 +15,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Helper namespace and mutation anchors
+      - name: Sale-cycle snapshot definitions
         shell: bash
         run: |
-          echo '=== HELPER NAME COLLISIONS ==='
-          grep -nE "_itemHasPriorFullReturn|_itemGroupedSaleIds|_itemHasGroupedSale|_safeFirstCycleBulkSale" app.js || true
-          echo '=== LIFECYCLE HELPERS ==='
-          grep -nE "function _itemLifecycleState|function _lifecycleCan|function _saleCycleNumbers|function _saleCycleSnapshot" app.js || true
-          echo '=== BULK / DELETE / UNDO / SCRAP / SPLIT ANCHORS ==='
-          grep -nE "async function bulkAction|async function stockBulkAction|function openBundleSaleModal|function submitBundleSale|function undoActivity|async function deleteItem|function confirmScrap|function openSplitModal|function confirmSplit" app.js || true
+          grep -n "saleCycleSnapshot\|saleCycleNumbers" app.js | head -n 80 || true
+          echo '=== RETURN BUNDLE SNAPSHOT FIELDS ==='
+          grep -nEi "bundle.*AtReturn|_bundle|bundleId" app.js | grep -Ei "return|snapshot|relist" | head -n 160 || true
