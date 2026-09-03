@@ -15,17 +15,19 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Lifecycle transition blocks
+      - name: Lifecycle bypass map
         shell: bash
         run: |
-          echo '=== LIFECYCLE CORE 20420-21720 ==='
-          sed -n '20420,21720p' app.js
+          echo '=== CALL SITES: BULK / SPLIT / DUPLICATE / DELETE / BUNDLE ==='
+          grep -nE "bulkAction\(|stockBulkAction\(|openSplitModal\(|confirmSplit\(|duplicateItem\(|confirmDupeItem\(|deleteItem\(|openBundleSaleModal\(|submitBundleSale\(|undoActivity\(" app.js | head -n 320 || true
           echo
-          echo '=== JOB LOT / BULK TRANSITIONS 15280-16220 ==='
-          sed -n '15280,16220p' app.js
+          echo '=== SCRAP / SUPPLIER RETURN / RESTORE ==='
+          grep -nEi "function[[:space:]]+(scrap|unScrap|openScrap|confirmScrap|supplier|returnToSupplier)|scrapReason|supplierRefund|_canScrap" app.js | head -n 320 || true
           echo
-          echo '=== ACTIVITY / UNDO 3920-4125 ==='
-          sed -n '3920,4125p' app.js
+          echo '=== GROUPED / BUNDLE GUARDS ==='
+          grep -nEi "bundleId|resaleBundleId|grouped order|_activeJobLotMembership|_jobLotActionGuard" app.js | grep -Ei "delete|undo|split|duplicate|sold|action|guard|return" | head -n 320 || true
           echo
-          echo '=== ACCOUNT / SETTLEMENT CORE 9040-9560 ==='
-          sed -n '9040,9560p' app.js
+          echo '=== MUTATION FUNCTION BLOCKS ==='
+          sed -n '21480,22180p' app.js
+          echo
+          sed -n '16180,16680p' app.js
