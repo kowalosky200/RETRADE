@@ -2038,72 +2038,23 @@ svg.rt-chart-draw .rt-chart-col circle{
   animation-delay:calc(var(--dur-draw) * 0.9);
 }
 
-/* v2.19.15 -- the category donut sweeps clockwise. Same pen as the chart line
-   beside it, bent into a ring: --ease-draw exists because the stroke should
-   travel at a near-constant rate, and a donut is the same gesture closed on
-   itself. A scale/bounce entrance was the alternative and was rejected -- it
-   speaks a different (elastic) language to both the line draw and the count-up
-   settle, and three motion vocabularies on one dashboard is what makes a UI
-   feel assembled rather than designed.
-   Each slice carries its own --seg-t0 (where it STARTS on the ring, as a
-   fraction of the circumference) and --seg-t (how much of the ring it IS).
-   Delay and duration are both scaled off --dur-draw by those fractions, so
-   every slice draws at the same angular speed and the whole set reads as ONE
-   pen going round once in --dur-draw -- not six animations that happen to
-   overlap. That is also why each slice runs `linear` rather than --ease-draw:
-   easing a slice would ease the pen in and out at every colour boundary, and
-   the ring would stutter five times on the way round.
-   The `both` fill is load-bearing: the backwards fill holds `from` during the
-   delay, which is what keeps a slice invisible until its turn comes. */
+/* v1.4.25 — category ring and line share one visual endpoint. The ring itself
+   sweeps clockwise on --dur-donut-sweep; its fixed closing recoil then occupies
+   --dur-bounce. 490ms + 350ms = the line's 840ms --dur-draw. Slice timings stay
+   proportional so colour boundaries move at one constant angular speed. */
 @keyframes donutSweep{
   from{stroke-dasharray:0 var(--seg-c);}
   to{stroke-dasharray:var(--seg-len) var(--seg-rest);}
 }
 svg.cat-donut-draw circle{
-  animation:donutSweep calc(var(--seg-t) * var(--dur-draw)) linear both;
-  animation-delay:calc(var(--seg-t0) * var(--dur-draw));
+  animation:donutSweep calc(var(--seg-t) * var(--dur-donut-sweep)) linear both;
+  animation-delay:calc(var(--seg-t0) * var(--dur-donut-sweep));
 }
 
-/* v2.19.16 -- the ring recoils as it closes: the pen races round, hits the
-   start line, kicks back a little, then closes for good.
-   WHY THIS IS A SECOND ANIMATION RATHER THAN A LONGER LAST SLICE. The bounce
-   needs its own clock. The last slice is the SMALLEST (slices are sorted
-   descending, so the tail is the runt or the Other bucket) -- on live data it
-   is ~14% of the ring, which is ~67ms of sweep. A recoil hung off that would be
-   over before the eye caught it. Folding the bounce into donutSweep would also
-   mean keyframe percentages that depend on the slice's share of the ring, and
-   keyframe offsets cannot be custom properties.
-   HOW THE HANDOVER WORKS. Both animations write stroke-dasharray, so the
-   later one in the list wins wherever both apply -- which is exactly what we
-   want AFTER 460ms and exactly what we do NOT want before it. `forwards` is
-   doing that work: with no backwards fill, donutClose contributes nothing
-   during its delay, so donutSweep owns the property for the whole sweep. Change
-   it to `both` and the recoiled state would fill backwards over the entire
-   sweep -- the last slice would draw to the wrong length and snap at the end.
-   The 460ms delay is not a guess: the last slice's t0+t is 1.0 by construction,
-   so the sweep lands at exactly --dur-draw. Both are scaled off that one token
-   and stay in step if it moves. */
-/* v2.19.17 -- a damped bounce, and the easing is per-keyframe for a reason.
-   THE SMOOTHNESS BUG. v2.19.16 ran one --ease-out across the whole keyframe
-   set. ease-out ends at zero velocity, so the head decelerated into the recoil
-   peak, stopped dead -- and then the next segment started at ease-out's maximum
-   velocity. That instantaneous jump from 0 to full speed at the turn is what
-   read as a stutter. It was never a framerate problem: the fix is velocity
-   continuity, not more frames.
-   Every turning point must be approached AND left at v=0, which is also what
-   real objects do -- a ball at the top of a bounce is momentarily still. So the
-   phases pair ease-out (decelerate into the turn) with ease-in-out (accelerate
-   away, decelerate into the next turn). The result is C1-continuous: no corner
-   in the velocity curve anywhere.
-   THE SHAPE. Impact -> hard recoil -> spring past the line -> settle. The
-   overshoot is what sells it as elastic rather than as a retraction; without it
-   the head just crawls back and the whole thing reads as a mistake being
-   corrected.
-   ON FRAMERATE: stroke-dasharray is a main-thread property -- it re-rasterises
-   the path each frame, unlike transform, which the compositor owns. For one
-   circle on a 132px SVG that is nowhere near a budget problem. If this ever
-   needed to be compositor-driven, the move is to rotate a wrapper <g>, but a
-   rotation cannot open a gap at the closure -- and the gap IS the bounce here. */
+/* v1.4.25 — the largest physical slice now closes the ring, so the recoil can
+   be a fixed visual distance instead of shrinking with the smallest category.
+   The bounce starts exactly when the 490ms sweep completes and settles exactly
+   when the 840ms line draw completes. */
 @keyframes donutClose{
   0%{stroke-dasharray:var(--seg-len) var(--seg-rest);
      animation-timing-function:cubic-bezier(0.18,0.85,0.3,1);}
@@ -2115,8 +2066,8 @@ svg.cat-donut-draw circle{
 }
 svg.cat-donut-draw circle.donut-seg-last{
   animation:
-    donutSweep calc(var(--seg-t) * var(--dur-draw)) linear calc(var(--seg-t0) * var(--dur-draw)) both,
-    donutClose var(--dur-bounce) linear var(--dur-draw) forwards;
+    donutSweep calc(var(--seg-t) * var(--dur-donut-sweep)) linear calc(var(--seg-t0) * var(--dur-donut-sweep)) both,
+    donutClose var(--dur-bounce) linear var(--dur-donut-sweep) forwards;
 }
 
 /* v2.19.17 -- the legend fades in as ONE block. It used to stagger, each row
@@ -2352,19 +2303,9 @@ svg.cat-donut-draw circle.donut-seg-last{
   --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
   --ease-spring: cubic-bezier(0.34, 1.2, 0.64, 1);
   --dur-fast: 120ms; --dur-base: 200ms; --dur-medium: 320ms; --dur-slow: 380ms;
-  --dur-bounce: 540ms;     /* v2.19.17 -- the donut's closing bounce. Not --dur-draw
-     even though they are close: they are different events and coupling them
-     would mean tuning the ring's kick could not be done without retiming the
-     chart line beside it. A damped bounce needs room -- it is four phases, and
-     under ~350ms they smear into a twitch. */
-  --dur-draw: 760ms;       /* Launch Audit v1.2 polish — chart line draw is intentionally visible without feeling slow. One
-     value since v2.19.12; §8.2 collapsed the old --dur-draw-quick twin once it
-     had been equal for four versions. The draw should feel the same on first
-     load as on every redraw. v2.19.3-7 pushed the reveal to 1600ms, which is
-     what made first load drag while redraws (520ms) felt right -- the redraw
-     had been an accidental control group all along. 460ms is a shade under
-     that 520ms. The count-up still splits reveal from change (700 vs 450, see
-     _animateKPIs); the chart deliberately does not. */
+  --dur-bounce: 350ms;      /* closing recoil/overshoot */
+  --dur-donut-sweep: 490ms; /* clockwise ring build */
+  --dur-draw: 840ms;        /* line chart; donut sweep + bounce ends on this same frame */
 
   /* Type */
   --font-body: 'Inter', system-ui, -apple-system, sans-serif;
