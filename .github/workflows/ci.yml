@@ -1,0 +1,65 @@
+name: RETRADE CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  safety:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: JavaScript syntax
+        run: |
+          node --check app.js
+          node --check accounting.js
+          node --check reports.js
+          node --check sw.js
+
+      - name: Repository safety checks
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if git ls-files --error-unmatch Backup/data.json >/dev/null 2>&1; then
+            echo "Backup/data.json must not be tracked"
+            exit 1
+          fi
+
+          if git ls-files | grep -E '(^|/)(\.env($|\.)|retrade-(backup|export).*\.json$|.*\.backup\.json$)' ; then
+            echo "Potential local secret/business-data backup is tracked"
+            exit 1
+          fi
+
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          failures=[]
+          for p in Path('.github/workflows').glob('*.y*ml'):
+              if p.name == 'ci.yml':
+                  continue
+              text=p.read_text(encoding='utf-8')
+              if re.search(r'contents\s*:\s*write', text):
+                  failures.append(f'{p}: contents: write')
+              if re.search(r'(^|\s)git\s+push(\s|$)', text):
+                  failures.append(f'{p}: git push')
+          if failures:
+              raise SystemExit('Unsafe repository-writing workflow detected:\n'+'\n'.join(failures))
+          print('Workflow write-safety check passed')
+          PY
+
+      - name: Core file references
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          index=Path('index.html').read_text(encoding='utf-8')
+          for required in ('app.js','app.css'):
+              assert required in index, f'{required} is not referenced by index.html'
+          print('Core file reference check passed')
+          PY
