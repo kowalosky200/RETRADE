@@ -4940,13 +4940,13 @@ function _clearLoadingRegions(page){
 
   const valueNodes=page.querySelectorAll('.rt-data-loading,.rt-label-loading');
   const chartNodes=page.querySelectorAll('.rt-chart-loading,.rt-chart-data-loading');
-  const surfaceNodes=page.querySelectorAll('.rt-panel-list-loading,.rt-age-loading,.rt-neutral-loading-bar,.rt-hide-while-loading');
+  const surfaceNodes=page.querySelectorAll('.rt-list-loading,.rt-panel-list-loading,.rt-age-loading,.rt-neutral-loading-bar,.rt-hide-while-loading');
   const overlays=page.querySelectorAll('.rt-loading-list-overlay,.rt-loading-panel-overlay');
 
   if(reduced){
     valueNodes.forEach(function(el){el.classList.remove('rt-data-loading','rt-label-loading');});
     chartNodes.forEach(function(el){el.classList.remove('rt-chart-loading','rt-chart-data-loading');});
-    surfaceNodes.forEach(function(el){el.classList.remove('rt-panel-list-loading','rt-age-loading','rt-neutral-loading-bar','rt-hide-while-loading');});
+    surfaceNodes.forEach(function(el){el.classList.remove('rt-list-loading','rt-panel-list-loading','rt-age-loading','rt-neutral-loading-bar','rt-hide-while-loading');});
     overlays.forEach(function(el){el.remove();});
     document.body.classList.remove('rt-real-layout-revealing');
     return;
@@ -4965,7 +4965,7 @@ function _clearLoadingRegions(page){
   });
   surfaceNodes.forEach(function(el){
     el.classList.add('rt-data-reveal');
-    el.classList.remove('rt-panel-list-loading','rt-age-loading','rt-neutral-loading-bar','rt-hide-while-loading');
+    el.classList.remove('rt-list-loading','rt-panel-list-loading','rt-age-loading','rt-neutral-loading-bar','rt-hide-while-loading');
   });
   overlays.forEach(function(el){el.classList.add('rt-loading-overlay-exit');});
 
@@ -17529,7 +17529,7 @@ function cashflowSearchInput(el){
     requestAnimationFrame(function(){
       const next=document.getElementById('cashflow-search');
       if(!next)return;
-      next.focus({preventScroll:true});
+      try{next.focus({preventScroll:true});}catch(e){next.focus();}
       try{next.setSelectionRange(start,end);}catch(e){}
     });
   },120);
@@ -17546,6 +17546,10 @@ function _cashflowCsvText(value){
   if(/^[=+\-@]/.test(s))s="'"+s;
   return '"'+s.replace(/"/g,'""')+'"';
 }
+function _cashflowCsvCell(value){
+  if(typeof value==='number'&&isFinite(value))return String(value);
+  return _cashflowCsvText(value);
+}
 function exportCashflowExcel(){
   const snap=_cashflowFilteredSnapshot();
   const rows=snap.rows;
@@ -17555,9 +17559,9 @@ function exportCashflowExcel(){
     ['RETRADE Cashflow'],
     ['Exported',new Date().toLocaleString('en-GB')],
     ['Rows',rows.length],
-    ['Money in',inflow.toFixed(2)],
-    ['Money out',outflow.toFixed(2)],
-    ['Net',(inflow-outflow).toFixed(2)],
+    ['Money in',Number(inflow.toFixed(2))],
+    ['Money out',Number(outflow.toFixed(2))],
+    ['Net',Number((inflow-outflow).toFixed(2))],
     [],
     ['Date','Direction','Type','Description','Source','Amount','Signed amount','Item ID','Sale No']
   ];
@@ -17565,10 +17569,10 @@ function exportCashflowExcel(){
     const amount=Number(m.amount)||0;
     lines.push([
       m.date||'',m.direction==='out'?'Out':'In',String(m.type||'cash').replace(/_/g,' '),
-      m.description||'',m.source||'',amount.toFixed(2),(m.direction==='out'?-amount:amount).toFixed(2),m.itemId||'',m.saleNo==null?'':m.saleNo
+      m.description||'',m.source||'',Number(amount.toFixed(2)),Number((m.direction==='out'?-amount:amount).toFixed(2)),m.itemId||'',m.saleNo==null?'':m.saleNo
     ]);
   });
-  const csv=lines.map(function(row){return row.map(_cashflowCsvText).join(',');}).join('\r\n');
+  const csv=lines.map(function(row){return row.map(_cashflowCsvCell).join(',');}).join('\r\n');
   const blob=new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8'});
   const url=URL.createObjectURL(blob);
   const a=document.createElement('a');
@@ -17604,41 +17608,47 @@ function renderCash(){
   const c=calcCashSummary();
   const led=_cashflowSortedEvents(c);
   const filtered=_cashflowFilteredEvents(led);
-  const kpi=function(label,val,foot,col){return '<div class="kpi-card"><div class="kpi-label">'+label+'</div><div class="kpi-value" style="color:'+col+'">'+fmt(val)+'</div><div class="kpi-foot">'+foot+'</div></div>';};
+  const kpi=function(label,val,foot,col){return '<div class="card kpi"><div class="kpi-label">'+esc(label)+'</div><div class="kpi-value num"'+(col?' style="color:'+col+'"':'')+'>'+fmt(val)+'</div>'+(foot?'<div class="kpi-foot">'+foot+'</div>':'')+'</div>';};
   const types=Array.from(new Set(led.map(function(m){return String(m.type||'cash');}))).sort(function(a,b){return a.localeCompare(b);});
   const filteredIn=filtered.reduce(function(s,m){return s+(m.direction==='in'?(Number(m.amount)||0):0);},0);
   const filteredOut=filtered.reduce(function(s,m){return s+(m.direction==='out'?(Number(m.amount)||0):0);},0);
   const filtersActive=!!(_cashflowSearch||_cashflowDirection!=='all'||_cashflowType!=='all'||_cashflowRange!=='all');
 
-  let html='<div class="page-header"><div><div class="page-title">Cashflow</div><div class="page-subtitle">Every real cash movement across stock, sales, returns, expenses, settlements and owner money.</div></div></div>';
-  html+='<div class="cash-balance-hero"><div><div class="cash-balance-label">Opening balance</div><div class="cash-balance-value">'+fmt(c.openingBalance||0)+'</div></div><div class="cash-balance-arrow">→</div><div><div class="cash-balance-label">Current cash</div><div class="cash-balance-value" style="color:'+(c.currentBalance>=0?'var(--green)':'var(--red)')+'">'+fmt(c.currentBalance||0)+'</div></div></div>';
-  html+='<div class="kpi-grid">'+kpi('Money in',c.inflow,'All recorded inflows','var(--green)')+kpi('Money out',c.outflow,'All recorded outflows','var(--red)')+kpi('Net movement',c.net,'In less out',c.net>=0?'var(--green)':'var(--red)')+kpi('Owner drawings',c.drawings,'Withdrawals from the business','var(--text)')+'</div>';
+  let html='<div class="page-header"><div><div class="page-title">Cashflow</div><div class="page-subtitle">Every real cash movement across stock, sales, returns, expenses, settlements and owner money.</div></div>'
+    +'<div style="display:flex;gap:8px;flex-shrink:0;"><button class="btn btn-secondary" onclick="openReconcile()">Reconcile</button><button class="btn btn-primary" onclick="addCashMove()">'+icon('expense',15)+' Add</button></div></div>';
+  html+='<div class="card" style="padding:20px 22px;margin-bottom:18px;"><div class="kpi-label">Business cash available</div>'
+    +'<div class="num" style="font-size:clamp(28px,7vw,40px);font-weight:800;line-height:1.05;margin-top:4px;'+(c.cashAvailable<0?'color:var(--red);':'')+'">'+fmt(c.cashAvailable)+'</div>'
+    +'<div class="kpi-foot" style="margin-top:8px;line-height:1.5;">'+fmt(c.inflows)+' cash in − '+fmt(c.outflows)+' cash out. Includes platform balances as business cash; moving eBay/Vinted money to bank is an internal transfer, not new income.</div></div>';
+  html+='<details class="card" style="padding:0;margin:-6px 0 18px;overflow:hidden;"><summary style="cursor:pointer;padding:12px 15px;font-size:12px;font-weight:700;color:var(--text-secondary);list-style:none;display:flex;justify-content:space-between;align-items:center;gap:10px;"><span>Cash calculation audit</span><span class="num" style="color:var(--text);">'+fmt(c.cashAvailable)+'</span></summary>'
+    +'<div style="padding:0 15px 13px;border-top:1px solid var(--border);"><div class="pnl-row"><span>Opening balance</span><strong>+'+fmt(c.opening)+'</strong></div>'
+    +'<div class="pnl-row"><span>Trading / operating cash movements</span><strong>'+(c.operatingCash<0?'−':'+')+fmt(Math.abs(c.operatingCash))+'</strong></div>'
+    +'<div class="pnl-row"><span>Owner contributions</span><strong>+'+fmt(c.contrib)+'</strong></div><div class="pnl-row"><span>Owner withdrawals</span><strong>−'+fmt(c.draw)+'</strong></div>'
+    +'<div class="pnl-row"><span>Manual / reconcile adjustments</span><strong>'+(c.adjust<0?'−':'+')+fmt(Math.abs(c.adjust))+'</strong></div><div class="pnl-row total"><span>Business cash available</span><strong>'+fmt(c.cashAvailable)+'</strong></div>'
+    +'<div style="font-size:11px;color:var(--text-secondary);line-height:1.45;margin-top:8px;">This total is event-ledger based: stock purchases and parts leave cash when bought; sales add cash; fees/shipping/refunds/expenses/settlements remove it; supplier refunds add it back. COGS restoration and HMRC mileage allowance do not move cash.</div></div></details>';
+  html+='<div class="sl" style="margin:20px 0 10px;">Cash</div><div class="kgrid">'
+    +kpi('Cash in',c.inflows,'All recorded inflows','#3b82f6')+kpi('Cash out',c.outflows,'All recorded outflows','var(--warn)')+kpi('Cash tied up in stock',c.stockTied,'Paid acquisition + parts still held')+kpi('Gross profit (all-time)',c.grossProfit,'Accounting profit — shown for comparison only')+'</div>';
+  if(c.unpaidLiabilities.total>0)html+='<div class="card" style="padding:13px 15px;margin-top:-6px;margin-bottom:16px;border-style:dashed;"><div style="display:flex;align-items:center;justify-content:space-between;gap:12px;"><div><div style="font-size:12px;font-weight:700;color:var(--text);">Still to be paid</div><div style="font-size:11px;color:var(--text-secondary);margin-top:3px;line-height:1.45;">Supplier '+fmt(c.unpaidLiabilities.supplier)+' · partner shares '+fmt(c.unpaidLiabilities.partner)+'. These do not leave cash until a paid settlement exists.</div></div><strong class="num" style="white-space:nowrap;color:var(--accent);">'+fmt(c.unpaidLiabilities.total)+'</strong></div></div>';
+  html+='<div class="sl" style="margin:22px 0 10px;">Owner</div><div class="kgrid">'+kpi('You took out',c.draw,'This tax year '+fmt(c.drawFY),c.draw>0?'var(--warn)':'')+kpi('You added',c.contrib,'This tax year '+fmt(c.contribFY),c.contrib>0?'#3b82f6':'')+kpi('Net taken by you',c.netOwner,c.netOwner>=0?'More out than in':'More in than out')+kpi('Profit kept in business',c.profitRetained,'Accounting net profit − drawings + added')+'</div>';
+
   html+='<div class="cashflow-list-heading"><div><div class="sl">All cash movements</div><div class="cashflow-result-count">'+filtered.length+' of '+led.length+' movements</div></div></div>';
+  html+='<div class="cashflow-manager">'
+    +'<div class="cashflow-toolbar">'
+      +'<label class="cashflow-search-field"><span class="cashflow-control-label">Search</span><input id="cashflow-search" class="cashflow-control cashflow-search" type="search" inputmode="search" autocomplete="off" placeholder="Description, type, source…" value="'+esc(_cashflowSearch)+'" oninput="cashflowSearchInput(this)"></label>'
+      +'<label><span class="cashflow-control-label">Direction</span><select class="cashflow-control" onchange="setCashflowFilter(\'direction\',this.value)"><option value="all"'+(_cashflowDirection==='all'?' selected':'')+'>All directions</option><option value="in"'+(_cashflowDirection==='in'?' selected':'')+'>Money in</option><option value="out"'+(_cashflowDirection==='out'?' selected':'')+'>Money out</option></select></label>'
+      +'<label><span class="cashflow-control-label">Type</span><select class="cashflow-control" onchange="setCashflowFilter(\'type\',this.value)"><option value="all"'+(_cashflowType==='all'?' selected':'')+'>All types</option>'+types.map(function(t){return '<option value="'+esc(t)+'"'+(_cashflowType===t?' selected':'')+'>'+esc(t.replace(/_/g,' '))+'</option>';}).join('')+'</select></label>'
+      +'<label><span class="cashflow-control-label">Period</span><select class="cashflow-control" onchange="setCashflowFilter(\'range\',this.value)"><option value="all"'+(_cashflowRange==='all'?' selected':'')+'>All time</option><option value="30"'+(_cashflowRange==='30'?' selected':'')+'>Last 30 days</option><option value="90"'+(_cashflowRange==='90'?' selected':'')+'>Last 90 days</option><option value="year"'+(_cashflowRange==='year'?' selected':'')+'>This year</option></select></label>'
+    +'</div>'
+    +'<div class="cashflow-manager-footer"><div class="cashflow-filter-totals"><span>In <b style="color:#3b82f6">'+fmt(filteredIn)+'</b></span><span>Out <b style="color:var(--warn)">'+fmt(filteredOut)+'</b></span><span>Net <b style="color:'+(filteredIn-filteredOut>=0?'#3b82f6':'var(--warn)')+'">'+fmt(filteredIn-filteredOut)+'</b></span></div>'
+      +'<div class="cashflow-actions">'+(filtersActive?'<button class="cashflow-action-btn" onclick="clearCashflowFilters()">Clear filters</button>':'')+'<button class="cashflow-action-btn" onclick="printCashflow()">Print</button><button class="cashflow-action-btn cashflow-action-primary" onclick="exportCashflowExcel()">Excel</button></div></div>'
+    +'</div>';
 
-  html+='<div class="cashflow-manager">'+
-    '<div class="cashflow-toolbar">'+
-      '<label class="cashflow-search-field"><span class="cashflow-control-label">Search</span><input id="cashflow-search" class="cashflow-control cashflow-search" type="search" inputmode="search" autocomplete="off" placeholder="Description, type, source…" value="'+esc(_cashflowSearch)+'" oninput="cashflowSearchInput(this)"></label>'+
-      '<label><span class="cashflow-control-label">Direction</span><select class="cashflow-control" onchange="setCashflowFilter(\'direction\',this.value)"><option value="all"'+(_cashflowDirection==='all'?' selected':'')+'>All directions</option><option value="in"'+(_cashflowDirection==='in'?' selected':'')+'>Money in</option><option value="out"'+(_cashflowDirection==='out'?' selected':'')+'>Money out</option></select></label>'+
-      '<label><span class="cashflow-control-label">Type</span><select class="cashflow-control" onchange="setCashflowFilter(\'type\',this.value)"><option value="all">All types</option>'+types.map(function(t){return '<option value="'+esc(t)+'"'+(_cashflowType===t?' selected':'')+'>'+esc(t.replace(/_/g,' '))+'</option>';}).join('')+'</select></label>'+
-      '<label><span class="cashflow-control-label">Period</span><select class="cashflow-control" onchange="setCashflowFilter(\'range\',this.value)"><option value="all"'+(_cashflowRange==='all'?' selected':'')+'>All time</option><option value="30"'+(_cashflowRange==='30'?' selected':'')+'>Last 30 days</option><option value="90"'+(_cashflowRange==='90'?' selected':'')+'>Last 90 days</option><option value="year"'+(_cashflowRange==='year'?' selected':'')+'>This year</option></select></label>'+
-    '</div>'+
-    '<div class="cashflow-manager-footer"><div class="cashflow-filter-totals"><span>In <b style="color:var(--green)">'+fmt(filteredIn)+'</b></span><span>Out <b style="color:var(--red)">'+fmt(filteredOut)+'</b></span><span>Net <b style="color:'+(filteredIn-filteredOut>=0?'var(--green)':'var(--red)')+'">'+fmt(filteredIn-filteredOut)+'</b></span></div>'+
-      '<div class="cashflow-actions">'+(filtersActive?'<button class="cashflow-action-btn" onclick="clearCashflowFilters()">Clear filters</button>':'')+'<button class="cashflow-action-btn" onclick="printCashflow()">Print</button><button class="cashflow-action-btn cashflow-action-primary" onclick="exportCashflowExcel()">Excel</button></div></div>'+
-    '</div>';
-
-  if(!led.length){
-    html+='<div class="empty-state"><b>No cash movements yet</b><span>Your stock, sale, return, expense and settlement activity will appear here automatically.</span></div>';
-  }else if(!filtered.length){
-    html+='<div class="empty-state"><b>No matching movements</b><span>Try changing the search or filters.</span><button class="cashflow-action-btn" style="margin-top:12px" onclick="clearCashflowFilters()">Clear filters</button></div>';
-  }else{
+  if(!led.length)html+='<div class="card" style="padding:18px;text-align:center;color:var(--text-secondary);line-height:1.5;">No cash movements yet. Add an opening balance or start recording stock/sales.</div>';
+  else if(!filtered.length)html+='<div class="card" style="padding:18px;text-align:center;color:var(--text-secondary);line-height:1.5;"><b style="display:block;color:var(--text);margin-bottom:5px;">No matching movements</b>Try changing the search or filters.<div><button class="cashflow-action-btn" style="margin-top:12px" onclick="clearCashflowFilters()">Clear filters</button></div></div>';
+  else{
     html+='<div class="section-card cashflow-ledger-list" style="padding:0;overflow:hidden;">';
     filtered.forEach(function(m){
-      const isOut=m.direction==='out';
-      const editable=!!m.editableId;
-      html+='<div class="cash-ledger-row" style="display:flex;align-items:center;gap:12px;padding:12px 14px;border-bottom:1px solid var(--border);'+(editable?'cursor:pointer;':'')+'"'+(editable?' onclick="editCashMove(\''+m.editableId+'\')"':'')+'>'+
-        '<div style="width:34px;height:34px;border-radius:10px;display:grid;place-items:center;background:'+(isOut?'var(--red-dim)':'var(--green-dim)')+';color:'+(isOut?'var(--red)':'var(--green)')+';font-weight:900;flex:none;">'+(isOut?'−':'+')+'</div>'+
-        '<div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:750;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(m.description||m.type||'Cash movement')+'</div><div style="font-size:11px;color:var(--text-secondary);margin-top:2px">'+esc(String(m.type||'cash').replace(/_/g,' '))+' · '+esc(m.date||'Undated')+(editable?' · editable':' · from '+esc(m.source||'app'))+'</div></div>'+
-        '<div class="num" style="font-size:14px;font-weight:850;color:'+(isOut?'var(--red)':'var(--green)')+';flex:none">'+(isOut?'−':'+')+fmt(Number(m.amount)||0)+'</div></div>';
+      const isOut=m.direction==='out';const editable=!!m.editableId;
+      html+='<div style="display:flex;align-items:center;gap:12px;padding:12px 14px;border-bottom:1px solid var(--border);'+(editable?'cursor:pointer;':'cursor:default;')+'"'+(editable?' onclick="editCashMove(\''+m.editableId+'\')"':'')+'><div style="flex:1;min-width:0;"><div style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(m.description||m.type||'Cash movement')+'</div><div style="font-size:12px;color:var(--text-secondary);">'+esc((m.type||'cash').replace(/_/g,' '))+' · '+esc(m.date||'Undated')+(editable?' · editable':' · from '+esc(m.source||'app'))+'</div></div><div class="num" style="font-weight:700;flex-shrink:0;color:'+(isOut?'var(--warn)':'#3b82f6')+';">'+(isOut?'−':'+')+fmt(Number(m.amount)||0)+'</div></div>';
     });
     html+='</div>';
   }
