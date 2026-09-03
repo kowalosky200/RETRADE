@@ -2352,12 +2352,12 @@ svg.cat-donut-draw circle.donut-seg-last{
   --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
   --ease-spring: cubic-bezier(0.34, 1.2, 0.64, 1);
   --dur-fast: 120ms; --dur-base: 200ms; --dur-medium: 320ms; --dur-slow: 380ms;
-  --dur-bounce: 440ms;     /* v2.19.17 -- the donut's closing bounce. Not --dur-draw
+  --dur-bounce: 540ms;     /* v2.19.17 -- the donut's closing bounce. Not --dur-draw
      even though they are close: they are different events and coupling them
      would mean tuning the ring's kick could not be done without retiming the
      chart line beside it. A damped bounce needs room -- it is four phases, and
      under ~350ms they smear into a twitch. */
-  --dur-draw: 680ms;       /* Launch Audit v1.2 polish — chart line draw is intentionally visible without feeling slow. One
+  --dur-draw: 760ms;       /* Launch Audit v1.2 polish — chart line draw is intentionally visible without feeling slow. One
      value since v2.19.12; §8.2 collapsed the old --dur-draw-quick twin once it
      had been equal for four versions. The draw should feel the same on first
      load as on every redraw. v2.19.3-7 pushed the reveal to 1600ms, which is
@@ -5368,4 +5368,70 @@ svg.cat-donut-draw circle.donut-seg-last{
 @media(prefers-reduced-motion:reduce){
   .rt-real-layout-loading #p-summary .summary-categories .cat-donut-wrap.rt-chart-loading .cat-donut-chart::before,
   .rt-real-layout-loading #p-summary .summary-categories .cat-donut-wrap.rt-chart-loading .cat-donut-legend::before{animation:none!important;}
+}
+
+
+/* v1.4.24 — premium loading reveal + Cashflow management */
+@keyframes rtHydratedReveal{
+  0%{opacity:.18;filter:blur(.7px);transform:translateY(2px)}
+  100%{opacity:1;filter:blur(0);transform:translateY(0)}
+}
+@keyframes rtHydratedChartReveal{
+  0%{opacity:.08;filter:blur(1px);transform:translateY(2px) scale(.998)}
+  100%{opacity:1;filter:blur(0);transform:translateY(0) scale(1)}
+}
+.rt-real-layout-revealing .rt-data-reveal{
+  animation:rtHydratedReveal 320ms cubic-bezier(.22,.61,.36,1) both;
+}
+.rt-real-layout-revealing .rt-chart-reveal{
+  animation:rtHydratedChartReveal 360ms cubic-bezier(.22,.61,.36,1) both;
+}
+.rt-real-layout-revealing .rt-loading-list-overlay,
+.rt-real-layout-revealing .rt-loading-panel-overlay{
+  position:absolute;z-index:30;inset:0;overflow:hidden;pointer-events:none;background:var(--surface);
+}
+.rt-real-layout-revealing .rt-loading-overlay-exit{
+  opacity:0;transition:opacity 320ms cubic-bezier(.22,.61,.36,1);
+}
+
+.cashflow-list-heading{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;margin:24px 0 10px;}
+.cashflow-result-count{font-size:11px;color:var(--text-secondary);margin-top:3px;font-variant-numeric:tabular-nums;}
+.cashflow-manager{margin:0 0 14px;padding:14px;border:1px solid var(--border);border-radius:var(--r-l,16px);background:color-mix(in srgb,var(--surface) 92%,var(--surface2));box-shadow:0 8px 28px rgba(0,0,0,.045);}
+.cashflow-toolbar{display:grid;grid-template-columns:minmax(240px,1.55fr) repeat(3,minmax(132px,.65fr));gap:10px;align-items:end;}
+.cashflow-toolbar label{display:flex;flex-direction:column;gap:5px;min-width:0;}
+.cashflow-control-label{font-size:10px;font-weight:750;letter-spacing:.045em;text-transform:uppercase;color:var(--text-secondary);}
+.cashflow-control{width:100%;height:40px;border:1px solid var(--border);border-radius:10px;background:var(--surface2);color:var(--text);font:inherit;font-size:12px;padding:0 11px;outline:none;transition:border-color 160ms ease,box-shadow 160ms ease,background 160ms ease;}
+.cashflow-control:focus{border-color:color-mix(in srgb,var(--brand) 72%,var(--border));box-shadow:0 0 0 3px color-mix(in srgb,var(--brand) 13%,transparent);background:var(--surface);}
+.cashflow-search{-webkit-appearance:none;appearance:none;}
+.cashflow-search::-webkit-search-cancel-button{opacity:.6;cursor:pointer;}
+.cashflow-manager-footer{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:12px;padding-top:12px;border-top:1px solid var(--border);}
+.cashflow-filter-totals{display:flex;align-items:center;gap:16px;flex-wrap:wrap;font-size:11px;color:var(--text-secondary);font-variant-numeric:tabular-nums;}
+.cashflow-filter-totals b{font-size:12px;margin-left:3px;}
+.cashflow-actions{display:flex;align-items:center;justify-content:flex-end;gap:7px;flex-wrap:wrap;}
+.cashflow-action-btn{min-height:34px;padding:0 11px;border:1px solid var(--border);border-radius:9px;background:var(--surface2);color:var(--text);font:inherit;font-size:11px;font-weight:750;cursor:pointer;transition:transform 120ms ease,border-color 160ms ease,background 160ms ease;}
+.cashflow-action-btn:hover{background:var(--surface3);border-color:var(--border-strong);}
+.cashflow-action-btn:active{transform:translateY(1px);}
+.cashflow-action-primary{background:color-mix(in srgb,var(--brand) 14%,var(--surface2));border-color:color-mix(in srgb,var(--brand) 38%,var(--border));color:var(--brand);}
+.cashflow-ledger-list{content-visibility:auto;contain-intrinsic-size:800px;}
+@media(max-width:900px){
+  .cashflow-toolbar{grid-template-columns:minmax(220px,1.4fr) repeat(2,minmax(130px,.7fr));}
+  .cashflow-toolbar label:last-child{grid-column:auto;}
+}
+@media(max-width:640px){
+  .cashflow-manager{padding:12px;border-radius:14px;}
+  .cashflow-toolbar{grid-template-columns:1fr 1fr;gap:9px;}
+  .cashflow-search-field{grid-column:1/-1;}
+  .cashflow-toolbar label:last-child{grid-column:auto;}
+  .cashflow-manager-footer{align-items:stretch;flex-direction:column;}
+  .cashflow-filter-totals{justify-content:space-between;gap:8px;}
+  .cashflow-actions{justify-content:stretch;}
+  .cashflow-action-btn{flex:1;min-width:78px;}
+}
+@media(max-width:390px){
+  .cashflow-toolbar{grid-template-columns:1fr;}
+  .cashflow-search-field{grid-column:auto;}
+}
+@media(prefers-reduced-motion:reduce){
+  .rt-real-layout-revealing .rt-data-reveal,.rt-real-layout-revealing .rt-chart-reveal{animation:none!important;}
+  .rt-real-layout-revealing .rt-loading-overlay-exit{transition:none!important;opacity:0!important;}
 }

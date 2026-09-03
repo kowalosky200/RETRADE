@@ -4934,9 +4934,48 @@ function _clearLoadingRegions(page){
   if(!page)return;
   page.removeAttribute('aria-busy');
   delete page.dataset.loading;
-  page.querySelectorAll('.rt-data-loading,.rt-label-loading,.rt-chart-loading,.rt-chart-data-loading,.rt-list-loading,.rt-panel-list-loading,.rt-age-loading,.rt-neutral-loading-bar,.rt-hide-while-loading')
-    .forEach(function(el){el.classList.remove('rt-data-loading','rt-label-loading','rt-chart-loading','rt-chart-data-loading','rt-list-loading','rt-panel-list-loading','rt-age-loading','rt-neutral-loading-bar','rt-hide-while-loading');});
-  page.querySelectorAll('.rt-loading-list-overlay').forEach(function(el){el.remove();});
+
+  let reduced=false;
+  try{reduced=!!(window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches);}catch(e){}
+
+  const valueNodes=page.querySelectorAll('.rt-data-loading,.rt-label-loading');
+  const chartNodes=page.querySelectorAll('.rt-chart-loading,.rt-chart-data-loading');
+  const surfaceNodes=page.querySelectorAll('.rt-list-loading,.rt-panel-list-loading,.rt-age-loading,.rt-neutral-loading-bar,.rt-hide-while-loading');
+  const overlays=page.querySelectorAll('.rt-loading-list-overlay,.rt-loading-panel-overlay');
+
+  if(reduced){
+    valueNodes.forEach(function(el){el.classList.remove('rt-data-loading','rt-label-loading');});
+    chartNodes.forEach(function(el){el.classList.remove('rt-chart-loading','rt-chart-data-loading');});
+    surfaceNodes.forEach(function(el){el.classList.remove('rt-list-loading','rt-panel-list-loading','rt-age-loading','rt-neutral-loading-bar','rt-hide-while-loading');});
+    overlays.forEach(function(el){el.remove();});
+    document.body.classList.remove('rt-real-layout-revealing');
+    return;
+  }
+
+  // v1.4.24 — real-layout crossfade. Hydrated content is revealed in the exact
+  // same DOM geometry the skeleton occupied; nothing reflows or swaps layouts.
+  document.body.classList.add('rt-real-layout-revealing');
+  valueNodes.forEach(function(el){
+    el.classList.add('rt-data-reveal');
+    el.classList.remove('rt-data-loading','rt-label-loading');
+  });
+  chartNodes.forEach(function(el){
+    el.classList.add('rt-chart-reveal');
+    el.classList.remove('rt-chart-loading','rt-chart-data-loading');
+  });
+  surfaceNodes.forEach(function(el){
+    el.classList.add('rt-data-reveal');
+    el.classList.remove('rt-list-loading','rt-panel-list-loading','rt-age-loading','rt-neutral-loading-bar','rt-hide-while-loading');
+  });
+  overlays.forEach(function(el){el.classList.add('rt-loading-overlay-exit');});
+
+  window.setTimeout(function(){
+    overlays.forEach(function(el){if(el&&el.parentNode)el.remove();});
+    page.querySelectorAll('.rt-data-reveal,.rt-chart-reveal').forEach(function(el){
+      el.classList.remove('rt-data-reveal','rt-chart-reveal');
+    });
+    document.body.classList.remove('rt-real-layout-revealing');
+  },340);
 }
 
 function _disableLoadingControls(){
@@ -5120,7 +5159,7 @@ function finishRealLayoutLoading(tab){
 
   const now=(window.performance&&performance.now)?performance.now():Date.now();
   const elapsed=Math.max(0,now-_realLayoutLoadingStartedAt);
-  const remaining=Math.max(0,260-elapsed);
+  const remaining=Math.max(0,440-elapsed);
 
   const finalize=function(){
     _clearLoadingRegions(page);
@@ -12942,7 +12981,7 @@ function buildCategoryDonut(byCat){
     let extra='';
     if(isLast){
       const RECOIL=Math.min(26, g.len*0.6);
-      const OVER=Math.min(RECOIL*0.22, g.rest*0.5);
+      const OVER=Math.min(RECOIL*0.30, g.rest*0.5);
       extra=';--seg-len-r:'+n2(g.len-RECOIL)+';--seg-rest-r:'+n2(g.rest+RECOIL)
            +';--seg-len-o:'+n2(g.len+OVER)+';--seg-rest-o:'+n2(g.rest-OVER);
     }
@@ -17426,11 +17465,155 @@ function _backfillSystemCashEvents(){
 // supplierRefund. The item is already excluded from _cashStockTied(), so this
 // counter-entry prevents removing stock from falsely creating cash.
 
+// v1.4.24 — high-volume Cashflow controls.
+// The view stays derived from calcCashSummary().events: filtering/exporting never
+// creates a second ledger or drops generated sale/return/settlement movements.
+let _cashflowSearch='';
+let _cashflowDirection='all';
+let _cashflowType='all';
+let _cashflowRange='all';
+let _cashflowSearchTimer=null;
+
+function _cashflowSortedEvents(summary){
+  return ((summary&&summary.events)||[]).slice().sort(function(a,b){
+    return (b.date||'').localeCompare(a.date||'')||String(b.id||'').localeCompare(String(a.id||''));
+  });
+}
+function _cashflowMatchesRange(m,range){
+  if(!range||range==='all')return true;
+  const raw=String((m&&m.date)||'');
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(raw))return false;
+  const d=new Date(raw+'T00:00:00');
+  if(!isFinite(d.getTime()))return false;
+  const now=new Date();now.setHours(0,0,0,0);
+  if(range==='year')return d.getFullYear()===now.getFullYear();
+  const days=range==='30'?30:range==='90'?90:0;
+  if(!days)return true;
+  const cutoff=new Date(now);cutoff.setDate(cutoff.getDate()-(days-1));
+  return d>=cutoff&&d<=now;
+}
+function _cashflowFilteredEvents(events){
+  const q=String(_cashflowSearch||'').trim().toLowerCase();
+  return (events||[]).filter(function(m){
+    const direction=String((m&&m.direction)||'').toLowerCase();
+    const type=String((m&&m.type)||'cash');
+    if(_cashflowDirection!=='all'&&direction!==_cashflowDirection)return false;
+    if(_cashflowType!=='all'&&type!==_cashflowType)return false;
+    if(!_cashflowMatchesRange(m,_cashflowRange))return false;
+    if(!q)return true;
+    const hay=[m.description,m.type,m.source,m.date,m.itemId,m.saleNo,m.amount]
+      .map(function(v){return v==null?'':String(v);}).join(' ').toLowerCase();
+    return hay.indexOf(q)!==-1;
+  });
+}
+function _cashflowFilteredSnapshot(){
+  const summary=calcCashSummary();
+  const all=_cashflowSortedEvents(summary);
+  const rows=_cashflowFilteredEvents(all);
+  return {summary:summary,all:all,rows:rows};
+}
+function setCashflowFilter(key,value){
+  if(key==='direction')_cashflowDirection=value||'all';
+  else if(key==='type')_cashflowType=value||'all';
+  else if(key==='range')_cashflowRange=value||'all';
+  renderCash();
+}
+function cashflowSearchInput(el){
+  _cashflowSearch=el&&el.value!=null?String(el.value):'';
+  const start=el&&typeof el.selectionStart==='number'?el.selectionStart:_cashflowSearch.length;
+  const end=el&&typeof el.selectionEnd==='number'?el.selectionEnd:start;
+  if(_cashflowSearchTimer)clearTimeout(_cashflowSearchTimer);
+  _cashflowSearchTimer=setTimeout(function(){
+    _cashflowSearchTimer=null;
+    renderCash();
+    requestAnimationFrame(function(){
+      const next=document.getElementById('cashflow-search');
+      if(!next)return;
+      try{next.focus({preventScroll:true});}catch(e){next.focus();}
+      try{next.setSelectionRange(start,end);}catch(e){}
+    });
+  },120);
+}
+function clearCashflowFilters(){
+  _cashflowSearch='';_cashflowDirection='all';_cashflowType='all';_cashflowRange='all';
+  if(_cashflowSearchTimer){clearTimeout(_cashflowSearchTimer);_cashflowSearchTimer=null;}
+  renderCash();
+}
+function _cashflowFileDate(){return new Date().toISOString().slice(0,10);}
+function _cashflowCsvText(value){
+  let s=value==null?'':String(value).replace(/\r?\n/g,' ');
+  // Prevent spreadsheet formula execution from user-entered descriptions/sources.
+  if(/^[=+\-@]/.test(s))s="'"+s;
+  return '"'+s.replace(/"/g,'""')+'"';
+}
+function _cashflowCsvCell(value){
+  if(typeof value==='number'&&isFinite(value))return String(value);
+  return _cashflowCsvText(value);
+}
+function exportCashflowExcel(){
+  const snap=_cashflowFilteredSnapshot();
+  const rows=snap.rows;
+  const inflow=rows.reduce(function(sum,m){return sum+(m.direction==='in'?(Number(m.amount)||0):0);},0);
+  const outflow=rows.reduce(function(sum,m){return sum+(m.direction==='out'?(Number(m.amount)||0):0);},0);
+  const lines=[
+    ['RETRADE Cashflow'],
+    ['Exported',new Date().toLocaleString('en-GB')],
+    ['Rows',rows.length],
+    ['Money in',Number(inflow.toFixed(2))],
+    ['Money out',Number(outflow.toFixed(2))],
+    ['Net',Number((inflow-outflow).toFixed(2))],
+    [],
+    ['Date','Direction','Type','Description','Source','Amount','Signed amount','Item ID','Sale No']
+  ];
+  rows.forEach(function(m){
+    const amount=Number(m.amount)||0;
+    lines.push([
+      m.date||'',m.direction==='out'?'Out':'In',String(m.type||'cash').replace(/_/g,' '),
+      m.description||'',m.source||'',Number(amount.toFixed(2)),Number((m.direction==='out'?-amount:amount).toFixed(2)),m.itemId||'',m.saleNo==null?'':m.saleNo
+    ]);
+  });
+  const csv=lines.map(function(row){return row.map(_cashflowCsvCell).join(',');}).join('\r\n');
+  const blob=new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;a.download='RETRADE-cashflow-'+_cashflowFileDate()+'.csv';
+  document.body.appendChild(a);a.click();a.remove();
+  setTimeout(function(){URL.revokeObjectURL(url);},1000);
+  if(typeof toast==='function')toast('Cashflow export ready for Excel.');
+}
+function printCashflow(){
+  const snap=_cashflowFilteredSnapshot();
+  const rows=snap.rows;
+  const inflow=rows.reduce(function(s,m){return s+(m.direction==='in'?(Number(m.amount)||0):0);},0);
+  const outflow=rows.reduce(function(s,m){return s+(m.direction==='out'?(Number(m.amount)||0):0);},0);
+  const w=window.open('','_blank');
+  if(!w){if(typeof toast==='function')toast('Allow pop-ups to print Cashflow.');return;}
+  try{w.opener=null;}catch(e){}
+  const tableRows=rows.map(function(m){
+    const amount=Number(m.amount)||0;
+    return '<tr><td>'+esc(m.date||'')+'</td><td>'+esc(m.direction==='out'?'Out':'In')+'</td><td>'+esc(String(m.type||'cash').replace(/_/g,' '))+'</td><td>'+esc(m.description||'')+'</td><td>'+esc(m.source||'')+'</td><td class="num">'+esc((m.direction==='out'?'-':'')+'£'+amount.toFixed(2))+'</td></tr>';
+  }).join('');
+  w.document.open();
+  w.document.write('<!doctype html><html><head><meta charset="utf-8"><title>RETRADE Cashflow</title><style>'+
+    'body{font:12px system-ui,-apple-system,sans-serif;color:#111;margin:28px}h1{font-size:22px;margin:0 0 4px}p{color:#555;margin:0 0 18px}.summary{display:flex;gap:22px;margin:0 0 18px;padding:12px 0;border-top:1px solid #ddd;border-bottom:1px solid #ddd}.summary b{display:block;font-size:15px;margin-top:2px}.num{text-align:right;font-variant-numeric:tabular-nums}table{width:100%;border-collapse:collapse}th,td{padding:7px 6px;border-bottom:1px solid #ddd;text-align:left;vertical-align:top}th{font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:#555}@media print{body{margin:12mm}.no-print{display:none}}'+
+    '</style></head><body><h1>RETRADE Cashflow</h1><p>'+esc(rows.length+' of '+snap.all.length+' movements · '+new Date().toLocaleString('en-GB'))+'</p>'+
+    '<div class="summary"><span>Money in<b>£'+inflow.toFixed(2)+'</b></span><span>Money out<b>£'+outflow.toFixed(2)+'</b></span><span>Net<b>'+((inflow-outflow)<0?'-':'')+'£'+Math.abs(inflow-outflow).toFixed(2)+'</b></span></div>'+
+    '<table><thead><tr><th>Date</th><th>Direction</th><th>Type</th><th>Description</th><th>Source</th><th class="num">Amount</th></tr></thead><tbody>'+tableRows+'</tbody></table></body></html>');
+  w.document.close();
+  setTimeout(function(){try{w.focus();w.print();}catch(e){}},180);
+}
+
 function renderCash(){
   const el=document.getElementById('p-cash');if(!el)return;
   const c=calcCashSummary();
-  const led=(c.events||[]).slice().sort(function(a,b){return (b.date||'').localeCompare(a.date||'')||String(b.id).localeCompare(String(a.id));});
+  const led=_cashflowSortedEvents(c);
+  const filtered=_cashflowFilteredEvents(led);
   const kpi=function(label,val,foot,col){return '<div class="card kpi"><div class="kpi-label">'+esc(label)+'</div><div class="kpi-value num"'+(col?' style="color:'+col+'"':'')+'>'+fmt(val)+'</div>'+(foot?'<div class="kpi-foot">'+foot+'</div>':'')+'</div>';};
+  const types=Array.from(new Set(led.map(function(m){return String(m.type||'cash');}))).sort(function(a,b){return a.localeCompare(b);});
+  const filteredIn=filtered.reduce(function(s,m){return s+(m.direction==='in'?(Number(m.amount)||0):0);},0);
+  const filteredOut=filtered.reduce(function(s,m){return s+(m.direction==='out'?(Number(m.amount)||0):0);},0);
+  const filtersActive=!!(_cashflowSearch||_cashflowDirection!=='all'||_cashflowType!=='all'||_cashflowRange!=='all');
+
   let html='<div class="page-header"><div><div class="page-title">Cashflow</div><div class="page-subtitle">Every real cash movement across stock, sales, returns, expenses, settlements and owner money.</div></div>'
     +'<div style="display:flex;gap:8px;flex-shrink:0;"><button class="btn btn-secondary" onclick="openReconcile()">Reconcile</button><button class="btn btn-primary" onclick="addCashMove()">'+icon('expense',15)+' Add</button></div></div>';
   html+='<div class="card" style="padding:20px 22px;margin-bottom:18px;"><div class="kpi-label">Business cash available</div>'
@@ -17446,11 +17629,32 @@ function renderCash(){
     +kpi('Cash in',c.inflows,'All recorded inflows','#3b82f6')+kpi('Cash out',c.outflows,'All recorded outflows','var(--warn)')+kpi('Cash tied up in stock',c.stockTied,'Paid acquisition + parts still held')+kpi('Gross profit (all-time)',c.grossProfit,'Accounting profit — shown for comparison only')+'</div>';
   if(c.unpaidLiabilities.total>0)html+='<div class="card" style="padding:13px 15px;margin-top:-6px;margin-bottom:16px;border-style:dashed;"><div style="display:flex;align-items:center;justify-content:space-between;gap:12px;"><div><div style="font-size:12px;font-weight:700;color:var(--text);">Still to be paid</div><div style="font-size:11px;color:var(--text-secondary);margin-top:3px;line-height:1.45;">Supplier '+fmt(c.unpaidLiabilities.supplier)+' · partner shares '+fmt(c.unpaidLiabilities.partner)+'. These do not leave cash until a paid settlement exists.</div></div><strong class="num" style="white-space:nowrap;color:var(--accent);">'+fmt(c.unpaidLiabilities.total)+'</strong></div></div>';
   html+='<div class="sl" style="margin:22px 0 10px;">Owner</div><div class="kgrid">'+kpi('You took out',c.draw,'This tax year '+fmt(c.drawFY),c.draw>0?'var(--warn)':'')+kpi('You added',c.contrib,'This tax year '+fmt(c.contribFY),c.contrib>0?'#3b82f6':'')+kpi('Net taken by you',c.netOwner,c.netOwner>=0?'More out than in':'More in than out')+kpi('Profit kept in business',c.profitRetained,'Accounting net profit − drawings + added')+'</div>';
-  html+='<div class="sl" style="margin:24px 0 10px;">All cash movements</div>';
+
+  html+='<div class="cashflow-list-heading"><div><div class="sl">All cash movements</div><div class="cashflow-result-count">'+filtered.length+' of '+led.length+' movements</div></div></div>';
+  html+='<div class="cashflow-manager">'
+    +'<div class="cashflow-toolbar">'
+      +'<label class="cashflow-search-field"><span class="cashflow-control-label">Search</span><input id="cashflow-search" class="cashflow-control cashflow-search" type="search" inputmode="search" autocomplete="off" placeholder="Description, type, source…" value="'+esc(_cashflowSearch)+'" oninput="cashflowSearchInput(this)"></label>'
+      +'<label><span class="cashflow-control-label">Direction</span><select class="cashflow-control" onchange="setCashflowFilter(\'direction\',this.value)"><option value="all"'+(_cashflowDirection==='all'?' selected':'')+'>All directions</option><option value="in"'+(_cashflowDirection==='in'?' selected':'')+'>Money in</option><option value="out"'+(_cashflowDirection==='out'?' selected':'')+'>Money out</option></select></label>'
+      +'<label><span class="cashflow-control-label">Type</span><select class="cashflow-control" onchange="setCashflowFilter(\'type\',this.value)"><option value="all"'+(_cashflowType==='all'?' selected':'')+'>All types</option>'+types.map(function(t){return '<option value="'+esc(t)+'"'+(_cashflowType===t?' selected':'')+'>'+esc(t.replace(/_/g,' '))+'</option>';}).join('')+'</select></label>'
+      +'<label><span class="cashflow-control-label">Period</span><select class="cashflow-control" onchange="setCashflowFilter(\'range\',this.value)"><option value="all"'+(_cashflowRange==='all'?' selected':'')+'>All time</option><option value="30"'+(_cashflowRange==='30'?' selected':'')+'>Last 30 days</option><option value="90"'+(_cashflowRange==='90'?' selected':'')+'>Last 90 days</option><option value="year"'+(_cashflowRange==='year'?' selected':'')+'>This year</option></select></label>'
+    +'</div>'
+    +'<div class="cashflow-manager-footer"><div class="cashflow-filter-totals"><span>In <b style="color:#3b82f6">'+fmt(filteredIn)+'</b></span><span>Out <b style="color:var(--warn)">'+fmt(filteredOut)+'</b></span><span>Net <b style="color:'+(filteredIn-filteredOut>=0?'#3b82f6':'var(--warn)')+'">'+fmt(filteredIn-filteredOut)+'</b></span></div>'
+      +'<div class="cashflow-actions">'+(filtersActive?'<button class="cashflow-action-btn" onclick="clearCashflowFilters()">Clear filters</button>':'')+'<button class="cashflow-action-btn" onclick="printCashflow()">Print</button><button class="cashflow-action-btn cashflow-action-primary" onclick="exportCashflowExcel()">Excel</button></div></div>'
+    +'</div>';
+
   if(!led.length)html+='<div class="card" style="padding:18px;text-align:center;color:var(--text-secondary);line-height:1.5;">No cash movements yet. Add an opening balance or start recording stock/sales.</div>';
-  else{html+='<div class="section-card" style="padding:0;overflow:hidden;">';led.forEach(function(m){const isOut=m.direction==='out';const editable=!!m.editableId;html+='<div style="display:flex;align-items:center;gap:12px;padding:12px 14px;border-bottom:1px solid var(--border);'+(editable?'cursor:pointer;':'cursor:default;')+'"'+(editable?' onclick="editCashMove(\''+m.editableId+'\')"':'')+'><div style="flex:1;min-width:0;"><div style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(m.description||m.type||'Cash movement')+'</div><div style="font-size:12px;color:var(--text-secondary);">'+esc((m.type||'cash').replace(/_/g,' '))+' · '+esc(m.date||'Undated')+(editable?' · editable':' · from '+esc(m.source||'app'))+'</div></div><div class="num" style="font-weight:700;flex-shrink:0;color:'+(isOut?'var(--warn)':'#3b82f6')+';">'+(isOut?'−':'+')+fmt(Number(m.amount)||0)+'</div></div>';});html+='</div>';}
+  else if(!filtered.length)html+='<div class="card" style="padding:18px;text-align:center;color:var(--text-secondary);line-height:1.5;"><b style="display:block;color:var(--text);margin-bottom:5px;">No matching movements</b>Try changing the search or filters.<div><button class="cashflow-action-btn" style="margin-top:12px" onclick="clearCashflowFilters()">Clear filters</button></div></div>';
+  else{
+    html+='<div class="section-card cashflow-ledger-list" style="padding:0;overflow:hidden;">';
+    filtered.forEach(function(m){
+      const isOut=m.direction==='out';const editable=!!m.editableId;
+      html+='<div style="display:flex;align-items:center;gap:12px;padding:12px 14px;border-bottom:1px solid var(--border);'+(editable?'cursor:pointer;':'cursor:default;')+'"'+(editable?' onclick="editCashMove(\''+m.editableId+'\')"':'')+'><div style="flex:1;min-width:0;"><div style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(m.description||m.type||'Cash movement')+'</div><div style="font-size:12px;color:var(--text-secondary);">'+esc((m.type||'cash').replace(/_/g,' '))+' · '+esc(m.date||'Undated')+(editable?' · editable':' · from '+esc(m.source||'app'))+'</div></div><div class="num" style="font-weight:700;flex-shrink:0;color:'+(isOut?'var(--warn)':'#3b82f6')+';">'+(isOut?'−':'+')+fmt(Number(m.amount)||0)+'</div></div>';
+    });
+    html+='</div>';
+  }
   el.innerHTML=html;
 }
+
 function _cashMoveForm(m,type){
   const cur=m?m.type:(type||'owner_draw');
   const opt=function(v,l){return '<option value="'+v+'"'+(v===cur?' selected':'')+'>'+l+'</option>';};
