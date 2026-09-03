@@ -5475,6 +5475,26 @@ function _deactivatePages(){
   document.body.classList.remove('rt-selbar-on');
 }
 
+let _interactionRenderFrame=0;
+let _interactionRenderTimer=0;
+let _interactionRenderToken=0;
+function _queueInteractionRender(fn){
+  if(typeof fn!=='function')return;
+  const token=++_interactionRenderToken;
+  if(_interactionRenderFrame){cancelAnimationFrame(_interactionRenderFrame);_interactionRenderFrame=0;}
+  if(_interactionRenderTimer){clearTimeout(_interactionRenderTimer);_interactionRenderTimer=0;}
+  // First frame commits the tap/nav state. The zero-delay task then performs the
+  // heavier render after that paint instead of blocking the acknowledgement.
+  _interactionRenderFrame=requestAnimationFrame(function(){
+    _interactionRenderFrame=0;
+    _interactionRenderTimer=setTimeout(function(){
+      _interactionRenderTimer=0;
+      if(token!==_interactionRenderToken)return;
+      fn();
+    },0);
+  });
+}
+
 function goToTab(name,sourceEl){
   // Restore nav search wrap visibility (may have been hidden while on p-search)
   const _gttSW=document.querySelector('.nav-inner .search-wrap');
@@ -5541,29 +5561,34 @@ function goToTab(name,sourceEl){
   _saveUIState();
   window.scrollTo(0,0);
   if(typeof window._resetNavScrollState==='function')window._resetNavScrollState();
-  if(name==='summary')renderSummary();
+  const _renderTab=function(fn){
+    _queueInteractionRender(function(){
+      fn();
+      _restoreTabScroll(name);
+    });
+  };
+  if(name==='summary')_renderTab(renderSummary);
   else if(name==='monthly'){
     // A genuine Sales-tab navigation starts at the live month and Back goes to
     // the top of Calendar. goToMonth() sets _monthOpenFromContext while routing
     // through this same tab switch so an explicit month/origin is not overwritten.
     if(!_monthOpenFromContext){_monthOrigin='calendar-top';SELECTED_MONTH=currentMonthKey();MONTHLY_VIEW='detail';MONTH_FILTER='all';MONTH_SORT='date-sold';}
-    renderMonthlyPage();
+    _renderTab(renderMonthlyPage);
     // Save AFTER the Sales route has chosen current-month detail vs calendar.
     // The old save happened earlier in goToTab and could persist the previous subview.
     _saveUIState();
   }
-  else if(name==='stock'){_stockFromSummary=false;renderStock();}
-  else if(name==='expenses')renderExpenses();
-  else if(name==='cash')renderCash();
-  else if(name==='returns')renderReturns();
-  else if(name==='scrapped')renderScrapped();
-  else if(name==='activity')renderActivity();
-  else if(name==='accounts')renderAccountsPage();
-  else if(name==='tax')renderTax();
-  else if(name==='data')renderData();
-  else if(name==='search')renderSearchResults();
-  else if(name==='runs')renderRunsPage();
-  _restoreTabScroll(name);
+  else if(name==='stock'){_stockFromSummary=false;_renderTab(renderStock);}
+  else if(name==='expenses')_renderTab(renderExpenses);
+  else if(name==='cash')_renderTab(renderCash);
+  else if(name==='returns')_renderTab(renderReturns);
+  else if(name==='scrapped')_renderTab(renderScrapped);
+  else if(name==='activity')_renderTab(renderActivity);
+  else if(name==='accounts')_renderTab(renderAccountsPage);
+  else if(name==='tax')_renderTab(renderTax);
+  else if(name==='data')_renderTab(renderData);
+  else if(name==='search')_renderTab(renderSearchResults);
+  else if(name==='runs')_renderTab(renderRunsPage);
   // Patch A — FAB visibility per page (hides on p-item/p-search/p-tax/p-data)
   if(typeof _syncFabVisibility==='function')_syncFabVisibility();
 }
@@ -12888,17 +12913,7 @@ let _summaryPeriodFrame2=0;
 function setSummaryPeriod(p){
   SUMMARY_PERIOD=p;
   _saveUIState();
-  if(_summaryPeriodFrame){cancelAnimationFrame(_summaryPeriodFrame);_summaryPeriodFrame=0;}
-  if(_summaryPeriodFrame2){cancelAnimationFrame(_summaryPeriodFrame2);_summaryPeriodFrame2=0;}
-  // Give the native selector one paint to acknowledge the new choice before
-  // rebuilding the full dashboard. This removes the apparent 60/90-day lag.
-  _summaryPeriodFrame=requestAnimationFrame(function(){
-    _summaryPeriodFrame=0;
-    _summaryPeriodFrame2=requestAnimationFrame(function(){
-      _summaryPeriodFrame2=0;
-      renderSummary();
-    });
-  });
+  _queueInteractionRender(renderSummary);
 }
 
 let _stockFromSummary=false;
@@ -14235,7 +14250,7 @@ function _getFYLabelHTML(fyStart){
 
 function toggleFYSection(fyStart){
   _fyCollapsed[fyStart]=!_fyCollapsed[fyStart];
-  renderMonthlyGrid();
+  _queueInteractionRender(renderMonthlyGrid);
 }
 
 
@@ -14318,8 +14333,8 @@ function setMonthlyPeriod(v){
   // renderMonthlyGrid() rebuilds the header/select and ends by calling
   // renderMonthlyProfitabilityChart(), which in turn re-renders the money-flow
   // panel — so the chart, the panel and the FY groups can never disagree.
-  if(MONTHLY_VIEW==='grid')renderMonthlyGrid();
-  else renderMonthlyProfitabilityChart();
+  if(MONTHLY_VIEW==='grid')_queueInteractionRender(renderMonthlyGrid);
+  else _queueInteractionRender(renderMonthlyProfitabilityChart);
 }
 
 function _monthlyPeriodSelectHTML(){
@@ -14660,9 +14675,9 @@ function setMonthFilter(f){
   MONTH_FILTER=f;
   // Session B: all monthly views are sale-history; default sort is date-sold.
   if(MONTH_SORT==='date-listed')MONTH_SORT='date-sold';
-  renderMonth();
+  _queueInteractionRender(renderMonth);
 }
-function setMonthSort(s){MONTH_SORT=s;renderMonth();}
+function setMonthSort(s){MONTH_SORT=s;_queueInteractionRender(renderMonth);}
 
 function renderMonth(){
   const m=SELECTED_MONTH;
@@ -15532,10 +15547,10 @@ async function bulkAction(action){
 }
 
 // STOCK PAGE
-function setStockSort(s){STOCK_SORT=s;renderStock();_saveUIState();}
-function setStockFilter(f){STOCK_FILTER=f;renderStock();_saveUIState();}
+function setStockSort(s){STOCK_SORT=s;_saveUIState();_queueInteractionRender(renderStock);}
+function setStockFilter(f){STOCK_FILTER=f;_saveUIState();_queueInteractionRender(renderStock);}
 // Patch A — sourced-age bucket filter setter
-function setStockSourcedFilter(f){STOCK_SOURCED_FILTER=f;renderStock();}
+function setStockSourcedFilter(f){STOCK_SOURCED_FILTER=f;_queueInteractionRender(renderStock);}
 // v1.01 — Inventory population filter. Backend `sourced` remains canonical
 // for compatibility; the operating UI calls that queue “Unlisted”.
 function setStockStateFilter(f){
@@ -15548,10 +15563,10 @@ function setStockStateFilter(f){
   if(f==='sourced'&&!['cost-desc','days-desc','days-asc'].includes(STOCK_SORT))STOCK_SORT='days-desc';
   if((f==='returned'||f==='all')&&!['cost-desc','days-desc','days-asc'].includes(STOCK_SORT))STOCK_SORT='days-desc';
   if(f==='listed'&&STOCK_SORT==='cost-desc')STOCK_SORT='days-asc';
-  renderStock();
+  _queueInteractionRender(renderStock);
   _saveUIState();
 }
-function toggleStockGrouped(){STOCK_GROUPED=!STOCK_GROUPED;renderStock();_saveUIState();}
+function toggleStockGrouped(){STOCK_GROUPED=!STOCK_GROUPED;_saveUIState();_queueInteractionRender(renderStock);}
 // F7: Toggle a specific month group collapsed/expanded
 function toggleStockGroup(key){
   const collapsed=!STOCK_COLLAPSED.has(key);
@@ -17571,7 +17586,7 @@ function _cashflowLedgerHTML(led,filtered){
   let html='<div class="section-card cashflow-ledger-list" style="padding:0;overflow:hidden;">';
   filtered.forEach(function(m){
     const isOut=m.direction==='out';const editable=!!m.editableId;
-    html+='<div style="display:flex;align-items:center;gap:12px;padding:12px 14px;border-bottom:1px solid var(--border);'+(editable?'cursor:pointer;':'cursor:default;')+'"'+(editable?' onclick="editCashMove(\''+m.editableId+'\')"':'')+'><div style="flex:1;min-width:0;"><div style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(m.description||m.type||'Cash movement')+'</div><div style="font-size:12px;color:var(--text-secondary);">'+esc((m.type||'cash').replace(/_/g,' '))+' · '+esc(m.date||'Undated')+(editable?' · editable':' · from '+esc(m.source||'app'))+'</div></div><div class="num" style="font-weight:700;flex-shrink:0;color:'+(isOut?'var(--warn)':'#3b82f6')+';">'+(isOut?'−':'+')+fmt(Number(m.amount)||0)+'</div></div>';
+    html+='<div class="cashflow-ledger-row" style="display:flex;align-items:center;gap:12px;padding:12px 14px;border-bottom:1px solid var(--border);'+(editable?'cursor:pointer;':'cursor:default;')+'"'+(editable?' onclick="editCashMove(\''+m.editableId+'\')"':'')+'><div style="flex:1;min-width:0;"><div style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(m.description||m.type||'Cash movement')+'</div><div style="font-size:12px;color:var(--text-secondary);">'+esc((m.type||'cash').replace(/_/g,' '))+' · '+esc(m.date||'Undated')+(editable?' · editable':' · from '+esc(m.source||'app'))+'</div></div><div class="num" style="font-weight:700;flex-shrink:0;color:'+(isOut?'var(--warn)':'#3b82f6')+';">'+(isOut?'−':'+')+fmt(Number(m.amount)||0)+'</div></div>';
   });
   return html+'</div>';
 }
@@ -17593,17 +17608,7 @@ function _updateCashflowResults(){
   if(results)results.innerHTML=_cashflowLedgerHTML(led,state.filtered);
 }
 function _scheduleCashflowResultsUpdate(afterPaint){
-  if(_cashflowUpdateFrame){cancelAnimationFrame(_cashflowUpdateFrame);_cashflowUpdateFrame=0;}
-  if(_cashflowUpdateFrame2){cancelAnimationFrame(_cashflowUpdateFrame2);_cashflowUpdateFrame2=0;}
-  _cashflowUpdateFrame=requestAnimationFrame(function(){
-    _cashflowUpdateFrame=0;
-    if(afterPaint){
-      _cashflowUpdateFrame2=requestAnimationFrame(function(){
-        _cashflowUpdateFrame2=0;
-        _updateCashflowResults();
-      });
-    }else _updateCashflowResults();
-  });
+  _queueInteractionRender(_updateCashflowResults);
 }
 function setCashflowFilter(key,value){
   if(key==='direction')_cashflowDirection=value||'all';
