@@ -4657,6 +4657,9 @@ async function initDB(){
     const _lastTab = (() => { if(_freshSession) return 'summary';
       try{ return localStorage.getItem(_SK.tab) || 'summary'; }catch(e){ return 'summary'; } })();
     const _safeTab = ['summary','monthly','stock','expenses','cash','returns','scrapped','tax','data','runs','activity'].includes(_lastTab) ? _lastTab : 'summary';
+    // Local UI state is synchronous and must be restored BEFORE the loading
+    // renderer so its geometry/subview is the exact page the user left.
+    _loadUIState();
     showRealLayoutLoading(_safeTab, 'Loading your data…');
     await Promise.race([
       loadFromSupabase(),
@@ -4706,7 +4709,6 @@ async function initDB(){
     // v2.21.51 — seed the activity shadow from loaded data so pre-existing items
     // never log as brand-new; the first real transition after boot logs cleanly.
     try{ _initActivityShadow(); }catch(e){ console.warn('[RETRADE] shadow seed failed',e); }
-    _loadUIState();
     // Render the remembered destination into the already-mounted real page. Previously
     // Returns/Cash/Archive/Activity were valid remembered tabs but had no boot
     // renderer here: init removed the skeleton, activated an empty page, and the
@@ -12833,7 +12835,23 @@ function showFilteredItems(filter){
   openPanel(titles[filter]||'Items',html);
 }
 
-function setSummaryPeriod(p){SUMMARY_PERIOD=p;renderSummary();_saveUIState();}
+let _summaryPeriodFrame=0;
+let _summaryPeriodFrame2=0;
+function setSummaryPeriod(p){
+  SUMMARY_PERIOD=p;
+  _saveUIState();
+  if(_summaryPeriodFrame){cancelAnimationFrame(_summaryPeriodFrame);_summaryPeriodFrame=0;}
+  if(_summaryPeriodFrame2){cancelAnimationFrame(_summaryPeriodFrame2);_summaryPeriodFrame2=0;}
+  // Give the native selector one paint to acknowledge the new choice before
+  // rebuilding the full dashboard. This removes the apparent 60/90-day lag.
+  _summaryPeriodFrame=requestAnimationFrame(function(){
+    _summaryPeriodFrame=0;
+    _summaryPeriodFrame2=requestAnimationFrame(function(){
+      _summaryPeriodFrame2=0;
+      renderSummary();
+    });
+  });
+}
 
 let _stockFromSummary=false;
 function openDashboardStock(filter){
@@ -12923,94 +12941,67 @@ function showSellThroughBreakdown(){
 const _DONUT_COLORS=['var(--blue)','var(--green)','var(--accent)','var(--purple)','var(--red)','var(--text-tertiary)'];
 function buildCategoryDonut(byCat){
   if(!byCat||!byCat.length)return null;
-  // Weight by revenue (falls back to sold count if no revenue recorded)
+  // Weight by revenue (falls back to sold count if no revenue recorded).
   const useRev=byCat.some(c=>(c.totalRev||0)>0);
   const weighted=byCat.map(c=>({cat:c.cat,val:useRev?(c.totalRev||0):(c.sold||0)}))
     .filter(c=>c.val>0).sort((a,b)=>b.val-a.val);
   if(!weighted.length)return null;
   const total=weighted.reduce((s,c)=>s+c.val,0);
-  // Top 5 + Other
+
+  // Top 5 + Other. Rank drives colour/legend order; physical ring order is
+  // rotated so rank 0 (the largest arc) is always the closing segment.
   const TOP=5;
   let slices=weighted.slice(0,TOP);
   const rest=weighted.slice(TOP);
-  if(rest.length){
-    slices.push({cat:'Other',val:rest.reduce((s,c)=>s+c.val,0)});
-  }
-  // SVG arc geometry
+  if(rest.length)slices.push({cat:'Other',val:rest.reduce((s,c)=>s+c.val,0)});
+  const ranked=slices.map(function(s,i){return {cat:s.cat,val:s.val,rank:i};});
+  const ringSlices=ranked.length>1?ranked.slice(1).concat(ranked[0]):ranked.slice();
+
   const size=132, cx=size/2, cy=size/2, r=52, sw=18;
   const C=2*Math.PI*r;
-  // v2.19.15 -- geometry computed ONCE, up front, because the arcs and the
-  // legend both need it and they are separate .map()s. The legend used to have
-  // no access to `offset`, which is exactly why the two could not be
-  // choreographed together before.
-  //   t0 = where this slice starts on the ring, as a fraction of C
-  //   t  = how much of the ring this slice occupies
-  // Both are unitless fractions so the CSS can scale them off --dur-draw and
-  // the whole sweep stays tunable from that one token.
   let offset=0;
-  const geo=slices.map(function(s){
+  const geo=ringSlices.map(function(s){
     const frac=s.val/total, len=frac*C;
-    const g={len:len, rest:C-len, off:offset, t0:offset/C, t:frac};
+    const g={len:len,rest:C-len,off:offset,t0:offset/C,t:frac};
     offset+=len;
     return g;
   });
   const n2=function(v){return Math.round(v*100)/100;};
   const n4=function(v){return Math.round(v*10000)/10000;};
-  const arcs=slices.map(function(s,i){
+
+  const arcs=ringSlices.map(function(s,i){
     const g=geo[i];
     const dash=g.len+' '+g.rest;
-    const isLast=(i===slices.length-1);
-    // v2.19.17 -- the closing slice carries the two extra dash states the bounce
-    // turns through: recoiled (head pulled back off the line) and overshot (head
-    // driven past it). Arc distances in user units, not degrees and not
-    // fractions of the slice: the kick should look the same size whatever the
-    // category mix happens to be that day.
-    // RECOIL 26 of a ~327 circumference is ~29deg -- v2.19.16 shipped 6 (~7deg)
-    // and it read as a twitch rather than an impact.
-    // Both clamps are load-bearing, and they clamp against DIFFERENT things:
-    //   - recoil cannot exceed the slice's own length. A head cannot retract
-    //     past its own start; len-r < 0 is an invalid dasharray and the browser
-    //     drops the whole declaration, snapping the ring to a solid circle for
-    //     a frame. 0.6 keeps a visible stub of colour on screen at full recoil.
-    //   - overshoot cannot exceed what is LEFT of the ring (rest). This is the
-    //     single-category case: one slice at 100% has rest = 0, so there is
-    //     nowhere to overshoot into and OVER clamps itself to 0. The recoil
-    //     still plays, so a 100% ring opens a gap and closes it.
-    // The invariant behind both: len + rest === C at every keyframe, which is
-    // what keeps the dash pattern to exactly one dash and one gap.
+    const isLast=(i===ringSlices.length-1);
     let extra='';
     if(isLast){
-      const RECOIL=Math.min(26, g.len*0.6);
-      const OVER=Math.min(RECOIL*0.30, g.rest*0.5);
+      // Fixed visual recoil. Because the closing arc is the largest of at most
+      // six slices, 26 user units always fits without data-dependent clamping.
+      const RECOIL=26;
+      // Overshoot is physically bounded only by the remaining circumference;
+      // the visible backwards kick remains the same for every category mix.
+      const OVER=Math.min(RECOIL*0.30,g.rest*0.5);
       extra=';--seg-len-r:'+n2(g.len-RECOIL)+';--seg-rest-r:'+n2(g.rest+RECOIL)
            +';--seg-len-o:'+n2(g.len+OVER)+';--seg-rest-o:'+n2(g.rest-OVER);
     }
     return '<circle cx="'+cx+'" cy="'+cy+'" r="'+r+'" fill="none" '
       +(isLast?'class="donut-seg-last" ':'')
-      +'stroke="'+_DONUT_COLORS[i%_DONUT_COLORS.length]+'" stroke-width="'+sw+'" '
+      +'stroke="'+_DONUT_COLORS[s.rank%_DONUT_COLORS.length]+'" stroke-width="'+sw+'" '
       +'stroke-dasharray="'+dash+'" stroke-dashoffset="'+(-g.off)+'" '
       +'style="--seg-len:'+n2(g.len)+';--seg-rest:'+n2(g.rest)+';--seg-c:'+n2(C)
       +';--seg-t0:'+n4(g.t0)+';--seg-t:'+n4(g.t)+extra+'" '
       +'transform="rotate(-90 '+cx+' '+cy+')"/>';
   }).join('');
+
   const svg='<svg class="cat-donut-svg" viewBox="0 0 '+size+' '+size+'" width="'+size+'" height="'+size+'">'+arcs+'</svg>';
   const legend=slices.map(function(s,i){
     const pct=Math.round((s.val/total)*100);
-    // v2.19.11 -- Tier 1 (handover §9). Keyed by SLOT index, not category name.
-    // The legend is a fixed ladder of positions sorted by share, so slot 0
-    // going 85 -> 60 is exactly the movement the eye is tracking. Name keys
-    // would strand a _kpiPrev entry for every category that drops out, and a
-    // re-entering category would then tween from a stale figure.
-    // data-cat is what _animateDonut diffs against the previous render to spot
-    // a genuinely new category. Reading it back off the DOM keeps the whole
-    // gate self-contained instead of threading a second return value through
-    // the template-literal IIFE that renders this panel.
     return '<div class="cat-legend-row" data-cat="'+esc(s.cat)+'">'
       +'<span class="cat-legend-dot" style="background:'+_DONUT_COLORS[i%_DONUT_COLORS.length]+'"></span>'
       +'<span class="cat-legend-name" title="'+esc(s.cat)+'">'+esc(s.cat)+'</span>'
       +'<span class="cat-legend-pct num" data-cv="'+pct+'" data-cv-fmt="pct0" data-cv-key="sum-catpct-'+i+'">'+pct+'%</span></div>';
   }).join('');
-  return { svg:svg, legend:legend, count:weighted.length };
+  return {svg:svg,legend:legend,count:weighted.length};
 }
 
 function showAllCategoriesModal(byCat){
@@ -17473,6 +17464,9 @@ let _cashflowDirection='all';
 let _cashflowType='all';
 let _cashflowRange='all';
 let _cashflowSearchTimer=null;
+let _cashflowUpdateFrame=0;
+let _cashflowUpdateFrame2=0;
+let _cashflowViewEvents=[];
 
 function _cashflowSortedEvents(summary){
   return ((summary&&summary.events)||[]).slice().sort(function(a,b){
@@ -17512,32 +17506,81 @@ function _cashflowFilteredSnapshot(){
   const rows=_cashflowFilteredEvents(all);
   return {summary:summary,all:all,rows:rows};
 }
+function _cashflowFilterState(events){
+  const filtered=_cashflowFilteredEvents(events||[]);
+  const filteredIn=filtered.reduce(function(s,m){return s+(m.direction==='in'?(Number(m.amount)||0):0);},0);
+  const filteredOut=filtered.reduce(function(s,m){return s+(m.direction==='out'?(Number(m.amount)||0):0);},0);
+  return {
+    filtered:filtered,
+    filteredIn:filteredIn,
+    filteredOut:filteredOut,
+    filtersActive:!!(_cashflowSearch||_cashflowDirection!=='all'||_cashflowType!=='all'||_cashflowRange!=='all')
+  };
+}
+function _cashflowLedgerHTML(led,filtered){
+  if(!led.length)return '<div class="card" style="padding:18px;text-align:center;color:var(--text-secondary);line-height:1.5;">No cash movements yet. Add an opening balance or start recording stock/sales.</div>';
+  if(!filtered.length)return '<div class="card" style="padding:18px;text-align:center;color:var(--text-secondary);line-height:1.5;"><b style="display:block;color:var(--text);margin-bottom:5px;">No matching movements</b>Try changing the search or filters.<div><button class="cashflow-action-btn" style="margin-top:12px" onclick="clearCashflowFilters()">Clear filters</button></div></div>';
+  let html='<div class="section-card cashflow-ledger-list" style="padding:0;overflow:hidden;">';
+  filtered.forEach(function(m){
+    const isOut=m.direction==='out';const editable=!!m.editableId;
+    html+='<div style="display:flex;align-items:center;gap:12px;padding:12px 14px;border-bottom:1px solid var(--border);'+(editable?'cursor:pointer;':'cursor:default;')+'"'+(editable?' onclick="editCashMove(\''+m.editableId+'\')"':'')+'><div style="flex:1;min-width:0;"><div style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(m.description||m.type||'Cash movement')+'</div><div style="font-size:12px;color:var(--text-secondary);">'+esc((m.type||'cash').replace(/_/g,' '))+' · '+esc(m.date||'Undated')+(editable?' · editable':' · from '+esc(m.source||'app'))+'</div></div><div class="num" style="font-weight:700;flex-shrink:0;color:'+(isOut?'var(--warn)':'#3b82f6')+';">'+(isOut?'−':'+')+fmt(Number(m.amount)||0)+'</div></div>';
+  });
+  return html+'</div>';
+}
+function _updateCashflowResults(){
+  const led=_cashflowViewEvents||[];
+  const state=_cashflowFilterState(led);
+  const net=state.filteredIn-state.filteredOut;
+  const countEl=document.getElementById('cashflow-result-count');
+  if(countEl)countEl.textContent=state.filtered.length+' of '+led.length+' movements';
+  const inEl=document.getElementById('cashflow-filter-in');
+  const outEl=document.getElementById('cashflow-filter-out');
+  const netEl=document.getElementById('cashflow-filter-net');
+  if(inEl)inEl.textContent=fmt(state.filteredIn);
+  if(outEl)outEl.textContent=fmt(state.filteredOut);
+  if(netEl){netEl.textContent=fmt(net);netEl.style.color=net>=0?'#3b82f6':'var(--warn)';}
+  const clearSlot=document.getElementById('cashflow-clear-slot');
+  if(clearSlot)clearSlot.innerHTML=state.filtersActive?'<button class="cashflow-action-btn" onclick="clearCashflowFilters()">Clear filters</button>':'';
+  const results=document.getElementById('cashflow-results');
+  if(results)results.innerHTML=_cashflowLedgerHTML(led,state.filtered);
+}
+function _scheduleCashflowResultsUpdate(afterPaint){
+  if(_cashflowUpdateFrame){cancelAnimationFrame(_cashflowUpdateFrame);_cashflowUpdateFrame=0;}
+  if(_cashflowUpdateFrame2){cancelAnimationFrame(_cashflowUpdateFrame2);_cashflowUpdateFrame2=0;}
+  _cashflowUpdateFrame=requestAnimationFrame(function(){
+    _cashflowUpdateFrame=0;
+    if(afterPaint){
+      _cashflowUpdateFrame2=requestAnimationFrame(function(){
+        _cashflowUpdateFrame2=0;
+        _updateCashflowResults();
+      });
+    }else _updateCashflowResults();
+  });
+}
 function setCashflowFilter(key,value){
   if(key==='direction')_cashflowDirection=value||'all';
   else if(key==='type')_cashflowType=value||'all';
   else if(key==='range')_cashflowRange=value||'all';
-  renderCash();
+  // One paint first lets the native select close/acknowledge immediately.
+  _scheduleCashflowResultsUpdate(true);
 }
 function cashflowSearchInput(el){
   _cashflowSearch=el&&el.value!=null?String(el.value):'';
-  const start=el&&typeof el.selectionStart==='number'?el.selectionStart:_cashflowSearch.length;
-  const end=el&&typeof el.selectionEnd==='number'?el.selectionEnd:start;
   if(_cashflowSearchTimer)clearTimeout(_cashflowSearchTimer);
   _cashflowSearchTimer=setTimeout(function(){
     _cashflowSearchTimer=null;
-    renderCash();
-    requestAnimationFrame(function(){
-      const next=document.getElementById('cashflow-search');
-      if(!next)return;
-      try{next.focus({preventScroll:true});}catch(e){next.focus();}
-      try{next.setSelectionRange(start,end);}catch(e){}
-    });
-  },120);
+    // The search input stays mounted; only results/totals are replaced.
+    _scheduleCashflowResultsUpdate(false);
+  },70);
 }
 function clearCashflowFilters(){
   _cashflowSearch='';_cashflowDirection='all';_cashflowType='all';_cashflowRange='all';
   if(_cashflowSearchTimer){clearTimeout(_cashflowSearchTimer);_cashflowSearchTimer=null;}
-  renderCash();
+  const search=document.getElementById('cashflow-search');if(search)search.value='';
+  const direction=document.getElementById('cashflow-direction');if(direction)direction.value='all';
+  const type=document.getElementById('cashflow-type');if(type)type.value='all';
+  const range=document.getElementById('cashflow-range');if(range)range.value='all';
+  _scheduleCashflowResultsUpdate(false);
 }
 function _cashflowFileDate(){return new Date().toISOString().slice(0,10);}
 function _cashflowCsvText(value){
@@ -17607,12 +17650,11 @@ function renderCash(){
   const el=document.getElementById('p-cash');if(!el)return;
   const c=calcCashSummary();
   const led=_cashflowSortedEvents(c);
-  const filtered=_cashflowFilteredEvents(led);
+  _cashflowViewEvents=led;
+  const state=_cashflowFilterState(led);
+  const filtered=state.filtered,filteredIn=state.filteredIn,filteredOut=state.filteredOut,filtersActive=state.filtersActive;
   const kpi=function(label,val,foot,col){return '<div class="card kpi"><div class="kpi-label">'+esc(label)+'</div><div class="kpi-value num"'+(col?' style="color:'+col+'"':'')+'>'+fmt(val)+'</div>'+(foot?'<div class="kpi-foot">'+foot+'</div>':'')+'</div>';};
   const types=Array.from(new Set(led.map(function(m){return String(m.type||'cash');}))).sort(function(a,b){return a.localeCompare(b);});
-  const filteredIn=filtered.reduce(function(s,m){return s+(m.direction==='in'?(Number(m.amount)||0):0);},0);
-  const filteredOut=filtered.reduce(function(s,m){return s+(m.direction==='out'?(Number(m.amount)||0):0);},0);
-  const filtersActive=!!(_cashflowSearch||_cashflowDirection!=='all'||_cashflowType!=='all'||_cashflowRange!=='all');
 
   let html='<div class="page-header"><div><div class="page-title">Cashflow</div><div class="page-subtitle">Every real cash movement across stock, sales, returns, expenses, settlements and owner money.</div></div>'
     +'<div style="display:flex;gap:8px;flex-shrink:0;"><button class="btn btn-secondary" onclick="openReconcile()">Reconcile</button><button class="btn btn-primary" onclick="addCashMove()">'+icon('expense',15)+' Add</button></div></div>';
@@ -17630,28 +17672,18 @@ function renderCash(){
   if(c.unpaidLiabilities.total>0)html+='<div class="card" style="padding:13px 15px;margin-top:-6px;margin-bottom:16px;border-style:dashed;"><div style="display:flex;align-items:center;justify-content:space-between;gap:12px;"><div><div style="font-size:12px;font-weight:700;color:var(--text);">Still to be paid</div><div style="font-size:11px;color:var(--text-secondary);margin-top:3px;line-height:1.45;">Supplier '+fmt(c.unpaidLiabilities.supplier)+' · partner shares '+fmt(c.unpaidLiabilities.partner)+'. These do not leave cash until a paid settlement exists.</div></div><strong class="num" style="white-space:nowrap;color:var(--accent);">'+fmt(c.unpaidLiabilities.total)+'</strong></div></div>';
   html+='<div class="sl" style="margin:22px 0 10px;">Owner</div><div class="kgrid">'+kpi('You took out',c.draw,'This tax year '+fmt(c.drawFY),c.draw>0?'var(--warn)':'')+kpi('You added',c.contrib,'This tax year '+fmt(c.contribFY),c.contrib>0?'#3b82f6':'')+kpi('Net taken by you',c.netOwner,c.netOwner>=0?'More out than in':'More in than out')+kpi('Profit kept in business',c.profitRetained,'Accounting net profit − drawings + added')+'</div>';
 
-  html+='<div class="cashflow-list-heading"><div><div class="sl">All cash movements</div><div class="cashflow-result-count">'+filtered.length+' of '+led.length+' movements</div></div></div>';
+  html+='<div class="cashflow-list-heading"><div><div class="sl">All cash movements</div><div id="cashflow-result-count" class="cashflow-result-count">'+filtered.length+' of '+led.length+' movements</div></div></div>';
   html+='<div class="cashflow-manager">'
     +'<div class="cashflow-toolbar">'
       +'<label class="cashflow-search-field"><span class="cashflow-control-label">Search</span><input id="cashflow-search" class="cashflow-control cashflow-search" type="search" inputmode="search" autocomplete="off" placeholder="Description, type, source…" value="'+esc(_cashflowSearch)+'" oninput="cashflowSearchInput(this)"></label>'
-      +'<label><span class="cashflow-control-label">Direction</span><select class="cashflow-control" onchange="setCashflowFilter(\'direction\',this.value)"><option value="all"'+(_cashflowDirection==='all'?' selected':'')+'>All directions</option><option value="in"'+(_cashflowDirection==='in'?' selected':'')+'>Money in</option><option value="out"'+(_cashflowDirection==='out'?' selected':'')+'>Money out</option></select></label>'
-      +'<label><span class="cashflow-control-label">Type</span><select class="cashflow-control" onchange="setCashflowFilter(\'type\',this.value)"><option value="all"'+(_cashflowType==='all'?' selected':'')+'>All types</option>'+types.map(function(t){return '<option value="'+esc(t)+'"'+(_cashflowType===t?' selected':'')+'>'+esc(t.replace(/_/g,' '))+'</option>';}).join('')+'</select></label>'
-      +'<label><span class="cashflow-control-label">Period</span><select class="cashflow-control" onchange="setCashflowFilter(\'range\',this.value)"><option value="all"'+(_cashflowRange==='all'?' selected':'')+'>All time</option><option value="30"'+(_cashflowRange==='30'?' selected':'')+'>Last 30 days</option><option value="90"'+(_cashflowRange==='90'?' selected':'')+'>Last 90 days</option><option value="year"'+(_cashflowRange==='year'?' selected':'')+'>This year</option></select></label>'
+      +'<label><span class="cashflow-control-label">Direction</span><select id="cashflow-direction" class="cashflow-control" onchange="setCashflowFilter(\'direction\',this.value)"><option value="all"'+(_cashflowDirection==='all'?' selected':'')+'>All directions</option><option value="in"'+(_cashflowDirection==='in'?' selected':'')+'>Money in</option><option value="out"'+(_cashflowDirection==='out'?' selected':'')+'>Money out</option></select></label>'
+      +'<label><span class="cashflow-control-label">Type</span><select id="cashflow-type" class="cashflow-control" onchange="setCashflowFilter(\'type\',this.value)"><option value="all"'+(_cashflowType==='all'?' selected':'')+'>All types</option>'+types.map(function(t){return '<option value="'+esc(t)+'"'+(_cashflowType===t?' selected':'')+'>'+esc(t.replace(/_/g,' '))+'</option>';}).join('')+'</select></label>'
+      +'<label><span class="cashflow-control-label">Period</span><select id="cashflow-range" class="cashflow-control" onchange="setCashflowFilter(\'range\',this.value)"><option value="all"'+(_cashflowRange==='all'?' selected':'')+'>All time</option><option value="30"'+(_cashflowRange==='30'?' selected':'')+'>Last 30 days</option><option value="90"'+(_cashflowRange==='90'?' selected':'')+'>Last 90 days</option><option value="year"'+(_cashflowRange==='year'?' selected':'')+'>This year</option></select></label>'
     +'</div>'
-    +'<div class="cashflow-manager-footer"><div class="cashflow-filter-totals"><span>In <b style="color:#3b82f6">'+fmt(filteredIn)+'</b></span><span>Out <b style="color:var(--warn)">'+fmt(filteredOut)+'</b></span><span>Net <b style="color:'+(filteredIn-filteredOut>=0?'#3b82f6':'var(--warn)')+'">'+fmt(filteredIn-filteredOut)+'</b></span></div>'
-      +'<div class="cashflow-actions">'+(filtersActive?'<button class="cashflow-action-btn" onclick="clearCashflowFilters()">Clear filters</button>':'')+'<button class="cashflow-action-btn" onclick="printCashflow()">Print</button><button class="cashflow-action-btn cashflow-action-primary" onclick="exportCashflowExcel()">Excel</button></div></div>'
+    +'<div class="cashflow-manager-footer"><div class="cashflow-filter-totals"><span>In <b id="cashflow-filter-in" style="color:#3b82f6">'+fmt(filteredIn)+'</b></span><span>Out <b id="cashflow-filter-out" style="color:var(--warn)">'+fmt(filteredOut)+'</b></span><span>Net <b id="cashflow-filter-net" style="color:'+(filteredIn-filteredOut>=0?'#3b82f6':'var(--warn)')+'">'+fmt(filteredIn-filteredOut)+'</b></span></div>'
+      +'<div class="cashflow-actions"><div id="cashflow-clear-slot" style="display:contents">'+(filtersActive?'<button class="cashflow-action-btn" onclick="clearCashflowFilters()">Clear filters</button>':'')+'</div><button class="cashflow-action-btn" onclick="printCashflow()">Print</button><button class="cashflow-action-btn cashflow-action-primary" onclick="exportCashflowExcel()">Excel</button></div></div>'
     +'</div>';
-
-  if(!led.length)html+='<div class="card" style="padding:18px;text-align:center;color:var(--text-secondary);line-height:1.5;">No cash movements yet. Add an opening balance or start recording stock/sales.</div>';
-  else if(!filtered.length)html+='<div class="card" style="padding:18px;text-align:center;color:var(--text-secondary);line-height:1.5;"><b style="display:block;color:var(--text);margin-bottom:5px;">No matching movements</b>Try changing the search or filters.<div><button class="cashflow-action-btn" style="margin-top:12px" onclick="clearCashflowFilters()">Clear filters</button></div></div>';
-  else{
-    html+='<div class="section-card cashflow-ledger-list" style="padding:0;overflow:hidden;">';
-    filtered.forEach(function(m){
-      const isOut=m.direction==='out';const editable=!!m.editableId;
-      html+='<div style="display:flex;align-items:center;gap:12px;padding:12px 14px;border-bottom:1px solid var(--border);'+(editable?'cursor:pointer;':'cursor:default;')+'"'+(editable?' onclick="editCashMove(\''+m.editableId+'\')"':'')+'><div style="flex:1;min-width:0;"><div style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(m.description||m.type||'Cash movement')+'</div><div style="font-size:12px;color:var(--text-secondary);">'+esc((m.type||'cash').replace(/_/g,' '))+' · '+esc(m.date||'Undated')+(editable?' · editable':' · from '+esc(m.source||'app'))+'</div></div><div class="num" style="font-weight:700;flex-shrink:0;color:'+(isOut?'var(--warn)':'#3b82f6')+';">'+(isOut?'−':'+')+fmt(Number(m.amount)||0)+'</div></div>';
-    });
-    html+='</div>';
-  }
+  html+='<div id="cashflow-results">'+_cashflowLedgerHTML(led,filtered)+'</div>';
   el.innerHTML=html;
 }
 
