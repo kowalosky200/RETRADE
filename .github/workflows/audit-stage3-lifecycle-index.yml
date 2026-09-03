@@ -1,0 +1,28 @@
+name: Stage 3 lifecycle code index
+
+on:
+  push:
+    branches:
+      - audit/stage-3-data-integrity
+    paths:
+      - '.github/workflows/audit-stage3-lifecycle-index.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  index:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Lifecycle function index
+        shell: bash
+        run: |
+          echo '=== FUNCTION DEFINITIONS / ACTIONS ==='
+          grep -nEi 'function[[:space:]]+[A-Za-z0-9_]*(sold|sale|return|refund|relist|resale|scrap|job.?lot|undo|activity)|mark.{0,20}(sold|return)|relist|resale|returnHistory|saleNo|isReturned' app.js | head -n 350 || true
+          echo
+          echo '=== CASH / LEDGER TOUCHPOINTS ==='
+          grep -nEi 'cash_ledger|ledger|cashflow|cash flow|partner.{0,20}settle|settlement|supplier.{0,20}refund|withdraw|deposit' app.js accounting.js reports.js | head -n 300 || true
+          echo
+          echo '=== STATE WRITES ==='
+          grep -nEi "\.state[[:space:]]*=|state:[[:space:]]*['\"](sourced|listed|sold|returned)|isReturned[[:space:]]*=" app.js | head -n 300 || true
