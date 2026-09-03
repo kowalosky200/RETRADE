@@ -13,26 +13,22 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Locate Cashflow implementation
+      - name: Verify exact UI hooks
         shell: bash
         run: |
           python - <<'PY'
           from pathlib import Path
-          needles=['renderCash','Transaction history','cashLedger','Cash flow','Cashflow','openingBalance','data-cash','cash-ledger']
-          files=[p for p in Path('.').rglob('*') if p.is_file() and p.suffix.lower() in {'.js','.html','.css'} and '.git' not in p.parts]
-          for needle in needles:
-              print(f'\n===== {needle!r} =====')
-              total=0
-              for p in files:
-                  try: lines=p.read_text(encoding='utf-8').splitlines()
-                  except Exception: continue
-                  hits=[i for i,line in enumerate(lines) if needle in line]
-                  if not hits: continue
-                  total += len(hits)
-                  print(f'-- {p}: {len(hits)} hit(s)')
-                  for i in hits[:8]:
-                      lo=max(0,i-12); hi=min(len(lines),i+25)
-                      print(f'  context {lo+1}-{hi}, hit {i+1}')
-                      for n in range(lo,hi): print(f'{n+1:06d}: {lines[n]}')
-              print('TOTAL',total)
+          for filename, needles in {
+            'app.js':['function renderCash(){','function finishRealLayoutLoading','Math.max(0,260-elapsed)','function _animateDonut'],
+            'app.css':['--dur-draw:460ms','--dur-bounce:360ms','@keyframes donutClose','body.rt-real-layout-loading .rt-data-loading'],
+          }.items():
+            lines=Path(filename).read_text(encoding='utf-8').splitlines()
+            print(f'===== {filename} =====')
+            for needle in needles:
+              hits=[i for i,line in enumerate(lines) if needle in line]
+              print(f'\n--- {needle!r}: {[i+1 for i in hits]} ---')
+              for i in hits:
+                lo=max(0,i-18); hi=min(len(lines),i+80)
+                print(f'### {lo+1}-{hi}')
+                for n in range(lo,hi): print(f'{n+1:06d}: {lines[n]}')
           PY
