@@ -15,19 +15,16 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Lifecycle bypass map
+      - name: Mutation bypass blocks
         shell: bash
         run: |
-          echo '=== CALL SITES: BULK / SPLIT / DUPLICATE / DELETE / BUNDLE ==='
-          grep -nE "bulkAction\(|stockBulkAction\(|openSplitModal\(|confirmSplit\(|duplicateItem\(|confirmDupeItem\(|deleteItem\(|openBundleSaleModal\(|submitBundleSale\(|undoActivity\(" app.js | head -n 320 || true
-          echo
-          echo '=== SCRAP / SUPPLIER RETURN / RESTORE ==='
-          grep -nEi "function[[:space:]]+(scrap|unScrap|openScrap|confirmScrap|supplier|returnToSupplier)|scrapReason|supplierRefund|_canScrap" app.js | head -n 320 || true
-          echo
-          echo '=== GROUPED / BUNDLE GUARDS ==='
-          grep -nEi "bundleId|resaleBundleId|grouped order|_activeJobLotMembership|_jobLotActionGuard" app.js | grep -Ei "delete|undo|split|duplicate|sold|action|guard|return" | head -n 320 || true
-          echo
-          echo '=== MUTATION FUNCTION BLOCKS ==='
-          sed -n '21480,22180p' app.js
-          echo
-          sed -n '16180,16680p' app.js
+          echo '=== ACTIVITY UNDO 4015-4110 ==='
+          sed -n '4015,4110p' app.js
+          echo '=== BULK ACTIONS 15295-15525 ==='
+          sed -n '15295,15525p' app.js
+          echo '=== BUNDLE SALE 15995-16135 ==='
+          sed -n '15995,16135p' app.js
+          echo '=== DELETE SPLIT DUPLICATE 20585-20915 ==='
+          sed -n '20585,20915p' app.js
+          echo '=== SCRAP / RESTORE 17470-17580 ==='
+          sed -n '17470,17580p' app.js
