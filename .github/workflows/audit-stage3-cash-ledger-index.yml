@@ -1,0 +1,31 @@
+name: Stage 3 cash and ledger index
+
+on:
+  push:
+    branches:
+      - audit/stage-3-data-integrity
+    paths:
+      - '.github/workflows/audit-stage3-cash-ledger-index.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  index:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Cash and ledger flow index
+        shell: bash
+        run: |
+          echo '=== LEDGER DEFINITIONS ==='
+          grep -nEi "function[[:space:]]+.*(cash|ledger|settle|withdraw|deposit)|_recordSystemCashEvent|_removeSystemCashEvent|cash_ledger|cashLedger|CASH_" app.js accounting.js reports.js | head -n 420 || true
+          echo
+          echo '=== SYSTEM CASH EVENT CALL SITES ==='
+          grep -n "_recordSystemCashEvent\|_removeSystemCashEvent" app.js accounting.js reports.js || true
+          echo
+          echo '=== SUPPLIER / PARTNER / SETTLEMENT CALL SITES ==='
+          grep -nEi "supplier.*refund|partner.*settle|settlement|accountSettled|settledAt|withdrawal|deposit" app.js accounting.js reports.js | head -n 420 || true
+          echo
+          echo '=== CASH PAGE CORE ==='
+          grep -nEi "function[[:space:]]+renderCash|cashflow|cash flow" app.js accounting.js reports.js | head -n 260 || true
