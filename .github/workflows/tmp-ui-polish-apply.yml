@@ -1,0 +1,69 @@
+name: Temporary UI polish apply
+
+on:
+  push:
+    branches:
+      - ui/loading-cashflow-polish
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ui/loading-cashflow-polish
+      - name: Apply deterministic patch
+        run: python .github/scripts/tmp_apply_ui_loading_cashflow_polish.py
+      - name: JavaScript syntax
+        run: |
+          node --check app.js
+          node --check accounting.js
+          node --check reports.js
+          node --check sw.js
+      - name: Verify UI contracts
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          app=Path('app.js').read_text(encoding='utf-8')
+          css=Path('app.css').read_text(encoding='utf-8')
+          idx=Path('index.html').read_text(encoding='utf-8')
+          checks={
+            'one renderCash':'function renderCash(){',
+            'Excel export':'function exportCashflowExcel(){',
+            'print export':'function printCashflow(){',
+            'filtered canonical events':'_cashflowFilteredSnapshot()',
+            '440ms loading floor':'const remaining=Math.max(0,440-elapsed);',
+            'premium reveal':'rtHydratedReveal',
+            '540ms donut settle':'--dur-bounce: 540ms;',
+            '760ms donut draw':'--dur-draw: 760ms;',
+          }
+          for label,needle in checks.items():
+            hay=css if needle.startswith('--dur-') or needle=='rtHydratedReveal' else app
+            count=hay.count(needle)
+            if label=='filtered canonical events':
+              if count < 1: raise SystemExit(f'{label}: missing')
+            elif count != 1: raise SystemExit(f'{label}: expected 1, found {count}')
+          if idx.count('app.css?v=1.4.24')!=1 or idx.count('app.js?v=1.4.24')!=1:
+            raise SystemExit('cache-bust version contract failed')
+          if 'xlsx.min.js' not in idx:
+            raise SystemExit('SheetJS dependency missing')
+          print('UI contracts passed')
+          PY
+      - name: Remove temporary patch machinery
+        run: |
+          rm -f .github/scripts/tmp_apply_ui_loading_cashflow_polish.py
+          rm -f .github/workflows/tmp-ui-polish-apply.yml
+          rm -f .github/workflows/tmp-ui-polish-audit.yml
+      - name: Commit production changes only
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git status --short
+          git commit -m "ui(loading): polish reveal motion and cashflow controls"
+          git push origin HEAD:ui/loading-cashflow-polish
