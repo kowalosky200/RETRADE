@@ -34,6 +34,58 @@ jobs:
           PY
       - name: Apply deterministic patch
         run: python .github/scripts/tmp_apply_ui_loading_cashflow_polish.py
+      - name: Replace legacy spreadsheet dependency with safe CSV-for-Excel export
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('app.js')
+          s=p.read_text(encoding='utf-8')
+          start=s.find('function exportCashflowExcel(){')
+          end=s.find('function printCashflow(){',start)
+          if start<0 or end<0 or end<=start:
+            raise SystemExit('Could not isolate Cashflow export function')
+          new=r'''function _cashflowCsvText(value){
+            let s=value==null?'':String(value).replace(/\r?\n/g,' ');
+            // Prevent spreadsheet formula execution from user-entered descriptions/sources.
+            if(/^[=+\-@]/.test(s))s="'"+s;
+            return '"'+s.replace(/"/g,'""')+'"';
+          }
+          function exportCashflowExcel(){
+            const snap=_cashflowFilteredSnapshot();
+            const rows=snap.rows;
+            const inflow=rows.reduce(function(sum,m){return sum+(m.direction==='in'?(Number(m.amount)||0):0);},0);
+            const outflow=rows.reduce(function(sum,m){return sum+(m.direction==='out'?(Number(m.amount)||0):0);},0);
+            const lines=[
+              ['RETRADE Cashflow'],
+              ['Exported',new Date().toLocaleString('en-GB')],
+              ['Rows',rows.length],
+              ['Money in',inflow.toFixed(2)],
+              ['Money out',outflow.toFixed(2)],
+              ['Net',(inflow-outflow).toFixed(2)],
+              [],
+              ['Date','Direction','Type','Description','Source','Amount','Signed amount','Item ID','Sale No']
+            ];
+            rows.forEach(function(m){
+              const amount=Number(m.amount)||0;
+              lines.push([
+                m.date||'',m.direction==='out'?'Out':'In',String(m.type||'cash').replace(/_/g,' '),
+                m.description||'',m.source||'',amount.toFixed(2),(m.direction==='out'?-amount:amount).toFixed(2),m.itemId||'',m.saleNo==null?'':m.saleNo
+              ]);
+            });
+            const csv=lines.map(function(row){return row.map(_cashflowCsvText).join(',');}).join('\r\n');
+            const blob=new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8'});
+            const url=URL.createObjectURL(blob);
+            const a=document.createElement('a');
+            a.href=url;a.download='RETRADE-cashflow-'+_cashflowFileDate()+'.csv';
+            document.body.appendChild(a);a.click();a.remove();
+            setTimeout(function(){URL.revokeObjectURL(url);},1000);
+            if(typeof toast==='function')toast('Cashflow export ready for Excel.');
+          }
+          '''
+          s=s[:start]+new+s[end:]
+          p.write_text(s,encoding='utf-8')
+          PY
       - name: JavaScript syntax
         run: |
           node --check app.js
@@ -51,6 +103,7 @@ jobs:
           exact={
             'one renderCash':('app','function renderCash(){'),
             'Excel export':('app','function exportCashflowExcel(){'),
+            'CSV injection guard':('app','function _cashflowCsvText(value){'),
             'print export':('app','function printCashflow(){'),
             '440ms loading floor':('app','const remaining=Math.max(0,440-elapsed);'),
             '540ms donut settle':('css','--dur-bounce: 540ms;'),
@@ -64,12 +117,11 @@ jobs:
           for label,needle,hay in [
             ('filtered canonical events','_cashflowFilteredSnapshot()',app),
             ('premium reveal','rtHydratedReveal',css),
+            ('Excel-compatible CSV','text/csv;charset=utf-8',app),
           ]:
             if needle not in hay: raise SystemExit(f'{label}: missing')
           if idx.count('app.css?v=1.4.24')!=1 or idx.count('app.js?v=1.4.24')!=1:
             raise SystemExit('cache-bust version contract failed')
-          if 'xlsx.min.js' not in idx:
-            raise SystemExit('SheetJS dependency missing')
           print('UI contracts passed')
           PY
       - name: Remove temporary patch machinery
