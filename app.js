@@ -5561,29 +5561,34 @@ function goToTab(name,sourceEl){
   _saveUIState();
   window.scrollTo(0,0);
   if(typeof window._resetNavScrollState==='function')window._resetNavScrollState();
-  if(name==='summary')_queueInteractionRender(renderSummary);
+  const _renderTab=function(fn){
+    _queueInteractionRender(function(){
+      fn();
+      _restoreTabScroll(name);
+    });
+  };
+  if(name==='summary')_renderTab(renderSummary);
   else if(name==='monthly'){
     // A genuine Sales-tab navigation starts at the live month and Back goes to
     // the top of Calendar. goToMonth() sets _monthOpenFromContext while routing
     // through this same tab switch so an explicit month/origin is not overwritten.
     if(!_monthOpenFromContext){_monthOrigin='calendar-top';SELECTED_MONTH=currentMonthKey();MONTHLY_VIEW='detail';MONTH_FILTER='all';MONTH_SORT='date-sold';}
-    _queueInteractionRender(renderMonthlyPage);
+    _renderTab(renderMonthlyPage);
     // Save AFTER the Sales route has chosen current-month detail vs calendar.
     // The old save happened earlier in goToTab and could persist the previous subview.
     _saveUIState();
   }
-  else if(name==='stock'){_stockFromSummary=false;_queueInteractionRender(renderStock);}
-  else if(name==='expenses')_queueInteractionRender(renderExpenses);
-  else if(name==='cash')_queueInteractionRender(renderCash);
-  else if(name==='returns')_queueInteractionRender(renderReturns);
-  else if(name==='scrapped')_queueInteractionRender(renderScrapped);
-  else if(name==='activity')_queueInteractionRender(renderActivity);
-  else if(name==='accounts')_queueInteractionRender(renderAccountsPage);
-  else if(name==='tax')_queueInteractionRender(renderTax);
-  else if(name==='data')_queueInteractionRender(renderData);
-  else if(name==='search')_queueInteractionRender(renderSearchResults);
-  else if(name==='runs')_queueInteractionRender(renderRunsPage);
-  _restoreTabScroll(name);
+  else if(name==='stock'){_stockFromSummary=false;_renderTab(renderStock);}
+  else if(name==='expenses')_renderTab(renderExpenses);
+  else if(name==='cash')_renderTab(renderCash);
+  else if(name==='returns')_renderTab(renderReturns);
+  else if(name==='scrapped')_renderTab(renderScrapped);
+  else if(name==='activity')_renderTab(renderActivity);
+  else if(name==='accounts')_renderTab(renderAccountsPage);
+  else if(name==='tax')_renderTab(renderTax);
+  else if(name==='data')_renderTab(renderData);
+  else if(name==='search')_renderTab(renderSearchResults);
+  else if(name==='runs')_renderTab(renderRunsPage);
   // Patch A — FAB visibility per page (hides on p-item/p-search/p-tax/p-data)
   if(typeof _syncFabVisibility==='function')_syncFabVisibility();
 }
@@ -14329,7 +14334,7 @@ function setMonthlyPeriod(v){
   // renderMonthlyProfitabilityChart(), which in turn re-renders the money-flow
   // panel — so the chart, the panel and the FY groups can never disagree.
   if(MONTHLY_VIEW==='grid')_queueInteractionRender(renderMonthlyGrid);
-  else renderMonthlyProfitabilityChart();
+  else _queueInteractionRender(renderMonthlyProfitabilityChart);
 }
 
 function _monthlyPeriodSelectHTML(){
@@ -15561,7 +15566,7 @@ function setStockStateFilter(f){
   _queueInteractionRender(renderStock);
   _saveUIState();
 }
-function toggleStockGrouped(){STOCK_GROUPED=!STOCK_GROUPED;renderStock();_saveUIState();}
+function toggleStockGrouped(){STOCK_GROUPED=!STOCK_GROUPED;_saveUIState();_queueInteractionRender(renderStock);}
 // F7: Toggle a specific month group collapsed/expanded
 function toggleStockGroup(key){
   const collapsed=!STOCK_COLLAPSED.has(key);
