@@ -48,23 +48,24 @@ jobs:
           app=Path('app.js').read_text(encoding='utf-8')
           css=Path('app.css').read_text(encoding='utf-8')
           idx=Path('index.html').read_text(encoding='utf-8')
-          checks={
-            'one renderCash':'function renderCash(){',
-            'Excel export':'function exportCashflowExcel(){',
-            'print export':'function printCashflow(){',
-            'filtered canonical events':'_cashflowFilteredSnapshot()',
-            '440ms loading floor':'const remaining=Math.max(0,440-elapsed);',
-            'premium reveal':'rtHydratedReveal',
-            '540ms donut settle':'--dur-bounce: 540ms;',
-            '760ms donut draw':'--dur-draw: 760ms;',
-            'stronger donut overshoot':'const OVER=Math.min(RECOIL*0.30, g.rest*0.5);',
+          exact={
+            'one renderCash':('app','function renderCash(){'),
+            'Excel export':('app','function exportCashflowExcel(){'),
+            'print export':('app','function printCashflow(){'),
+            '440ms loading floor':('app','const remaining=Math.max(0,440-elapsed);'),
+            '540ms donut settle':('css','--dur-bounce: 540ms;'),
+            '760ms donut draw':('css','--dur-draw: 760ms;'),
+            'stronger donut overshoot':('app','const OVER=Math.min(RECOIL*0.30, g.rest*0.5);'),
           }
-          for label,needle in checks.items():
-            hay=css if needle.startswith('--dur-') or needle=='rtHydratedReveal' else app
+          for label,(where,needle) in exact.items():
+            hay=app if where=='app' else css
             count=hay.count(needle)
-            if label=='filtered canonical events':
-              if count < 1: raise SystemExit(f'{label}: missing')
-            elif count != 1: raise SystemExit(f'{label}: expected 1, found {count}')
+            if count!=1: raise SystemExit(f'{label}: expected 1, found {count}')
+          for label,needle,hay in [
+            ('filtered canonical events','_cashflowFilteredSnapshot()',app),
+            ('premium reveal','rtHydratedReveal',css),
+          ]:
+            if needle not in hay: raise SystemExit(f'{label}: missing')
           if idx.count('app.css?v=1.4.24')!=1 or idx.count('app.js?v=1.4.24')!=1:
             raise SystemExit('cache-bust version contract failed')
           if 'xlsx.min.js' not in idx:
