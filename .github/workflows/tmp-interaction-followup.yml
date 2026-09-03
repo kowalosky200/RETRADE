@@ -1,0 +1,40 @@
+name: TEMP interaction ordering repair
+on:
+  push:
+    branches: [ui/interaction-responsiveness]
+permissions:
+  contents: write
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ui/interaction-responsiveness
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Apply ordering repair
+        run: python tools/tmp_interaction_followup.py
+      - name: JavaScript syntax
+        run: |
+          node --check app.js
+          node --check accounting.js
+          node --check reports.js
+          node --check sw.js
+      - name: Ordering contracts
+        run: |
+          grep -q "_renderTab(renderSummary)" app.js
+          grep -q "_restoreTabScroll(name)" app.js
+          grep -q "toggleStockGrouped(){STOCK_GROUPED=!STOCK_GROUPED;_saveUIState();_queueInteractionRender(renderStock);}" app.js
+      - name: Remove temporary repair machinery
+        run: rm -f tools/tmp_interaction_followup.py .github/workflows/tmp-interaction-followup.yml
+      - name: Commit production-only repair
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add app.js tools/tmp_interaction_followup.py .github/workflows/tmp-interaction-followup.yml
+          git commit -m "fix(ui): restore scroll after deferred page render"
+          git push origin HEAD:ui/interaction-responsiveness
