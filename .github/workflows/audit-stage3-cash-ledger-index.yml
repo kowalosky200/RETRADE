@@ -15,23 +15,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Settlement migration and account anchors
+      - name: Settlement detail and routing
         shell: bash
         run: |
-          echo '=== MIGRATION CALL SITES ==='
-          grep -n "_migrateSupplierSettledOnce" app.js || true
+          echo '=== BULK SETTLE ROUTING + SUPPLIER OPEN 9320-9405 ==='
+          sed -n '9320,9405p' app.js
           echo
-          echo '=== INIT AROUND CALLS ==='
-          grep -n -B12 -A18 "_migrateSupplierSettledOnce" app.js || true
+          echo '=== SETTLEMENT DETAIL 9540-9610 ==='
+          sed -n '9540,9610p' app.js
           echo
-          echo '=== ACCOUNT ASSIGN HELPER 11075-11125 ==='
-          sed -n '11075,11125p' app.js
+          echo '=== SETTLEMENT DETAIL CALLS ==='
+          grep -n "_openSettlementDetail" app.js || true
           echo
-          echo '=== ACCOUNT EDIT/DELETE 10425-10480 ==='
-          sed -n '10425,10480p' app.js
-          echo
-          echo '=== SAVE STOCK EDIT 20335-20385 ==='
-          sed -n '20335,20385p' app.js
-          echo
-          echo '=== PANEL QUICK EDIT 20385-20425 ==='
-          sed -n '20385,20425p' app.js
+          echo '=== ACCOUNT ITEM TYPE / DEBT HELPERS 9160-9265 ==='
+          sed -n '9160,9265p' app.js
