@@ -2330,6 +2330,7 @@ function enablePreviewMode(){
   // Patch A — Stamp canonical state field on preview-mode items too
   try{ _migrateItemStates(); }catch(e){ console.warn('state migrate (preview):',e); }
   try{ if(typeof _migrateSupplierSettledOnce==='function')_migrateSupplierSettledOnce(); }catch(e){ console.warn('supplier settle migrate (preview):',e); }
+  try{ if(typeof _migrateSettlementKindsOnce==='function')_migrateSettlementKindsOnce(); }catch(e){ console.warn('settlement kind migrate (preview):',e); }
   try{ _migrateSaleNoTags(); }catch(e){ console.warn('saleNo migrate (preview):',e); }
   try{ _backfillSystemCashEvents(); }catch(e){ console.warn('system cash audit backfill (preview):',e); }
   _dbSnapshot = _dbFingerprint();
@@ -4673,14 +4674,15 @@ async function initDB(){
     const _reconciled = _migrateItemStates();
     // v2.09 — Pre-existing supplier items with cost + no explicit settled flag
     // default to settled (historical purchases were paid on the spot). Idempotent.
-    let _supplierMigrated=0,_saleNoMigrated=0,_cashAuditBackfilled=0;
+    let _supplierMigrated=0,_settlementKindMigrated=0,_saleNoMigrated=0,_cashAuditBackfilled=0;
     try{if(typeof _migrateSupplierSettledOnce==='function')_supplierMigrated=_migrateSupplierSettledOnce()||0;}catch(e){console.warn('supplier settle migration failed',e);}
+    try{if(typeof _migrateSettlementKindsOnce==='function')_settlementKindMigrated=_migrateSettlementKindsOnce()||0;}catch(e){console.warn('settlement kind migration failed',e);}
     try{_saleNoMigrated=_migrateSaleNoTags()||0;}catch(e){console.warn('saleNo migration failed',e);}
     try{_cashAuditBackfilled=_backfillSystemCashEvents()||0;}catch(e){console.warn('system cash audit backfill failed',e);}
     // Any migration that mutates item rows must keep the PRE-migration snapshot
     // so the diff engine actually uploads the repair. Previously saleNo/account
     // repairs could become "clean" in memory and disappear again next login.
-    if(_reconciled>0||_supplierMigrated>0||_saleNoMigrated>0||_cashAuditBackfilled>0){
+    if(_reconciled>0||_supplierMigrated>0||_settlementKindMigrated>0||_saleNoMigrated>0||_cashAuditBackfilled>0){
       _dbSnapshot = _preMigrationSnapshot;
       // Schedule an async persist without blocking init — the corrections will
       // reach Supabase within seconds of the app becoming interactive.
@@ -9345,27 +9347,19 @@ function _acctClearSelect(){
 }
 function _acctBulkSettle(){
   if(!_acctSelected.size){toast('Select at least one item','error');return;}
-  const acct=_acctCurrentAcct();
-  if(!acct)return;
-  const ids=Array.from(_acctSelected);
-  const selected=_selectedAccountItems(ids,acct.id);
+  const acct=_acctCurrentAcct();if(!acct)return;
+  const selected=_selectedAccountItems(Array.from(_acctSelected),acct.id);
   const eligible=selected.filter(function(i){
-    if(i.accountSettled===true)return false;
-    if((acct.accountType||'supplier')==='supplier')return _accountItemDebt(i)!==null;
-    return _accountItemIsSold(i)&&_accountItemDebt(i)!==null;
+    if(i.accountSettled===true||_accountItemDebt(i)===null)return false;
+    return _itemAccountType(i)==='supplier'||_accountItemIsSold(i);
   });
   if(!eligible.length){toast('No eligible unsettled items selected','error');return;}
-  if(eligible.length<selected.length){
-    toast('Using '+eligible.length+' eligible item'+(eligible.length!==1?'s':'')+' · '+(selected.length-eligible.length)+' skipped');
-  }
-  const eligibleIds=eligible.map(function(i){return i.id;});
-  if((acct.accountType||'supplier')!=='supplier'){
-    _openConsignmentSettlementBuilder(acct.id,eligibleIds);
-    return;
-  }
-  // Supplier: open a grouped-settlement confirm so it lands as ONE transaction
-  // (with a slip) rather than silent flag flips.
-  _openSupplierSettlement(acct.id,eligibleIds);
+  const groups=new Set(eligible.map(function(i){return _itemAccountType(i)==='supplier'?'supplier':'partner';}));
+  if(groups.size>1){toast('Mixed supplier and profit-share items selected · settle each arrangement separately','error');return;}
+  if(eligible.length<selected.length)toast('Using '+eligible.length+' eligible item'+(eligible.length!==1?'s':'')+' · '+(selected.length-eligible.length)+' skipped');
+  const ids=eligible.map(function(i){return i.id;});
+  if(groups.has('supplier'))_openSupplierSettlement(acct.id,ids);
+  else _openConsignmentSettlementBuilder(acct.id,ids);
 }
 
 // Grouped supplier settlement. Sums the debt of the selected UNSETTLED items,
@@ -9376,7 +9370,7 @@ function _openSupplierSettlement(accountId,ids){
   const acct=_accounts.find(function(a){return a.id===accountId;});
   if(!acct)return;
   const picked=_selectedAccountItems(ids,accountId).filter(function(i){
-    return _accountItemDebt(i)!==null && !i.accountSettled;
+    return _itemAccountType(i)==='supplier'&&_accountItemDebt(i)!==null&&!i.accountSettled;
   });
   if(!picked.length){toast('No unsettled items selected');return;}
   const total=picked.reduce(function(s,i){return s+(_accountItemDebt(i)||0);},0);
@@ -9410,8 +9404,9 @@ function _confirmSupplierSettlement(){
   const date=(document.getElementById('sup-settle-date')||{}).value||new Date().toISOString().split('T')[0];
   const note=((document.getElementById('sup-settle-note')||{}).value||'').trim();
   const selectedItems=_selectedAccountItems(ids||[],accountId).filter(function(i){
-    return _accountItemDebt(i)!==null && !i.accountSettled;
+    return _itemAccountType(i)==='supplier'&&_accountItemDebt(i)!==null&&!i.accountSettled;
   });
+  if(selectedItems.length!==ids.length){toast('Supplier settlement selection changed · reopen and review the items','error');return;}
   const expected=+selectedItems.reduce(function(sum,i){return sum+(_accountItemDebt(i)||0);},0).toFixed(2);
   if(Math.abs(amount-expected)>0.009){
     toast('Payment must match the selected supplier debt ('+fmt(expected)+')','error');
@@ -9421,8 +9416,8 @@ function _confirmSupplierSettlement(){
   (ids||[]).forEach(function(id){
     allDBKeys().forEach(function(k){
       const item=(DB[k]||[]).find(function(i){return i.id===id;});
-      if(item&&_accountItemDebt(item)!==null&&!item.accountSettled){
-        allocations.push({id:item.id,amount:+( _accountItemDebt(item)||0).toFixed(2),name:item.item||''});
+      if(item&&_itemAccountType(item)==='supplier'&&_accountItemDebt(item)!==null&&!item.accountSettled){
+        allocations.push({id:item.id,amount:+(_accountItemDebt(item)||0).toFixed(2),name:item.item||'',kind:'supplier'});
         item.accountSettled=true;nSettled++;
       }
     });
@@ -9450,6 +9445,87 @@ function _selectedAccountItems(ids,accountId){
   });
   return out;
 }
+
+// Stage 3 settlement integrity — a settlement transaction is the source of
+// truth for whether partner/supplier cash actually moved. Item flags mirror
+// paid transactions; they are never a substitute for a dated payment record.
+function _settlementAllocationItemId(a){return a&&(a.id||a.itemId)||null;}
+function _settlementRefsForItem(itemId){
+  const out=[];
+  (_accounts||[]).forEach(function(acct){
+    (acct.settlements||[]).forEach(function(tx){
+      const allocation=(tx.items||[]).find(function(a){return _settlementAllocationItemId(a)===itemId;});
+      if(allocation)out.push({acct:acct,tx:tx,allocation:allocation});
+    });
+  });
+  return out;
+}
+function _paidSettlementRefsForItem(itemId){
+  return _settlementRefsForItem(itemId).filter(function(r){return !!(r.tx&&r.tx.paid);});
+}
+function _hasSettlementHistoryForItem(itemId){return _settlementRefsForItem(itemId).length>0;}
+function _syncItemSettlementState(itemId){
+  const rec=_findItemRecordById(itemId);if(!rec||!rec.item)return;
+  rec.item.accountSettled=_paidSettlementRefsForItem(itemId).length>0;
+}
+function _syncSettlementItems(tx){
+  (tx&&tx.items||[]).forEach(function(a){const id=_settlementAllocationItemId(a);if(id)_syncItemSettlementState(id);});
+}
+function _snapshotSettlementKinds(acct,tx){
+  if(!tx)return 0;
+  let changed=0;const kinds=[];
+  (tx.items||[]).forEach(function(a){
+    if(!a)return;
+    if(!a.kind){
+      const id=_settlementAllocationItemId(a),rec=id?_findItemRecordById(id):null;
+      a.kind=rec&&rec.item?_itemAccountType(rec.item):(tx.kind||acct.accountType||'supplier');
+      changed++;
+    }
+    kinds.push(a.kind||'supplier');
+  });
+  if(!tx.kind){
+    const uniq=Array.from(new Set(kinds));
+    if(uniq.length===1)tx.kind=uniq[0];
+    else if(uniq.length&&uniq.every(function(k){return k!=='supplier';}))tx.kind='partner';
+    else if(uniq.length>1)tx.kind='mixed';
+    else tx.kind=acct.accountType||'supplier';
+    changed++;
+  }
+  return changed;
+}
+function _applySettlementPaidState(acct,tx,paid,date){
+  if(!acct||!tx)return false;
+  _snapshotSettlementKinds(acct,tx);
+  if(paid){
+    tx.paid=true;tx.date=date||todayISO();tx.paidAt=new Date().toISOString();delete tx.reversedAt;
+    if((Number(tx.partnerAmount)||0)>0){
+      _recordSystemCashEvent(_systemSettlementCashId(tx.id),'partner_settlement',Number(tx.partnerAmount)||0,tx.date,'Settlement paid · '+(acct.name||'Partner')+' · '+((tx.items||[]).length)+' item'+(((tx.items||[]).length)!==1?'s':''));
+    }
+  }else{
+    tx.paid=false;tx.reversedAt=new Date().toISOString();delete tx.paidAt;
+    _removeSystemCashEvent(_systemSettlementCashId(tx.id));
+  }
+  _syncSettlementItems(tx);
+  return true;
+}
+function _markSettlementPaid(accountId,settlementId){
+  const acct=(_accounts||[]).find(function(a){return a.id===accountId;});if(!acct)return;
+  const tx=(acct.settlements||[]).find(function(t){return t.id===settlementId;});if(!tx||tx.paid)return;
+  const ids=(tx.items||[]).map(_settlementAllocationItemId).filter(Boolean);
+  const duplicate=ids.find(function(id){return _paidSettlementRefsForItem(id).some(function(r){return r.tx.id!==settlementId;});});
+  if(duplicate){toast('An item in this allocation already belongs to another paid settlement. Resolve that duplicate first.','error');return;}
+  const date=((document.getElementById('settlement-action-date')||{}).value)||todayISO();
+  _applySettlementPaidState(acct,tx,true,date);saveDB();toast('Settlement marked paid');_openSettlementDetail(accountId,settlementId);
+}
+function _reverseSettlementPayment(accountId,settlementId){
+  const acct=(_accounts||[]).find(function(a){return a.id===accountId;});if(!acct)return;
+  const tx=(acct.settlements||[]).find(function(t){return t.id===settlementId;});if(!tx||!tx.paid)return;
+  showConfirm('Reverse this payment?','The allocation is kept, but it becomes unpaid and the cash outflow is removed. Use this only to correct a payment recorded in error.',{icon:'warn',okLabel:'Reverse payment'}).then(function(ok){
+    if(!ok)return;
+    _applySettlementPaidState(acct,tx,false);saveDB();toast('Payment reversed · allocation remains unpaid');_openSettlementDetail(accountId,settlementId);
+  });
+}
+
 function _roundMoney(v){return Math.round((Number(v)||0)*100)/100;}
 function _allocatePartnerTotal(items,total){
   const weights=items.map(function(i){return Math.max(0,calcGrossProfit(i)||0);});
@@ -9462,7 +9538,7 @@ function _allocatePartnerTotal(items,total){
       amount=sum>0?_roundMoney(total*(weights[idx]/sum)):_roundMoney(total/items.length);
       remaining=_roundMoney(remaining-amount);
     }
-    return {id:i.id,month:i._month,amount:Math.max(0,amount)};
+    return {id:i.id,month:i._month,amount:Math.max(0,amount),kind:_itemAccountType(i)};
   });
 }
 function _openConsignmentSettlementBuilder(accountId,ids){
@@ -9472,7 +9548,7 @@ function _openConsignmentSettlementBuilder(accountId,ids){
   // have an unpaid partner liability are eligible. Already-paid items can never
   // be allocated a second time unless the user explicitly marks them unsettled.
   const selected=_selectedAccountItems(ids,accountId);
-  const items=selected.filter(function(i){return _accountItemIsSold(i)&&i.accountSettled!==true&&_accountItemDebt(i)!==null;});
+  const items=selected.filter(function(i){return _itemAccountType(i)!=='supplier'&&_accountItemIsSold(i)&&i.accountSettled!==true&&_accountItemDebt(i)!==null;});
   if(!items.length){toast('No eligible unsettled sold items selected','error');return;}
   if(items.length<selected.length){toast((selected.length-items.length)+' settled or ineligible item'+((selected.length-items.length)!==1?'s':'')+' skipped');}
   const gross=_roundMoney(items.reduce(function(s,i){return s+(calcGrossProfit(i)||0);},0));
@@ -9523,7 +9599,9 @@ function _confirmConsignmentSettlement(){
   const date=(document.getElementById('settle-date')||{}).value||todayISO();
   const note=((document.getElementById('settle-note')||{}).value||'').trim();
   const paid=!!(document.getElementById('settle-mark-paid')||{}).checked;
-  const items=_selectedAccountItems(d.itemIds,d.accountId).filter(_accountItemIsSold);
+  const selected=_selectedAccountItems(d.itemIds,d.accountId);
+  const items=selected.filter(function(i){return _itemAccountType(i)!=='supplier'&&_accountItemIsSold(i)&&i.accountSettled!==true&&_accountItemDebt(i)!==null;});
+  if(items.length!==d.itemIds.length){toast('Allocation selection changed · reopen and review the items','error');return;}
   const allocations=_allocatePartnerTotal(items,partner);
   allocations.forEach(function(a){
     const item=(DB[a.month]||[]).find(function(i){return i.id===a.id;});if(!item)return;
@@ -9532,7 +9610,9 @@ function _confirmConsignmentSettlement(){
     item.accountSettled=paid;
   });
   if(!Array.isArray(acct.settlements))acct.settlements=[];
-  const tx={id:_newId('stl'),date:date,createdAt:new Date().toISOString(),paid:paid,partnerAmount:partner,yourAmount:_roundMoney(d.gross-partner),grossProfit:d.gross,suggestedPartner:d.suggested,note:note||null,items:allocations};
+  const _kinds=Array.from(new Set(allocations.map(function(a){return a.kind||'consignment';})));
+  const _txKind=_kinds.length===1?_kinds[0]:'partner';
+  const tx={id:_newId('stl'),date:date,createdAt:new Date().toISOString(),paid:paid,kind:_txKind,partnerAmount:partner,yourAmount:_roundMoney(d.gross-partner),grossProfit:d.gross,suggestedPartner:d.suggested,note:note||null,items:allocations};
   acct.settlements.unshift(tx);
   if(paid&&partner>0)_recordSystemCashEvent(_systemSettlementCashId(tx.id),'partner_settlement',partner,date,'Partner settlement paid · '+(acct.name||'Partner')+' · '+allocations.length+' item'+(allocations.length!==1?'s':''));
   saveDB();
@@ -9544,7 +9624,7 @@ function _confirmConsignmentSettlement(){
 function _openConsignmentSettlementForAccount(accountId){
   const ids=[];
   allDBKeys().forEach(function(k){(DB[k]||[]).forEach(function(i){
-    if(i.accountId===accountId&&_accountItemIsSold(i)&&i.accountSettled!==true&&_accountItemDebt(i)!==null)ids.push(i.id);
+    if(i.accountId===accountId&&_itemAccountType(i)!=='supplier'&&_accountItemIsSold(i)&&i.accountSettled!==true&&_accountItemDebt(i)!==null)ids.push(i.id);
   });});
   _openConsignmentSettlementBuilder(accountId,ids);
 }
@@ -9552,12 +9632,24 @@ function _openConsignmentSettlementForAccount(accountId){
 function _openSettlementDetail(accountId,settlementId){
   const acct=_accounts.find(function(a){return a.id===accountId;});if(!acct)return;
   const tx=(acct.settlements||[]).find(function(t){return t.id===settlementId;});if(!tx)return;
+  _snapshotSettlementKinds(acct,tx);
   const rows=(tx.items||[]).map(function(a){
-    let found=null;allDBKeys().some(function(k){found=(DB[k]||[]).find(function(i){return i.id===a.id;});return !!found;});
-    return '<div class="metric-inline"><div class="metric-k">'+esc(found?found.item:'Item no longer found')+'</div><strong>'+fmt(a.amount||0)+'</strong></div>';
+    const id=_settlementAllocationItemId(a);let found=null;
+    if(id){const rec=_findItemRecordById(id);found=rec&&rec.item;}
+    return '<div class="metric-inline"><div class="metric-k">'+esc(found?found.item:(a.name||'Item no longer found'))+'</div><strong>'+fmt(a.amount||0)+'</strong></div>';
   }).join('');
-  openPanel('Settlement · '+tx.date,'<div class="panel-card">'+rows+'</div><div class="pnl-row total"><span>Partner paid</span><strong>'+fmt(tx.partnerAmount||0)+'</strong></div>'+((tx.yourAmount||0)?'<div class="pnl-row"><span>Your share</span><strong>'+fmt(tx.yourAmount||0)+'</strong></div>':'')+(tx.note?'<div style="margin-top:12px;font-size:12px;color:var(--text-secondary);">'+esc(tx.note)+'</div>':'')
-    +'<button class="btn btn-secondary" style="width:100%;margin-top:16px" onclick="downloadSettlementSlip(\''+accountId+'\',\''+settlementId+'\')">\u2193 Download slip (PDF)</button>');
+  const status=tx.paid
+    ? '<div style="margin:12px 0;padding:9px 11px;border-radius:8px;background:color-mix(in srgb,var(--green) 12%,transparent);color:var(--green);font-size:12px;font-weight:700;">Paid · '+esc(tx.date||'')+'</div>'
+    : '<div style="margin:12px 0;padding:9px 11px;border-radius:8px;background:color-mix(in srgb,var(--warn) 12%,transparent);color:var(--warn);font-size:12px;font-weight:700;">Allocation saved · unpaid</div>';
+  const action=tx.paid
+    ? '<button class="btn btn-secondary" style="width:100%;margin-top:8px;color:var(--red);" onclick="_reverseSettlementPayment(\''+accountId+'\',\''+settlementId+'\')">Reverse payment · keep allocation unpaid</button>'
+    : '<div class="fg" style="margin-top:14px;"><label>Date paid</label><input type="date" id="settlement-action-date" value="'+todayISO()+'"></div><button class="btn btn-primary" style="width:100%;" onclick="_markSettlementPaid(\''+accountId+'\',\''+settlementId+'\')">Mark allocation paid</button>';
+  openPanel('Settlement · '+(tx.date||''),
+    '<div class="panel-card">'+rows+'</div>'
+    +'<div class="pnl-row total"><span>Partner amount</span><strong>'+fmt(tx.partnerAmount||0)+'</strong></div>'
+    +((tx.yourAmount||0)?'<div class="pnl-row"><span>Your share</span><strong>'+fmt(tx.yourAmount||0)+'</strong></div>':'')
+    +status+(tx.note?'<div style="margin-top:12px;font-size:12px;color:var(--text-secondary);">'+esc(tx.note)+'</div>':'')+action
+    +'<button class="btn btn-secondary" style="width:100%;margin-top:8px" onclick="downloadSettlementSlip(\''+accountId+'\',\''+settlementId+'\')">↓ Download slip (PDF)</button>');
 }
 
 // Printable partner remittance slip. Opens a styled HTML doc in a new window;
@@ -9659,19 +9751,25 @@ function _acctBulkSplitConfirm(){
 // a supplier hasn't been paid for a batch and needs to be flipped back.
 function _acctBulkUnsettle(){
   if(!_acctSelected.size)return;
-  let n=0;
-  _acctSelected.forEach(function(id){
-    allDBKeys().forEach(function(k){
-      const item=(DB[k]||[]).find(function(i){return i.id===id;});
-      if(item&&_accountItemDebt(item)!==null&&item.accountSettled){item.accountSettled=false;n++;}
-    });
+  const selected=new Set(Array.from(_acctSelected));const txRefs=new Map();const orphan=[];
+  selected.forEach(function(id){
+    const paid=_paidSettlementRefsForItem(id);
+    if(!paid.length){const rec=_findItemRecordById(id);if(rec&&rec.item&&rec.item.accountSettled)orphan.push(id);return;}
+    paid.forEach(function(ref){txRefs.set(ref.acct.id+'::'+ref.tx.id,ref);});
   });
-  saveDB();
-  toast('Marked '+n+' item'+(n!==1?'s':'')+' unsettled');
-  _acctSelected.clear();
-  _acctSelectMode=false;
-  const acct=_acctCurrentAcct();
-  if(acct)_renderAccountPage(acct);
+  const partial=Array.from(txRefs.values()).find(function(ref){
+    return (ref.tx.items||[]).some(function(a){const id=_settlementAllocationItemId(a);return id&&!selected.has(id);});
+  });
+  if(partial){toast('A selected item shares a payment with unselected items · reverse that full settlement from Settlement History','error');_openSettlementDetail(partial.acct.id,partial.tx.id);return;}
+  if(!txRefs.size&&!orphan.length){toast('No paid selected items to reverse');return;}
+  showConfirm('Reverse selected payment'+(txRefs.size===1?'':'s')+'?','Recorded payments will become unpaid and their cash outflows will be removed. Legacy settled flags with no transaction will simply be cleared.',{icon:'warn',okLabel:'Reverse'}).then(function(ok){
+    if(!ok)return;
+    Array.from(txRefs.values()).forEach(function(ref){_applySettlementPaidState(ref.acct,ref.tx,false);});
+    orphan.forEach(function(id){const rec=_findItemRecordById(id);if(rec&&rec.item)rec.item.accountSettled=false;});
+    saveDB();
+    toast('Reversed '+txRefs.size+' payment'+(txRefs.size===1?'':'s')+(orphan.length?' · cleared '+orphan.length+' legacy flag'+(orphan.length===1?'':'s'):'') );
+    _acctSelected.clear();_acctSelectMode=false;const acct=_acctCurrentAcct();if(acct)_renderAccountPage(acct);
+  });
 }
 
 // Bulk set cost — supplier-flow equivalent of Set Split. Writes costPrice on
@@ -9747,24 +9845,26 @@ function _acctBulkRemoveFromAccount(){
   });
 }
 
-// One-time migration: pre-existing supplier items with a cost and no explicit
-// settled flag default to settled (historical car-boot/wholesale buys were paid
-// on the spot). New supplier items going forward keep accountSettled=false
-// unless explicitly toggled. Idempotent — guarded by a DB flag so it only runs
-// once per install; safe to call from init.
+// One-time migration for legacy supplier rows with no explicit payment state.
+// No dated transaction means there is no reliable evidence that cash moved, so
+// undefined becomes unpaid. Existing explicit true values remain for review.
 function _migrateSupplierSettledOnce(){
   if(DB._supplierSettledMigrated)return 0;
   let n=0;
   allDBKeys().forEach(function(k){
     (DB[k]||[]).forEach(function(i){
-      if(!i.accountId)return;
-      const eff=_itemAccountType(i);
-      if(eff!=='supplier')return;
-      if((i.costPrice||0)<=0)return;
-      if(i.accountSettled===undefined){i.accountSettled=true;n++;}
+      if(!i.accountId||_itemAccountType(i)!=='supplier'||(i.costPrice||0)<=0)return;
+      if(i.accountSettled===undefined){i.accountSettled=false;n++;}
     });
   });
   DB._supplierSettledMigrated=true;
+  return n;
+}
+function _migrateSettlementKindsOnce(){
+  if(DB._settlementKindsMigrated)return 0;
+  let n=0;
+  (_accounts||[]).forEach(function(acct){(acct.settlements||[]).forEach(function(tx){n+=_snapshotSettlementKinds(acct,tx);});});
+  DB._settlementKindsMigrated=true;
   return n;
 }
 
@@ -10132,18 +10232,17 @@ function _renderAccountPage(acct){
 }
 
 function settleAllForAccount(accountId){
-  // Never silently flip paid flags. All partner cash payments must create a
-  // settlement transaction so Cashflow, Settlement History and item state stay
-  // auditable and in sync.
   const acct=_accounts.find(function(a){return a.id===accountId;});
   if(!acct){toast('Account not found','error');return;}
   const eligible=_accountItems(accountId).filter(function(i){
     if(i.accountSettled===true||_accountItemDebt(i)===null)return false;
-    return (acct.accountType||'supplier')==='supplier'||_accountItemIsSold(i);
+    return _itemAccountType(i)==='supplier'||_accountItemIsSold(i);
   });
   if(!eligible.length){toast('Nothing outstanding to settle');return;}
+  const groups=new Set(eligible.map(function(i){return _itemAccountType(i)==='supplier'?'supplier':'partner';}));
+  if(groups.size>1){toast('This account has both supplier and profit-share liabilities · select and settle each arrangement separately','error');return;}
   const ids=eligible.map(function(i){return i.id;});
-  if((acct.accountType||'supplier')==='supplier')_openSupplierSettlement(accountId,ids);
+  if(groups.has('supplier'))_openSupplierSettlement(accountId,ids);
   else _openConsignmentSettlementBuilder(accountId,ids);
 }
 
@@ -10309,13 +10408,20 @@ function toggleItemSettled(month,itemId,ev){
   const item=(DB[month]||[]).find(function(i){return i.id===itemId;});
   if(!item){toast('Item not found','error');return;}
   if(_accountItemDebt(item)===null){toast('No owed amount to settle','error');return;}
-  item.accountSettled=!item.accountSettled;
-  saveDB();
-  toast(item.accountSettled?'Marked settled':'Marked unsettled');
-  const acct=_accounts.find(function(a){return a.id===item.accountId;});
-  if(acct&&document.getElementById('p-item')&&document.getElementById('p-item').classList.contains('on')){
-    _renderAccountPage(acct);
+  const paid=_paidSettlementRefsForItem(itemId);
+  if(paid.length){toast('Payment is transaction-backed · reverse it from the settlement if it was recorded in error');_openSettlementDetail(paid[0].acct.id,paid[0].tx.id);return;}
+  const unpaid=_settlementRefsForItem(itemId).find(function(r){return !r.tx.paid;});
+  if(unpaid){_openSettlementDetail(unpaid.acct.id,unpaid.tx.id);return;}
+  if(item.accountSettled){
+    showConfirm('Clear legacy settled flag?','No payment transaction exists for this item, so no cash movement will be changed.',{icon:'warn',okLabel:'Mark unpaid'}).then(function(ok){
+      if(!ok)return;item.accountSettled=false;saveDB();toast('Marked unpaid · no cash transaction existed');
+      const acct=_accounts.find(function(a){return a.id===item.accountId;});if(acct)_renderAccountPage(acct);
+    });
+    return;
   }
+  if(_itemAccountType(item)==='supplier')_openSupplierSettlement(item.accountId,[item.id]);
+  else if(_accountItemIsSold(item))_openConsignmentSettlementBuilder(item.accountId,[item.id]);
+  else toast('Profit-share items are settled after sale','error');
 }
 
 // ── Account create / edit ────────────────────────────────────────────────

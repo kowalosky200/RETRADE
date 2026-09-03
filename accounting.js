@@ -1013,7 +1013,7 @@ function _findPaidSettlementForItem(itemId){
   (_accounts||[]).some(function(acct){
     return (acct.settlements||[]).some(function(tx){
       if(!tx||!tx.paid)return false;
-      const hit=(tx.items||[]).some(function(a){return a&&a.id===itemId;});
+      const hit=(tx.items||[]).some(function(a){return a&&((a.id||a.itemId)===itemId);});
       if(hit){found={tx:tx,acct:acct};return true;} return false;
     });
   });
@@ -1047,8 +1047,13 @@ function _taxCashStockAndPartner(from,to){
   (_accounts||[]).forEach(function(acct){
     (acct.settlements||[]).forEach(function(tx){
       if(!tx||!tx.paid||!inR(tx.date))return;
-      const kind=tx.kind||acct.accountType||'supplier';
-      if(kind!=='supplier')partnerPaid+=Math.max(0,Number(tx.partnerAmount)||0);
+      const allocs=tx.items||[];
+      if(allocs.length&&allocs.some(function(x){return x&&x.kind;})){
+        partnerPaid+=allocs.reduce(function(sum,x){return sum+((x&&x.kind!=='supplier')?Math.max(0,Number(x.amount)||0):0);},0);
+      }else{
+        const kind=tx.kind||acct.accountType||'supplier';
+        if(kind!=='supplier')partnerPaid+=Math.max(0,Number(tx.partnerAmount)||0);
+      }
     });
   });
   return{goodsPaid:+goodsPaid.toFixed(2),partnerPaid:+partnerPaid.toFixed(2),supplierRefundIncome:+supplierRefundIncome.toFixed(2)};
