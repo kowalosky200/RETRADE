@@ -12,7 +12,33 @@
      so BOTH must change or this is silently pointless. -->
 <meta name="theme-color" content="#0f1724" media="(prefers-color-scheme: dark)">
 <meta name="theme-color" content="#eef1f7" media="(prefers-color-scheme: light)">
-\n<!-- Apply the saved appearance before CSS/first paint. app.js still owns the\n     runtime preference logic; this tiny bootstrap only prevents a hard-refresh\n     flash of the opposite theme while the main bundle is loading. -->\n<script id="rt-theme-first-paint">\n(function(){\n  var root=document.documentElement;\n  var resolved='light';\n  try{\n    var pref=localStorage.getItem('rt-theme');\n    if(pref!=='system'&&pref!=='dark'&&pref!=='light'){\n      var legacy=localStorage.getItem('retrade_theme');\n      pref=(legacy==='dark'||legacy==='light')?legacy:'system';\n    }\n    var systemDark=!!(window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches);\n    resolved=(pref==='dark'||(pref==='system'&&systemDark))?'dark':'light';\n  }catch(e){\n    try{resolved=(window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches)?'dark':'light';}catch(_e){}\n  }\n  root.setAttribute('data-theme',resolved);\n  var colour=resolved==='dark'?'#0f1724':'#eef1f7';\n  root.style.backgroundColor=colour;\n  document.querySelectorAll('meta[name="theme-color"]').forEach(function(meta){meta.setAttribute('content',colour);});\n  document.addEventListener('DOMContentLoaded',function(){root.style.removeProperty('background-color');},{once:true});\n})();\n</script>\n
+
+<!-- Apply the saved appearance before CSS/first paint. app.js still owns the
+     runtime preference logic; this tiny bootstrap only prevents a hard-refresh
+     flash of the opposite theme while the main bundle is loading. -->
+<script id="rt-theme-first-paint">
+(function(){
+  var root=document.documentElement;
+  var resolved='light';
+  try{
+    var pref=localStorage.getItem('rt-theme');
+    if(pref!=='system'&&pref!=='dark'&&pref!=='light'){
+      var legacy=localStorage.getItem('retrade_theme');
+      pref=(legacy==='dark'||legacy==='light')?legacy:'system';
+    }
+    var systemDark=!!(window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches);
+    resolved=(pref==='dark'||(pref==='system'&&systemDark))?'dark':'light';
+  }catch(e){
+    try{resolved=(window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches)?'dark':'light';}catch(_e){}
+  }
+  root.setAttribute('data-theme',resolved);
+  var colour=resolved==='dark'?'#0f1724':'#eef1f7';
+  root.style.backgroundColor=colour;
+  document.querySelectorAll('meta[name="theme-color"]').forEach(function(meta){meta.setAttribute('content',colour);});
+  document.addEventListener('DOMContentLoaded',function(){root.style.removeProperty('background-color');},{once:true});
+})();
+</script>
+
 <!-- App icon v2.19.25 — there was NO icon of any kind here: no apple-touch-icon,
      no favicon, no manifest. iOS was auto-generating a letter tile from the first
      character of <title> ("Retrade" -> R) on a dark plate. It was not showing the
