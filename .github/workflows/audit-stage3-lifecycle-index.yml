@@ -15,14 +15,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Lifecycle function index
+      - name: Lifecycle transition blocks
         shell: bash
         run: |
-          echo '=== FUNCTION DEFINITIONS / ACTIONS ==='
-          grep -nEi 'function[[:space:]]+[A-Za-z0-9_]*(sold|sale|return|refund|relist|resale|scrap|job.?lot|undo|activity)|mark.{0,20}(sold|return)|relist|resale|returnHistory|saleNo|isReturned' app.js | head -n 350 || true
+          echo '=== LIFECYCLE CORE 20420-21720 ==='
+          sed -n '20420,21720p' app.js
           echo
-          echo '=== CASH / LEDGER TOUCHPOINTS ==='
-          grep -nEi 'cash_ledger|ledger|cashflow|cash flow|partner.{0,20}settle|settlement|supplier.{0,20}refund|withdraw|deposit' app.js accounting.js reports.js | head -n 300 || true
+          echo '=== JOB LOT / BULK TRANSITIONS 15280-16220 ==='
+          sed -n '15280,16220p' app.js
           echo
-          echo '=== STATE WRITES ==='
-          grep -nEi "\.state[[:space:]]*=|state:[[:space:]]*['\"](sourced|listed|sold|returned)|isReturned[[:space:]]*=" app.js | head -n 300 || true
+          echo '=== ACTIVITY / UNDO 3920-4125 ==='
+          sed -n '3920,4125p' app.js
+          echo
+          echo '=== ACCOUNT / SETTLEMENT CORE 9040-9560 ==='
+          sed -n '9040,9560p' app.js
