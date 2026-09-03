@@ -15,20 +15,29 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Mixed arrangement settlement audit
+      - name: Settlement mutation anchors
         shell: bash
         run: |
-          echo '=== BULK SETTLE ROUTING 9310-9370 ==='
-          sed -n '9310,9370p' app.js
+          echo '=== BULK SPLIT / UNSETTLE / COST 9600-9745 ==='
+          sed -n '9600,9745p' app.js
           echo
-          echo '=== BULK ACCOUNT ASSIGN 10480-10620 ==='
-          sed -n '10480,10620p' app.js
+          echo '=== LEGACY SUPPLIER MIGRATION 9745-9785 ==='
+          sed -n '9745,9785p' app.js
           echo
-          echo '=== ACCOUNT CORE CALL SITES ==='
-          grep -n "_assignItemAccountCore" app.js || true
+          echo '=== SETTLE ALL + TOGGLE 10130-10325 ==='
+          sed -n '10130,10325p' app.js
           echo
-          echo '=== ITEM EDIT / COST MUTATIONS 20235-20420 ==='
-          sed -n '20235,20420p' app.js
+          echo '=== SUPPLIER SETTLEMENT 9380-9460 ==='
+          sed -n '9380,9460p' app.js
           echo
-          echo '=== ACCOUNT TYPE CHANGE / SETTLEMENT KIND USE ==='
-          grep -nEi "tx\.kind|kind:.*supplier|kind:.*consignment|accountType=.*acc-type|defaultSplitPercent" app.js accounting.js | head -n 260 || true
+          echo '=== CONSIGNMENT SETTLEMENT 9460-9550 ==='
+          sed -n '9460,9550p' app.js
+          echo
+          echo '=== ACCOUNT ASSIGN CONFIRM 10570-10615 ==='
+          sed -n '10570,10615p' app.js
+          echo
+          echo '=== ACCOUNTING TAX CASH 1010-1065 ==='
+          sed -n '1010,1065p' accounting.js
+          echo
+          echo '=== CASH REGRESSION TESTS 1845-1965 ==='
+          sed -n '1845,1965p' accounting.js
