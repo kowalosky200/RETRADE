@@ -13,22 +13,23 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Verify exact UI hooks
+      - name: Inspect current motion values
         shell: bash
         run: |
           python - <<'PY'
           from pathlib import Path
-          for filename, needles in {
-            'app.js':['function renderCash(){','function finishRealLayoutLoading','Math.max(0,260-elapsed)','function _animateDonut'],
-            'app.css':['--dur-draw:460ms','--dur-bounce:360ms','@keyframes donutClose','body.rt-real-layout-loading .rt-data-loading'],
-          }.items():
+          targets={
+            'app.js':['--seg-len-r','--seg-len-o','cat-donut-svg','function _markLoadingRegions','function _clearLoadingRegions'],
+            'app.css':['--dur-draw:','--dur-bounce:','rt-real-layout-loading','rt-data-loading','rt-chart-loading','rt-list-loading'],
+          }
+          for filename,needles in targets.items():
             lines=Path(filename).read_text(encoding='utf-8').splitlines()
             print(f'===== {filename} =====')
             for needle in needles:
               hits=[i for i,line in enumerate(lines) if needle in line]
               print(f'\n--- {needle!r}: {[i+1 for i in hits]} ---')
-              for i in hits:
-                lo=max(0,i-18); hi=min(len(lines),i+80)
+              for i in hits[:12]:
+                lo=max(0,i-14); hi=min(len(lines),i+42)
                 print(f'### {lo+1}-{hi}')
                 for n in range(lo,hi): print(f'{n+1:06d}: {lines[n]}')
           PY
