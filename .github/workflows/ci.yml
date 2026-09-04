@@ -26,8 +26,8 @@ jobs:
         run: |
           set -euo pipefail
 
-          if git ls-files --error-unmatch Backup/data.json >/dev/null 2>&1; then
-            echo "Backup/data.json must not be tracked"
+          if git ls-files --error-unmatch archive/legacy-site/data.json >/dev/null 2>&1; then
+            echo "archive/legacy-site/data.json must not be tracked"
             exit 1
           fi
 
