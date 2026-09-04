@@ -11656,9 +11656,11 @@ function submitQuickAdd(){
 // They contribute to inventory cost (capital tied up) but not to revenue or
 // profit KPIs — financial calc functions short-circuit cleanly when salePrice
 // is absent (see calcGrossProfit, calcItemRevenue, calcROI).
+let _sqaSessionCount=0;
 function openStockQuickAdd(accountId){
   _quickAddAccountId=accountId||null;
   _sqaParts=[];
+  _sqaSessionCount=0;
   const today=new Date().toISOString().split('T')[0];
   const html=`
     ${_quickAddAccountBanner(_quickAddAccountId)}
@@ -11673,9 +11675,9 @@ function openStockQuickAdd(accountId){
     </div>
     <div class="cost-pair-row" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
       <div class="fg" style="margin-bottom:0">
-        <label>Cost <span style="color:var(--red);font-weight:600">*</span></label>
+        <label>Cost <span id="sqa-cost-star" style="color:var(--red);font-weight:600">*</span></label>
         <input type="number" id="sqa-cost" step="0.01" min="0" inputmode="decimal" placeholder="0.00" autocomplete="off">
-        <div class="fg-hint" style="font-size:11px;color:var(--text-secondary);margin-top:4px;">What you paid</div>
+        <div class="fg-hint" id="sqa-cost-hint" style="font-size:11px;color:var(--text-secondary);margin-top:4px;">What you paid</div>
       </div>
       <div class="fg" style="margin-bottom:0">
         <label>Est. Sale <span style="color:var(--text-secondary);font-weight:400;font-size:11px;">(optional)</span></label>
@@ -11706,16 +11708,15 @@ function openStockQuickAdd(accountId){
     <div id="sqa-saved-banner" style="display:none;background:rgba(26,122,74,0.10);border:1px solid var(--green-dim);border-radius:8px;padding:9px 14px;margin-top:10px;display:none;align-items:center;gap:8px;">
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
       <span id="sqa-saved-name" style="font-size:13px;font-weight:600;color:var(--green);flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"></span>
-      <span style="font-size:11px;color:var(--text-secondary);">saved</span>
+      <span id="sqa-saved-count" style="font-size:11px;font-weight:700;color:var(--green);"></span>
     </div>
-    <div id="sqa-chain-btns" style="display:none;gap:8px;margin-top:14px;">
-      <button class="btn btn-primary" id="sqa-next-btn" onclick="submitStockQuickAdd()" style="flex:1;justify-content:center;">
+    <div id="sqa-chain-btns" style="display:flex;gap:8px;margin-top:18px;">
+      <button class="btn btn-primary" id="sqa-next-btn" onclick="submitStockQuickAdd(false)" style="flex:1.35;justify-content:center;min-height:48px;">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:5px;vertical-align:-2px"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-        Add another
+        Save &amp; add another
       </button>
-      <button class="btn btn-secondary" onclick="closePanel();_afterContextQuickAddDone()" style="flex:1;justify-content:center;">Done</button>
+      <button class="btn btn-secondary" id="sqa-submit-btn" onclick="submitStockQuickAdd(true)" style="flex:1;justify-content:center;min-height:48px;">Save &amp; close</button>
     </div>
-    <button class="btn btn-primary" id="sqa-submit-btn" style="width:100%;margin-top:18px" onclick="submitStockQuickAdd()">Save Unlisted Item</button>
   `;
   openPanel(_quickAddAccount(_quickAddAccountId)?('Add stock to '+_quickAddAccount(_quickAddAccountId).name):'Quick Add — Unlisted Stock',html);
   // Wire a local preview only; the actual file uploads on Save
@@ -11738,12 +11739,39 @@ function openStockQuickAdd(accountId){
   if(_ctxAcct&&(_ctxAcct.accountType||'supplier')==='consignment'){
     const _ce=document.getElementById('sqa-cost');
     if(_ce){_ce.value='0';_ce.readOnly=true;_ce.title='Consignment stock uses £0 acquisition cost';}
+    _sqaMarkConsignCost();
   }
   const titleEl2=document.getElementById('sqa-title');
   if(titleEl2)titleEl2.focus();
 }
 
-async function submitStockQuickAdd(){
+function _sqaIsConsignment(){
+  const a=_quickAddAccount(_quickAddAccountId);
+  return !!(a&&((a.accountType||'supplier')==='consignment'));
+}
+// Re-applies the consignment £0 lock and labels the field as locked, so a
+// read-only input never looks like an editable one the keyboard ignores.
+function _sqaMarkConsignCost(){
+  const el=document.getElementById('sqa-cost');
+  if(!el)return;
+  const lock=_sqaIsConsignment();
+  el.readOnly=lock;
+  el.setAttribute('aria-readonly',lock?'true':'false');
+  el.classList.toggle('input-locked',lock);
+  if(lock){
+    el.value='0';
+    el.title='Consignment stock uses £0 acquisition cost';
+    el.setAttribute('tabindex','-1');
+  } else {
+    el.title='';
+    el.removeAttribute('tabindex');
+  }
+  const star=document.getElementById('sqa-cost-star');
+  if(star)star.style.display=lock?'none':'';
+  const hint=document.getElementById('sqa-cost-hint');
+  if(hint)hint.textContent=lock?'Set by the partner — consignment':'What you paid';
+}
+async function submitStockQuickAdd(closeAfter){
   const costEl=document.getElementById('sqa-cost');
   const titleEl=document.getElementById('sqa-title');
   const dateEl=document.getElementById('sqa-date');
@@ -11753,7 +11781,7 @@ async function submitStockQuickAdd(){
   const photoInput=document.getElementById('sqa-photo');
   const photoFile=photoInput&&photoInput.files&&photoInput.files[0]?photoInput.files[0]:null;
   const estSaleEl=document.getElementById('sqa-est-sale');
-  const cost=parseFloat(costEl?.value);
+  const cost=_sqaIsConsignment()?0:parseFloat(costEl?.value);
   if(!isFinite(cost)||cost<0){
     toast('Cost is required and must be 0 or more','error');
     try{costEl.focus();}catch(e){}
@@ -11820,6 +11848,7 @@ async function submitStockQuickAdd(){
     const el=document.getElementById(id);
     if(el){el.value='';el.disabled=false;}
   });
+  _sqaMarkConsignCost();
   _sqaParts=[];
   const _pl=document.getElementById('sqa-parts-list');
   if(_pl)_pl.innerHTML='';
@@ -11828,19 +11857,23 @@ async function submitStockQuickAdd(){
   const _pf=document.getElementById('sqa-photo');
   if(_pf){_pf.value='';_pf.disabled=false;}
   // Show saved banner
+  _sqaSessionCount++;
   const _banner=document.getElementById('sqa-saved-banner');
   const _savedNameEl=document.getElementById('sqa-saved-name');
   if(_banner){_banner.style.display='flex';}
   if(_savedNameEl)_savedNameEl.textContent=_savedName;
-  // Show chain buttons (Add another / Done), hide the big submit button
-  const _chainBtns=document.getElementById('sqa-chain-btns');
-  if(_chainBtns)_chainBtns.style.display='flex';
-  const _submitBtn=document.getElementById('sqa-submit-btn');
-  if(_submitBtn)_submitBtn.style.display='none';
+  const _countEl=document.getElementById('sqa-saved-count');
+  if(_countEl)_countEl.textContent=_sqaSessionCount===1?'1 added':(_sqaSessionCount+' added');
   // Focus title for next item — brings keyboard back up on mobile.
   // iOS only honours programmatic .focus() when it runs SYNCHRONOUSLY inside
   // the originating tap gesture; a setTimeout breaks that chain and the
   // keyboard stays down (user had to tap the field again). Focus immediately.
+  if(closeAfter===true){
+    try{toast(_savedName+' saved','success');}catch(e){}
+    closePanel();
+    _afterContextQuickAddDone();
+    return;
+  }
   const _titleEl=document.getElementById('sqa-title');
   if(_titleEl){_titleEl.focus();try{_titleEl.setSelectionRange(0,0);}catch(e){}}
   try{toast(_savedName+' saved','success');}catch(e){}
@@ -17740,10 +17773,138 @@ function renderCash(){
   el.innerHTML=html;
 }
 
-function _cashMoveForm(m,type){
+
+/* ==========================================================================
+   RECALL — reuse what the user has already entered
+   One frecency ranker feeding every repeat-entry affordance: preset chips on
+   cash/expense forms, location type-ahead + remembered mileage on trips, and
+   duplicate-from-existing. Ranking is frequency decayed by recency, so a
+   place visited eight times last month outranks one visited twelve times in
+   March. Suggestions PREFILL EMPTY FIELDS ONLY and are always overwritable —
+   nothing here may silently change a value the user has typed or saved.
+   ========================================================================== */
+function _recallKey(s){return String(s==null?'':s).trim().toLowerCase().replace(/\s+/g,' ');}
+function _recallDays(d){
+  const t=Date.parse(d||'');
+  if(!isFinite(t))return 3650;
+  return Math.max(0,(Date.now()-t)/86400000);
+}
+// count x exp-decay(45-day half life). Ties break on most-recent.
+function _frecencyRank(rows,keyFn,dateFn,limit){
+  const bag={};
+  (Array.isArray(rows)?rows:[]).forEach(function(r){
+    const k=_recallKey(keyFn(r));
+    if(!k)return;
+    const d=dateFn(r)||'';
+    const b=bag[k]||(bag[k]={key:k,count:0,last:r,lastDate:d});
+    b.count++;
+    if(!b.lastDate||(Date.parse(d)||0)>=(Date.parse(b.lastDate)||0)){b.last=r;b.lastDate=d;}
+  });
+  return Object.keys(bag).map(function(k){
+    const b=bag[k];
+    b.score=b.count*Math.pow(0.5,_recallDays(b.lastDate)/45);
+    return b;
+  }).sort(function(a,b){
+    return (b.score-a.score)||((Date.parse(b.lastDate)||0)-(Date.parse(a.lastDate)||0));
+  }).slice(0,limit||3);
+}
+function _recallChipsHTML(fnName,items,labelFn){
+  if(!items.length)return '';
+  let h='<div class="recall-row"><div class="recall-lead">Recent</div><div class="recall-chips">';
+  items.forEach(function(it,i){
+    h+='<button type="button" class="recall-chip" onclick="'+fnName+'('+i+')">'+esc(labelFn(it))+'</button>';
+  });
+  return h+'</div></div>';
+}
+
+/* ---- cash ledger presets ---- */
+let _recallCash=[];
+function _recallCashPresets(){
+  const led=(typeof _cashLedger==='function'?_cashLedger():(DB.cashLedger||[]))||[];
+  const manual=led.filter(function(m){
+    const def=CASH_TYPES[m.type]||{};
+    return !def.system&&!m.systemEvent&&m.type!=='opening_balance';
+  });
+  _recallCash=_frecencyRank(manual,function(m){return (m.type||'')+'|'+(m.description||'');},
+                            function(m){return m.date;},3);
+  return _recallCash;
+}
+function _recallCashLabel(b){
+  const m=b.last,def=CASH_TYPES[m.type]||{};
+  const name=(m.description||'').trim()||def.short||'Entry';
+  return name+' \u00b7 '+fmt(Number(m.amount)||0);
+}
+function applyCashPreset(i){
+  const b=_recallCash[i];if(!b)return;
+  const m=b.last;
+  const t=document.getElementById('cash-type');if(t){t.value=m.type||'owner_draw';_cashTypeChanged();}
+  const dir=document.getElementById('cash-adj-dir');if(dir&&m.direction)dir.value=m.direction;
+  const a=document.getElementById('cash-amt');if(a)a.value=Number(m.amount)||'';
+  const d=document.getElementById('cash-desc');if(d)d.value=m.description||'';
+  const dt=document.getElementById('cash-date');
+  if(dt)dt.value=new Date().toISOString().split('T')[0];   // repeat = today, always
+  if(a){try{a.focus();a.select();}catch(e){}}
+}
+
+/* ---- expense presets ---- */
+let _recallExp=[];
+function _recallExpensePresets(){
+  _recallExp=_frecencyRank((DB.expenses||[]),function(e){return e.description||'';},
+                           function(e){return e.date;},3);
+  return _recallExp;
+}
+function _recallExpLabel(b){
+  return (b.last.description||'Expense')+' \u00b7 '+fmt(Number(b.last.amount)||0);
+}
+function applyExpensePreset(i){
+  const b=_recallExp[i];if(!b)return;
+  const e=b.last;
+  const d=document.getElementById('exp-desc');if(d)d.value=e.description||'';
+  const c=document.getElementById('exp-cat');if(c&&e.category)c.value=e.category;
+  const a=document.getElementById('exp-amt');if(a)a.value=Number(e.amount)||'';
+  const dt=document.getElementById('exp-date');
+  if(dt&&!dt.readOnly)dt.value=new Date().toISOString().split('T')[0];
+  if(a){try{a.focus();a.select();}catch(e2){}}
+}
+
+/* ---- trip locations: type-ahead + remembered mileage ---- */
+function _recallTripPlaces(){
+  return _frecencyRank((DB.trips||[]),function(t){return t.description||'';},
+                       function(t){return t.date;},12);
+}
+function _recallTripDatalistHTML(){
+  const places=_recallTripPlaces();
+  if(!places.length)return '';
+  let h='<datalist id="trip-place-list">';
+  places.forEach(function(b){h+='<option value="'+esc(b.last.description||'')+'"></option>';});
+  return h+'</datalist>';
+}
+// Fired on the location field. Fills mileage/rate ONLY when they are still
+// empty, so a figure the user typed is never overwritten. Mileage feeds a tax
+// deduction, so the prefill states where the number came from.
+function _recallTripPlacePicked(){
+  const descEl=document.getElementById('trip-desc');
+  const milesEl=document.getElementById('trip-miles');
+  const noteEl=document.getElementById('trip-recall-note');
+  if(!descEl||!milesEl)return;
+  const k=_recallKey(descEl.value);
+  const hit=_recallTripPlaces().find(function(b){return b.key===k;});
+  if(!hit||!(Number(hit.last.mileage)>0)){if(noteEl)noteEl.textContent='';return;}
+  const typed=String(milesEl.value||'').trim();
+  if(typed!==''){if(noteEl)noteEl.textContent='';return;}
+  milesEl.value=Number(hit.last.mileage);
+  const rateEl=document.getElementById('trip-rate');
+  if(rateEl&&Number(hit.last.ratePerMile)>0)rateEl.value=Number(hit.last.ratePerMile);
+  if(noteEl)noteEl.textContent='Filled '+Number(hit.last.mileage)+' mi from your last trip here'
+    +(hit.lastDate?' ('+hit.lastDate+')':'')+' \u2014 change it if this run differed.';
+}
+
+function _cashMoveForm(m,type,isDuplicate){
   const cur=m?m.type:(type||'owner_draw');
+  const editing=!!m&&!isDuplicate;
   const opt=function(v,l){return '<option value="'+v+'"'+(v===cur?' selected':'')+'>'+l+'</option>';};
   return ''
+    +((m&&!isDuplicate)?'':_recallChipsHTML('applyCashPreset',_recallCashPresets(),_recallCashLabel))
     +'<div class="fg"><label>Type</label><select id="cash-type" onchange="_cashTypeChanged()">'
       +opt('owner_draw','Owner withdrawal — money out to you')
       +opt('owner_contribution','Money you added to the business')
@@ -17754,11 +17915,12 @@ function _cashMoveForm(m,type){
       +'<option value="in"'+((m&&m.direction==='in')?' selected':'')+'>Increase cash (+)</option>'
       +'<option value="out"'+((m&&m.direction==='out')?' selected':'')+'>Decrease cash (−)</option>'
     +'</select></div>'
-    +'<div class="fg"><label>Date</label><input type="date" id="cash-date" value="'+((m&&m.date)||new Date().toISOString().split('T')[0])+'"></div>'
+    +'<div class="fg"><label>Date</label><input type="date" id="cash-date" value="'+((editing&&m.date)||new Date().toISOString().split('T')[0])+'"></div>'
     +'<div class="fg"><label>Amount (£)</label><input type="number" id="cash-amt" step="0.01" min="0" inputmode="decimal" placeholder="0.00" value="'+((m&&m.amount)||'')+'"></div>'
     +'<div class="fg"><label>Description <span style="color:var(--text-secondary);font-weight:400;">(optional)</span></label><input type="text" id="cash-desc" placeholder="e.g. Transfer to personal account" value="'+(m?esc(m.description||''):'')+'"></div>'
-    +'<button class="btn btn-primary" style="width:100%;margin-top:16px" onclick="saveCashMove('+(m?'\''+m.id+'\'':'')+')">'+(m?'Update':'Save')+'</button>'
-    +(m?'<button class="btn btn-secondary danger" style="width:100%;margin-top:8px" onclick="deleteCashMove(\''+m.id+'\')">Delete</button>':'');
+    +'<button class="btn btn-primary" style="width:100%;margin-top:16px" onclick="saveCashMove('+(editing?'\''+m.id+'\'':'')+')">'+(editing?'Update':'Save')+'</button>'
+    +(editing?'<button class="btn btn-secondary" style="width:100%;margin-top:8px" onclick="duplicateCashMove(\''+m.id+'\')">Duplicate \u2014 new entry, today\'s date</button>':'')
+    +(editing?'<button class="btn btn-secondary danger" style="width:100%;margin-top:8px" onclick="deleteCashMove(\''+m.id+'\')">Delete</button>':'');
 }
 function _cashTypeChanged(){
   const t=document.getElementById('cash-type');const w=document.getElementById('cash-adj-dir-wrap');
@@ -17774,6 +17936,20 @@ function editCashMove(id){
   if((CASH_TYPES[m.type]||{}).system||m.systemEvent){toast('This cash event is linked to its source transaction and cannot be edited here');return;}
   openPanel('Edit entry',_cashMoveForm(m,m.type));
   _cashTypeChanged();
+}
+function duplicateCashMove(id){
+  const m=_cashLedger().find(function(x){return x.id===id;});
+  if(!m)return;
+  if((CASH_TYPES[m.type]||{}).system||m.systemEvent){
+    toast('System cash events are derived from their source transaction and cannot be duplicated');return;
+  }
+  if(m.type==='opening_balance'){
+    toast('Only one opening balance is allowed \u2014 edit the existing entry instead','error');return;
+  }
+  openPanel('Duplicate entry',_cashMoveForm(m,m.type,true));
+  _cashTypeChanged();
+  const a=document.getElementById('cash-amt');
+  if(a){try{a.focus();a.select();}catch(e){}}
 }
 function saveCashMove(id){
   const type=document.getElementById('cash-type').value;
@@ -18587,11 +18763,14 @@ function addTrip(){
     </div>
     <div class="fg">
       <label>Description</label>
-      <input type="text" id="trip-desc" placeholder="e.g. Car boot sale - Brighton">
+      <input type="text" id="trip-desc" list="trip-place-list" placeholder="e.g. Car boot sale - Brighton"
+             onchange="_recallTripPlacePicked()" onblur="_recallTripPlacePicked()">
+      ${_recallTripDatalistHTML()}
     </div>
     <div class="fg">
       <label>Mileage</label>
       <input type="number" id="trip-miles" step="0.1" min="0" placeholder="e.g. 25.5" inputmode="decimal">
+      <div id="trip-recall-note" style="font-size:11px;color:var(--text-secondary);margin-top:4px;line-height:1.45;"></div>
     </div>
     <details style="margin-bottom:14px">
       <summary style="font-size:12px;color:var(--text-secondary);cursor:pointer;list-style:none;user-select:none;padding:4px 0">Advanced · rate per mile</summary>
@@ -18646,6 +18825,7 @@ function saveTrip(){
 
 function addExpense(){
   const html=`
+    ${_recallChipsHTML('applyExpensePreset',_recallExpensePresets(),_recallExpLabel)}
     <div class="fg">
       <label>Date</label>
       <input type="date" id="exp-date" value="${new Date().toISOString().split('T')[0]}">
@@ -18876,8 +19056,20 @@ function editExpense(idx){
     <div class="fg"><label>Amount (£)</label><input type="number" id="exp-amt" step="0.01" min="0" value="${e.amount||''}"></div>
     ${_runDropdownHTML('exp-run-id',e.sourcingRunId||null)}
     <button class="btn btn-primary" style="width:100%;margin-top:16px" onclick="saveExpenseEdit(${idx})">Update Expense</button>
+    <button class="btn btn-secondary" style="width:100%;margin-top:8px" onclick="duplicateExpense(${idx})">Duplicate &mdash; new entry, today's date</button>
     <button class="btn btn-secondary danger" style="width:100%;margin-top:8px" onclick="deleteExpense(${idx})">Delete Expense</button>
   `);
+}
+// Duplicate opens the ADD panel (so save creates a new row) prefilled from the
+// source expense, with today's date and no sourcing-run link carried over — a
+// repeat spend belongs to today, not to the original run.
+function duplicateExpense(idx){
+  const e=(DB.expenses||[])[idx];if(!e)return;
+  addExpense();
+  const d=document.getElementById('exp-desc');if(d)d.value=e.description||'';
+  const c=document.getElementById('exp-cat');if(c&&e.category)c.value=e.category;
+  const a=document.getElementById('exp-amt');if(a)a.value=Number(e.amount)||'';
+  if(a){try{a.focus();a.select();}catch(e2){}}
 }
 function saveExpenseEdit(idx){
   const expenses=DB.expenses||[];if(!expenses[idx])return;
