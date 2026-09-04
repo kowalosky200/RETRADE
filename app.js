@@ -19633,20 +19633,38 @@ function _backupBuildManifest(data){
     jobLots:count('job_lots'),
     jobLotItems:count('job_lot_items'),
     saleReconciliations:count('sale_reconciliations'),
-    settings:(data&&data.user_settings&&typeof data.user_settings==='object')?1:0
+    settings:(data&&data.user_settings&&typeof data.user_settings==='object')?1:0,
+    contentHash:_backupContentHash(data)
   };
   manifest.totalDurableRecords=manifest.items+manifest.monthEndRows+manifest.trips+manifest.expenses+
     manifest.cashLedger+manifest.sourcingRuns+manifest.accounts+manifest.activityLog+
     manifest.jobLots+manifest.jobLotItems+manifest.saleReconciliations;
   return manifest;
 }
+function _backupContentHash(data){
+  // Counts catch truncation. This deterministic fingerprint also catches a
+  // changed value when the backup still contains the same number of records.
+  const payload={};
+  Object.keys(data||{}).sort().forEach(function(k){
+    if(k==='_manifest')return;
+    payload[k]=data[k];
+  });
+  const text=_backupCanonical(payload);
+  let hash=0x811c9dc5;
+  for(let i=0;i<text.length;i++){
+    hash^=text.charCodeAt(i);
+    hash=Math.imul(hash,0x01000193)>>>0;
+  }
+  return 'fnv1a32-'+hash.toString(16).padStart(8,'0');
+}
 function _backupManifestMatches(expected,actual){
   if(!expected||typeof expected!=='object')return true; // legacy backup
   const keys=['items','monthEndRows','monthBuckets','trips','expenses','cashLedger','sourcingRuns',
     'accounts','activityLog','jobLots','jobLotItems','saleReconciliations','settings','totalDurableRecords'];
-  return keys.every(function(k){
+  const countsMatch=keys.every(function(k){
     return expected[k]==null || Number(expected[k])===Number(actual[k]);
   });
+  return countsMatch && (expected.contentHash==null || expected.contentHash===actual.contentHash);
 }
 function _backupCanonical(value){
   const clean=function(v){
@@ -22723,11 +22741,12 @@ function runReleaseCandidateChecks(){
       ['run','run:'],['acct','acct:'],['log','log:'],['jlot','jlot:'],
       ['jmem','jmem:'],['recon','recon:']
     ];
-    const persist=String(_persistChanges),recover=(window.__RETRADE_RECOVER_COVERAGE_SOURCE__||String(_recoverOutbox));
+    const persistCoverage=Array.isArray(window.__RETRADE_PERSIST_COVERAGE__)?window.__RETRADE_PERSIST_COVERAGE__:[];
+    const recover=(window.__RETRADE_RECOVER_COVERAGE_SOURCE__||String(_recoverOutbox));
     const missing=[];
     expected.forEach(function(pair){
-      const type=pair[0],prefix=pair[1];
-      if(persist.indexOf("key.startsWith('"+prefix+"')")<0)missing.push(type+' save/delete');
+      const type=pair[0];
+      if(persistCoverage.indexOf(type)<0)missing.push(type+' save/delete');
       if(recover.indexOf("e.type === '"+type+"'")<0 && recover.indexOf("e.type==='"+type+"'")<0)missing.push(type+' recovery');
     });
     add('Offline outbox coverage',missing.length===0,missing.length?missing.join(', '):expected.length+' entity types covered');
@@ -25866,13 +25885,25 @@ console.log('[RETRADE] v1.4.7 verified full-backup export/import loaded');
   }
   function _v148SettingsOutboxRead(uid){
     try{
-      var raw=localStorage.getItem(SETTINGS_OUTBOX_KEY);if(!raw)return null;
+      if(!uid)return null;
+      var key=SETTINGS_OUTBOX_KEY+'_'+uid;
+      var raw=localStorage.getItem(key);
+      if(!raw){
+        // Migrate a matching pre-Stage-4 browser-wide queue entry. Never touch
+        // an entry owned by a different account on the same browser.
+        var legacy=localStorage.getItem(SETTINGS_OUTBOX_KEY);
+        if(legacy){
+          var old=JSON.parse(legacy);
+          if(old&&old.uid===uid){localStorage.setItem(key,legacy);localStorage.removeItem(SETTINGS_OUTBOX_KEY);raw=legacy;}
+        }
+      }
+      if(!raw)return null;
       var e=JSON.parse(raw);if(!e||!e.uid||e.uid!==uid)return null;return e;
     }catch(e){return null;}
   }
-  function _v148SettingsOutboxWrite(e){try{localStorage.setItem(SETTINGS_OUTBOX_KEY,JSON.stringify(e));}catch(_e){}}
+  function _v148SettingsOutboxWrite(e){try{if(e&&e.uid)localStorage.setItem(SETTINGS_OUTBOX_KEY+'_'+e.uid,JSON.stringify(e));}catch(_e){}}
   function _v148SettingsOutboxClear(uid,stamp){
-    try{var e=_v148SettingsOutboxRead(uid);if(e&&(!stamp||e.stamp===stamp))localStorage.removeItem(SETTINGS_OUTBOX_KEY);}catch(_e){}
+    try{var e=_v148SettingsOutboxRead(uid);if(e&&(!stamp||e.stamp===stamp))localStorage.removeItem(SETTINGS_OUTBOX_KEY+'_'+uid);}catch(_e){}
   }
   function _v148ChangedKeys(base,now){
     var out=[];Object.keys(now).forEach(function(k){if(!base||!_v148Eq(now[k],base[k]))out.push(k);});return out;
@@ -26317,6 +26348,9 @@ console.log('[RETRADE] v1.4.7 verified full-backup export/import loaded');
     }finally{_persistActiveCurrent=null;}
   };
 
+  // Explicit contract for release checks. This remains stable when later
+  // durability layers wrap the writer with delegating functions.
+  window.__RETRADE_PERSIST_COVERAGE__=['item','trip','exp','cash','run','acct','log','jlot','jmem','recon'];
   window.RETRADE_V149={
     version:VERSION,
     pending:function(){return typeof _outboxPendingCount==='function'?_outboxPendingCount():0;},
