@@ -90,39 +90,56 @@
 </style>
 
 <style id="rt-chart-current-period-motion">
-/* v1.4.28 — current/incomplete period is a deliberate final chart beat. */
-@keyframes rtChartCurrentTailIn{
-  0%{visibility:hidden;clip-path:inset(0 100% 0 0);stroke-dashoffset:10;}
-  1%{visibility:visible;clip-path:inset(0 100% 0 0);stroke-dashoffset:10;}
-  72%{visibility:visible;clip-path:inset(0 0 0 0);stroke-dashoffset:-2;}
-  100%{visibility:visible;clip-path:inset(0 0 0 0);stroke-dashoffset:0;}
+/* v1.7 motion pass — the history line keeps a stable visual speed, then
+   deliberately slows only when it reaches the live/today dotted tail.
+   The dotted stroke is revealed in place instead of moving its dash
+   offset, which removes the backwards/forwards jitter at the finish. */
+@keyframes rtChartCurrentTailReveal{
+  0%{visibility:hidden;clip-path:inset(0 100% 0 0);}
+  .001%{visibility:visible;}
+  100%{visibility:visible;clip-path:inset(0 0 0 0);}
 }
 @keyframes rtChartCurrentLabelIn{
-  0%{opacity:0;transform:translateY(3px);}
-  68%{opacity:1;transform:translateY(-1px);}
+  0%{opacity:0;transform:translateY(2px);}
   100%{opacity:.85;transform:translateY(0);}
 }
-/* Keep the live tail and its label out of sight during skeleton/reveal. */
 #p-summary svg.rt-motion-hold .rt-chart-partial,
 #p-summary svg.rt-motion-hold:has(.rt-chart-partial)>text:last-of-type{
   visibility:hidden!important;opacity:0!important;animation:none!important;
 }
-/* History line + donut finish at --dur-draw; the current-period tail then
-   arrives left-to-right with a small dash settle to distinguish live data. */
 #p-summary svg.rt-chart-draw .rt-chart-partial{
   visibility:hidden;
+  stroke-dashoffset:0!important;
   transform-box:fill-box;
-  animation:rtChartCurrentTailIn 220ms var(--ease-out) var(--dur-draw) both;
+  will-change:clip-path;
+  animation:rtChartCurrentTailReveal 520ms cubic-bezier(.35,.15,.45,1) var(--dur-draw) both;
 }
-/* “so far” follows 55ms into the tail beat rather than appearing ahead of it. */
 #p-summary svg.rt-chart-draw:has(.rt-chart-partial)>text:last-of-type{
   opacity:0;transform-box:fill-box;transform-origin:center;
-  animation:rtChartCurrentLabelIn 180ms var(--ease-out) calc(var(--dur-draw) + 55ms) both;
+  animation:rtChartCurrentLabelIn 180ms var(--ease-out) calc(var(--dur-draw) + 150ms) both;
 }
+
+/* One continuous donut sweep. The previous donutClose phase changed
+   stroke-dasharray after the sweep (retract -> overshoot -> settle),
+   which looked like a pause followed by a snap. */
+#p-summary svg.cat-donut-draw{--dur-donut-sweep:840ms;}
+#p-summary svg.cat-donut-draw circle.donut-seg-last{
+  /* Match the incoming angular velocity, then ease continuously to rest. */
+  animation:donutSweep calc(var(--seg-t) * var(--dur-donut-sweep)) cubic-bezier(.35,.35,.72,1) calc(var(--seg-t0) * var(--dur-donut-sweep)) both;
+}
+
 @media(prefers-reduced-motion:reduce){
   #p-summary svg.rt-chart-draw .rt-chart-partial,
+  #p-summary svg.rt-chart-draw:has(.rt-chart-partial)>text:last-of-type,
+  #p-summary svg.cat-donut-draw circle,
+  #p-summary svg.cat-donut-draw circle.donut-seg-last{
+    animation:none!important;animation-delay:0ms!important;
+  }
+  #p-summary svg.rt-chart-draw .rt-chart-partial{
+    visibility:visible!important;clip-path:inset(0 0 0 0)!important;stroke-dashoffset:0!important;
+  }
   #p-summary svg.rt-chart-draw:has(.rt-chart-partial)>text:last-of-type{
-    animation-delay:0ms!important;
+    opacity:.85!important;transform:none!important;
   }
 }
 </style>
