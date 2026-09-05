@@ -12870,7 +12870,7 @@ function showFilteredItems(filter){
 
   if(filter==='revenue')items.sort(function(a,b){return (b._displayDate||'').localeCompare(a._displayDate||'');});
   if(filter==='realised')items.sort(function(a,b){return (b._displayDate||'').localeCompare(a._displayDate||'');});
-  const titles={revenue:'Total Revenue',realised:'Gross Profit',unrealised:'Unrealised Profit',stock:'Stock Value',sourced:'Listed Value'};
+  const titles={revenue:'Net Revenue',realised:'Gross Profit',unrealised:'Unrealised Profit',stock:'Stock Value',sourced:'Listed Value'};
   let summaryVal='',summaryLabel='',summaryColor='var(--accent)';
   const uniqueItemCount=new Set(items.map(function(i){return i.id;})).size;
   const saleCount=items.filter(function(i){return i._entryType==='sale';}).length;
@@ -13199,7 +13199,7 @@ function closeAllCategoriesModal(){
 // window.__chartClickHandlers array, dispatched through one delegated
 // listener on the <svg>. Chart.js CDN and _summaryChart global removed.
 // ============================================================================
-function renderSummaryChart(labels,revData,profitData,partialLast){
+function renderSummaryChart(labels,revData,profitData,returnData,partialLast){
   const handlers=window.__chartClickHandlers||[];
   const n=labels.length;
 
@@ -13216,6 +13216,8 @@ function renderSummaryChart(labels,revData,profitData,partialLast){
         maxXLabels:10,
         profitDotR:2.5,revDotR:3,
         profitStroke:1.8,revStroke:2,scrubDotR:4.5,
+        primaryLabel:'Sales Revenue',secondaryLabel:'Gross Profit',
+        tertiaryData:returnData,tertiaryColor:'var(--warn)',tertiaryLabel:'Refunds',tertiaryStroke:1.7,tertiaryDotR:2.5,
         drawKey:SUMMARY_PERIOD,
         gradientId:'rt-profit-fill',
         partialLast:!!partialLast
@@ -13244,6 +13246,8 @@ function renderSummaryChart(labels,revData,profitData,partialLast){
         maxDotsN:12,
         profitDotR:3,revDotR:3.5,
         profitStroke:2.2,revStroke:2.6,scrubDotR:5,
+        primaryLabel:'Sales Revenue',secondaryLabel:'Gross Profit',
+        tertiaryData:returnData,tertiaryColor:'var(--warn)',tertiaryLabel:'Refunds',tertiaryStroke:2.1,tertiaryDotR:3,
         drawKey:SUMMARY_PERIOD,
         gradientId:'rt-profit-fill-m',
         partialLast:!!partialLast
@@ -13475,10 +13479,11 @@ function _renderChartInto(svgEl,labels,revData,profitData,handlers,opts){
     const cx=sx(i);
     const r=revData[i]||0;
     const p=profitData[i]||0;
-    const has=r>0;
+    const hasR=r>0;
     const hasP=p!==0;
     const t=tertiaryData?(tertiaryData[i]||0):0;
     const hasT=tertiaryData&&t!==0;
+    const has=hasR||hasP||hasT;
     // v2.21.13 — today (the incomplete last point) shows as a HOLLOW ring so it
     // reads as provisional; force the revenue dot even when dots are otherwise
     // hidden so today is always marked.
@@ -13489,7 +13494,7 @@ function _renderChartInto(svgEl,labels,revData,profitData,handlers,opts){
       +'<rect x="'+(cx-colW/2).toFixed(1)+'" y="'+pad.t+'" width="'+colW.toFixed(1)+'" height="'+innerH+'" fill="transparent"/>'
       +(hasT&&showDots?'<circle cx="'+cx.toFixed(1)+'" cy="'+sy(t).toFixed(1)+'" r="'+tertiaryDotR+'" fill="'+_df(tertiaryColor)+'" stroke="'+_ds(tertiaryColor)+'" stroke-width="1.2"/>':'')
       +(hasP&&showDots?'<circle cx="'+cx.toFixed(1)+'" cy="'+sy(p).toFixed(1)+'" r="'+profitDotR+'" fill="'+_df(secondaryColor)+'" stroke="'+_ds(secondaryColor)+'" stroke-width="1.2"/>':'')
-      +((has&&(showDots||_isLast))?'<circle cx="'+cx.toFixed(1)+'" cy="'+sy(r).toFixed(1)+'" r="'+revDotR+'" fill="'+_df(primaryColor)+'" stroke="'+_ds(primaryColor)+'" stroke-width="1.5"/>':'')
+      +((hasR&&(showDots||_isLast))?'<circle cx="'+cx.toFixed(1)+'" cy="'+sy(r).toFixed(1)+'" r="'+revDotR+'" fill="'+_df(primaryColor)+'" stroke="'+_ds(primaryColor)+'" stroke-width="1.5"/>':'')
       +'<title>'+esc(l)+' · '+primaryLabel+' '+fmtMoney(r)+' · '+secondaryLabel+' '+fmtMoney(p)+(tertiaryData?' · '+tertiaryLabel+' '+fmtMoney(t):'')+'</title>'
       +'</g>';
   }).join('');
@@ -13818,28 +13823,30 @@ function renderSummary(){
     // today, so their last bucket is the partial one; FY (monthly) ends on the FY
     // date, so _chartPartialLast is false there (its current-month bar is unchanged).
     const _chartPartialLast=(range.to===_todayStr);
-    let chartLabels=[], chartRev=[], chartProfit=[], chartClickHandlers=[];
+    // Operational trend: sales stay on their sale date; later refunds do not
+    // rewrite the sale or its profit. Refunds are a separate positive-magnitude
+    // series. Headline KPIs/statements still use full accounting adjustments.
+    let chartLabels=[], chartRev=[], chartProfit=[], chartReturns=[], chartClickHandlers=[];
     if(isFY){
       const keys=_fyKeys(SUMMARY_PERIOD==='current_fy'?_currentFYStart():_currentFYStart()-1);
       keys.forEach(k=>{
-        // Session B: FY bars and the snapshot panel both use sale-attribution.
-        const ms=calcMonthStatsBySale(k);
+        const events=getSaleEventsInMonth(k);
+        const sales=events.filter(function(x){return !x.isReturnAdjustment;});
+        const returns=events.filter(function(x){return x.isReturnAdjustment;});
+        const salesRevenue=sales.reduce(function(sum,x){const sb=_saleBreakdown(x);return sum+(Number(sb.salePrice)||0)+(Number(sb.postage)||0);},0);
+        const salesProfit=sales.reduce(function(sum,x){return sum+(Number(_saleBreakdown(x).netProfit)||0);},0);
+        const refunds=returns.reduce(function(sum,x){return sum+Math.max(0,-(Number(x.salePrice)||0));},0);
         chartLabels.push(MONTH_NAMES[keyCode(k)].slice(0,3));
-        chartRev.push(ms.totalRev);
-        chartProfit.push(ms.grossProfit);
-        chartClickHandlers.push(ms.totalRev===0?null:{fn:'showMonthSnapshot',args:[k]});
+        chartRev.push(+salesRevenue.toFixed(2));
+        chartProfit.push(+salesProfit.toFixed(2));
+        chartReturns.push(+refunds.toFixed(2));
+        chartClickHandlers.push(events.length===0?null:{fn:'showMonthSnapshot',args:[k]});
       });
     } else {
       const buckets=[]; let cur=range.from;
       if(isDaily){
         while(cur<=range.to){buckets.push({from:cur,to:cur,label:fmtShort(cur)});cur=addDays(cur,1);}
       } else {
-        // Bucket size per period. 30d gets daily buckets (30 pts) — with
-        // the label auto-skip logic below (Math.ceil(n/10)) that renders
-        // every 3rd label = 10 visible labels, same feel as 90d weekly.
-        // Trend reads much better than the 3-day compromise (which itself
-        // was better than the original 7-day rollup). 60d + 90d stay weekly
-        // to avoid X-axis crowding.
         const bucketDays = SUMMARY_PERIOD==='30d' ? 1 : 7;
         while(cur<=range.to){
           const end = addDays(cur,bucketDays-1)<=range.to ? addDays(cur,bucketDays-1) : range.to;
@@ -13847,28 +13854,22 @@ function renderSummary(){
           cur=addDays(cur,bucketDays);
         }
       }
-      // Canonical dated accounting events: sales land on their sale date and
-      // returns/refunds land on their logged date. This makes every chart bucket
-      // reconcile exactly with the dashboard Gross Profit KPI.
       const chartEvents=getSaleEventsInRange(range.from,range.to);
       const bData=buckets.map(function(b){
         const inB=chartEvents.filter(function(x){return x.saleDate>=b.from&&x.saleDate<=b.to;});
+        const sales=inB.filter(function(x){return !x.isReturnAdjustment;});
+        const returns=inB.filter(function(x){return x.isReturnAdjustment;});
         return {...b,
-          // Revenue uses the exact recognised amount from the Sale-N breakdown:
-          // goods + seller-recognised buyer postage for sales, negative refund
-          // for return adjustments. This keeps the trend reconciled to Total
-          // Revenue instead of silently omitting postage income.
-          rev:inB.reduce(function(sum,x){
-            const sb=_saleBreakdown(x);
-            return sum+(x.isReturnAdjustment?(Number(x.salePrice)||0):((Number(sb.salePrice)||0)+(Number(sb.postage)||0)));
-          },0),
-          profit:inB.reduce(function(sum,x){return sum+(Number(x.profit)||0);},0),
+          rev:sales.reduce(function(sum,x){const sb=_saleBreakdown(x);return sum+(Number(sb.salePrice)||0)+(Number(sb.postage)||0);},0),
+          profit:sales.reduce(function(sum,x){return sum+(Number(_saleBreakdown(x).netProfit)||0);},0),
+          refunds:returns.reduce(function(sum,x){return sum+Math.max(0,-(Number(x.salePrice)||0));},0),
           eventCount:inB.length};
       });
       bData.forEach(b=>{
         chartLabels.push(b.label);
-        chartRev.push(b.rev);
-        chartProfit.push(b.profit);
+        chartRev.push(+b.rev.toFixed(2));
+        chartProfit.push(+b.profit.toFixed(2));
+        chartReturns.push(+b.refunds.toFixed(2));
         chartClickHandlers.push(b.eventCount===0?null:{fn:'showRangeSnapshot',args:[b.label,b.from,b.to]});
       });
     }
@@ -13919,15 +13920,15 @@ function renderSummary(){
         <div class="card summary-hero-card summary-mobile-only" onclick="showFilteredItems('revenue')">
           <div class="summary-hero-top">
             <div class="summary-hero-head">
-              <div class="kpi-label">Revenue · ${(periods.find(p=>p.key===SUMMARY_PERIOD)||{}).label||''}</div>
+              <div class="kpi-label">Net revenue · ${(periods.find(p=>p.key===SUMMARY_PERIOD)||{}).label||''}</div>
               <div class="summary-hero-value num" data-cv="${Number(stats.totalRev||0)}" data-cv-fmt="money" data-cv-key="sum-m-rev">${fmt(stats.totalRev||0)}</div>
               <div class="kpi-foot">${deltaChip(deltas&&deltas.totalRev)||((stats.soldCount||0)+' sold')}</div>
             </div>
             <svg class="summary-hero-spark" viewBox="0 0 120 44" preserveAspectRatio="none" aria-hidden="true"></svg>
           </div>
           <div class="summary-hero-chart">
-            <div class="summary-chart-legend"><span class="legend-item"><span class="legend-dot" style="background:var(--state-listed)"></span>Revenue</span><span class="legend-item"><span class="legend-dot" style="background:var(--profit)"></span>Gross Profit</span></div>
-            <svg id="summary-chart-svg-mobile" viewBox="0 0 800 280" preserveAspectRatio="none" role="img" aria-label="Revenue and gross profit over time"></svg>
+            <div class="summary-chart-legend"><span class="legend-item"><span class="legend-dot" style="background:var(--state-listed)"></span>Sales Revenue</span><span class="legend-item"><span class="legend-dot" style="background:var(--profit)"></span>Gross Profit</span><span class="legend-item"><span class="legend-dot" style="background:var(--warn)"></span>Refunds</span></div>
+            <svg id="summary-chart-svg-mobile" viewBox="0 0 800 280" preserveAspectRatio="none" role="img" aria-label="Sales revenue, gross profit and refunds over time"></svg>
           </div>
         </div>
         <div class="summary-mobile-twoup summary-mobile-only">
@@ -13944,7 +13945,7 @@ function renderSummary(){
         </div>
         <!-- Tier 1: 4-KPI grid -->
         <div class="summary-kpis-v3">
-          <div class="card kpi clickable" onclick="showFilteredItems('revenue')"><div class="kpi-label">Total revenue</div><div class="kpi-value num" data-cv="${Number(stats.totalRev||0)}" data-cv-fmt="k" data-cv-key="sum-rev">${fmtK(stats.totalRev||0)}</div><div class="kpi-foot">${deltaChip(deltas&&deltas.totalRev)||((stats.soldCount||0)+' sold in view')}</div></div>
+          <div class="card kpi clickable" onclick="showFilteredItems('revenue')"><div class="kpi-label">Net revenue</div><div class="kpi-value num" data-cv="${Number(stats.totalRev||0)}" data-cv-fmt="k" data-cv-key="sum-rev">${fmtK(stats.totalRev||0)}</div><div class="kpi-foot">${deltaChip(deltas&&deltas.totalRev)||((stats.soldCount||0)+' sold in view')}</div></div>
           <div class="card kpi clickable kpi-netprofit" onclick="showFilteredItems('realised')"><div class="kpi-label">Gross profit</div><div class="kpi-value num" data-cv="${Number(stats.grossProfit||0)}" data-cv-fmt="k" data-cv-key="sum-gp">${fmtK(stats.grossProfit||0)}</div><div class="kpi-foot">${deltaChip(deltas&&deltas.grossProfit)||'After returns · before overheads'}</div></div>
           <div class="card kpi clickable" onclick="showMarginItems()"><div class="kpi-label">Avg margin</div><div class="kpi-value num" data-cv="${Number(stats.grossMargin||0)}" data-cv-fmt="pct0" data-cv-key="sum-margin">${Math.round(stats.grossMargin||0)}%</div><div class="kpi-foot">${(deltaChip(deltas&&deltas.grossMargin,{pp:true})||'Item-level margin')}${stats.avgROI!=null?' · '+Math.round(stats.avgROI)+'% ROI':''}</div></div>
           <div class="card kpi clickable" onclick="showReturnedItems()"><div class="kpi-label">Refund rate</div><div class="kpi-value num" data-cv="${Number(stats.refundItemRate||0)}" data-cv-fmt="pct1" data-cv-key="sum-refund">${Number(stats.refundItemRate||0).toFixed(1)}%</div><div class="kpi-foot">${deltaChip(deltas&&deltas.refundItemRate,{pp:true,invert:true})||((stats.fullRefundCount||0)+' full · '+(stats.partialOnlyCount||0)+' partial')}</div></div>
@@ -13953,13 +13954,14 @@ function renderSummary(){
         <!-- Tier 2: chart + categories -->
         <div class="card summary-panel summary-chart-card">
           <div class="summary-chart-head">
-            <div class="sl">Revenue over time</div>
+            <div class="sl">Sales &amp; returns over time</div>
             <div class="summary-chart-legend">
-              <span class="legend-item"><span class="legend-dot" style="background:var(--state-listed)"></span>Revenue</span>
+              <span class="legend-item"><span class="legend-dot" style="background:var(--state-listed)"></span>Sales Revenue</span>
               <span class="legend-item"><span class="legend-dot" style="background:var(--profit)"></span>Gross Profit</span>
+              <span class="legend-item"><span class="legend-dot" style="background:var(--warn)"></span>Refunds</span>
             </div>
           </div>
-          <svg id="summary-chart-svg" viewBox="0 0 800 280" preserveAspectRatio="none" role="img" aria-label="Revenue and gross profit over time"></svg>
+          <svg id="summary-chart-svg" viewBox="0 0 800 280" preserveAspectRatio="none" role="img" aria-label="Sales revenue, gross profit and refunds over time"></svg>
         </div>
         ${(()=>{
           const donut=buildCategoryDonut(stats.byCat);
@@ -14073,7 +14075,7 @@ function renderSummary(){
     _animateKPIs(el);   // v2.18.0 — reveal counts from 0, later renders tween from current
     _animateDonut(el, SUMMARY_PERIOD);  // v2.19.15 — sweep on reveal/period, enter-anim new categories
     window.__summaryByCat=stats.byCat||[];
-    renderSummaryChart(chartLabels,chartRev,chartProfit,_chartPartialLast);
+    renderSummaryChart(chartLabels,chartRev,chartProfit,chartReturns,_chartPartialLast);
     // V3 layout: the old 2-column main/side height-matching no longer applies
     // (dashboard is now a tiered grid). Left intentionally as a no-op.
     // Mobile chart summary
@@ -14090,7 +14092,7 @@ function renderSummary(){
       const trend=active.length>=2?(active[active.length-1].rev>=active[active.length-2].rev?'↑ Trending up':'↓ Trending down'):'—';
       const fmt=v=>'£'+v.toFixed(2);
       const rows=[
-        {label:'Total revenue',sub:active.length+' active month'+(active.length!==1?'s':''),val:fmt(totalRev),profit:'Profit: '+fmt(totalProfit)},
+        {label:'Sales revenue',sub:active.length+' active month'+(active.length!==1?'s':''),val:fmt(totalRev),profit:'Gross profit: '+fmt(totalProfit)},
         {label:'Best month',sub:best.label,val:fmt(best.rev),profit:fmt(best.profit)+' profit'},
         {label:'Trend',sub:'Recent direction',val:trend,profit:''},
       ];
@@ -14104,88 +14106,42 @@ function renderSummary(){
 
 // monthKey e.g. "APR-26" — for FY monthly bars
 function showMonthSnapshot(monthKey){
-  // Session B: panel uses sale-attribution to match the rest of Monthly.
-  const ms = calcMonthStatsBySale(monthKey);
-  const events = getSaleEventsInMonth(monthKey);
-  const sold = events.filter(e=>!e.isReturned);
-  const returned = events.filter(e=>e.isReturned);
-  // Active stock for THIS listing month — items in DB[monthKey] that are still live.
-  const listed = (DB[monthKey]||[]).filter(i=>(i.item||'').trim().toUpperCase()!=='MONTH END' &&
-                                              !i.dateSold && !i.isReturned && !i.resaleSalePrice && !i.scrappedAt);
-  const stockValue = listed.reduce((s,i)=>s+(i.salePrice||0),0);
-  const marginPct = ms.totalRev>0 ? (ms.realisedProfit/ms.totalRev*100).toFixed(1) : null;
-  const profColor = ms.realisedProfit>=0?'var(--green)':'var(--red)';
-  const totalRefundEvents = ms.refundedItemCount||0;
-  const refundLabel = ms.refundDenom===0 ? '—'
-    : totalRefundEvents===0 ? '0%'
-    : ms.refundItemRate.toFixed(0)+'%';
+  const events=getSaleEventsInMonth(monthKey);
+  const sold=events.filter(function(e){return !e.isReturnAdjustment;});
+  const returned=events.filter(function(e){return e.isReturnAdjustment;});
+  const listed=(DB[monthKey]||[]).filter(function(i){return (i.item||'').trim().toUpperCase()!=='MONTH END'&&!i.dateSold&&!i.isReturned&&!i.resaleSalePrice&&!i.scrappedAt;});
+  const stockValue=listed.reduce(function(sum,i){return sum+(Number(i.salePrice)||0);},0);
+  const saleRevenue=+sold.reduce(function(sum,e){const b=_saleBreakdown(e);return sum+(Number(b.salePrice)||0)+(Number(b.postage)||0);},0).toFixed(2);
+  const saleProfit=+sold.reduce(function(sum,e){return sum+(Number(_saleBreakdown(e).netProfit)||0);},0).toFixed(2);
+  const refundTotal=+returned.reduce(function(sum,e){return sum+Math.max(0,-(Number(e.salePrice)||0));},0).toFixed(2);
+  const marginPct=saleRevenue>0?(saleProfit/saleRevenue*100).toFixed(1):null;
+  const profColor=saleProfit>=0?'var(--green)':'var(--red)';
+  const cell=function(label,value,color,sub){return '<div style="background:var(--surface2);border-radius:10px;padding:12px 14px"><div style="font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:4px">'+label+'</div><div style="font-size:22px;font-weight:700;font-family:\'Inter\',sans-serif;letter-spacing:-0.04em;color:'+color+'">'+value+'</div>'+(sub?'<div style="font-size:11px;color:var(--muted);margin-top:2px">'+sub+'</div>':'')+'</div>';};
+  const kpis='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px">'
+    +cell('Sales revenue',fmt(saleRevenue),'var(--blue)',marginPct!==null?marginPct+'% sale margin':'')
+    +cell('Gross profit',fmt(saleProfit),profColor,'From sales in this month')
+    +cell('Refunds',fmt(refundTotal),refundTotal>0?'var(--warn)':'var(--text)',returned.length+' return/refund event'+(returned.length===1?'':'s'))
+    +cell('Sold',String(sold.length),'var(--text)',sold.length+' sale'+(sold.length===1?'':'s'))
+    +'</div>';
 
-  const kpis = `
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px">
-      <div style="background:var(--surface2);border-radius:10px;padding:12px 14px">
-        <div style="font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:4px">Revenue</div>
-        <div style="font-size:22px;font-weight:700;font-family:'Inter',sans-serif;letter-spacing:-0.04em;color:var(--blue)">${fmt(ms.totalRev)}</div>
-        ${marginPct!==null?`<div style="font-size:11px;color:var(--muted);margin-top:2px">${marginPct}% margin</div>`:''}
-      </div>
-      <div style="background:var(--surface2);border-radius:10px;padding:12px 14px">
-        <div style="font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:4px">Profit</div>
-        <div style="font-size:22px;font-weight:700;font-family:'Inter',sans-serif;letter-spacing:-0.04em;color:${profColor}">${fmt(ms.realisedProfit)}</div>
-        ${ms.avgDays!==null?`<div style="font-size:11px;color:var(--muted);margin-top:2px">${ms.avgDays}d avg to sell</div>`:''}
-      </div>
-      <div style="background:var(--surface2);border-radius:10px;padding:12px 14px">
-        <div style="font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:4px">Sold</div>
-        <div style="font-size:22px;font-weight:700;font-family:'Inter',sans-serif;letter-spacing:-0.04em;color:var(--text)">${ms.soldCount}</div>
-        <div style="font-size:11px;color:var(--muted);margin-top:2px">sale${ms.soldCount!==1?'s':''}${ms.returnedCount>0?' · '+ms.returnedCount+' returned':''}</div>
-      </div>
-      <div style="background:var(--surface2);border-radius:10px;padding:12px 14px">
-        <div style="font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:4px">Refund rate</div>
-        <div style="font-size:22px;font-weight:700;font-family:'Inter',sans-serif;letter-spacing:-0.04em;color:${totalRefundEvents>0?'var(--warn)':'var(--text)'}">${refundLabel}</div>
-        <div style="font-size:11px;color:var(--muted);margin-top:2px">${ms.refundDenom===0?'No sales':(ms.fullRefundCount||0)+' full · '+(ms.partialOnlyCount||0)+' partial'}</div>
-      </div>
-    </div>`;
-
-  // Render a sale event row (compact)
-  const renderEvent = (e) => {
-    const i=e.item;
-    const profColor = (e.profit||0)>=0?'var(--green)':'var(--red)';
-    const lineage = e.isReturnAdjustment?'Returned':((Number(e.sale)||1)>=2?'Resold':'Sold');
-    return `<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);cursor:pointer" onclick="openItemDetail('${e.month}','${i.id}')">
-      <div style="flex:1;min-width:0">
-        <div style="font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(i.item)}</div>
-        <div style="font-size:11px;color:${profColor};margin-top:2px;font-weight:600">${fmt(e.profit||0)}${e.margin!==null&&e.margin!==undefined?` <span style="color:var(--muted);font-weight:400">· ${e.margin.toFixed(1)}% margin</span>`:''}<span style="color:var(--muted);font-weight:400"> · ${lineage} ${e.saleDate||''}</span></div>
-      </div>
-      <div style="font-size:13px;font-weight:600;font-family:var(--font-mono);color:var(--text);flex-shrink:0">${fmt(e.salePrice)}</div>
-    </div>`;
+  const renderEvent=function(e){
+    const i=e.item,isReturn=!!e.isReturnAdjustment,b=_saleBreakdown(e);
+    const p=Number(b.netProfit)||0,refund=isReturn?Math.max(0,-(Number(e.salePrice)||0)):0;
+    const lineage=isReturn?'Returned':((Number(e.sale)||1)>=2?'Resold':'Sold');
+    const saleReceipts=(Number(b.salePrice)||0)+(Number(b.postage)||0);
+    const detail=isReturn
+      ?fmt(refund)+' refund <span style="color:var(--muted);font-weight:400">· '+lineage+' '+(e.saleDate||'')+'</span>'
+      :fmt(p)+(e.margin!==null&&e.margin!==undefined?' <span style="color:var(--muted);font-weight:400">· '+Number(e.margin).toFixed(1)+'% margin</span>':'')+'<span style="color:var(--muted);font-weight:400"> · '+lineage+' '+(e.saleDate||'')+'</span>';
+    return '<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);cursor:pointer" onclick="openItemDetail(\''+e.month+'\',\''+i.id+'\')"><div style="flex:1;min-width:0"><div style="font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(i.item)+'</div><div style="font-size:11px;color:'+(isReturn?'var(--warn)':(p>=0?'var(--green)':'var(--red)'))+';margin-top:2px;font-weight:600">'+detail+'</div></div><div style="font-size:13px;font-weight:600;font-family:var(--font-mono);color:'+(isReturn?'var(--warn)':'var(--text)')+';flex-shrink:0">'+fmt(isReturn?refund:saleReceipts)+'</div></div>';
   };
+  const renderListed=function(i){return '<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);cursor:pointer" onclick="openItemDetail(\''+monthKey+'\',\''+i.id+'\')"><div style="flex:1;min-width:0"><div style="font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(i.item)+'</div><div style="font-size:11px;color:var(--muted);margin-top:2px">Listed '+(i.dateListed||'—')+'</div></div><div style="font-size:13px;font-weight:600;font-family:var(--font-mono);color:var(--text);flex-shrink:0">'+fmt(i.salePrice||0)+'</div></div>';};
 
-  // Render a listed-stock row (no sale yet)
-  const renderListed = (i) => {
-    return `<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);cursor:pointer" onclick="openItemDetail('${monthKey}','${i.id}')">
-      <div style="flex:1;min-width:0">
-        <div style="font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(i.item)}</div>
-        <div style="font-size:11px;color:var(--muted);margin-top:2px">Listed ${i.dateListed||'—'}</div>
-      </div>
-      <div style="font-size:13px;font-weight:600;font-family:var(--font-mono);color:var(--text);flex-shrink:0">${fmt(i.salePrice)}</div>
-    </div>`;
-  };
-
-  let itemsHTML = '';
-  if(sold.length){
-    itemsHTML += `<div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.1em;margin:14px 0 6px">Sold (${sold.length})</div>`;
-    itemsHTML += sold.map(renderEvent).join('');
-  }
-  if(listed.length){
-    itemsHTML += `<div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.1em;margin:14px 0 6px">Listed in ${MONTH_NAMES[keyCode(monthKey)]} · still active (${listed.length}) · ${fmt(stockValue)}</div>`;
-    itemsHTML += listed.map(renderListed).join('');
-  }
-  if(returned.length){
-    itemsHTML += `<div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.1em;margin:14px 0 6px">Returned (${returned.length})</div>`;
-    itemsHTML += returned.map(renderEvent).join('');
-  }
-
-  const navBtn = `<button onclick="closePanel();goToMonth('${monthKey}')" style="width:100%;padding:11px;background:transparent;border:1px solid var(--border);border-radius:8px;color:var(--text-secondary);font-family:'Inter',sans-serif;font-size:13px;font-weight:500;cursor:pointer;margin-top:14px;transition:all 0.15s" onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--text-secondary)'">Open full month view →</button>`;
-
-  openPanel(keyName(monthKey), kpis + itemsHTML + navBtn, false);
+  let itemsHTML='';
+  if(sold.length)itemsHTML+='<div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.1em;margin:14px 0 6px">Sales ('+sold.length+')</div>'+sold.map(renderEvent).join('');
+  if(returned.length)itemsHTML+='<div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.1em;margin:14px 0 6px">Returns / refunds ('+returned.length+')</div>'+returned.map(renderEvent).join('');
+  if(listed.length)itemsHTML+='<div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.1em;margin:14px 0 6px">Listed in '+MONTH_NAMES[keyCode(monthKey)]+' · still active ('+listed.length+') · '+fmt(stockValue)+'</div>'+listed.map(renderListed).join('');
+  const navBtn='<button onclick="closePanel();goToMonth(\''+monthKey+'\')" style="width:100%;padding:11px;background:transparent;border:1px solid var(--border);border-radius:8px;color:var(--text-secondary);font-family:\'Inter\',sans-serif;font-size:13px;font-weight:500;cursor:pointer;margin-top:14px;transition:all 0.15s">Open full month view →</button>';
+  openPanel(keyName(monthKey),kpis+itemsHTML+navBtn,false);
 }
 
 // dateRange snapshot for rolling period bars (day/week buckets)
@@ -14194,30 +14150,27 @@ function showRangeSnapshot(label, fromDate, toDate){
   const saleEvs=evs.filter(function(x){return !x.isReturnAdjustment;});
   const retEvs=evs.filter(function(x){return x.isReturnAdjustment;});
   if(!evs.length){openPanel(label,'<div style="text-align:center;padding:32px 0;color:var(--muted);font-size:14px">No sales or return activity in this period</div>',false);return;}
-
-  let revenue=0,totalProf=0,grossReceipts=0,refundTotal=0;
-  evs.forEach(function(ev){
-    const b=_saleBreakdown(ev);
-    if(ev.isReturnAdjustment){const r=Number(ev.salePrice)||0;revenue+=r;refundTotal+=Math.max(0,-r);}
-    else{const r=(Number(b.salePrice)||0)+(Number(b.postage)||0);revenue+=r;grossReceipts+=r;}
-    totalProf+=Number(b.netProfit)||0;
-  });
-  revenue=+revenue.toFixed(2);totalProf=+totalProf.toFixed(2);
-  const margin=grossReceipts>0?(totalProf/grossReceipts*100).toFixed(1):null,profColor=totalProf>=0?'var(--green)':'var(--red)';
-  const _snapCell=function(lab,val,col){return`<div style="background:var(--surface2);border-radius:10px;padding:11px 12px"><div style="font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:3px">${lab}</div><div style="font-size:18px;font-weight:700;font-family:'Inter',sans-serif;letter-spacing:-0.04em;color:${col}">${val}</div></div>`;};
-  const kpis=`<div style="display:grid;grid-template-columns:${retEvs.length?'1fr 1fr':'1fr 1fr 1fr'};gap:8px;margin-bottom:14px">
-      ${_snapCell('Net revenue',fmt(revenue),revenue>=0?'var(--blue)':'var(--red)')}
-      ${retEvs.length?_snapCell('Refunds',fmt(-refundTotal),'var(--warn)'):''}
-      ${_snapCell('Profit',fmt(totalProf)+(margin?` <span style="font-size:10px;color:var(--muted);font-weight:400">${margin}%</span>`:''),profColor)}
-      ${_snapCell('Sold',String(saleEvs.length),'var(--text)')}
-    </div>`;
-
+  let salesRevenue=0,salesProfit=0,refundTotal=0;
+  saleEvs.forEach(function(ev){const b=_saleBreakdown(ev);salesRevenue+=(Number(b.salePrice)||0)+(Number(b.postage)||0);salesProfit+=Number(b.netProfit)||0;});
+  retEvs.forEach(function(ev){refundTotal+=Math.max(0,-(Number(ev.salePrice)||0));});
+  salesRevenue=+salesRevenue.toFixed(2);salesProfit=+salesProfit.toFixed(2);refundTotal=+refundTotal.toFixed(2);
+  const margin=salesRevenue>0?(salesProfit/salesRevenue*100).toFixed(1):null,profColor=salesProfit>=0?'var(--green)':'var(--red)';
+  const cell=function(label,value,color,sub){return '<div style="background:var(--surface2);border-radius:10px;padding:11px 12px"><div style="font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:3px">'+label+'</div><div style="font-size:18px;font-weight:700;font-family:\'Inter\',sans-serif;letter-spacing:-0.04em;color:'+color+'">'+value+'</div>'+(sub?'<div style="font-size:10px;color:var(--muted);margin-top:2px">'+sub+'</div>':'')+'</div>';};
+  const kpis='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px">'
+    +cell('Sales revenue',fmt(salesRevenue),'var(--blue)','Sales made in this period')
+    +cell('Gross profit',fmt(salesProfit),profColor,margin?margin+'% sale margin':'From sales only')
+    +cell('Refunds',fmt(refundTotal),refundTotal>0?'var(--warn)':'var(--text)',retEvs.length+' return/refund event'+(retEvs.length===1?'':'s'))
+    +cell('Sold',String(saleEvs.length),'var(--text)',saleEvs.length+' sale'+(saleEvs.length===1?'':'s'))
+    +'</div>';
   const saleRows=saleEvs.slice().sort(function(a,b){return (b.saleDate||'').localeCompare(a.saleDate||'');}).map(function(ev){
     const b=_saleBreakdown(ev),p=Number(b.netProfit)||0,m=(ev.margin!==null&&ev.margin!==undefined)?Number(ev.margin):null,n=Math.max(1,Number(ev.sale)||1),receipts=(Number(b.salePrice)||0)+(Number(b.postage)||0);
-    return`<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);cursor:pointer" onclick="openItemDetail('${ev.month}','${ev.item.id}')"><div style="flex:1;min-width:0"><div style="font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(ev.item.item)}</div><div style="font-size:11px;color:${p>=0?'var(--green)':'var(--red)'};margin-top:2px;font-weight:600">${fmt(p)}${m!==null?` <span style="color:var(--muted);font-weight:400">· ${m.toFixed(1)}% margin</span>`:''}<span style="color:var(--muted);font-weight:400"> · Sale ${n} · ${ev.saleDate||''}</span></div></div><div style="font-size:13px;font-weight:600;font-family:var(--font-mono);flex-shrink:0">${fmt(receipts)}</div></div>`;
+    return '<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);cursor:pointer" onclick="openItemDetail(\''+ev.month+'\',\''+ev.item.id+'\')"><div style="flex:1;min-width:0"><div style="font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(ev.item.item)+'</div><div style="font-size:11px;color:'+(p>=0?'var(--green)':'var(--red)')+';margin-top:2px;font-weight:600">'+fmt(p)+(m!==null?' <span style="color:var(--muted);font-weight:400">· '+m.toFixed(1)+'% margin</span>':'')+'<span style="color:var(--muted);font-weight:400"> · Sale '+n+' · '+(ev.saleDate||'')+'</span></div></div><div style="font-size:13px;font-weight:600;font-family:var(--font-mono);flex-shrink:0">'+fmt(receipts)+'</div></div>';
   }).join('');
-  const retRows=retEvs.slice().sort(function(a,b){return (b.saleDate||'').localeCompare(a.saleDate||'');}).map(function(ev){const n=Math.max(1,Number(ev.returnEntry&&ev.returnEntry.saleNo)||1),p=Number(_saleBreakdown(ev).netProfit)||0;return`<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);cursor:pointer" onclick="openItemDetail('${ev.month}','${ev.item.id}')"><div style="flex:1;min-width:0"><div style="font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(ev.item.item)}</div><div style="font-size:11px;color:var(--warn);margin-top:2px;font-weight:600">${fmt(p)} <span style="color:var(--muted);font-weight:400">· Sale ${n} return · ${ev.saleDate||''}</span></div></div><div style="font-size:13px;font-weight:600;font-family:var(--font-mono);color:var(--warn);flex-shrink:0">${fmt(ev.salePrice||0)}</div></div>`;}).join('');
-  openPanel(label,kpis+(saleRows?`<div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:6px">Sales (${saleEvs.length})</div>`+saleRows:'')+(retRows?`<div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.1em;margin:14px 0 6px">Returns / refunds (${retEvs.length})</div>`+retRows:''),false);
+  const retRows=retEvs.slice().sort(function(a,b){return (b.saleDate||'').localeCompare(a.saleDate||'');}).map(function(ev){
+    const n=Math.max(1,Number(ev.returnEntry&&ev.returnEntry.saleNo)||1),refund=Math.max(0,-(Number(ev.salePrice)||0));
+    return '<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);cursor:pointer" onclick="openItemDetail(\''+ev.month+'\',\''+ev.item.id+'\')"><div style="flex:1;min-width:0"><div style="font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(ev.item.item)+'</div><div style="font-size:11px;color:var(--warn);margin-top:2px;font-weight:600">'+fmt(refund)+' refund <span style="color:var(--muted);font-weight:400">· Sale '+n+' return · '+(ev.saleDate||'')+'</span></div></div><div style="font-size:13px;font-weight:600;font-family:var(--font-mono);color:var(--warn);flex-shrink:0">'+fmt(refund)+'</div></div>';
+  }).join('');
+  openPanel(label,kpis+(saleRows?'<div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:6px">Sales ('+saleEvs.length+')</div>'+saleRows:'')+(retRows?'<div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.1em;margin:14px 0 6px">Returns / refunds ('+retEvs.length+')</div>'+retRows:''),false);
 }
 
 function goToMonth(m){
