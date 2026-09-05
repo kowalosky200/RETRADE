@@ -1,0 +1,341 @@
+name: dashboard-sales-returns-series
+on:
+  push:
+    branches:
+      - fix/dashboard-sales-returns-series
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/dashboard-sales-returns-series
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Patch dashboard chart semantics
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('app.js')
+          s=p.read_text()
+          def rep(old,new,label,count=1):
+              global s
+              got=s.count(old)
+              if got!=count:
+                  raise SystemExit(f'{label}: expected {count} match(es), found {got}')
+              s=s.replace(old,new,count)
+
+          rep("""    let chartLabels=[], chartRev=[], chartProfit=[], chartClickHandlers=[];
+    if(isFY){
+      const keys=_fyKeys(SUMMARY_PERIOD==='current_fy'?_currentFYStart():_currentFYStart()-1);
+      keys.forEach(k=>{
+        // Session B: FY bars and the snapshot panel both use sale-attribution.
+        const ms=calcMonthStatsBySale(k);
+        chartLabels.push(MONTH_NAMES[keyCode(k)].slice(0,3));
+        chartRev.push(ms.totalRev);
+        chartProfit.push(ms.grossProfit);
+        chartClickHandlers.push(ms.totalRev===0?null:{fn:'showMonthSnapshot',args:[k]});
+      });
+    } else {
+      const buckets=[]; let cur=range.from;
+      if(isDaily){
+        while(cur<=range.to){buckets.push({from:cur,to:cur,label:fmtShort(cur)});cur=addDays(cur,1);}
+      } else {
+        // Bucket size per period. 30d gets daily buckets (30 pts) — with
+        // the label auto-skip logic below (Math.ceil(n/10)) that renders
+        // every 3rd label = 10 visible labels, same feel as 90d weekly.
+        // Trend reads much better than the 3-day compromise (which itself
+        // was better than the original 7-day rollup). 60d + 90d stay weekly
+        // to avoid X-axis crowding.
+        const bucketDays = SUMMARY_PERIOD==='30d' ? 1 : 7;
+        while(cur<=range.to){
+          const end = addDays(cur,bucketDays-1)<=range.to ? addDays(cur,bucketDays-1) : range.to;
+          buckets.push({from:cur,to:end,label:fmtShort(cur)});
+          cur=addDays(cur,bucketDays);
+        }
+      }
+      // Canonical dated accounting events: sales land on their sale date and
+      // returns/refunds land on their logged date. This makes every chart bucket
+      // reconcile exactly with the dashboard Gross Profit KPI.
+      const chartEvents=getSaleEventsInRange(range.from,range.to);
+      const bData=buckets.map(function(b){
+        const inB=chartEvents.filter(function(x){return x.saleDate>=b.from&&x.saleDate<=b.to;});
+        return {...b,
+          // Revenue uses the exact recognised amount from the Sale-N breakdown:
+          // goods + seller-recognised buyer postage for sales, negative refund
+          // for return adjustments. This keeps the trend reconciled to Total
+          // Revenue instead of silently omitting postage income.
+          rev:inB.reduce(function(sum,x){
+            const sb=_saleBreakdown(x);
+            return sum+(x.isReturnAdjustment?(Number(x.salePrice)||0):((Number(sb.salePrice)||0)+(Number(sb.postage)||0)));
+          },0),
+          profit:inB.reduce(function(sum,x){return sum+(Number(x.profit)||0);},0),
+          eventCount:inB.length};
+      });
+      bData.forEach(b=>{
+        chartLabels.push(b.label);
+        chartRev.push(b.rev);
+        chartProfit.push(b.profit);
+        chartClickHandlers.push(b.eventCount===0?null:{fn:'showRangeSnapshot',args:[b.label,b.from,b.to]});
+      });
+    }
+    window.__chartClickHandlers=chartClickHandlers;""",
+          """    // The dashboard chart is an operational sales view, not an accounting
+    // journal. Sales revenue and sale profit stay on their sale dates; refunds
+    // get their own positive-magnitude series instead of pulling those lines down
+    // with return-reversal entries. Headline KPIs/statements still use the full
+    // accounting engine (including dated return adjustments).
+    let chartLabels=[], chartRev=[], chartProfit=[], chartReturns=[], chartClickHandlers=[];
+    if(isFY){
+      const keys=_fyKeys(SUMMARY_PERIOD==='current_fy'?_currentFYStart():_currentFYStart()-1);
+      keys.forEach(k=>{
+        const events=getSaleEventsInMonth(k);
+        const sales=events.filter(function(x){return !x.isReturnAdjustment;});
+        const returns=events.filter(function(x){return x.isReturnAdjustment;});
+        const salesRevenue=sales.reduce(function(sum,x){const sb=_saleBreakdown(x);return sum+(Number(sb.salePrice)||0)+(Number(sb.postage)||0);},0);
+        const salesProfit=sales.reduce(function(sum,x){return sum+(Number(_saleBreakdown(x).netProfit)||0);},0);
+        const refunds=returns.reduce(function(sum,x){return sum+Math.max(0,-(Number(x.salePrice)||0));},0);
+        chartLabels.push(MONTH_NAMES[keyCode(k)].slice(0,3));
+        chartRev.push(+salesRevenue.toFixed(2));
+        chartProfit.push(+salesProfit.toFixed(2));
+        chartReturns.push(+refunds.toFixed(2));
+        chartClickHandlers.push(events.length===0?null:{fn:'showMonthSnapshot',args:[k]});
+      });
+    } else {
+      const buckets=[]; let cur=range.from;
+      if(isDaily){
+        while(cur<=range.to){buckets.push({from:cur,to:cur,label:fmtShort(cur)});cur=addDays(cur,1);}
+      } else {
+        const bucketDays = SUMMARY_PERIOD==='30d' ? 1 : 7;
+        while(cur<=range.to){
+          const end = addDays(cur,bucketDays-1)<=range.to ? addDays(cur,bucketDays-1) : range.to;
+          buckets.push({from:cur,to:end,label:fmtShort(cur)});
+          cur=addDays(cur,bucketDays);
+        }
+      }
+      const chartEvents=getSaleEventsInRange(range.from,range.to);
+      const bData=buckets.map(function(b){
+        const inB=chartEvents.filter(function(x){return x.saleDate>=b.from&&x.saleDate<=b.to;});
+        const sales=inB.filter(function(x){return !x.isReturnAdjustment;});
+        const returns=inB.filter(function(x){return x.isReturnAdjustment;});
+        return {...b,
+          rev:sales.reduce(function(sum,x){const sb=_saleBreakdown(x);return sum+(Number(sb.salePrice)||0)+(Number(sb.postage)||0);},0),
+          profit:sales.reduce(function(sum,x){return sum+(Number(_saleBreakdown(x).netProfit)||0);},0),
+          refunds:returns.reduce(function(sum,x){return sum+Math.max(0,-(Number(x.salePrice)||0));},0),
+          eventCount:inB.length};
+      });
+      bData.forEach(b=>{
+        chartLabels.push(b.label);
+        chartRev.push(+b.rev.toFixed(2));
+        chartProfit.push(+b.profit.toFixed(2));
+        chartReturns.push(+b.refunds.toFixed(2));
+        chartClickHandlers.push(b.eventCount===0?null:{fn:'showRangeSnapshot',args:[b.label,b.from,b.to]});
+      });
+    }
+    window.__chartClickHandlers=chartClickHandlers;""","chart data split")
+
+          rep("renderSummaryChart(chartLabels,chartRev,chartProfit,_chartPartialLast);","renderSummaryChart(chartLabels,chartRev,chartProfit,chartReturns,_chartPartialLast);","render call")
+          rep("function renderSummaryChart(labels,revData,profitData,partialLast){","function renderSummaryChart(labels,revData,profitData,returnData,partialLast){","render signature")
+
+          rep("""        profitDotR:2.5,revDotR:3,
+        profitStroke:1.8,revStroke:2,scrubDotR:4.5,
+        drawKey:SUMMARY_PERIOD,""",
+          """        profitDotR:2.5,revDotR:3,
+        profitStroke:1.8,revStroke:2,scrubDotR:4.5,
+        primaryLabel:'Sales Revenue',secondaryLabel:'Gross Profit',
+        tertiaryData:returnData,tertiaryColor:'var(--warn)',tertiaryLabel:'Refunds',tertiaryStroke:1.7,tertiaryDotR:2.5,
+        drawKey:SUMMARY_PERIOD,""","desktop chart opts")
+
+          rep("""        profitDotR:3,revDotR:3.5,
+        profitStroke:2.2,revStroke:2.6,scrubDotR:5,
+        drawKey:SUMMARY_PERIOD,""",
+          """        profitDotR:3,revDotR:3.5,
+        profitStroke:2.2,revStroke:2.6,scrubDotR:5,
+        primaryLabel:'Sales Revenue',secondaryLabel:'Gross Profit',
+        tertiaryData:returnData,tertiaryColor:'var(--warn)',tertiaryLabel:'Refunds',tertiaryStroke:2.1,tertiaryDotR:3,
+        drawKey:SUMMARY_PERIOD,""","mobile chart opts")
+
+          rep("""    const r=revData[i]||0;
+    const p=profitData[i]||0;
+    const has=r>0;
+    const hasP=p!==0;
+    const t=tertiaryData?(tertiaryData[i]||0):0;
+    const hasT=tertiaryData&&t!==0;""",
+          """    const r=revData[i]||0;
+    const p=profitData[i]||0;
+    const hasR=r>0;
+    const hasP=p!==0;
+    const t=tertiaryData?(tertiaryData[i]||0):0;
+    const hasT=tertiaryData&&t!==0;
+    const has=hasR||hasP||hasT;""","chart hit state")
+          rep("+((has&&(showDots||_isLast))?'<circle cx=\"'+cx.toFixed(1)+'\" cy=\"'+sy(r).toFixed(1)+'\" r=\"'+revDotR+'\" fill=\"'+_df(primaryColor)+'\" stroke=\"'+_ds(primaryColor)+'\" stroke-width=\"1.5\"/>':'')","+((hasR&&(showDots||_isLast))?'<circle cx=\"'+cx.toFixed(1)+'\" cy=\"'+sy(r).toFixed(1)+'\" r=\"'+revDotR+'\" fill=\"'+_df(primaryColor)+'\" stroke=\"'+_ds(primaryColor)+'\" stroke-width=\"1.5\"/>':'')","revenue dot gate")
+
+          rep("<div class=\"kpi-label\">Revenue · ${(periods.find(p=>p.key===SUMMARY_PERIOD)||{}).label||''}</div>","<div class=\"kpi-label\">Net revenue · ${(periods.find(p=>p.key===SUMMARY_PERIOD)||{}).label||''}</div>","mobile net revenue label")
+          rep("<div class=\"card kpi clickable\" onclick=\"showFilteredItems('revenue')\"><div class=\"kpi-label\">Total revenue</div>","<div class=\"card kpi clickable\" onclick=\"showFilteredItems('revenue')\"><div class=\"kpi-label\">Net revenue</div>","desktop net revenue label")
+          rep("<div class=\"sl\">Revenue over time</div>","<div class=\"sl\">Sales &amp; returns over time</div>","chart title")
+          rep("""<span class=\"legend-item\"><span class=\"legend-dot\" style=\"background:var(--state-listed)\"></span>Revenue</span><span class=\"legend-item\"><span class=\"legend-dot\" style=\"background:var(--profit)\"></span>Gross Profit</span>""",
+              """<span class=\"legend-item\"><span class=\"legend-dot\" style=\"background:var(--state-listed)\"></span>Sales Revenue</span><span class=\"legend-item\"><span class=\"legend-dot\" style=\"background:var(--profit)\"></span>Gross Profit</span><span class=\"legend-item\"><span class=\"legend-dot\" style=\"background:var(--warn)\"></span>Refunds</span>""","mobile legend")
+          rep("""              <span class=\"legend-item\"><span class=\"legend-dot\" style=\"background:var(--state-listed)\"></span>Revenue</span>
+              <span class=\"legend-item\"><span class=\"legend-dot\" style=\"background:var(--profit)\"></span>Gross Profit</span>""",
+              """              <span class=\"legend-item\"><span class=\"legend-dot\" style=\"background:var(--state-listed)\"></span>Sales Revenue</span>
+              <span class=\"legend-item\"><span class=\"legend-dot\" style=\"background:var(--profit)\"></span>Gross Profit</span>
+              <span class=\"legend-item\"><span class=\"legend-dot\" style=\"background:var(--warn)\"></span>Refunds</span>""","desktop legend")
+          rep('aria-label=\"Revenue and gross profit over time\"','aria-label=\"Sales revenue, gross profit and refunds over time\"','chart aria',2)
+          rep("{label:'Total revenue',sub:active.length+' active month'+(active.length!==1?'s':''),val:fmt(totalRev),profit:'Profit: '+fmt(totalProfit)}","{label:'Sales revenue',sub:active.length+' active month'+(active.length!==1?'s':''),val:fmt(totalRev),profit:'Gross profit: '+fmt(totalProfit)}","mobile summary wording")
+          rep("const titles={revenue:'Total Revenue',realised:'Gross Profit',unrealised:'Unrealised Profit',stock:'Stock Value',sourced:'Listed Value'};","const titles={revenue:'Net Revenue',realised:'Gross Profit',unrealised:'Unrealised Profit',stock:'Stock Value',sourced:'Listed Value'};","net revenue drill label")
+
+          rep("""  let revenue=0,totalProf=0,grossReceipts=0,refundTotal=0;
+  evs.forEach(function(ev){
+    const b=_saleBreakdown(ev);
+    if(ev.isReturnAdjustment){const r=Number(ev.salePrice)||0;revenue+=r;refundTotal+=Math.max(0,-r);}
+    else{const r=(Number(b.salePrice)||0)+(Number(b.postage)||0);revenue+=r;grossReceipts+=r;}
+    totalProf+=Number(b.netProfit)||0;
+  });
+  revenue=+revenue.toFixed(2);totalProf=+totalProf.toFixed(2);
+  const margin=grossReceipts>0?(totalProf/grossReceipts*100).toFixed(1):null,profColor=totalProf>=0?'var(--green)':'var(--red)';
+  const _snapCell=function(lab,val,col){return`<div style=\"background:var(--surface2);border-radius:10px;padding:11px 12px\"><div style=\"font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:3px\">${lab}</div><div style=\"font-size:18px;font-weight:700;font-family:'Inter',sans-serif;letter-spacing:-0.04em;color:${col}\">${val}</div></div>`;};
+  const kpis=`<div style=\"display:grid;grid-template-columns:${retEvs.length?'1fr 1fr':'1fr 1fr 1fr'};gap:8px;margin-bottom:14px\">
+      ${_snapCell('Net revenue',fmt(revenue),revenue>=0?'var(--blue)':'var(--red)')}
+      ${retEvs.length?_snapCell('Refunds',fmt(-refundTotal),'var(--warn)'):''}
+      ${_snapCell('Profit',fmt(totalProf)+(margin?` <span style=\"font-size:10px;color:var(--muted);font-weight:400\">${margin}%</span>`:''),profColor)}
+      ${_snapCell('Sold',String(saleEvs.length),'var(--text)')}
+    </div>`;""",
+          """  let salesRevenue=0,salesProfit=0,refundTotal=0;
+  saleEvs.forEach(function(ev){
+    const b=_saleBreakdown(ev);
+    salesRevenue+=(Number(b.salePrice)||0)+(Number(b.postage)||0);
+    salesProfit+=Number(b.netProfit)||0;
+  });
+  retEvs.forEach(function(ev){refundTotal+=Math.max(0,-(Number(ev.salePrice)||0));});
+  salesRevenue=+salesRevenue.toFixed(2);salesProfit=+salesProfit.toFixed(2);refundTotal=+refundTotal.toFixed(2);
+  const margin=salesRevenue>0?(salesProfit/salesRevenue*100).toFixed(1):null,profColor=salesProfit>=0?'var(--green)':'var(--red)';
+  const _snapCell=function(lab,val,col){return`<div style=\"background:var(--surface2);border-radius:10px;padding:11px 12px\"><div style=\"font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:3px\">${lab}</div><div style=\"font-size:18px;font-weight:700;font-family:'Inter',sans-serif;letter-spacing:-0.04em;color:${col}\">${val}</div></div>`;};
+  const kpis=`<div style=\"display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px\">
+      ${_snapCell('Sales revenue',fmt(salesRevenue),'var(--blue)')}
+      ${_snapCell('Gross profit',fmt(salesProfit)+(margin?` <span style=\"font-size:10px;color:var(--muted);font-weight:400\">${margin}%</span>`:''),profColor)}
+      ${_snapCell('Refunds',fmt(refundTotal),refundTotal>0?'var(--warn)':'var(--text)')}
+      ${_snapCell('Sold',String(saleEvs.length),'var(--text)')}
+    </div>`;""","range snapshot kpis")
+
+          rep("""  const retRows=retEvs.slice().sort(function(a,b){return (b.saleDate||'').localeCompare(a.saleDate||'');}).map(function(ev){const n=Math.max(1,Number(ev.returnEntry&&ev.returnEntry.saleNo)||1),p=Number(_saleBreakdown(ev).netProfit)||0;return`<div style=\"display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);cursor:pointer\" onclick=\"openItemDetail('${ev.month}','${ev.item.id}')\"><div style=\"flex:1;min-width:0\"><div style=\"font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis\">${esc(ev.item.item)}</div><div style=\"font-size:11px;color:var(--warn);margin-top:2px;font-weight:600\">${fmt(p)} <span style=\"color:var(--muted);font-weight:400\">· Sale ${n} return · ${ev.saleDate||''}</span></div></div><div style=\"font-size:13px;font-weight:600;font-family:var(--font-mono);color:var(--warn);flex-shrink:0\">${fmt(ev.salePrice||0)}</div></div>`;}).join('');""",
+          """  const retRows=retEvs.slice().sort(function(a,b){return (b.saleDate||'').localeCompare(a.saleDate||'');}).map(function(ev){const n=Math.max(1,Number(ev.returnEntry&&ev.returnEntry.saleNo)||1),refund=Math.max(0,-(Number(ev.salePrice)||0));return`<div style=\"display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);cursor:pointer\" onclick=\"openItemDetail('${ev.month}','${ev.item.id}')\"><div style=\"flex:1;min-width:0\"><div style=\"font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis\">${esc(ev.item.item)}</div><div style=\"font-size:11px;color:var(--warn);margin-top:2px;font-weight:600\">${fmt(refund)} refund <span style=\"color:var(--muted);font-weight:400\">· Sale ${n} return · ${ev.saleDate||''}</span></div></div><div style=\"font-size:13px;font-weight:600;font-family:var(--font-mono);color:var(--warn);flex-shrink:0\">${fmt(refund)}</div></div>`;}).join('');""","range return rows")
+
+          rep("""  // Session B: panel uses sale-attribution to match the rest of Monthly.
+  const ms = calcMonthStatsBySale(monthKey);
+  const events = getSaleEventsInMonth(monthKey);
+  const sold = events.filter(e=>!e.isReturned);
+  const returned = events.filter(e=>e.isReturned);""",
+          """  // This is the chart drill-down: keep sale performance and refunds
+  // separate here. Full monthly/accounting views still include return reversals.
+  const events = getSaleEventsInMonth(monthKey);
+  const sold = events.filter(function(e){return !e.isReturnAdjustment;});
+  const returned = events.filter(function(e){return e.isReturnAdjustment;});""","month snapshot event split")
+
+          rep("""  const stockValue = listed.reduce((s,i)=>s+(i.salePrice||0),0);
+  const marginPct = ms.totalRev>0 ? (ms.realisedProfit/ms.totalRev*100).toFixed(1) : null;
+  const profColor = ms.realisedProfit>=0?'var(--green)':'var(--red)';
+  const totalRefundEvents = ms.refundedItemCount||0;
+  const refundLabel = ms.refundDenom===0 ? '—'
+    : totalRefundEvents===0 ? '0%'
+    : ms.refundItemRate.toFixed(0)+'%';""",
+          """  const stockValue = listed.reduce((s,i)=>s+(i.salePrice||0),0);
+  const saleRevenue=+sold.reduce(function(sum,e){const b=_saleBreakdown(e);return sum+(Number(b.salePrice)||0)+(Number(b.postage)||0);},0).toFixed(2);
+  const saleProfit=+sold.reduce(function(sum,e){return sum+(Number(_saleBreakdown(e).netProfit)||0);},0).toFixed(2);
+  const refundTotal=+returned.reduce(function(sum,e){return sum+Math.max(0,-(Number(e.salePrice)||0));},0).toFixed(2);
+  const marginPct = saleRevenue>0 ? (saleProfit/saleRevenue*100).toFixed(1) : null;
+  const profColor = saleProfit>=0?'var(--green)':'var(--red)';""","month snapshot metrics")
+
+          rep("""  const kpis = `
+    <div style=\"display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px\">
+      <div style=\"background:var(--surface2);border-radius:10px;padding:12px 14px\">
+        <div style=\"font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:4px\">Revenue</div>
+        <div style=\"font-size:22px;font-weight:700;font-family:'Inter',sans-serif;letter-spacing:-0.04em;color:var(--blue)\">${fmt(ms.totalRev)}</div>
+        ${marginPct!==null?`<div style=\"font-size:11px;color:var(--muted);margin-top:2px\">${marginPct}% margin</div>`:''}
+      </div>
+      <div style=\"background:var(--surface2);border-radius:10px;padding:12px 14px\">
+        <div style=\"font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:4px\">Profit</div>
+        <div style=\"font-size:22px;font-weight:700;font-family:'Inter',sans-serif;letter-spacing:-0.04em;color:${profColor}\">${fmt(ms.realisedProfit)}</div>
+        ${ms.avgDays!==null?`<div style=\"font-size:11px;color:var(--muted);margin-top:2px\">${ms.avgDays}d avg to sell</div>`:''}
+      </div>
+      <div style=\"background:var(--surface2);border-radius:10px;padding:12px 14px\">
+        <div style=\"font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:4px\">Sold</div>
+        <div style=\"font-size:22px;font-weight:700;font-family:'Inter',sans-serif;letter-spacing:-0.04em;color:var(--text)\">${ms.soldCount}</div>
+        <div style=\"font-size:11px;color:var(--muted);margin-top:2px\">sale${ms.soldCount!==1?'s':''}${ms.returnedCount>0?' · '+ms.returnedCount+' returned':''}</div>
+      </div>
+      <div style=\"background:var(--surface2);border-radius:10px;padding:12px 14px\">
+        <div style=\"font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:4px\">Refund rate</div>
+        <div style=\"font-size:22px;font-weight:700;font-family:'Inter',sans-serif;letter-spacing:-0.04em;color:${totalRefundEvents>0?'var(--warn)':'var(--text)'}\">${refundLabel}</div>
+        <div style=\"font-size:11px;color:var(--muted);margin-top:2px\">${ms.refundDenom===0?'No sales':(ms.fullRefundCount||0)+' full · '+(ms.partialOnlyCount||0)+' partial'}</div>
+      </div>
+    </div>`;""",
+          """  const kpis = `
+    <div style=\"display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px\">
+      <div style=\"background:var(--surface2);border-radius:10px;padding:12px 14px\">
+        <div style=\"font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:4px\">Sales revenue</div>
+        <div style=\"font-size:22px;font-weight:700;font-family:'Inter',sans-serif;letter-spacing:-0.04em;color:var(--blue)\">${fmt(saleRevenue)}</div>
+        ${marginPct!==null?`<div style=\"font-size:11px;color:var(--muted);margin-top:2px\">${marginPct}% sale margin</div>`:''}
+      </div>
+      <div style=\"background:var(--surface2);border-radius:10px;padding:12px 14px\">
+        <div style=\"font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:4px\">Gross profit</div>
+        <div style=\"font-size:22px;font-weight:700;font-family:'Inter',sans-serif;letter-spacing:-0.04em;color:${profColor}\">${fmt(saleProfit)}</div>
+        <div style=\"font-size:11px;color:var(--muted);margin-top:2px\">From sales in this month</div>
+      </div>
+      <div style=\"background:var(--surface2);border-radius:10px;padding:12px 14px\">
+        <div style=\"font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:4px\">Sold</div>
+        <div style=\"font-size:22px;font-weight:700;font-family:'Inter',sans-serif;letter-spacing:-0.04em;color:var(--text)\">${sold.length}</div>
+        <div style=\"font-size:11px;color:var(--muted);margin-top:2px\">sale${sold.length!==1?'s':''}</div>
+      </div>
+      <div style=\"background:var(--surface2);border-radius:10px;padding:12px 14px\">
+        <div style=\"font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:4px\">Refunds</div>
+        <div style=\"font-size:22px;font-weight:700;font-family:'Inter',sans-serif;letter-spacing:-0.04em;color:${refundTotal>0?'var(--warn)':'var(--text)'}\">${fmt(refundTotal)}</div>
+        <div style=\"font-size:11px;color:var(--muted);margin-top:2px\">${returned.length} return/refund event${returned.length===1?'':'s'}</div>
+      </div>
+    </div>`;""","month snapshot kpis")
+
+          rep("""  const renderEvent = (e) => {
+    const i=e.item;
+    const profColor = (e.profit||0)>=0?'var(--green)':'var(--red)';
+    const lineage = e.isReturnAdjustment?'Returned':((Number(e.sale)||1)>=2?'Resold':'Sold');
+    return `<div style=\"display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);cursor:pointer\" onclick=\"openItemDetail('${e.month}','${i.id}')\">
+      <div style=\"flex:1;min-width:0\">
+        <div style=\"font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis\">${esc(i.item)}</div>
+        <div style=\"font-size:11px;color:${profColor};margin-top:2px;font-weight:600\">${fmt(e.profit||0)}${e.margin!==null&&e.margin!==undefined?` <span style=\"color:var(--muted);font-weight:400\">· ${e.margin.toFixed(1)}% margin</span>`:''}<span style=\"color:var(--muted);font-weight:400\"> · ${lineage} ${e.saleDate||''}</span></div>
+      </div>
+      <div style=\"font-size:13px;font-weight:600;font-family:var(--font-mono);color:var(--text);flex-shrink:0\">${fmt(e.salePrice)}</div>
+    </div>`;
+  };""",
+          """  const renderEvent = (e) => {
+    const i=e.item,isReturn=!!e.isReturnAdjustment;
+    const p=Number(_saleBreakdown(e).netProfit)||0;
+    const refund=isReturn?Math.max(0,-(Number(e.salePrice)||0)):0;
+    const profColor = p>=0?'var(--green)':'var(--red)';
+    const lineage = isReturn?'Returned':((Number(e.sale)||1)>=2?'Resold':'Sold');
+    const detail=isReturn
+      ?`${fmt(refund)} refund <span style=\"color:var(--muted);font-weight:400\">· ${lineage} ${e.saleDate||''}</span>`
+      :`${fmt(p)}${e.margin!==null&&e.margin!==undefined?` <span style=\"color:var(--muted);font-weight:400\">· ${e.margin.toFixed(1)}% margin</span>`:''}<span style=\"color:var(--muted);font-weight:400\"> · ${lineage} ${e.saleDate||''}</span>`;
+    return `<div style=\"display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);cursor:pointer\" onclick=\"openItemDetail('${e.month}','${i.id}')\">
+      <div style=\"flex:1;min-width:0\">
+        <div style=\"font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis\">${esc(i.item)}</div>
+        <div style=\"font-size:11px;color:${isReturn?'var(--warn)':profColor};margin-top:2px;font-weight:600\">${detail}</div>
+      </div>
+      <div style=\"font-size:13px;font-weight:600;font-family:var(--font-mono);color:${isReturn?'var(--warn)':'var(--text)'};flex-shrink:0\">${isReturn?fmt(refund):fmt(e.salePrice)}</div>
+    </div>`;
+  };""","month event rows")
+
+          p.write_text(s)
+          PY
+          node --check app.js
+          git diff --check
+          grep -q "chartReturns" app.js
+          grep -q "tertiaryLabel:'Refunds'" app.js
+          grep -q "Sales &amp; returns over time" app.js
+          git rm .github/workflows/dashboard-sales-returns-series.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app.js
+          git commit -m "fix(dashboard): separate sales profit and refunds"
+          git push origin HEAD:fix/dashboard-sales-returns-series
