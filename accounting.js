@@ -1732,6 +1732,20 @@ function runFinancialRegressionTests(){
   const estGross=calcEstGrossProfit(i);
   check('Consignment estimate · partner split deducted once',calcEstProfit(i),estGross*0.5);
 
+  // 13c — returned + relisted stock: live listing price wins over a stale
+  // sourcing estimate, and recovered stock basis is consumed exactly once.
+  i=base('ebay_biz');
+  i.category='Digital Cameras & Lenses';i.state='listed';i.dateSold=null;i.isReturned=false;
+  i.salePrice=189.99;i.estSalePrice=270;i.costPrice=121.49;i.shippingCost=3.65;i.packagingCost=0;i.promoPercent=0.03;
+  i.listingFee=0.72;i.resaleListingFee=0.36;
+  i.returnHistory=[{type:'full_seller',saleNo:1,refundAmount:189.99,returnPostage:0,loggedAt:'2026-09-05',
+    _salePriceAtReturn:189.99,_dateSoldAtReturn:'2026-08-23',_postageAtReturn:0,_platformAtReturn:'ebay_biz',_promoPercentAtReturn:0.03,
+    _salePriceAtRelist:189.99,_postageAtRelist:0,_shippingCostAtRelist:3.65,_packagingCostAtRelist:0,_promoPercentAtRelist:0.03,
+    _listingFeeAtReturn:0.72,_listingFeeAtRelist:0.36,_platformAtRelist:'ebay_biz',_relistedAt:'2026-09-05'}];
+  const returnedBase=calcGrossProfit(i);
+  const nextSale=189.99-calcPlatformBPF(i,189.99,0,'ebay_biz')-_calcPromoFee('ebay_biz',189.99,0,0.03)-3.65-121.49;
+  check('Relist estimate · live ask + stock basis once',calcEstGrossProfit(i),returnedBase+nextSale);
+
   // 14 — ordinary disposal permanently loses paid acquisition + parts cash.
   i={id:'CASH-SCRAP',item:'Cash scrap',scrappedAt:'2026-08-20',scrapReason:'scrapped',costPrice:40,parts:[{cost:5}]};
   check('Cash · scrapped stock capital loss',_cashRemovedItemNet(i),45);
@@ -2001,7 +2015,10 @@ function calcEstGrossProfit(i){
   if(onHand&&hasCompletedReturn){
     const base=calcGrossProfit(i);
     if(base===null)return null;
-    const ask=(Number(i.estSalePrice)>0)?Number(i.estSalePrice):Math.max(0,Number(i.salePrice)||0);
+    // Once the returned unit has been relisted, salePrice is the live ask.
+    // estSalePrice is a sourcing-era estimate and may legitimately remain higher;
+    // never let that stale estimate replace the price the item is actually listed at.
+    const ask=(Number(i.salePrice)>0)?Number(i.salePrice):Math.max(0,Number(i.estSalePrice)||0);
     if(ask<=0)return base;
     const platformId=_itemPlatform(i);
     const post=Math.max(0,Number(i.postage)||0);
@@ -2010,9 +2027,13 @@ function calcEstGrossProfit(i){
     const promo=Math.max(0,Number(_calcPromoFee(platformId,ask,post,Number(i.promoPercent)||0))||0);
     const sellerPays=(typeof _sellerPaysOutbound==='function')?_sellerPaysOutbound(platformId):(platformId!=='vinted'&&platformId!=='fb');
     const fulfilment=sellerPays?(Math.max(0,Number(i.shippingCost)||0)+Math.max(0,Number(i.packagingCost)||0)):0;
+    // A full return restores buy cost + parts to stock, so calcGrossProfit(base)
+    // correctly does NOT realise them as a loss while the unit is back in hand.
+    // The hypothetical next successful sale consumes that stock basis once as COGS.
+    const stockBasis=Math.max(0,Number(i.costPrice)||0)+Math.max(0,Number(calcPartsCost(i))||0);
     // Any relist insertion fee already recorded on the return event is already
     // contained in calcGrossProfit(base), so never deduct it twice here.
-    const nextCycle=ask+sellerPostage-bpf-promo-fulfilment;
+    const nextCycle=ask+sellerPostage-bpf-promo-fulfilment-stockBasis;
     return +(base+nextCycle).toFixed(2);
   }
 

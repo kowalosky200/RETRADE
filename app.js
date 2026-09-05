@@ -6323,7 +6323,7 @@ function _renderItemPageInner(m,id){
   // item). Vinted shows the buyer-covered note instead.
   if(_plat==='vinted')pb+=rcp('Buyer pays postage','(buyer covered)','var(--muted)');
   else pb+=_editMoneyRow('+ Buyer postage','rcpt-s1-postage-input',m,id,_rcptPostage,'var(--green)','+');
-  if(_showFee)pb+=rcp(_feeLabel,'−'+fmt(bpf),'var(--red)');
+  if(_showFee)pb+=rcp(_feeLabel,'−'+fmt(_origBpfBeforeCredits),'var(--red)');
   // F1: Listing fee — inline editable input in receipt for eBay Biz; read-only line for others if set
   if(_plat==='ebay_biz'){
     pb+='<div class="ip-receipt-row"><span style="flex:1;color:var(--text-secondary)">Listing fee</span>'
@@ -6337,7 +6337,7 @@ function _renderItemPageInner(m,id){
   // Relist fees belong to their own Sale-N cycle card, never Sale 1.
   if(_showPostage)pb+=_editMoneyRow('Shipping cost (you pay)','rcpt-s1-shipping-input',m,id,_rcptShipping,'var(--red)','−'); // v2.19.36 — editable per sale
   if(_showPostage&&_rcptPackaging>0)pb+=rcp('Packaging','−'+fmt(_rcptPackaging),'var(--red)');
-  if(_rcptPromo)pb+=rcp((_plat==='ebay'?'Promo fee ('+((_rcptPromo*100).toFixed(0))+'% +VAT)':'Boost fee ('+((_rcptPromo*100).toFixed(0))+'%)'),'−'+fmt(promoCost),'var(--red)');
+  if(_rcptPromo)pb+=rcp((_plat==='ebay'?'Promo fee ('+((_rcptPromo*100).toFixed(0))+'% +VAT)':'Boost fee ('+((_rcptPromo*100).toFixed(0))+'%)'),'−'+fmt(_origPromoBeforeCredits),'var(--red)');
   pb+=rcp('Item cost','−'+fmt(i.costPrice||0),'var(--red)');
   if(partsCost>0){
     const pts=i.parts||[];
@@ -6479,7 +6479,10 @@ function _renderItemPageInner(m,id){
     const rlGrossInc=rlSalePrice-rlBPF;
     const rlPromo=_calcPromoFee(_itemPlatform(i),rlSalePrice,rlPostage,i.promoPercent||0);
     const rlRev=rlSalePrice+rlPostage-rlBPF;
-    const rlCost=rlShipping+rlPackaging+rlPromo;
+    const rlItemCost=Math.max(0,Number(i.costPrice)||0);
+    const rlPartsCost=Math.max(0,Number(calcPartsCost(i))||0);
+    const rlStockBasis=rlItemCost+rlPartsCost;
+    const rlCost=rlShipping+rlPackaging+rlPromo+rlStockBasis;
     // v1.4.10 — use the same canonical expected-profit function as the
     // Inventory row/header so this projection can never disagree with Stock.
     const combinedP=calcEstGrossProfit(i);
@@ -6497,12 +6500,13 @@ function _renderItemPageInner(m,id){
         <div class="ip-receipt-row"><span style="flex:1">Shipping (you pay)</span><span class="ip-receipt-val" style="color:var(--red);display:flex;align-items:center;gap:4px">−£<input type="number" class="rcpt-relist-shipping-input" data-m="${m}" data-id="${id}" value="${+(rlShipping||0)}" min="0" step="0.01" style="width:60px;padding:2px 4px;background:var(--surface2);border:1px solid var(--border);border-radius:5px;color:var(--red);font-size:13px;font-weight:600;text-align:right"></span></div>
         <div class="ip-receipt-row" style="align-items:center">
           <span style="display:flex;align-items:center;gap:8px;color:var(--text-secondary)">Promo %
-            <input id="rl-promo-input" type="number" min="0" max="100" step="0.1" value="${rlDefaultPromo}" style="width:56px;padding:3px 7px;border-radius:5px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-size:12px;font-weight:600;text-align:center;font-family:inherit" oninput="_recalcRelist(${profit},${rlSalePrice},${rlBPF},${rlShipping},${rlPackaging},${rlPostage})">
+            <input id="rl-promo-input" type="number" min="0" max="100" step="0.1" value="${rlDefaultPromo}" style="width:56px;padding:3px 7px;border-radius:5px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-size:12px;font-weight:600;text-align:center;font-family:inherit" oninput="_recalcRelist(${profit},${rlSalePrice},${rlBPF},${rlShipping},${rlPackaging},${rlPostage},'${_itemPlatform(i)}',${rlStockBasis})">
             <span style="font-size:11px;color:var(--muted)">+VAT</span>
           </span>
           <span id="rl-promo-cost" class="ip-receipt-val" style="color:var(--red)">−${fmt(rlPromo)}</span>
         </div>
-        <div class="ip-receipt-row"><span style="flex:1;color:var(--muted)">Item cost (sunk)</span><span class="ip-receipt-val" style="color:var(--muted)">—</span></div>
+        <div class="ip-receipt-row"><span style="flex:1">Item cost</span><span class="ip-receipt-val" style="color:var(--red)">−${fmt(rlItemCost)}</span></div>
+        ${rlPartsCost>0?`<div class="ip-receipt-row"><span style="flex:1">Parts & expenses</span><span class="ip-receipt-val" style="color:var(--red)">−${fmt(rlPartsCost)}</span></div>`:''}
         <div class="ip-receipt-row total"><span style="flex:1">Profit if sold</span><span id="rl-profit" class="ip-receipt-val" style="color:${rlProfit>=0?'var(--green)':'var(--red)'}">${fmt(rlProfit)}</span></div>
         <div class="ip-receipt-row" style="margin-top:6px;padding:10px;background:var(--surface2);border-radius:8px;border-bottom:none">
           <span style="flex:1;font-weight:600">Lifetime P&L if sold</span>
@@ -13072,8 +13076,8 @@ function buildCategoryDonut(byCat){
     let extra='';
     if(isLast){
       // Fixed visual recoil. Because the closing arc is the largest of at most
-      // six slices, 26 user units always fits without data-dependent clamping.
-      const RECOIL=26;
+      // six slices, 16 user units gives a visible endpoint recoil without a lurch.
+      const RECOIL=16;
       // Overshoot is physically bounded only by the remaining circumference;
       // the visible backwards kick remains the same for every category mix.
       const OVER=Math.min(RECOIL*0.30,g.rest*0.5);
@@ -23307,12 +23311,12 @@ window.addEventListener('load',function(){
   },{passive:true});
 })();
 
-function _recalcRelist(currentPL,salePrice,bpf,shipping,packaging,postage){
+function _recalcRelist(currentPL,salePrice,bpf,shipping,packaging,postage,platformId,stockBasis){
   const promoInput=parseFloat(document.getElementById('rl-promo-input').value)||0;
   const grossInc=salePrice-bpf;
-  const promoCost=_calcPromoFee('ebay',salePrice,postage,promoInput/100);
+  const promoCost=_calcPromoFee(platformId||'ebay',salePrice,postage,promoInput/100);
   const rev=salePrice+postage-bpf;
-  const cost=shipping+packaging+promoCost;
+  const cost=shipping+packaging+promoCost+Math.max(0,Number(stockBasis)||0);
   const rlProfit=+(rev-cost).toFixed(2);
   const combinedP=+(currentPL+rlProfit).toFixed(2);
   const promoEl=document.getElementById('rl-promo-cost');
