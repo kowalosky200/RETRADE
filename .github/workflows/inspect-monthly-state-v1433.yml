@@ -13,6 +13,20 @@ jobs:
         with:
           ref: ui/monthly-dashboard-accounting-v1-4-33
           fetch-depth: 0
+      - name: Correct patch targeting
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('scripts/apply_monthly_dashboard_v1433.py')
+          s=p.read_text(encoding='utf-8')
+          old="app=rep(app,\"${deltaChip(deltas&&deltas.grossProfit)||'After returns · before overheads'}\",\"${deltaChip(grossDeltas&&grossDeltas.profit)||'Before refunds · before overheads'}\",label='mobile gross profit foot')"
+          new="app=rep(app,\"${deltaChip(deltas&&deltas.grossProfit)||'After returns · before overheads'}\",\"${deltaChip(grossDeltas&&grossDeltas.profit)||'Before refunds · before overheads'}\",count=2,label='gross profit foot copy')"
+          if old not in s: raise SystemExit('gross-profit target not found')
+          s=s.replace(old,new)
+          # The desktop block runs after the shared two-occurrence replacement.
+          s=s.replace("${deltaChip(deltas&&deltas.grossProfit)||'After returns · before overheads'}</div></div>","${deltaChip(grossDeltas&&grossDeltas.profit)||'Before refunds · before overheads'}</div></div>")
+          p.write_text(s,encoding='utf-8')
+          PY
       - name: Apply v1.4.33 patch
         run: python3 scripts/apply_monthly_dashboard_v1433.py
       - name: JavaScript syntax check
