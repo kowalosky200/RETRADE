@@ -1,27 +1,39 @@
-name: Inspect monthly state
+name: Apply v1.4.33 monthly and dashboard patch
 on:
   push:
     branches: [ui/monthly-dashboard-accounting-v1-4-33]
 permissions:
-  contents: read
+  contents: write
 jobs:
-  inspect:
+  patch:
+    if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           ref: ui/monthly-dashboard-accounting-v1-4-33
-      - name: Inspect state and accounting code
+          fetch-depth: 0
+      - name: Apply v1.4.33 patch
+        run: python3 scripts/apply_monthly_dashboard_v1433.py
+      - name: JavaScript syntax check
+        run: node --check app.js && node --check accounting.js && node --check reports.js
+      - name: Patch integrity check
         run: |
-          echo '--- UI persistence ---'
-          grep -n -B 20 -A 90 "const _SK=" app.js | head -220 || true
-          echo '--- boot init ---'
-          grep -n -B 30 -A 120 "showRealLayoutLoading(_safeTab" app.js | head -260 || true
-          echo '--- monthly state override ---'
-          grep -n -B 30 -A 100 "const _rtBaseLoadUIState" app.js | head -240 || true
-          echo '--- monthly render ---'
-          grep -n -B 20 -A 120 "function renderMonth" app.js | head -300 || true
-          echo '--- month stats ---'
-          grep -n -B 10 -A 110 "function calcMonthStatsBySale" accounting.js | head -280 || true
-          echo '--- summary deltas ---'
-          grep -n -B 30 -A 100 "function calcSummaryDeltas" accounting.js | head -280 || true
+          git diff --check
+          grep -q "const _bootMonthlyRoute" app.js
+          grep -q "Gross revenue" app.js
+          grep -q "Profit breakdown" app.js
+          grep -q "const refundCycles=new Map" accounting.js
+          grep -q "function calcSummaryGrossStats" accounting.js
+          grep -q "app.js?v=1.4.33" index.html
+      - name: Commit application changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app.js app.css accounting.js index.html
+          if git diff --cached --quiet; then
+            echo "No application changes to commit."
+            exit 0
+          fi
+          git commit -m "Stabilise Sales routing and clarify gross vs net reporting"
+          git push origin HEAD:ui/monthly-dashboard-accounting-v1-4-33
