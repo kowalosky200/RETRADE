@@ -13217,7 +13217,7 @@ function renderSummaryChart(labels,revData,profitData,returnData,partialLast){
         profitDotR:2.5,revDotR:3,
         profitStroke:1.8,revStroke:2,scrubDotR:4.5,
         primaryLabel:'Sales Revenue',secondaryLabel:'Gross Profit',
-        tertiaryData:returnData,tertiaryColor:'var(--warn)',tertiaryLabel:'Refunds',tertiaryStroke:1.7,tertiaryDotR:2.5,
+        tertiaryData:returnData,tertiaryColor:'var(--red)',tertiaryLabel:'Refunds',tertiaryStroke:1.7,tertiaryDotR:2.5,
         drawKey:SUMMARY_PERIOD,
         gradientId:'rt-profit-fill',
         partialLast:!!partialLast
@@ -13247,7 +13247,7 @@ function renderSummaryChart(labels,revData,profitData,returnData,partialLast){
         profitDotR:3,revDotR:3.5,
         profitStroke:2.2,revStroke:2.6,scrubDotR:5,
         primaryLabel:'Sales Revenue',secondaryLabel:'Gross Profit',
-        tertiaryData:returnData,tertiaryColor:'var(--warn)',tertiaryLabel:'Refunds',tertiaryStroke:2.1,tertiaryDotR:3,
+        tertiaryData:returnData,tertiaryColor:'var(--red)',tertiaryLabel:'Refunds',tertiaryStroke:2.1,tertiaryDotR:3,
         drawKey:SUMMARY_PERIOD,
         gradientId:'rt-profit-fill-m',
         partialLast:!!partialLast
