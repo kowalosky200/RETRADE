@@ -126,16 +126,19 @@
 }
 @keyframes rtDonutFinishBounce{
   0%{transform:scale(1);}
-  30%{transform:scale(1.045);}
-  55%{transform:scale(.988);}
-  78%{transform:scale(1.012);}
+  24%{transform:scale(1.075);}
+  48%{transform:scale(.965);}
+  72%{transform:scale(1.028);}
+  88%{transform:scale(.992);}
   100%{transform:scale(1);}
 }
-#p-summary svg.cat-donut-svg.cat-donut-draw{
-  transform-box:fill-box;
-  transform-origin:center;
+/* Animate the ordinary HTML wrapper, not the root SVG. Root-SVG transforms can
+   be swallowed/flattened by Safari while its child stroke animations are active.
+   The wrapper is compositor-driven and makes the landing bounce consistently visible. */
+#p-summary .cat-donut-chart:has(svg.cat-donut-draw){
+  transform-origin:50% 50%;
   will-change:transform;
-  animation:rtDonutFinishBounce 360ms cubic-bezier(.2,.8,.2,1) 760ms both;
+  animation:rtDonutFinishBounce 480ms cubic-bezier(.22,.72,.2,1) 790ms both;
 }
 
 @media(prefers-reduced-motion:reduce){
@@ -143,7 +146,7 @@
   #p-summary svg.rt-chart-draw:has(.rt-chart-partial)>text:last-of-type,
   #p-summary svg.cat-donut-draw circle,
   #p-summary svg.cat-donut-draw circle.donut-seg-last,
-  #p-summary svg.cat-donut-svg.cat-donut-draw{
+  #p-summary .cat-donut-chart:has(svg.cat-donut-draw){
     animation:none!important;animation-delay:0ms!important;
   }
   #p-summary svg.rt-chart-draw .rt-chart-partial{
@@ -152,7 +155,7 @@
   #p-summary svg.rt-chart-draw:has(.rt-chart-partial)>text:last-of-type{
     opacity:.85!important;transform:none!important;
   }
-  #p-summary svg.cat-donut-svg.cat-donut-draw{transform:none!important;}
+  #p-summary .cat-donut-chart:has(svg.cat-donut-draw){transform:none!important;}
 }
 </style>
 
