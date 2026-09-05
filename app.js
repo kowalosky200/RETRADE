@@ -13199,7 +13199,7 @@ function closeAllCategoriesModal(){
 // window.__chartClickHandlers array, dispatched through one delegated
 // listener on the <svg>. Chart.js CDN and _summaryChart global removed.
 // ============================================================================
-function renderSummaryChart(labels,revData,profitData,returnData,partialLast){
+function renderSummaryChart(labels,revData,profitData,returnData,returnCounts,partialLast){
   const handlers=window.__chartClickHandlers||[];
   const n=labels.length;
 
@@ -13217,7 +13217,7 @@ function renderSummaryChart(labels,revData,profitData,returnData,partialLast){
         profitDotR:2.5,revDotR:3,
         profitStroke:1.8,revStroke:2,scrubDotR:4.5,
         primaryLabel:'Sales Revenue',secondaryLabel:'Gross Profit',
-        tertiaryData:returnData,tertiaryColor:'var(--warn)',tertiaryLabel:'Refunds',tertiaryStroke:0,tertiaryBars:true,tertiaryBarMaxW:6,tertiaryBarOpacity:0.22,
+        tertiaryData:returnData,tertiaryCounts:returnCounts,tertiaryColor:'var(--red)',tertiaryLabel:'Refunds',tertiaryStroke:0,tertiaryMarkersOnly:true,tertiaryAlwaysDots:true,tertiaryEvents:true,tertiaryEventDotR:4.2,
         drawKey:SUMMARY_PERIOD,
         gradientId:'rt-profit-fill',
         partialLast:!!partialLast
@@ -13247,7 +13247,7 @@ function renderSummaryChart(labels,revData,profitData,returnData,partialLast){
         profitDotR:3,revDotR:3.5,
         profitStroke:2.2,revStroke:2.6,scrubDotR:5,
         primaryLabel:'Sales Revenue',secondaryLabel:'Gross Profit',
-        tertiaryData:returnData,tertiaryColor:'var(--warn)',tertiaryLabel:'Refunds',tertiaryStroke:0,tertiaryBars:true,tertiaryBarMaxW:6.5,tertiaryBarOpacity:0.22,
+        tertiaryData:returnData,tertiaryCounts:returnCounts,tertiaryColor:'var(--red)',tertiaryLabel:'Refunds',tertiaryStroke:0,tertiaryMarkersOnly:true,tertiaryAlwaysDots:true,tertiaryEvents:true,tertiaryEventDotR:4.6,
         drawKey:SUMMARY_PERIOD,
         gradientId:'rt-profit-fill-m',
         partialLast:!!partialLast
@@ -13379,6 +13379,9 @@ function _renderChartInto(svgEl,labels,revData,profitData,handlers,opts){
   const tertiaryLabel=opts.tertiaryLabel||'Net Profit';
   const tertiaryStroke=opts.tertiaryStroke!=null?opts.tertiaryStroke:1.6;
   const tertiaryDotR=opts.tertiaryDotR||2.5;
+  const tertiaryCounts=Array.isArray(opts.tertiaryCounts)?opts.tertiaryCounts:null;
+  const tertiaryEvents=!!opts.tertiaryEvents;
+  const tertiaryEventDotR=opts.tertiaryEventDotR!=null?Math.max(3,Number(opts.tertiaryEventDotR)||4.2):4.2;
   const tertiaryMarkersOnly=!!opts.tertiaryMarkersOnly;
   const tertiaryAlwaysDots=!!opts.tertiaryAlwaysDots;
   const tertiaryDotOpacity=opts.tertiaryDotOpacity!=null?Math.max(0,Math.min(1,Number(opts.tertiaryDotOpacity)||0)):1;
@@ -13391,7 +13394,8 @@ function _renderChartInto(svgEl,labels,revData,profitData,handlers,opts){
 
   // Y scale supports negative return adjustments. Both series share one
   // scale so the chart can visibly cross £0 and still reconcile to the KPI.
-  const _tert=tertiaryData||[];
+  // Semantic events must never distort the money scale.
+  const _tert=(tertiaryData&&!tertiaryEvents)?tertiaryData:[];
   const rawMax=Math.max(0,...revData,...profitData,..._tert);
   const rawMin=Math.min(0,...revData,...profitData,..._tert);
   const niceBound=function(v){
@@ -13481,13 +13485,28 @@ function _renderChartInto(svgEl,labels,revData,profitData,handlers,opts){
   const showDots=n<=maxDotsN;
   const colW=n>1?xStep:innerW;
   const fmtMoney=v=>'£'+(v||0).toLocaleString('en-GB',{minimumFractionDigits:2,maximumFractionDigits:2});
-  // Refunds are discrete events, not a continuous trend. Render them as slim,
-  // low-emphasis columns from the zero baseline so sales/profit stay dominant.
+  // Refunds are event annotations, not a third quantitative series. In event
+  // mode every marker sits on one fixed rail INSIDE the plot; its Y-position and
+  // size never encode amount. Amount/count are disclosed by title + scrub tooltip.
+  const tertiaryEventY=H-pad.b-Math.max(10,Math.min(14,innerH*0.065));
   const tertiaryBarW=Math.max(3.5,Math.min(tertiaryBarMaxW,(n>1?xStep:innerW)*0.22));
-  const tertBars=(tertiaryData&&tertiaryBars)?tertiaryData.map(function(raw,i){
+  const tertOverlay=tertiaryData?tertiaryData.map(function(raw,i){
     const t=Math.max(0,Number(raw)||0);
     if(t<=0)return '';
-    const cx=sx(i), y0=sy(0), yt=sy(t);
+    const cx=sx(i);
+    if(tertiaryEvents){
+      const count=tertiaryCounts?Math.max(0,Number(tertiaryCounts[i])||0):1;
+      const rr=tertiaryEventDotR;
+      const countText=count>1?(count>9?'9+':String(count)):'';
+      const centre=countText
+        ?'<text x="'+cx.toFixed(1)+'" y="'+(tertiaryEventY+2.45).toFixed(1)+'" text-anchor="middle" font-size="7.2" font-weight="700" fill="'+tertiaryColor+'" font-family="var(--font-body)">'+countText+'</text>'
+        :'<circle cx="'+cx.toFixed(1)+'" cy="'+tertiaryEventY.toFixed(1)+'" r="1.65" fill="'+tertiaryColor+'"/>';
+      return '<g class="rt-chart-refund-event" data-refund-count="'+count+'">'
+        +'<circle cx="'+cx.toFixed(1)+'" cy="'+tertiaryEventY.toFixed(1)+'" r="'+(rr+1.15).toFixed(1)+'" fill="var(--surface-1)" stroke="'+tertiaryColor+'" stroke-width="1.45"/>'
+        +centre+'</g>';
+    }
+    if(!tertiaryBars)return '';
+    const y0=sy(0),yt=sy(t);
     const h=Math.max(2.4,Math.abs(y0-yt));
     const y=Math.min(y0,yt);
     const isPartial=_partial&&i===n-1;
@@ -13512,10 +13531,10 @@ function _renderChartInto(svgEl,labels,revData,profitData,handlers,opts){
     const _ds=function(c){return _isLast?c:'var(--surface-1)';};
     return '<g class="rt-chart-col'+(has?' clickable':'')+'" data-idx="'+i+'">'
       +'<rect x="'+(cx-colW/2).toFixed(1)+'" y="'+pad.t+'" width="'+colW.toFixed(1)+'" height="'+innerH+'" fill="transparent"/>'
-      +(hasT&&!tertiaryBars&&(showDots||tertiaryAlwaysDots)?'<circle cx="'+cx.toFixed(1)+'" cy="'+sy(t).toFixed(1)+'" r="'+tertiaryDotR+'" fill="'+_df(tertiaryColor)+'" stroke="'+_ds(tertiaryColor)+'" stroke-width="1.1" opacity="'+tertiaryDotOpacity+'"/>':'')
+      +(hasT&&!tertiaryBars&&!tertiaryEvents&&(showDots||tertiaryAlwaysDots)?'<circle cx="'+cx.toFixed(1)+'" cy="'+sy(t).toFixed(1)+'" r="'+tertiaryDotR+'" fill="'+_df(tertiaryColor)+'" stroke="'+_ds(tertiaryColor)+'" stroke-width="1.1" opacity="'+tertiaryDotOpacity+'"/>':'')
       +(hasP&&showDots?'<circle cx="'+cx.toFixed(1)+'" cy="'+sy(p).toFixed(1)+'" r="'+profitDotR+'" fill="'+_df(secondaryColor)+'" stroke="'+_ds(secondaryColor)+'" stroke-width="1.2"/>':'')
       +((hasR&&(showDots||_isLast))?'<circle cx="'+cx.toFixed(1)+'" cy="'+sy(r).toFixed(1)+'" r="'+revDotR+'" fill="'+_df(primaryColor)+'" stroke="'+_ds(primaryColor)+'" stroke-width="1.5"/>':'')
-      +'<title>'+esc(l)+' · '+primaryLabel+' '+fmtMoney(r)+' · '+secondaryLabel+' '+fmtMoney(p)+(tertiaryData?' · '+tertiaryLabel+' '+fmtMoney(t):'')+'</title>'
+      +'<title>'+esc(l)+' · '+primaryLabel+' '+fmtMoney(r)+' · '+secondaryLabel+' '+fmtMoney(p)+(hasT?' · '+tertiaryLabel+' -'+fmtMoney(t)+(tertiaryCounts&&tertiaryCounts[i]?' · '+tertiaryCounts[i]+' event'+(tertiaryCounts[i]===1?'':'s'):''):'')+'</title>'
       +'</g>';
   }).join('');
 
@@ -13530,7 +13549,6 @@ function _renderChartInto(svgEl,labels,revData,profitData,handlers,opts){
     +'</defs>'
     +grid+yLab+xLab
     +'<path class="rt-chart-area" d="'+area+'" fill="url(#'+gradientId+')" stroke="none"/>'
-    +tertBars
     +'<path class="rt-chart-line" d="'+profitLine+'" fill="none" stroke="'+secondaryColor+'" stroke-width="'+profitStroke+'" stroke-linejoin="round" stroke-linecap="round" opacity="0.95"/>'
     +(profitDash?'<path class="rt-chart-partial" d="'+profitDash+'" fill="none" stroke="'+secondaryColor+'" stroke-width="'+profitStroke+'" stroke-dasharray="4 3" stroke-linecap="round" opacity="0.55"/>':'')
     +(tertiaryData&&!tertiaryMarkersOnly&&!tertiaryBars?'<path class="rt-chart-line" d="'+tertLine+'" fill="none" stroke="'+tertiaryColor+'" stroke-width="'+tertiaryStroke+'" stroke-linejoin="round" stroke-linecap="round" opacity="0.95"/>':'')
@@ -13538,6 +13556,7 @@ function _renderChartInto(svgEl,labels,revData,profitData,handlers,opts){
     +'<path class="rt-chart-line" d="'+line+'" fill="none" stroke="'+primaryColor+'" stroke-width="'+revStroke+'" stroke-linejoin="round" stroke-linecap="round"/>'
     +(revDash?'<path class="rt-chart-partial" d="'+revDash+'" fill="none" stroke="'+primaryColor+'" stroke-width="'+revStroke+'" stroke-dasharray="4 3" stroke-linecap="round" opacity="0.6"/>':'')
     +_soFar
+    +tertOverlay
     +hits
     // Scrub indicator — hidden by default, positioned via JS during
     // press-and-drag interaction. Drawn last so it overlays the lines.
@@ -13554,7 +13573,7 @@ function _renderChartInto(svgEl,labels,revData,profitData,handlers,opts){
   // defined' ReferenceError on every touch scrub (mobile, incl. dashboard).
   _setupChartScrub(svgEl,{W:W,pad:pad,innerW:innerW,n:n,sx:sx,sy:sy,revData:revData,profitData:profitData,labels:labels,
     primaryColor:primaryColor,secondaryColor:secondaryColor,primaryLabel:primaryLabel,secondaryLabel:secondaryLabel,
-    tertiaryData:tertiaryData,tertiaryColor:tertiaryColor,tertiaryLabel:tertiaryLabel});
+    tertiaryData:tertiaryData,tertiaryColor:tertiaryColor,tertiaryLabel:tertiaryLabel,tertiaryCounts:tertiaryCounts,tertiaryEvents:tertiaryEvents,tertiaryEventY:tertiaryEventY});
 
   // Column-click drill — delegated. stopPropagation prevents the hero card's
   // own onclick from firing when a column is tapped. Gated on wasScrub so a
@@ -13638,6 +13657,9 @@ function _setupChartScrub(svgEl,ctx){
   const tertiaryData=Array.isArray(ctx.tertiaryData)?ctx.tertiaryData:null;
   const tertiaryColor=ctx.tertiaryColor||'var(--brand)';
   const tertiaryLabel=ctx.tertiaryLabel||'Net Profit';
+  const tertiaryCounts=Array.isArray(ctx.tertiaryCounts)?ctx.tertiaryCounts:null;
+  const tertiaryEvents=!!ctx.tertiaryEvents;
+  const tertiaryEventY=Number(ctx.tertiaryEventY);
   const parent=svgEl.parentElement;
   if(!parent)return;
   const cs=getComputedStyle(parent);
@@ -13683,7 +13705,7 @@ function _setupChartScrub(svgEl,ctx){
     else{sProf.style.display='none';}
     const tv=tertiaryData?(tertiaryData[idx]||0):0;
     if(sTert){
-      if(tv!==0){sTert.setAttribute('cx',cx.toFixed(1));sTert.setAttribute('cy',sy(tv).toFixed(1));sTert.style.display='';}
+      if(tv!==0){sTert.setAttribute('cx',cx.toFixed(1));sTert.setAttribute('cy',(tertiaryEvents&&isFinite(tertiaryEventY)?tertiaryEventY:sy(tv)).toFixed(1));sTert.style.display='';}
       else{sTert.style.display='none';}
     }
     scrubG.style.display='';
@@ -13691,7 +13713,7 @@ function _setupChartScrub(svgEl,ctx){
       '<div class="tip-period">'+esc(labels[idx])+'</div>'
       +'<div class="tip-row"><span class="tip-dot" style="background:'+primaryColor+'"></span>'+primaryLabel+' <strong>'+fmtMoneyTip(r)+'</strong></div>'
       +'<div class="tip-row"><span class="tip-dot" style="background:'+secondaryColor+'"></span>'+secondaryLabel+' <strong>'+fmtMoneyTip(p)+'</strong></div>'
-      +(tertiaryData?'<div class="tip-row"><span class="tip-dot" style="background:'+tertiaryColor+'"></span>'+tertiaryLabel+' <strong>'+fmtMoneyTip(tv)+'</strong></div>':'');
+      +(tertiaryData&&tv!==0?'<div class="tip-row"><span class="tip-dot" style="background:'+tertiaryColor+'"></span>'+((tertiaryCounts&&Number(tertiaryCounts[idx])===1)?'Refund':'Refunds')+' <strong>−'+fmtMoneyTip(tv)+(tertiaryCounts&&Number(tertiaryCounts[idx])>0?' · '+Number(tertiaryCounts[idx])+(Number(tertiaryCounts[idx])===1?' event':' events'):'')+'</strong></div>':'');
     tip.style.display='block';
     const rect=svgEl.getBoundingClientRect();
     const cssX=(cx/W)*rect.width;
@@ -13847,7 +13869,7 @@ function renderSummary(){
     // Operational trend: sales stay on their sale date; later refunds do not
     // rewrite the sale or its profit. Refunds are a separate positive-magnitude
     // series. Headline KPIs/statements still use full accounting adjustments.
-    let chartLabels=[], chartRev=[], chartProfit=[], chartReturns=[], chartClickHandlers=[];
+    let chartLabels=[], chartRev=[], chartProfit=[], chartReturns=[], chartReturnCounts=[], chartClickHandlers=[];
     if(isFY){
       const keys=_fyKeys(SUMMARY_PERIOD==='current_fy'?_currentFYStart():_currentFYStart()-1);
       keys.forEach(k=>{
@@ -13861,6 +13883,7 @@ function renderSummary(){
         chartRev.push(+salesRevenue.toFixed(2));
         chartProfit.push(+salesProfit.toFixed(2));
         chartReturns.push(+refunds.toFixed(2));
+        chartReturnCounts.push(returns.length);
         chartClickHandlers.push(events.length===0?null:{fn:'showMonthSnapshot',args:[k]});
       });
     } else {
@@ -13884,6 +13907,7 @@ function renderSummary(){
           rev:sales.reduce(function(sum,x){const sb=_saleBreakdown(x);return sum+(Number(sb.salePrice)||0)+(Number(sb.postage)||0);},0),
           profit:sales.reduce(function(sum,x){return sum+(Number(_saleBreakdown(x).netProfit)||0);},0),
           refunds:returns.reduce(function(sum,x){return sum+Math.max(0,-(Number(x.salePrice)||0));},0),
+          refundCount:returns.length,
           eventCount:inB.length};
       });
       bData.forEach(b=>{
@@ -13891,6 +13915,7 @@ function renderSummary(){
         chartRev.push(+b.rev.toFixed(2));
         chartProfit.push(+b.profit.toFixed(2));
         chartReturns.push(+b.refunds.toFixed(2));
+        chartReturnCounts.push(Number(b.refundCount)||0);
         chartClickHandlers.push(b.eventCount===0?null:{fn:'showRangeSnapshot',args:[b.label,b.from,b.to]});
       });
     }
@@ -13948,8 +13973,8 @@ function renderSummary(){
             <svg class="summary-hero-spark" viewBox="0 0 120 44" preserveAspectRatio="none" aria-hidden="true"></svg>
           </div>
           <div class="summary-hero-chart">
-            <div class="summary-chart-legend"><span class="legend-item"><span class="legend-dot" style="background:var(--state-listed)"></span>Sales Revenue</span><span class="legend-item"><span class="legend-dot" style="background:var(--profit)"></span>Gross Profit</span><span class="legend-item"><span class="legend-dot" style="background:var(--warn)"></span>Refunds</span></div>
-            <svg id="summary-chart-svg-mobile" viewBox="0 0 800 280" preserveAspectRatio="none" role="img" aria-label="Sales revenue, gross profit and refunds over time"></svg>
+            <div class="summary-chart-legend"><span class="legend-item"><span class="legend-dot" style="background:var(--state-listed)"></span>Sales Revenue</span><span class="legend-item"><span class="legend-dot" style="background:var(--profit)"></span>Gross Profit</span>${chartReturns.some(function(v){return Number(v)>0;})?'<span class="legend-item"><span class="legend-dot" style="background:var(--surface);border:2px solid var(--red)"></span>Refunds</span>':''}</div>
+            <svg id="summary-chart-svg-mobile" viewBox="0 0 800 280" preserveAspectRatio="none" role="img" aria-label="Sales revenue, gross profit and refund events over time"></svg>
           </div>
         </div>
         <div class="summary-mobile-twoup summary-mobile-only">
@@ -13975,14 +14000,14 @@ function renderSummary(){
         <!-- Tier 2: chart + categories -->
         <div class="card summary-panel summary-chart-card">
           <div class="summary-chart-head">
-            <div class="sl">Sales &amp; returns over time</div>
+            <div class="sl">Sales &amp; profit over time</div>
             <div class="summary-chart-legend">
               <span class="legend-item"><span class="legend-dot" style="background:var(--state-listed)"></span>Sales Revenue</span>
               <span class="legend-item"><span class="legend-dot" style="background:var(--profit)"></span>Gross Profit</span>
-              <span class="legend-item"><span class="legend-dot" style="background:var(--warn)"></span>Refunds</span>
+              ${chartReturns.some(function(v){return Number(v)>0;})?'<span class="legend-item"><span class="legend-dot" style="background:var(--surface);border:2px solid var(--red)"></span>Refunds</span>':''}
             </div>
           </div>
-          <svg id="summary-chart-svg" viewBox="0 0 800 280" preserveAspectRatio="none" role="img" aria-label="Sales revenue, gross profit and refunds over time"></svg>
+          <svg id="summary-chart-svg" viewBox="0 0 800 280" preserveAspectRatio="none" role="img" aria-label="Sales revenue, gross profit and refund events over time"></svg>
         </div>
         ${(()=>{
           const donut=buildCategoryDonut(stats.byCat);
@@ -14096,7 +14121,7 @@ function renderSummary(){
     _animateKPIs(el);   // v2.18.0 — reveal counts from 0, later renders tween from current
     _animateDonut(el, SUMMARY_PERIOD);  // v2.19.15 — sweep on reveal/period, enter-anim new categories
     window.__summaryByCat=stats.byCat||[];
-    renderSummaryChart(chartLabels,chartRev,chartProfit,chartReturns,_chartPartialLast);
+    renderSummaryChart(chartLabels,chartRev,chartProfit,chartReturns,chartReturnCounts,_chartPartialLast);
     // V3 layout: the old 2-column main/side height-matching no longer applies
     // (dashboard is now a tiered grid). Left intentionally as a no-op.
     // Mobile chart summary
@@ -17832,17 +17857,46 @@ function _recallExpensePresets(){
   return _recallExp;
 }
 function _recallExpLabel(b){
-  return (b.last.description||'Expense')+' \u00b7 '+fmt(Number(b.last.amount)||0);
+  const e=b&&b.last?b.last:{};
+  const desc=(e.description||'Expense').trim();
+  const cat=(e.category||'').trim();
+  return desc+(cat?' \u00b7 '+cat:'');
+}
+function _recallExpenseMatches(query){
+  const key=_recallKey(query);
+  if(!key){_recallExp=[];return _recallExp;}
+  const ranked=_frecencyRank((DB.expenses||[]),function(e){return e.description||'';},
+                            function(e){return e.date;},12);
+  _recallExp=ranked.filter(function(b){
+    return _recallKey((b.last&&b.last.description)||'').indexOf(key)!==-1;
+  }).slice(0,5);
+  return _recallExp;
+}
+function _recallExpenseSuggest(){
+  const input=document.getElementById('exp-desc');
+  const box=document.getElementById('exp-recall-suggestions');
+  if(!input||!box)return;
+  const items=_recallExpenseMatches(input.value);
+  if(!items.length){box.innerHTML='';box.style.display='none';return;}
+  box.innerHTML=items.map(function(b,i){
+    return '<button type="button" class="recall-chip" onclick="applyExpensePreset('+i+')">'+esc(_recallExpLabel(b))+'</button>';
+  }).join('');
+  box.style.display='flex';
+}
+function _recallExpenseHide(){
+  const box=document.getElementById('exp-recall-suggestions');
+  if(box)box.style.display='none';
 }
 function applyExpensePreset(i){
   const b=_recallExp[i];if(!b)return;
-  const e=b.last;
+  const e=b.last||{};
   const d=document.getElementById('exp-desc');if(d)d.value=e.description||'';
   const c=document.getElementById('exp-cat');if(c&&e.category)c.value=e.category;
-  const a=document.getElementById('exp-amt');if(a)a.value=Number(e.amount)||'';
-  const dt=document.getElementById('exp-date');
-  if(dt&&!dt.readOnly)dt.value=new Date().toISOString().split('T')[0];
-  if(a){try{a.focus();a.select();}catch(e2){}}
+  _recallExpenseHide();
+  // A remembered description may infer its usual category, but never money.
+  // Amount remains an explicit input because repeated expenses can change.
+  const a=document.getElementById('exp-amt');
+  if(a){try{a.focus();}catch(e2){}}
 }
 
 /* ---- trip locations: type-ahead + remembered mileage ---- */
@@ -17850,12 +17904,42 @@ function _recallTripPlaces(){
   return _frecencyRank((DB.trips||[]),function(t){return t.description||'';},
                        function(t){return t.date;},12);
 }
-function _recallTripDatalistHTML(){
+let _recallTripHits=[];
+function _recallTripMatches(query){
+  const key=_recallKey(query);
   const places=_recallTripPlaces();
-  if(!places.length)return '';
-  let h='<datalist id="trip-place-list">';
-  places.forEach(function(b){h+='<option value="'+esc(b.last.description||'')+'"></option>';});
-  return h+'</datalist>';
+  _recallTripHits=(key?places.filter(function(b){
+    return _recallKey((b.last&&b.last.description)||'').indexOf(key)!==-1;
+  }):places).slice(0,4);
+  return _recallTripHits;
+}
+function _recallTripSuggest(){
+  const input=document.getElementById('trip-desc');
+  const box=document.getElementById('trip-place-suggestions');
+  if(!input||!box)return;
+  const items=_recallTripMatches(input.value);
+  if(!items.length){box.innerHTML='';box.style.display='none';return;}
+  box.innerHTML=items.map(function(b,i){
+    const t=b.last||{};
+    const miles=Number(t.mileage)||0;
+    const m=miles>0?(Number.isInteger(miles)?miles.toFixed(0):miles.toFixed(1))+' mi':'';
+    const label=(t.description||'Location')+(m?' \u00b7 '+m:'');
+    return '<button type="button" class="recall-chip" onclick="applyTripPlacePreset('+i+')">'+esc(label)+'</button>';
+  }).join('');
+  box.style.display='flex';
+}
+function _recallTripHide(){
+  const box=document.getElementById('trip-place-suggestions');
+  if(box)box.style.display='none';
+}
+function applyTripPlacePreset(i){
+  const b=_recallTripHits[i];if(!b)return;
+  const t=b.last||{};
+  const d=document.getElementById('trip-desc');if(d)d.value=t.description||'';
+  _recallTripPlacePicked();
+  _recallTripHide();
+  const miles=document.getElementById('trip-miles');
+  if(miles){try{miles.focus();miles.select();}catch(e){}}
 }
 // Fired on the location field. Fills mileage/rate ONLY when they are still
 // empty, so a figure the user typed is never overwritten. Mileage feeds a tax
@@ -18639,7 +18723,7 @@ function addRunExpense(runId){
   const defaultDate=(run&&run.dateStarted?String(run.dateStarted).slice(0,10):new Date().toISOString().split('T')[0]);
   const html=`
     <div class="fg"><label>Date</label><input type="date" id="exp-date" value="${defaultDate}" readonly aria-readonly="true"></div>
-    <div class="fg"><label>Description</label><input type="text" id="exp-desc" placeholder="e.g. Packaging, entry fee"></div>
+    <div class="fg"><label>Description</label><input type="text" id="exp-desc" placeholder="e.g. Packaging, entry fee" autocomplete="off" oninput="_recallExpenseSuggest()" onfocus="_recallExpenseSuggest()" onblur="setTimeout(_recallExpenseHide,140)"><div id="exp-recall-suggestions" class="recall-chips field-recall"></div></div>
     <div class="fg"><label>Category</label><select id="exp-cat">${_expenseCatOptionsHTML('')}</select></div>
     <div class="fg"><label>Amount (£)</label><input type="number" id="exp-amt" step="0.01" min="0" placeholder="0.00" inputmode="decimal"></div>
     <div class="fg" style="background:var(--surface2);border-radius:8px;padding:8px 12px;font-size:12px;color:var(--text-secondary);">Tagged to run: <strong style="color:var(--text)">${esc(run?run.name:'Unknown')}</strong></div>
@@ -18741,9 +18825,10 @@ function addTrip(){
     </div>
     <div class="fg">
       <label>Description</label>
-      <input type="text" id="trip-desc" list="trip-place-list" placeholder="e.g. Car boot sale - Brighton"
-             onchange="_recallTripPlacePicked()" onblur="_recallTripPlacePicked()">
-      ${_recallTripDatalistHTML()}
+      <input type="text" id="trip-desc" placeholder="e.g. Car boot sale - Brighton" autocomplete="off"
+             oninput="_recallTripSuggest()" onfocus="_recallTripSuggest()" onchange="_recallTripPlacePicked()"
+             onblur="_recallTripPlacePicked();setTimeout(_recallTripHide,140)">
+      <div id="trip-place-suggestions" class="recall-chips field-recall"></div>
     </div>
     <div class="fg">
       <label>Mileage</label>
@@ -18803,14 +18888,14 @@ function saveTrip(){
 
 function addExpense(){
   const html=`
-    ${_recallChipsHTML('applyExpensePreset',_recallExpensePresets(),_recallExpLabel)}
     <div class="fg">
       <label>Date</label>
       <input type="date" id="exp-date" value="${new Date().toISOString().split('T')[0]}">
     </div>
     <div class="fg">
       <label>Description</label>
-      <input type="text" id="exp-desc" placeholder="e.g. Packaging materials">
+      <input type="text" id="exp-desc" placeholder="e.g. Packaging materials" autocomplete="off" oninput="_recallExpenseSuggest()" onfocus="_recallExpenseSuggest()" onblur="setTimeout(_recallExpenseHide,140)">
+      <div id="exp-recall-suggestions" class="recall-chips field-recall"></div>
     </div>
     <div class="fg">
       <label>Category</label>
