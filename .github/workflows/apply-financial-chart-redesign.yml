@@ -19,6 +19,19 @@ jobs:
           ref: ui/financial-charts-v1-4-31
           fetch-depth: 0
 
+      - name: Align patch with current chart render order
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('scripts/apply_financial_chart_redesign.py')
+          s=p.read_text(encoding='utf-8')
+          needle='\\n    +tertOverlay",'
+          count=s.count(needle)
+          if count != 2:
+              raise SystemExit(f'Expected two embedded tertOverlay targets, found {count}')
+          p.write_text(s.replace(needle,'",'),encoding='utf-8')
+          PY
+
       - name: Apply redesign patch
         run: python3 scripts/apply_financial_chart_redesign.py
 
