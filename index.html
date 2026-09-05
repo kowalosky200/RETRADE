@@ -117,28 +117,20 @@
   animation:rtChartCurrentLabelIn 180ms var(--ease-out) calc(var(--dur-draw) + 520ms) both;
 }
 
-/* Keep the ring as one continuous sweep, then add the missing bounce on the
-   SVG as a compositor transform. This gives a visible elastic finish without
-   reopening/retracting stroke geometry (the old source of the end stutter). */
+/* The ring itself never scales. It sweeps to a complete circle, then only the
+   closing stroke endpoint recoils, overshoots and settles — like the drawn line
+   physically meeting the start of the ring and bouncing off it. */
 #p-summary svg.cat-donut-draw{--dur-donut-sweep:840ms;}
+@keyframes rtDonutEndpointBounce{
+  0%{stroke-dasharray:var(--seg-len) var(--seg-rest);animation-timing-function:cubic-bezier(.22,.75,.25,1);}
+  30%{stroke-dasharray:var(--seg-len-r) var(--seg-rest-r);animation-timing-function:cubic-bezier(.45,0,.3,1);}
+  64%{stroke-dasharray:var(--seg-len-o) var(--seg-rest-o);animation-timing-function:cubic-bezier(.25,.75,.3,1);}
+  100%{stroke-dasharray:var(--seg-len) var(--seg-rest);}
+}
 #p-summary svg.cat-donut-draw circle.donut-seg-last{
-  animation:donutSweep calc(var(--seg-t) * var(--dur-donut-sweep)) cubic-bezier(.35,.35,.72,1) calc(var(--seg-t0) * var(--dur-donut-sweep)) both;
-}
-@keyframes rtDonutFinishBounce{
-  0%{transform:scale(1);}
-  24%{transform:scale(1.075);}
-  48%{transform:scale(.965);}
-  72%{transform:scale(1.028);}
-  88%{transform:scale(.992);}
-  100%{transform:scale(1);}
-}
-/* Animate the ordinary HTML wrapper, not the root SVG. Root-SVG transforms can
-   be swallowed/flattened by Safari while its child stroke animations are active.
-   The wrapper is compositor-driven and makes the landing bounce consistently visible. */
-#p-summary .cat-donut-chart:has(svg.cat-donut-draw){
-  transform-origin:50% 50%;
-  will-change:transform;
-  animation:rtDonutFinishBounce 480ms cubic-bezier(.22,.72,.2,1) 790ms both;
+  animation:
+    donutSweep calc(var(--seg-t) * var(--dur-donut-sweep)) cubic-bezier(.35,.35,.72,1) calc(var(--seg-t0) * var(--dur-donut-sweep)) both,
+    rtDonutEndpointBounce 300ms linear var(--dur-donut-sweep) forwards;
 }
 
 @media(prefers-reduced-motion:reduce){
@@ -146,7 +138,7 @@
   #p-summary svg.rt-chart-draw:has(.rt-chart-partial)>text:last-of-type,
   #p-summary svg.cat-donut-draw circle,
   #p-summary svg.cat-donut-draw circle.donut-seg-last,
-  #p-summary .cat-donut-chart:has(svg.cat-donut-draw){
+  #p-summary svg.cat-donut-draw circle.donut-seg-last{
     animation:none!important;animation-delay:0ms!important;
   }
   #p-summary svg.rt-chart-draw .rt-chart-partial{
@@ -155,7 +147,6 @@
   #p-summary svg.rt-chart-draw:has(.rt-chart-partial)>text:last-of-type{
     opacity:.85!important;transform:none!important;
   }
-  #p-summary .cat-donut-chart:has(svg.cat-donut-draw){transform:none!important;}
 }
 </style>
 
