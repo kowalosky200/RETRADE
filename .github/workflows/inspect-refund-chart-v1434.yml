@@ -1,0 +1,25 @@
+name: Inspect refund chart v1.4.34
+on:
+  push:
+    branches: [ui/refund-chart-polish-v1-4-34]
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ui/refund-chart-polish-v1-4-34
+      - name: Inspect chart code
+        run: |
+          echo '--- summary chart wrappers ---'
+          grep -n -B 30 -A 140 "function renderSummaryChart" app.js | head -260 || true
+          echo '--- generic chart renderer ---'
+          grep -n -B 50 -A 360 "function _renderChartInto" app.js | head -520 || true
+          echo '--- monthly profitability ---'
+          grep -n -B 40 -A 180 "function renderMonthlyProfitabilityChart" app.js | head -300 || true
+          echo '--- legends/refunds ---'
+          grep -n -B 10 -A 25 "Refunds" app.js | head -320 || true
+          echo '--- current chart css ---'
+          grep -n -B 20 -A 120 "rt-refund-event" app.css | head -260 || true
