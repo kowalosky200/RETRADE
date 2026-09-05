@@ -1,0 +1,30 @@
+name: Inspect item profit context
+on:
+  push:
+    branches: [audit/return-profit-bounce]
+permissions:
+  contents: write
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: audit/return-profit-bounce
+      - run: |
+          python - <<'PY'
+          from pathlib import Path
+          lines=Path('app.js').read_text(encoding='utf-8').splitlines()
+          out=[]
+          for a,b in [(6320,6425),(22880,23040)]:
+            out.append(f'===== app.js {a}-{b} =====')
+            out += [f'{i+1}: {lines[i]}' for i in range(a-1,min(b,len(lines)))]
+          Path('docs/item-profit-context.txt').write_text('\n'.join(out),encoding='utf-8')
+          PY
+      - run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/inspect-item-profit-context.yml
+          git add docs/item-profit-context.txt
+          git commit -m "chore: capture item profit context"
+          git push origin HEAD:audit/return-profit-bounce
