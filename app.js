@@ -13215,11 +13215,13 @@ function renderSummaryChart(labels,revData,profitData,returnData,returnCounts,pa
         yTicks:4,
         maxXLabels:10,
         profitDotR:2.5,revDotR:3,
-        profitStroke:1.8,revStroke:2,scrubDotR:4.5,
+        profitStroke:2.0,revStroke:2.1,scrubDotR:4.5,
+        maxDotsN:0,showLastProfitDot:true,
         primaryLabel:'Sales Revenue',secondaryLabel:'Gross Profit',
         tertiaryData:returnData,tertiaryCounts:returnCounts,tertiaryColor:'var(--red)',tertiaryLabel:'Refunds',tertiaryStroke:0,tertiaryMarkersOnly:true,tertiaryAlwaysDots:true,tertiaryEvents:true,tertiaryEventDotR:4.2,
         drawKey:SUMMARY_PERIOD,
-        gradientId:'rt-profit-fill',
+        fillData:revData,fillColor:'var(--state-listed)',fillOpacity:0.16,
+        gradientId:'rt-revenue-fill',
         partialLast:!!partialLast
       });
     }
@@ -13243,13 +13245,14 @@ function renderSummaryChart(labels,revData,profitData,returnData,returnCounts,pa
         fontSize:12,
         yTicks:2,
         maxXLabels:4,
-        maxDotsN:12,
+        maxDotsN:0,showLastProfitDot:true,
         profitDotR:3,revDotR:3.5,
-        profitStroke:2.2,revStroke:2.6,scrubDotR:5,
+        profitStroke:2.3,revStroke:2.4,scrubDotR:5,
         primaryLabel:'Sales Revenue',secondaryLabel:'Gross Profit',
         tertiaryData:returnData,tertiaryCounts:returnCounts,tertiaryColor:'var(--red)',tertiaryLabel:'Refunds',tertiaryStroke:0,tertiaryMarkersOnly:true,tertiaryAlwaysDots:true,tertiaryEvents:true,tertiaryEventDotR:4.6,
         drawKey:SUMMARY_PERIOD,
-        gradientId:'rt-profit-fill-m',
+        fillData:revData,fillColor:'var(--state-listed)',fillOpacity:0.14,
+        gradientId:'rt-revenue-fill-m',
         partialLast:!!partialLast
       });
     }
@@ -13395,6 +13398,9 @@ function _renderChartInto(svgEl,labels,revData,profitData,handlers,opts){
   const extraTooltipLabel=opts.extraTooltipLabel||'Gross Profit';
   const extraTooltipColor=opts.extraTooltipColor||'var(--text-secondary)';
   const fillColor=opts.fillColor||secondaryColor;
+  const fillOpacity=opts.fillOpacity!=null?Math.max(0,Math.min(1,Number(opts.fillOpacity)||0)):0.5;
+  const fillEndOpacity=opts.fillEndOpacity!=null?Math.max(0,Math.min(1,Number(opts.fillEndOpacity)||0)):0;
+  const showLastProfitDot=opts.showLastProfitDot===true;
   const innerW=W-pad.l-pad.r;
   const innerH=H-pad.t-pad.b;
 
@@ -13450,33 +13456,52 @@ function _renderChartInto(svgEl,labels,revData,profitData,handlers,opts){
   }).join('');
 
   // Area path (filled, anchored to y=0). Defaults to the secondary series;
-  // opts.fillData lets a caller shade a different series (v2.12.1 — the
-  // monthly chart shades Net Profit, its bottom line, in gold).
-  const fillData=Array.isArray(opts.fillData)?opts.fillData:profitData;
-  let area='M '+sx(0).toFixed(1)+' '+sy(0).toFixed(1);
-  for(let i=0;i<n;i++)area+=' L '+sx(i).toFixed(1)+' '+sy(fillData[i]||0).toFixed(1);
-  area+=' L '+sx(n-1).toFixed(1)+' '+sy(0).toFixed(1)+' Z';
-
-  // v2.21.13 — "so far today" marking. When the caller flags the final point as
-  // an incomplete current period, solid lines stop at the last COMPLETE point and
-  // a separate DASHED segment carries to today, so an in-progress day reads as
-  // provisional rather than a real dip. Non-partial charts are unchanged (solid
-  // runs full width, dash strings are empty).
+  // callers can shade a different series with opts.fillData. For an incomplete
+  // final period, the fill stops at the last COMPLETE point so the provisional
+  // continuation is represented only by the sequenced dashed segment.
   const _partial=opts.partialLast===true && n>1;
+  const fillData=Array.isArray(opts.fillData)?opts.fillData:profitData;
+  const _areaTo=_partial?n-1:n;
+  let area='M '+sx(0).toFixed(1)+' '+sy(0).toFixed(1);
+  for(let i=0;i<_areaTo;i++)area+=' L '+sx(i).toFixed(1)+' '+sy(fillData[i]||0).toFixed(1);
+  area+=' L '+sx(_areaTo-1).toFixed(1)+' '+sy(0).toFixed(1)+' Z';
+
+  // Incomplete current period: solid history stops at the final complete point.
+  // The continuation is rendered as individual dash marks so motion can slow
+  // down and reveal dash-by-dash after the historical line reaches the present.
   const _solidTo=_partial?n-1:n; // solid covers indices 0.._solidTo-1
   const _mkLine=function(data,from,to){let d='';for(let i=from;i<to;i++)d+=(i===from?'M ':' L ')+sx(i).toFixed(1)+' '+sy(data[i]||0).toFixed(1);return d;};
-  const _mkDash=function(data){return _partial?_mkLine(data,n-2,n):'';};
+  const _mkDashMarks=function(data,color,strokeWidth,opacity){
+    if(!_partial)return '';
+    const x1=sx(n-2),y1=sy(data[n-2]||0),x2=sx(n-1),y2=sy(data[n-1]||0);
+    const dx=x2-x1,dy=y2-y1,dist=Math.sqrt(dx*dx+dy*dy);
+    if(!isFinite(dist)||dist<=0.01)return '';
+    const dashLen=4.2,gap=3.2,step=dashLen+gap;
+    let out='<g class="rt-chart-partial-group" opacity="'+opacity+'">',di=0;
+    for(let pos=0;pos<dist;pos+=step,di++){
+      const end=Math.min(pos+dashLen,dist);
+      const a=pos/dist,b=end/dist;
+      const ax=x1+dx*a,ay=y1+dy*a,bx=x1+dx*b,by=y1+dy*b;
+      out+='<line class="rt-chart-partial-dash" style="--dash-delay:'+(di*22)+'ms" x1="'+ax.toFixed(1)+'" y1="'+ay.toFixed(1)+'" x2="'+bx.toFixed(1)+'" y2="'+by.toFixed(1)+'" stroke="'+color+'" stroke-width="'+strokeWidth+'" stroke-linecap="round"/>';
+    }
+    return out+'</g>';
+  };
 
-  // Profit line (soft green stroke above the area fill, below revenue line)
-  const profitLine=_mkLine(profitData,0,_solidTo); const profitDash=_mkDash(profitData);
+  // Profit line (green trend above the area)
+  const profitLine=_mkLine(profitData,0,_solidTo);
+  const profitPartial=_mkDashMarks(profitData,secondaryColor,profitStroke,0.62);
 
-  // Tertiary line (e.g. Net Profit) — drawn above the area, below revenue.
-  let tertLine='', tertDash='';
-  if(tertiaryData){ tertLine=_mkLine(tertiaryData,0,_solidTo); tertDash=_mkDash(tertiaryData); }
+  // Tertiary quantitative line when one is actually requested.
+  let tertLine='',tertPartial='';
+  if(tertiaryData){
+    tertLine=_mkLine(tertiaryData,0,_solidTo);
+    tertPartial=_mkDashMarks(tertiaryData,tertiaryColor,tertiaryStroke,0.58);
+  }
 
   // Revenue line (primary visual)
-  const line=_mkLine(revData,0,_solidTo); const revDash=_mkDash(revData);
-  const _soFar=_partial?('<text x="'+sx(n-1).toFixed(1)+'" y="'+(pad.t+fontSize+1).toFixed(1)+'" font-size="'+Math.round(fontSize*0.92)+'" fill="var(--text-tertiary)" text-anchor="end" font-family="var(--font-body)" opacity="0.85">so far</text>'):'';
+  const line=_mkLine(revData,0,_solidTo);
+  const revPartial=_mkDashMarks(revData,primaryColor,revStroke,0.68);
+  const _soFar=_partial?('<text class="rt-chart-so-far" x="'+sx(n-1).toFixed(1)+'" y="'+(pad.t+fontSize+1).toFixed(1)+'" font-size="'+Math.round(fontSize*0.92)+'" fill="var(--text-tertiary)" text-anchor="end" font-family="var(--font-body)" opacity="0.85">so far</text>'):'';
 
   // Interactive columns — full-height hit zones + persistent dots on both
   // series. Profit dot slightly smaller so revenue reads as primary.
@@ -13500,7 +13525,7 @@ function _renderChartInto(svgEl,labels,revData,profitData,handlers,opts){
     const cx=sx(i),y0=sy(0),yr=sy(r),h=Math.max(1.5,Math.abs(y0-yr)),y=Math.min(y0,yr);
     const isPartial=_partial&&i===n-1;
     const cls='rt-chart-primary-bar'+(r<0?' rt-chart-primary-bar--negative':'')+(isPartial?' rt-chart-primary-bar--partial':'');
-    return '<rect class="'+cls+'" style="--bar-i:'+i+'" x="'+(cx-primaryBarW/2).toFixed(1)+'" y="'+y.toFixed(1)+'" width="'+primaryBarW.toFixed(1)+'" height="'+h.toFixed(1)+'" rx="'+Math.min(4,primaryBarW/3).toFixed(1)+'" fill="'+primaryColor+'" fill-opacity="'+(isPartial?'0.12':'0.20')+'" stroke="'+primaryColor+'" stroke-opacity="'+(isPartial?'0.52':'0.62')+'" stroke-width="1"'+(isPartial?' stroke-dasharray="3 2"':'')+'/>';
+    return '<rect class="'+cls+'" style="--bar-i:'+i+'" x="'+(cx-primaryBarW/2).toFixed(1)+'" y="'+y.toFixed(1)+'" width="'+primaryBarW.toFixed(1)+'" height="'+h.toFixed(1)+'" rx="'+Math.min(4,primaryBarW/3).toFixed(1)+'" fill="'+primaryColor+'" fill-opacity="'+(isPartial?'0.12':'0.30')+'" stroke="'+primaryColor+'" stroke-opacity="'+(isPartial?'0.52':'0.72')+'" stroke-width="1"'+(isPartial?' stroke-dasharray="3 2"':'')+'/>';
   }).join(''):'';
 
   // Refunds are annotations, not a third money series. Put them in the x-axis
@@ -13513,7 +13538,7 @@ function _renderChartInto(svgEl,labels,revData,profitData,handlers,opts){
     const cx=sx(i);
     if(tertiaryEvents){
       const count=tertiaryCounts?Math.max(0,Number(tertiaryCounts[i])||0):1;
-      const w=count>1?8:6;
+      const w=7;
       return '<g class="rt-chart-refund-event" data-refund-count="'+count+'">'
         +'<rect x="'+(cx-w/2).toFixed(1)+'" y="'+(tertiaryEventY-1.5).toFixed(1)+'" width="'+w+'" height="3" rx="1.5" fill="'+tertiaryColor+'" opacity="0.92"/>'
         +'<title>'+tertiaryLabel+' '+fmtMoney(t)+(count?' · '+count+' event'+(count===1?'':'s'):'')+'</title></g>';
@@ -13545,8 +13570,8 @@ function _renderChartInto(svgEl,labels,revData,profitData,handlers,opts){
     return '<g class="rt-chart-col'+(has?' clickable':'')+'" data-idx="'+i+'">'
       +'<rect x="'+(cx-colW/2).toFixed(1)+'" y="'+pad.t+'" width="'+colW.toFixed(1)+'" height="'+innerH+'" fill="transparent"/>'
       +(hasT&&!tertiaryBars&&!tertiaryEvents&&(showDots||tertiaryAlwaysDots)?'<circle cx="'+cx.toFixed(1)+'" cy="'+sy(t).toFixed(1)+'" r="'+tertiaryDotR+'" fill="'+_df(tertiaryColor)+'" stroke="'+_ds(tertiaryColor)+'" stroke-width="1.1" opacity="'+tertiaryDotOpacity+'"/>':'')
-      +(hasP&&showDots?'<circle cx="'+cx.toFixed(1)+'" cy="'+sy(p).toFixed(1)+'" r="'+profitDotR+'" fill="'+_df(secondaryColor)+'" stroke="'+_ds(secondaryColor)+'" stroke-width="1.2"/>':'')
-      +((hasR&&!primaryBars&&(showDots||_isLast))?'<circle cx="'+cx.toFixed(1)+'" cy="'+sy(r).toFixed(1)+'" r="'+revDotR+'" fill="'+_df(primaryColor)+'" stroke="'+_ds(primaryColor)+'" stroke-width="1.5"/>':'')
+      +(hasP&&(showDots||(_isLast&&showLastProfitDot))?'<circle class="'+(_isLast?'rt-chart-partial-dot':'')+'" cx="'+cx.toFixed(1)+'" cy="'+sy(p).toFixed(1)+'" r="'+profitDotR+'" fill="'+_df(secondaryColor)+'" stroke="'+_ds(secondaryColor)+'" stroke-width="1.2"/>':'')
+      +((hasR&&!primaryBars&&(showDots||_isLast))?'<circle class="'+(_isLast?'rt-chart-partial-dot':'')+'" cx="'+cx.toFixed(1)+'" cy="'+sy(r).toFixed(1)+'" r="'+revDotR+'" fill="'+_df(primaryColor)+'" stroke="'+_ds(primaryColor)+'" stroke-width="1.5"/>':'')
       +'<title>'+esc(l)+' · '+primaryLabel+' '+fmtMoney(r)+' · '+secondaryLabel+' '+fmtMoney(p)+(hasT?' · '+tertiaryLabel+' -'+fmtMoney(t)+(tertiaryCounts&&tertiaryCounts[i]?' · '+tertiaryCounts[i]+' event'+(tertiaryCounts[i]===1?'':'s'):''):'')+'</title>'
       +'</g>';
   }).join('');
@@ -13556,19 +13581,19 @@ function _renderChartInto(svgEl,labels,revData,profitData,handlers,opts){
   svgEl.innerHTML=
      '<defs>'
     +'<linearGradient id="'+gradientId+'" x1="0" x2="0" y1="0" y2="1">'
-    +  '<stop offset="0%" stop-color="'+fillColor+'" stop-opacity="0.5"/>'
-    +  '<stop offset="100%" stop-color="'+fillColor+'" stop-opacity="0"/>'
+    +  '<stop offset="0%" stop-color="'+fillColor+'" stop-opacity="'+fillOpacity.toFixed(3)+'"/>'
+    +  '<stop offset="100%" stop-color="'+fillColor+'" stop-opacity="'+fillEndOpacity.toFixed(3)+'"/>'
     +'</linearGradient>'
     +'</defs>'
     +grid+yLab+xLab
     +(showArea?'<path class="rt-chart-area" d="'+area+'" fill="url(#'+gradientId+')" stroke="none"/>':'')
     +primaryBarsHTML
     +'<path class="rt-chart-line" d="'+profitLine+'" fill="none" stroke="'+secondaryColor+'" stroke-width="'+profitStroke+'" stroke-linejoin="round" stroke-linecap="round" opacity="0.95"/>'
-    +(profitDash?'<path class="rt-chart-partial" d="'+profitDash+'" fill="none" stroke="'+secondaryColor+'" stroke-width="'+profitStroke+'" stroke-dasharray="4 3" stroke-linecap="round" opacity="0.55"/>':'')
+    +profitPartial
     +(tertiaryData&&!tertiaryMarkersOnly&&!tertiaryBars?'<path class="rt-chart-line" d="'+tertLine+'" fill="none" stroke="'+tertiaryColor+'" stroke-width="'+tertiaryStroke+'" stroke-linejoin="round" stroke-linecap="round" opacity="0.95"/>':'')
-    +(tertDash&&!tertiaryMarkersOnly&&!tertiaryBars?'<path class="rt-chart-partial" d="'+tertDash+'" fill="none" stroke="'+tertiaryColor+'" stroke-width="'+tertiaryStroke+'" stroke-dasharray="4 3" stroke-linecap="round" opacity="0.55"/>':'')
+    +(!tertiaryMarkersOnly&&!tertiaryBars?tertPartial:'')
     +(primaryBars?'':'<path class="rt-chart-line" d="'+line+'" fill="none" stroke="'+primaryColor+'" stroke-width="'+revStroke+'" stroke-linejoin="round" stroke-linecap="round"/>')
-    +(!primaryBars&&revDash?'<path class="rt-chart-partial" d="'+revDash+'" fill="none" stroke="'+primaryColor+'" stroke-width="'+revStroke+'" stroke-dasharray="4 3" stroke-linecap="round" opacity="0.6"/>':'')
+    +(!primaryBars?revPartial:'')
     +_soFar
     +tertOverlay
     +hits
