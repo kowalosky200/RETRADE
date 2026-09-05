@@ -13217,7 +13217,7 @@ function renderSummaryChart(labels,revData,profitData,returnData,partialLast){
         profitDotR:2.5,revDotR:3,
         profitStroke:1.8,revStroke:2,scrubDotR:4.5,
         primaryLabel:'Sales Revenue',secondaryLabel:'Gross Profit',
-        tertiaryData:returnData,tertiaryColor:'var(--warn)',tertiaryLabel:'Refunds',tertiaryStroke:0,tertiaryDotR:2.4,tertiaryMarkersOnly:true,tertiaryAlwaysDots:true,tertiaryDotOpacity:0.72,
+        tertiaryData:returnData,tertiaryColor:'var(--warn)',tertiaryLabel:'Refunds',tertiaryStroke:0,tertiaryBars:true,tertiaryBarMaxW:6,tertiaryBarOpacity:0.22,
         drawKey:SUMMARY_PERIOD,
         gradientId:'rt-profit-fill',
         partialLast:!!partialLast
@@ -13247,7 +13247,7 @@ function renderSummaryChart(labels,revData,profitData,returnData,partialLast){
         profitDotR:3,revDotR:3.5,
         profitStroke:2.2,revStroke:2.6,scrubDotR:5,
         primaryLabel:'Sales Revenue',secondaryLabel:'Gross Profit',
-        tertiaryData:returnData,tertiaryColor:'var(--warn)',tertiaryLabel:'Refunds',tertiaryStroke:0,tertiaryDotR:2.7,tertiaryMarkersOnly:true,tertiaryAlwaysDots:true,tertiaryDotOpacity:0.72,
+        tertiaryData:returnData,tertiaryColor:'var(--warn)',tertiaryLabel:'Refunds',tertiaryStroke:0,tertiaryBars:true,tertiaryBarMaxW:6.5,tertiaryBarOpacity:0.22,
         drawKey:SUMMARY_PERIOD,
         gradientId:'rt-profit-fill-m',
         partialLast:!!partialLast
@@ -13382,6 +13382,9 @@ function _renderChartInto(svgEl,labels,revData,profitData,handlers,opts){
   const tertiaryMarkersOnly=!!opts.tertiaryMarkersOnly;
   const tertiaryAlwaysDots=!!opts.tertiaryAlwaysDots;
   const tertiaryDotOpacity=opts.tertiaryDotOpacity!=null?Math.max(0,Math.min(1,Number(opts.tertiaryDotOpacity)||0)):1;
+  const tertiaryBars=!!opts.tertiaryBars;
+  const tertiaryBarMaxW=opts.tertiaryBarMaxW!=null?Math.max(3,Number(opts.tertiaryBarMaxW)||6):6;
+  const tertiaryBarOpacity=opts.tertiaryBarOpacity!=null?Math.max(0.08,Math.min(0.5,Number(opts.tertiaryBarOpacity)||0.22)):0.22;
   const fillColor=opts.fillColor||secondaryColor;
   const innerW=W-pad.l-pad.r;
   const innerH=H-pad.t-pad.b;
@@ -13478,6 +13481,20 @@ function _renderChartInto(svgEl,labels,revData,profitData,handlers,opts){
   const showDots=n<=maxDotsN;
   const colW=n>1?xStep:innerW;
   const fmtMoney=v=>'£'+(v||0).toLocaleString('en-GB',{minimumFractionDigits:2,maximumFractionDigits:2});
+  // Refunds are discrete events, not a continuous trend. Render them as slim,
+  // low-emphasis columns from the zero baseline so sales/profit stay dominant.
+  const tertiaryBarW=Math.max(3.5,Math.min(tertiaryBarMaxW,(n>1?xStep:innerW)*0.22));
+  const tertBars=(tertiaryData&&tertiaryBars)?tertiaryData.map(function(raw,i){
+    const t=Math.max(0,Number(raw)||0);
+    if(t<=0)return '';
+    const cx=sx(i), y0=sy(0), yt=sy(t);
+    const h=Math.max(2.4,Math.abs(y0-yt));
+    const y=Math.min(y0,yt);
+    const isPartial=_partial&&i===n-1;
+    const op=isPartial?Math.max(0.10,tertiaryBarOpacity*0.6):tertiaryBarOpacity;
+    const strokeOp=isPartial?0.58:0.28;
+    return '<rect class="rt-chart-refund-bar" x="'+(cx-tertiaryBarW/2).toFixed(1)+'" y="'+y.toFixed(1)+'" width="'+tertiaryBarW.toFixed(1)+'" height="'+h.toFixed(1)+'" rx="'+Math.min(2.4,tertiaryBarW/2).toFixed(1)+'" fill="'+tertiaryColor+'" opacity="'+op.toFixed(2)+'" stroke="'+tertiaryColor+'" stroke-opacity="'+strokeOp+'" stroke-width="0.8"/>';
+  }).join(''):'';
   const hits=labels.map((l,i)=>{
     const cx=sx(i);
     const r=revData[i]||0;
@@ -13495,7 +13512,7 @@ function _renderChartInto(svgEl,labels,revData,profitData,handlers,opts){
     const _ds=function(c){return _isLast?c:'var(--surface-1)';};
     return '<g class="rt-chart-col'+(has?' clickable':'')+'" data-idx="'+i+'">'
       +'<rect x="'+(cx-colW/2).toFixed(1)+'" y="'+pad.t+'" width="'+colW.toFixed(1)+'" height="'+innerH+'" fill="transparent"/>'
-      +(hasT&&(showDots||tertiaryAlwaysDots)?'<circle cx="'+cx.toFixed(1)+'" cy="'+sy(t).toFixed(1)+'" r="'+tertiaryDotR+'" fill="'+_df(tertiaryColor)+'" stroke="'+_ds(tertiaryColor)+'" stroke-width="1.1" opacity="'+tertiaryDotOpacity+'"/>':'')
+      +(hasT&&!tertiaryBars&&(showDots||tertiaryAlwaysDots)?'<circle cx="'+cx.toFixed(1)+'" cy="'+sy(t).toFixed(1)+'" r="'+tertiaryDotR+'" fill="'+_df(tertiaryColor)+'" stroke="'+_ds(tertiaryColor)+'" stroke-width="1.1" opacity="'+tertiaryDotOpacity+'"/>':'')
       +(hasP&&showDots?'<circle cx="'+cx.toFixed(1)+'" cy="'+sy(p).toFixed(1)+'" r="'+profitDotR+'" fill="'+_df(secondaryColor)+'" stroke="'+_ds(secondaryColor)+'" stroke-width="1.2"/>':'')
       +((hasR&&(showDots||_isLast))?'<circle cx="'+cx.toFixed(1)+'" cy="'+sy(r).toFixed(1)+'" r="'+revDotR+'" fill="'+_df(primaryColor)+'" stroke="'+_ds(primaryColor)+'" stroke-width="1.5"/>':'')
       +'<title>'+esc(l)+' · '+primaryLabel+' '+fmtMoney(r)+' · '+secondaryLabel+' '+fmtMoney(p)+(tertiaryData?' · '+tertiaryLabel+' '+fmtMoney(t):'')+'</title>'
@@ -13513,10 +13530,11 @@ function _renderChartInto(svgEl,labels,revData,profitData,handlers,opts){
     +'</defs>'
     +grid+yLab+xLab
     +'<path class="rt-chart-area" d="'+area+'" fill="url(#'+gradientId+')" stroke="none"/>'
+    +tertBars
     +'<path class="rt-chart-line" d="'+profitLine+'" fill="none" stroke="'+secondaryColor+'" stroke-width="'+profitStroke+'" stroke-linejoin="round" stroke-linecap="round" opacity="0.95"/>'
     +(profitDash?'<path class="rt-chart-partial" d="'+profitDash+'" fill="none" stroke="'+secondaryColor+'" stroke-width="'+profitStroke+'" stroke-dasharray="4 3" stroke-linecap="round" opacity="0.55"/>':'')
-    +(tertiaryData&&!tertiaryMarkersOnly?'<path class="rt-chart-line" d="'+tertLine+'" fill="none" stroke="'+tertiaryColor+'" stroke-width="'+tertiaryStroke+'" stroke-linejoin="round" stroke-linecap="round" opacity="0.95"/>':'')
-    +(tertDash&&!tertiaryMarkersOnly?'<path class="rt-chart-partial" d="'+tertDash+'" fill="none" stroke="'+tertiaryColor+'" stroke-width="'+tertiaryStroke+'" stroke-dasharray="4 3" stroke-linecap="round" opacity="0.55"/>':'')
+    +(tertiaryData&&!tertiaryMarkersOnly&&!tertiaryBars?'<path class="rt-chart-line" d="'+tertLine+'" fill="none" stroke="'+tertiaryColor+'" stroke-width="'+tertiaryStroke+'" stroke-linejoin="round" stroke-linecap="round" opacity="0.95"/>':'')
+    +(tertDash&&!tertiaryMarkersOnly&&!tertiaryBars?'<path class="rt-chart-partial" d="'+tertDash+'" fill="none" stroke="'+tertiaryColor+'" stroke-width="'+tertiaryStroke+'" stroke-dasharray="4 3" stroke-linecap="round" opacity="0.55"/>':'')
     +'<path class="rt-chart-line" d="'+line+'" fill="none" stroke="'+primaryColor+'" stroke-width="'+revStroke+'" stroke-linejoin="round" stroke-linecap="round"/>'
     +(revDash?'<path class="rt-chart-partial" d="'+revDash+'" fill="none" stroke="'+primaryColor+'" stroke-width="'+revStroke+'" stroke-dasharray="4 3" stroke-linecap="round" opacity="0.6"/>':'')
     +_soFar
