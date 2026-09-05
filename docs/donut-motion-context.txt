@@ -1,0 +1,576 @@
+===== app.css =====
+--- 2040-2171 ---
+2040:    --rt-draw-dur indirection as machinery with nothing to switch between.
+2041:    Collapsed to --dur-draw used directly.
+2042:    The drawKey gate in _renderChartInto still separates reveal from redraw --
+2043:    that decides WHETHER to draw, and it is only the DURATION that is now
+2044:    shared. To part them again: add a second token, re-add the variant class,
+2045:    and reinstate --rt-draw-dur so the dot delay below tracks whichever variant
+2046:    is live. That indirection is the whole reason it existed.
+2047:    The 0.9 dot delay is derived from --ease-draw, NOT just from the duration:
+2048:    under this near-linear curve 0.9 of the time is ~90% of the line, so the
+2049:    dots land as the stroke arrives. Re-derive it if the curve OR the duration
+2050:    moves (handover §6). */
+2051: svg.rt-chart-draw .rt-chart-line{
+2052:   stroke-dasharray:var(--rt-len);
+2053:   animation:rtChartDraw var(--dur-draw) var(--ease-draw) both;
+2054: }
+2055: svg.rt-chart-draw .rt-chart-area{animation:rtChartFadeIn var(--dur-draw) var(--ease-draw) both;}
+2056: /* This delay is clamped for reduced motion further down -- search
+2057:    prefers-reduced-motion. The duration is covered by the global killswitch;
+2058:    the delay is not, and this rule is nothing but delay. */
+2059: svg.rt-chart-draw .rt-chart-col circle{
+2060:   animation:rtChartFadeIn var(--dur-base) var(--ease-out) both;
+2061:   animation-delay:calc(var(--dur-draw) * 0.9);
+2062: }
+2063: 
+2064: /* v1.4.25 — category ring and line share one visual endpoint. The ring itself
+2065:    sweeps clockwise on --dur-donut-sweep; its fixed closing recoil then occupies
+2066:    --dur-bounce. 490ms + 350ms = the line's 840ms --dur-draw. Slice timings stay
+2067:    proportional so colour boundaries move at one constant angular speed. */
+2068: @keyframes donutSweep{
+2069:   from{stroke-dasharray:0 var(--seg-c);}
+2070:   to{stroke-dasharray:var(--seg-len) var(--seg-rest);}
+2071: }
+2072: svg.cat-donut-draw circle{
+2073:   animation:donutSweep calc(var(--seg-t) * var(--dur-donut-sweep)) linear both;
+2074:   animation-delay:calc(var(--seg-t0) * var(--dur-donut-sweep));
+2075: }
+2076: 
+2077: /* v1.4.25 — the largest physical slice now closes the ring, so the recoil can
+2078:    be a fixed visual distance instead of shrinking with the smallest category.
+2079:    The bounce starts exactly when the 490ms sweep completes and settles exactly
+2080:    when the 840ms line draw completes. */
+2081: @keyframes donutClose{
+2082:   0%{stroke-dasharray:var(--seg-len) var(--seg-rest);
+2083:      animation-timing-function:cubic-bezier(0.18,0.85,0.3,1);}
+2084:   42%{stroke-dasharray:var(--seg-len-r) var(--seg-rest-r);
+2085:      animation-timing-function:cubic-bezier(0.45,0,0.35,1);}
+2086:   76%{stroke-dasharray:var(--seg-len-o) var(--seg-rest-o);
+2087:      animation-timing-function:cubic-bezier(0.4,0,0.2,1);}
+2088:   100%{stroke-dasharray:var(--seg-len) var(--seg-rest);}
+2089: }
+2090: svg.cat-donut-draw circle.donut-seg-last{
+2091:   animation:
+2092:     donutSweep calc(var(--seg-t) * var(--dur-donut-sweep)) linear calc(var(--seg-t0) * var(--dur-donut-sweep)) both,
+2093:     donutClose var(--dur-bounce) linear var(--dur-donut-sweep) forwards;
+2094: }
+2095: 
+2096: /* v2.19.17 -- the legend fades in as ONE block. It used to stagger, each row
+2097:    delayed to its own slice's --seg-t0 so the label landed as its arc drew.
+2098:    Reads worse in practice: the ring is already a sequence, and a second
+2099:    sequence running beside it gives the eye two things to follow at once, so it
+2100:    follows neither. The block fade makes the legend a backdrop the sweep happens
+2101:    against -- one moving thing, not seven. */
+2102: @keyframes catLegendIn{
+2103:   from{opacity:0;transform:translateX(-6px);}
+2104:   to{opacity:1;transform:none;}
+2105: }
+2106: .rt .cat-donut-legend.cat-legend-draw .cat-legend-row{
+2107:   animation:catLegendIn var(--dur-base) var(--ease-out) both;
+2108: }
+2109: /* A category that is genuinely new since the last render, on a render that is
+2110:    NOT a full sweep. No delay -- it is not part of a sequence, it is one row
+2111:    arriving. See _animateDonut for who gets this class. */
+2112: .rt .cat-legend-row.cat-legend-row--enter{
+2113:   animation:catLegendIn var(--dur-base) var(--ease-out) both;
+2114: }
+2115: 
+2116: /* Delay clamp for reduced motion (v2.19.18 -- §8.7 folds the chart dots in).
+2117: 
+2118:    The global killswitch (~line 1655) clamps animation-DURATION but not
+2119:    animation-DELAY. Any animation whose motion IS its delay therefore survives
+2120:    the killswitch completely untouched:
+2121: 
+2122:    - the donut sweep is nothing but per-slice delays, so a reduced-motion user
+2123:      would still watch slices pop in across the full 460ms -- precisely the
+2124:      thing they asked not to see;
+2125:    - the chart dots ride a single delay of --dur-draw * 0.9, so with the line
+2126:      clamped to .01ms the dots would land ~414ms into a chart that finished
+2127:      instantly. Worse than the animation it replaced: the line arrives, then
+2128:      nothing, then the dots appear on an already-static chart.
+2129: 
+2130:    Clamp the delays and both land in the same frame as everything else.
+2131: 
+2132:    ANY new staggered or delayed animation belongs in this block. The killswitch
+2133:    above will not cover it and the omission is invisible unless you are testing
+2134:    with reduce on -- which is why this gap survived from v2.19.2 to v2.19.18. */
+2135: @media(prefers-reduced-motion:reduce){
+2136:   svg.cat-donut-draw circle,
+2137:   svg.cat-donut-draw circle.donut-seg-last,
+2138:   svg.rt-chart-draw .rt-chart-col circle{animation-delay:0ms!important;}
+2139: }
+2140: 
+2141: /* Panel */
+2142: @keyframes panelContentIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+2143: #panel-content{animation:panelContentIn .24s cubic-bezier(0.34,1.2,0.64,1) both;}
+2144: .slide-panel{transition:transform .3s cubic-bezier(0.32,1.1,0.5,1);}
+2145: /* Panel is max 440px wide — the 3-col stat-strip needs to stay compact.
+2146:    Force single-col row layout regardless of viewport width. */
+2147: .slide-panel .stat-strip-grid{grid-template-columns:1fr!important;}
+2148: .slide-panel .stat-strip-grid .ip-token{display:flex!important;flex-direction:row!important;align-items:center!important;justify-content:space-between!important;padding:10px 14px!important;gap:10px!important;}
+2149: .slide-panel .stat-strip-grid .ip-token-label{font-size:10px;margin-bottom:0!important;flex-shrink:0;flex:1;}
+2150: .slide-panel .stat-strip-grid .ip-token-val{font-size:20px!important;margin:0!important;flex-shrink:0;white-space:nowrap;}
+2151: .slide-panel .stat-strip-grid .ip-token-sub{display:none!important;}
+2152: 
+2153: /* Confirm modal */
+2154: @keyframes confirmIn{from{opacity:0;transform:scale(0.92) translateY(10px)}to{opacity:1;transform:none}}
+2155: @keyframes confirmOverlayIn{from{opacity:0}to{opacity:1}}
+2156: 
+2157: /* Toast */
+2158: #toast{transition:opacity .2s ease,transform .3s cubic-bezier(0.34,1.3,0.64,1);letter-spacing:.01em;}
+2159: #toast.success{background:var(--green);color:#fff;border-color:var(--green-hover);}
+2160: 
+2161: /* Item rows */
+2162: .item-row{transition:background .12s ease,border-color .15s ease,transform .18s cubic-bezier(0.34,1.2,0.64,1),box-shadow .18s ease;will-change:transform;}
+2163: @media(hover:hover){.item-row:hover{transform:translateY(-2px) scale(1.002);border-color:color-mix(in srgb,var(--accent) 40%,var(--border));}}
+2164: .item-row:active{transform:scale(0.993) translateY(0)!important;transition:transform .06s ease!important;}
+2165: 
+2166: /* Month cards */
+2167: .mcard{transition:border-color .15s ease,transform .2s cubic-bezier(0.34,1.3,0.64,1),box-shadow .2s ease;}
+2168: @media(hover:hover){.mcard:hover{transform:translateY(-3px) scale(1.01);}}
+2169: .mcard:active{transform:scale(0.97)!important;transition:transform .07s ease!important;}
+2170: 
+2171: /* Buttons */
+--- 2305-2364 ---
+2305:   --s-l: 16px;  --s-xl: 24px; --s-2xl: 32px; --s-3xl: 48px; --s-4xl: 64px;
+2306: 
+2307:   /* Radii */
+2308:   --r-xs: 4px; --r-s: 8px; --r-m: 12px; --r-l: 16px; --r-xl: 24px; --r-full: 999px;
+2309: 
+2310:   /* Elevation — dark mode: tone shift + border, no shadow */
+2311:   --elev-1: none;
+2312:   --elev-2: none;
+2313:   --elev-3: 0 8px 24px rgba(0, 0, 0, 0.45);
+2314:   --elev-4: 0 16px 40px rgba(0, 0, 0, 0.55);
+2315: 
+2316:   /* Motion */
+2317:   --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+2318:   /* v2.19.7 -- easing for the chart line draw ONLY. --ease-out front-loads far
+2319:      too hard for a draw (~72% of the path covered in the first 25% of the
+2320:      duration), so the line "appears" then crawls and extra duration only extends
+2321:      the crawl. v2.19.6 used (0.4,0,0.6,1), still a pronounced S: 14.8% at t=0.25.
+2322:      This is near-linear -- soft ends only, so the stroke travels at a near-constant
+2323:      rate like a pen, without pure linear's abrupt start/stop.
+2324:      Do NOT reuse for UI transitions: they want --ease-out's snappy front-load. */
+2325:   --ease-draw: cubic-bezier(0.4, 0.25, 0.6, 0.75);
+2326:   --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+2327:   --ease-spring: cubic-bezier(0.34, 1.2, 0.64, 1);
+2328:   --dur-fast: 120ms; --dur-base: 200ms; --dur-medium: 320ms; --dur-slow: 380ms;
+2329:   --dur-bounce: 350ms;      /* closing recoil/overshoot */
+2330:   --dur-donut-sweep: 490ms; /* clockwise ring build */
+2331:   --dur-draw: 840ms;        /* line chart; donut sweep + bounce ends on this same frame */
+2332: 
+2333:   /* Type */
+2334:   --font-body: 'Inter', system-ui, -apple-system, sans-serif;
+2335:   --font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+2336: }
+2337: 
+2338: /* ── Light mode (alt) — warm off-whites, NOT pure white ──────────────────── */
+2339: :root[data-theme="light"], .rt[data-theme="light"] {
+2340:   --surface-0: #FAFAF7;
+2341:   --surface-1: #FFFFFF;
+2342:   --surface-2: #F5F5F0;
+2343:   --surface-3: #EDEDE7;
+2344:   --surface-4: #E2E2DB;
+2345:   --border: #E5E5DF;
+2346:   --border-strong: #C9C9C0;
+2347:   --divider: #EDEDE7;
+2348: 
+2349:   --brand-soft: #FBF1DC;
+2350:   --brand-soft-fg: #B07D1E;
+2351: 
+2352:   --text-primary: #1A1D24;
+2353:   --text-secondary: #54565B;
+2354:   --text-tertiary: #6F716B;
+2355:   --text-disabled: #B6B7B0;
+2356:   --text-inverse: #FFFFFF;
+2357: 
+2358:   --state-sourced-soft: rgba(122, 139, 153, 0.16);
+2359:   --state-listed-soft: rgba(74, 158, 255, 0.14);
+2360:   --state-sold-soft: rgba(91, 196, 112, 0.16);
+2361:   --state-returned-soft: rgba(230, 107, 92, 0.14);
+2362:   --state-relisted-soft: rgba(139, 127, 232, 0.14);
+2363:   --profit-soft: rgba(91, 196, 112, 0.16);
+2364:   --loss-soft: rgba(230, 107, 92, 0.14);
+===== app.js =====
+--- 5110-5209 ---
+5110:   _disableLoadingControls();
+5111: 
+5112:   try{if('scrollRestoration' in history)history.scrollRestoration='manual';}catch(e){}
+5113:   window.scrollTo(0,0);
+5114: 
+5115:   let status=document.getElementById('real-layout-loading-status');
+5116:   if(!status){
+5117:     status=document.createElement('div');
+5118:     status.id='real-layout-loading-status';
+5119:     status.setAttribute('role','status');
+5120:     status.setAttribute('aria-live','polite');
+5121:     status.className='rt-sr-only';
+5122:     document.body.appendChild(status);
+5123:   }
+5124:   status.textContent=msg||'Loading your data…';
+5125: }
+5126: 
+5127: // Boot data is rendered while chart regions are masked. Re-arm the dashboard
+5128: // reveal only AFTER the mask is removed so the user actually sees the line draw
+5129: // and category-donut sweep/recoil instead of those animations expiring invisibly.
+5130: function _replayDashboardMotionAfterLoading(page){
+5131:   if(!page||page.id!=='p-summary')return;
+5132:   try{if(window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches)return;}catch(e){}
+5133: 
+5134:   const charts=Array.from(page.querySelectorAll('#summary-chart-svg,#summary-chart-svg-mobile'));
+5135:   const donut=page.querySelector('.cat-donut-svg');
+5136:   const legend=page.querySelector('.cat-donut-legend');
+5137:   let donutReady=false;
+5138: 
+5139:   // v1.4.26 — stop the hidden/partially-visible boot animations immediately.
+5140:   // The hydrated chart itself is still completing its skeleton crossfade here;
+5141:   // hold the data strokes at their true 0% state until that reveal is finished.
+5142:   charts.forEach(function(svg){
+5143:     let any=false;
+5144:     svg.querySelectorAll('.rt-chart-line').forEach(function(path){
+5145:       try{
+5146:         const len=path.getTotalLength();
+5147:         if(isFinite(len)&&len>0){path.style.setProperty('--rt-len',len.toFixed(1)+'px');any=true;}
+5148:       }catch(e){}
+5149:     });
+5150:     svg.classList.remove('rt-chart-draw');
+5151:     svg.classList.add('rt-motion-hold');
+5152:     svg.dataset.rtReplayReady=any?'1':'0';
+5153:   });
+5154: 
+5155:   if(donut&&donut.querySelector('circle[style*="--seg-len"]')){
+5156:     donut.classList.remove('cat-donut-draw');
+5157:     donut.classList.add('rt-motion-hold');
+5158:     donutReady=true;
+5159:   }
+5160:   if(legend){legend.classList.remove('cat-legend-draw');legend.classList.add('rt-motion-hold');}
+5161: 
+5162:   let started=false;
+5163:   const launch=function(){
+5164:     if(started)return;
+5165:     started=true;
+5166:     requestAnimationFrame(function(){requestAnimationFrame(function(){
+5167:       charts.forEach(function(svg){
+5168:         const ready=svg.dataset.rtReplayReady==='1';
+5169:         svg.classList.remove('rt-motion-hold','rt-chart-draw');
+5170:         delete svg.dataset.rtReplayReady;
+5171:         if(ready){void svg.getBoundingClientRect();svg.classList.add('rt-chart-draw');}
+5172:       });
+5173:       if(donut){
+5174:         donut.classList.remove('rt-motion-hold','cat-donut-draw');
+5175:         if(donutReady){void donut.getBoundingClientRect();donut.classList.add('cat-donut-draw');}
+5176:       }
+5177:       if(legend){
+5178:         legend.classList.remove('rt-motion-hold','cat-legend-draw');
+5179:         if(donutReady)legend.classList.add('cat-legend-draw');
+5180:       }
+5181:     });});
+5182:   };
+5183: 
+5184:   // The chart reveal lasts 360ms. Start the data animation from frame zero only
+5185:   // after that reveal actually ends; a timeout is only a guard for browsers that
+5186:   // suppress animationend while backgrounding/throttling the page.
+5187:   const revealTarget=charts.find(function(svg){return svg.classList.contains('rt-chart-reveal');})||page.querySelector('.rt-chart-reveal');
+5188:   if(revealTarget){
+5189:     const onEnd=function(ev){
+5190:       if(ev.target!==revealTarget)return;
+5191:       if(ev.animationName&&ev.animationName!=='rtHydratedChartReveal')return;
+5192:       revealTarget.removeEventListener('animationend',onEnd);
+5193:       launch();
+5194:     };
+5195:     revealTarget.addEventListener('animationend',onEnd);
+5196:     window.setTimeout(function(){
+5197:       revealTarget.removeEventListener('animationend',onEnd);
+5198:       launch();
+5199:     },430);
+5200:   }else{
+5201:     requestAnimationFrame(launch);
+5202:   }
+5203: }
+5204: 
+5205: function finishRealLayoutLoading(tab){
+5206:   const safe=tab||_realLayoutLoadingTab||'summary';
+5207:   const page=document.getElementById('p-'+safe);
+5208:   if(page)_markLoadingRegions(page);
+5209: 
+--- 13056-13126 ---
+13056:   const size=132, cx=size/2, cy=size/2, r=52, sw=18;
+13057:   const C=2*Math.PI*r;
+13058:   let offset=0;
+13059:   const geo=ringSlices.map(function(s){
+13060:     const frac=s.val/total, len=frac*C;
+13061:     const g={len:len,rest:C-len,off:offset,t0:offset/C,t:frac};
+13062:     offset+=len;
+13063:     return g;
+13064:   });
+13065:   const n2=function(v){return Math.round(v*100)/100;};
+13066:   const n4=function(v){return Math.round(v*10000)/10000;};
+13067: 
+13068:   const arcs=ringSlices.map(function(s,i){
+13069:     const g=geo[i];
+13070:     const dash=g.len+' '+g.rest;
+13071:     const isLast=(i===ringSlices.length-1);
+13072:     let extra='';
+13073:     if(isLast){
+13074:       // Fixed visual recoil. Because the closing arc is the largest of at most
+13075:       // six slices, 26 user units always fits without data-dependent clamping.
+13076:       const RECOIL=26;
+13077:       // Overshoot is physically bounded only by the remaining circumference;
+13078:       // the visible backwards kick remains the same for every category mix.
+13079:       const OVER=Math.min(RECOIL*0.30,g.rest*0.5);
+13080:       extra=';--seg-len-r:'+n2(g.len-RECOIL)+';--seg-rest-r:'+n2(g.rest+RECOIL)
+13081:            +';--seg-len-o:'+n2(g.len+OVER)+';--seg-rest-o:'+n2(g.rest-OVER);
+13082:     }
+13083:     return '<circle cx="'+cx+'" cy="'+cy+'" r="'+r+'" fill="none" '
+13084:       +(isLast?'class="donut-seg-last" ':'')
+13085:       +'stroke="'+_DONUT_COLORS[s.rank%_DONUT_COLORS.length]+'" stroke-width="'+sw+'" '
+13086:       +'stroke-dasharray="'+dash+'" stroke-dashoffset="'+(-g.off)+'" '
+13087:       +'style="--seg-len:'+n2(g.len)+';--seg-rest:'+n2(g.rest)+';--seg-c:'+n2(C)
+13088:       +';--seg-t0:'+n4(g.t0)+';--seg-t:'+n4(g.t)+extra+'" '
+13089:       +'transform="rotate(-90 '+cx+' '+cy+')"/>';
+13090:   }).join('');
+13091: 
+13092:   const svg='<svg class="cat-donut-svg" viewBox="0 0 '+size+' '+size+'" width="'+size+'" height="'+size+'">'+arcs+'</svg>';
+13093:   const legend=slices.map(function(s,i){
+13094:     const pct=Math.round((s.val/total)*100);
+13095:     return '<div class="cat-legend-row" data-cat="'+esc(s.cat)+'">'
+13096:       +'<span class="cat-legend-dot" style="background:'+_DONUT_COLORS[i%_DONUT_COLORS.length]+'"></span>'
+13097:       +'<span class="cat-legend-name" title="'+esc(s.cat)+'">'+esc(s.cat)+'</span>'
+13098:       +'<span class="cat-legend-pct num" data-cv="'+pct+'" data-cv-fmt="pct0" data-cv-key="sum-catpct-'+i+'">'+pct+'%</span></div>';
+13099:   }).join('');
+13100:   return {svg:svg,legend:legend,count:weighted.length};
+13101: }
+13102: 
+13103: function showAllCategoriesModal(byCat){
+13104:   if(!byCat||!byCat.length){return;}
+13105:   const sorted=[...byCat].sort((a,b)=>(b.totalProfit||0)-(a.totalProfit||0));
+13106:   const rows=sorted.map(c=>{
+13107:     const sellPct=c.total?Math.round((c.sold/c.total)*100):0;
+13108:     const avg=c.avgDays!==null?c.avgDays+'d avg':'\u2014';
+13109:     const ap=c.avgProfit!==null?c.avgProfit:null;
+13110:     const apStr=ap!==null?((ap>=0?'+':'')+fmt(ap)):null;
+13111:     const apColor=ap!==null?(ap>=0?'var(--green)':'var(--red)'):'var(--muted)';
+13112:     const staleTag=c.stale>0?'<span style="font-size:10px;background:var(--accent-dim);color:var(--accent);border-radius:999px;padding:2px 7px;margin-left:4px">'+c.stale+' stale</span>':'';
+13113:     const apBlock=apStr?'<div style="font-size:14px;font-weight:800;color:'+apColor+'">'+apStr+'</div><div style="font-size:10px;color:var(--muted);margin-top:1px">avg profit</div>':'';
+13114:     return '<div style="display:flex;align-items:center;gap:12px;padding:11px 14px;border-radius:12px;background:var(--surface2);margin-bottom:6px;cursor:pointer;-webkit-tap-highlight-color:transparent" onclick="closeAllCategoriesModal();showCategoryItems('+JSON.stringify(c.cat).replace(/"/g,'&quot;')+',false)">'
+13115:       +'<div style="flex:1;min-width:0"><div style="font-weight:700;font-size:13px;color:var(--text);display:flex;align-items:center;gap:4px;flex-wrap:wrap">'+esc(c.cat)+staleTag+'</div>'
+13116:       +'<div style="font-size:11px;color:var(--text-secondary);margin-top:2px">'+c.sold+'/'+c.total+' sold \u00b7 '+avg+'</div></div>'
+13117:       +'<div style="text-align:right;flex-shrink:0">'+apBlock+'<div style="font-size:11px;font-weight:600;color:var(--text-secondary);margin-top:'+(apStr?'2':'0')+'px">'+sellPct+'% sold</div></div></div>';
+13118:   }).join('');
+13119:   const overlay=document.createElement('div');
+13120:   overlay.id='all-cats-modal';
+13121:   overlay.style.cssText='position:fixed;inset:0;z-index:1200;background:var(--overlay);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);opacity:0;transition:opacity 0.22s ease';
+13122:   overlay.addEventListener('click',function(e){if(e.target===overlay)closeAllCategoriesModal();});
+13123:   const panel=document.createElement('div');
+13124:   panel.id='all-cats-panel';
+13125:   panel.style.cssText='position:fixed;top:0;right:0;width:440px;max-width:95vw;height:100vh;height:100dvh;background:var(--surface);border-left:1px solid var(--border);z-index:1201;display:flex;flex-direction:column;box-shadow:-4px 0 24px var(--shadow-md);transform:translateX(100%);transition:transform 0.3s cubic-bezier(0.32,1.1,0.5,1);overflow:hidden';
+13126:   panel.innerHTML='<div style="padding:20px 20px 14px;flex-shrink:0;border-bottom:1px solid var(--border)">'
+--- 13298-13381 ---
+13298: //   gradientId    — unique linearGradient id (avoids cross-SVG paint-server
+13299: //                   collisions when the same DOM has multiple chart SVGs)
+13300: // v2.19.2 -- 7A draw gate state. MUST be module-level, not an expando on the
+13301: // svg: renderSummary() rewrites the summary's innerHTML wholesale, so the svg
+13302: // element itself is destroyed and rebuilt on every render and any expando on it
+13303: // is lost. Keyed by svgEl.id, falling back to opts.gradientId (unique per call
+13304: // site) for charts whose svg carries no id.
+13305: // Value = the last drawKey drawn for that chart. undefined = never drawn.
+13306: const _chartDrawKey = Object.create(null);
+13307: 
+13308: // v2.19.15 -- donut sweep gate. Same contract as _renderChartInto's, and
+13309: // deliberately keyed off the same SUMMARY_PERIOD: the ring and the line sit
+13310: // side by side, so they have to agree on what counts as a redraw or they
+13311: // contradict each other in the corner of the eye. The split the dashboard
+13312: // already uses holds -- a STRUCTURAL change (period) redraws, a VALUE change is
+13313: // the count-up's job.
+13314: // Without this gate the sweep would replay on every filter click and every
+13315: // background refresh: renderSummary writes innerHTML wholesale, so the <svg> is
+13316: // a fresh element every render and a fresh element ALWAYS matches an animation
+13317: // rule. Clearing the class is what enforces the gate, exactly as it is for
+13318: // .rt-chart-draw.
+13319: // Phase 3 note: _donutCats moves with render-summary.js alongside _kpiPrev.
+13320: const _DONUT_ID = 'summary-cat-donut';
+13321: let _donutCats = null;   // null = never rendered / panel was empty
+13322: 
+13323: function _animateDonut(root, drawKey){
+13324:   const svg = root.querySelector('.cat-donut-svg');
+13325:   const leg = root.querySelector('.cat-donut-legend');
+13326:   if(!svg || !leg){
+13327:     // Panel rendered empty (no categories with value). Forget everything so it
+13328:     // sweeps as a fresh reveal when data comes back, rather than treating the
+13329:     // return as an unremarkable redraw.
+13330:     _donutCats = null;
+13331:     delete _chartDrawKey[_DONUT_ID];
+13332:     return;
+13333:   }
+13334:   const cats = Array.prototype.map.call(
+13335:     leg.querySelectorAll('.cat-legend-row'), function(r){ return r.getAttribute('data-cat'); });
+13336:   const prev = _chartDrawKey[_DONUT_ID];
+13337:   const prevCats = _donutCats;
+13338:   const isReveal = (prev === undefined);
+13339:   const shouldSweep = isReveal || (prev !== drawKey);
+13340:   _chartDrawKey[_DONUT_ID] = drawKey;
+13341:   _donutCats = cats;
+13342: 
+13343:   svg.classList.remove('cat-donut-draw');
+13344:   leg.classList.remove('cat-legend-draw');
+13345: 
+13346:   if(shouldSweep){
+13347:     svg.classList.add('cat-donut-draw');
+13348:     leg.classList.add('cat-legend-draw');
+13349:     return;   // the sweep already introduces every row -- no per-row enter on top
+13350:   }
+13351:   // Same period, panel already on screen: the only thing worth announcing is a
+13352:   // category that was not here last time. Everything else stays still, so the
+13353:   // one new row is the only thing moving and the eye goes straight to it.
+13354:   if(!prevCats) return;
+13355:   const rows = leg.querySelectorAll('.cat-legend-row');
+13356:   cats.forEach(function(c, i){
+13357:     if(prevCats.indexOf(c) === -1 && rows[i]) rows[i].classList.add('cat-legend-row--enter');
+13358:   });
+13359: }
+13360: function _renderChartInto(svgEl,labels,revData,profitData,handlers,opts){
+13361:   const n=labels.length;
+13362:   const {W,H,pad,fontSize,yTicks,maxXLabels,profitDotR,revDotR,profitStroke,revStroke,scrubDotR,gradientId}=opts;
+13363:   const primaryColor=opts.primaryColor||'var(--state-listed)';
+13364:   const secondaryColor=opts.secondaryColor||'var(--profit)';
+13365:   const primaryLabel=opts.primaryLabel||'Revenue';
+13366:   const secondaryLabel=opts.secondaryLabel||'Gross Profit';
+13367:   // Optional third series (v2.12.0). Null for the dashboard → all tertiary
+13368:   // code paths below are inert, so the 2-series charts are unchanged.
+13369:   const tertiaryData=Array.isArray(opts.tertiaryData)?opts.tertiaryData:null;
+13370:   const tertiaryColor=opts.tertiaryColor||'var(--brand)';
+13371:   const tertiaryLabel=opts.tertiaryLabel||'Net Profit';
+13372:   const tertiaryStroke=opts.tertiaryStroke||1.6;
+13373:   const tertiaryDotR=opts.tertiaryDotR||2.5;
+13374:   const fillColor=opts.fillColor||secondaryColor;
+13375:   const innerW=W-pad.l-pad.r;
+13376:   const innerH=H-pad.t-pad.b;
+13377: 
+13378:   // Y scale supports negative return adjustments. Both series share one
+13379:   // scale so the chart can visibly cross £0 and still reconcile to the KPI.
+13380:   const _tert=tertiaryData||[];
+13381:   const rawMax=Math.max(0,...revData,...profitData,..._tert);
+--- 13937-13996 ---
+13937:             <div class="kpi-value num" data-cv="${Number(stats.grossMargin||0)}" data-cv-fmt="pct0" data-cv-key="sum-m-margin">${Math.round(stats.grossMargin||0)}%</div>
+13938:             <div class="kpi-foot">${(deltaChip(deltas&&deltas.grossMargin,{pp:true})||'Item-level margin')}${stats.avgROI!=null?' · '+Math.round(stats.avgROI)+'% ROI':''}</div>
+13939:           </div>
+13940:         </div>
+13941:         <!-- Tier 1: 4-KPI grid -->
+13942:         <div class="summary-kpis-v3">
+13943:           <div class="card kpi clickable" onclick="showFilteredItems('revenue')"><div class="kpi-label">Total revenue</div><div class="kpi-value num" data-cv="${Number(stats.totalRev||0)}" data-cv-fmt="k" data-cv-key="sum-rev">${fmtK(stats.totalRev||0)}</div><div class="kpi-foot">${deltaChip(deltas&&deltas.totalRev)||((stats.soldCount||0)+' sold in view')}</div></div>
+13944:           <div class="card kpi clickable kpi-netprofit" onclick="showFilteredItems('realised')"><div class="kpi-label">Gross profit</div><div class="kpi-value num" data-cv="${Number(stats.grossProfit||0)}" data-cv-fmt="k" data-cv-key="sum-gp">${fmtK(stats.grossProfit||0)}</div><div class="kpi-foot">${deltaChip(deltas&&deltas.grossProfit)||'After returns · before overheads'}</div></div>
+13945:           <div class="card kpi clickable" onclick="showMarginItems()"><div class="kpi-label">Avg margin</div><div class="kpi-value num" data-cv="${Number(stats.grossMargin||0)}" data-cv-fmt="pct0" data-cv-key="sum-margin">${Math.round(stats.grossMargin||0)}%</div><div class="kpi-foot">${(deltaChip(deltas&&deltas.grossMargin,{pp:true})||'Item-level margin')}${stats.avgROI!=null?' · '+Math.round(stats.avgROI)+'% ROI':''}</div></div>
+13946:           <div class="card kpi clickable" onclick="showReturnedItems()"><div class="kpi-label">Refund rate</div><div class="kpi-value num" data-cv="${Number(stats.refundItemRate||0)}" data-cv-fmt="pct1" data-cv-key="sum-refund">${Number(stats.refundItemRate||0).toFixed(1)}%</div><div class="kpi-foot">${deltaChip(deltas&&deltas.refundItemRate,{pp:true,invert:true})||((stats.fullRefundCount||0)+' full · '+(stats.partialOnlyCount||0)+' partial')}</div></div>
+13947:         </div>
+13948: 
+13949:         <!-- Tier 2: chart + categories -->
+13950:         <div class="card summary-panel summary-chart-card">
+13951:           <div class="summary-chart-head">
+13952:             <div class="sl">Revenue over time</div>
+13953:             <div class="summary-chart-legend">
+13954:               <span class="legend-item"><span class="legend-dot" style="background:var(--state-listed)"></span>Revenue</span>
+13955:               <span class="legend-item"><span class="legend-dot" style="background:var(--profit)"></span>Gross Profit</span>
+13956:             </div>
+13957:           </div>
+13958:           <svg id="summary-chart-svg" viewBox="0 0 800 280" preserveAspectRatio="none" role="img" aria-label="Revenue and gross profit over time"></svg>
+13959:         </div>
+13960:         ${(()=>{
+13961:           const donut=buildCategoryDonut(stats.byCat);
+13962:           if(!donut)return '<div class="card summary-panel summary-categories">'+'<div class="summary-cat-head"><div class="sl">Top categories</div></div>'+'<div class="cat-donut-wrap">'+'<div class="cat-donut-chart"><svg class="cat-donut-svg" viewBox="0 0 132 132" width="132" height="132">'+'<circle cx="66" cy="66" r="52" fill="none" stroke="var(--surface2)" stroke-width="18"/>'+'<circle cx="66" cy="66" r="52" fill="none" stroke="var(--border)" stroke-width="18" stroke-dasharray="2 7" opacity="0.7"/>'+'</svg></div>'+'<div class="cat-donut-legend"><div style="color:var(--text-secondary);font-size:13px;line-height:1.55;">No sales yet.<br>Your top categories by revenue will appear here once you record your first sale.</div></div>'+'</div></div>';
+13963:           return `<div class="card summary-panel summary-categories">
+13964:             <div class="summary-cat-head"><div class="sl">Top categories</div><div class="summary-cat-count">${donut.count} categories</div></div>
+13965:             <div class="cat-donut-wrap">
+13966:               <div class="cat-donut-chart">${donut.svg}</div>
+13967:               <div class="cat-donut-legend">${donut.legend}</div>
+13968:             </div>
+13969:           </div>`;
+13970:         })()}
+13971: 
+13972:         <!-- Tier 3: inventory health + top flips -->
+13973:         <div class="card summary-panel summary-inventory">
+13974:           <div class="summary-cat-head"><div class="sl">Inventory health</div><div class="summary-cat-count">By age in current state</div></div>
+13975:           <div class="inv-band-grid">
+13976:             <div class="inv-metrics">
+13977:               <div class="inv-stat clickable" onclick="openDashboardStock('listed')"><div class="inv-stat-k">Listed asking value</div><div class="inv-stat-v num" data-cv="${Number(activeStockVal||0)}" data-cv-fmt="money" data-cv-key="sum-inv-value">${fmt(activeStockVal)}</div><div class="inv-stat-sub">At current ask</div></div>
+13978:               <div class="inv-stat clickable" onclick="openDashboardStock('all')"><div class="inv-stat-k">Stock on hand</div><div class="inv-stat-v num" data-cv="${Number(activeStockCount||0)}" data-cv-fmt="int" data-cv-key="sum-inv-count">${activeStockCount}</div><div class="inv-stat-sub">Listed + unlisted + returned</div></div>
+13979:               <div class="inv-stat clickable" onclick="showListedInPeriodItems()"><div class="inv-stat-k">Listed in period</div><div class="inv-stat-v num" data-cv="${Number(listedInPeriod||0)}" data-cv-fmt="int" data-cv-key="sum-inv-listed">${listedInPeriod}</div><div class="inv-stat-sub">Fresh sourcing pace</div></div>
+13980:             </div>
+13981:             ${listedSummaryStock.length>0?(()=>{
+13982:               const segs=[
+13983:                 {key:'fresh',label:'Fresh',count:sumAgeBuckets.fresh,col:'var(--green)'},
+13984:                 {key:'maturing',label:'Maturing',count:sumAgeBuckets.maturing,col:'var(--text-secondary)'},
+13985:                 {key:'slow',label:'Slow',count:sumAgeBuckets.slow,col:'var(--warn)'},
+13986:                 {key:'stale',label:'Stale',count:sumAgeBuckets.stale,col:'var(--red)'}
+13987:               ];
+13988:               const tot=listedSummaryStock.length||1;
+13989:               const bar=segs.map(s=>{
+13990:                 const pct=(s.count/tot)*100;
+13991:                 if(pct===0)return '';
+13992:                 return `<div class="age-bar-seg" style="width:${pct}%;background:${s.col};" title="${s.label}: ${s.count}" onclick="openDashboardStock('${s.key}')"></div>`;
+13993:               }).join('');
+13994:               // v2.19.11 -- Tier 1 (handover §9). The carried-forward note
+13995:               // warned these sit inside interactive filter buttons and would
+13996:               // need reveal-only treatment "or they re-tween on every filter
+--- 14045-14104 ---
+14045:           }
+14046:           ${catLeaders.length?(()=>{
+14047:             const MAX_INLINE=4;
+14048:             // v2.19.11 -- Tier 1 (handover §9). Slot-indexed keys, same
+14049:             // reasoning as the donut legend: a ranked ladder's stable identity
+14050:             // is its position, not its label. map() supplies the index, so the
+14051:             // visible.map(_catRow) call site below needs no change.
+14052:             // Only ever rendered into the summary root, so _animateKPIs(el) at
+14053:             // the end of renderSummary picks these up. showAllCategoriesModal
+14054:             // builds its own rows elsewhere and stays static by design -- it is
+14055:             // outside the animated root and its list is unbounded.
+14056:             const _catRow=function(c,i){
+14057:               const sp=c.total?Math.round((c.sold/c.total)*100):0;
+14058:               const ad=c.avgDays!==null?c.avgDays+'d avg':'\u2014';
+14059:               return '<div class="category-mini-row vel-cat-item" onclick="showCategoryItems('+JSON.stringify(c.cat).replace(/"/g,'&quot;')+')">'+'<div><div class="metric-k">'+esc(c.cat)+'</div><div class="category-mini-meta">'+c.sold+'/'+c.total+' sold \u00b7 '+ad+'</div></div>'+'<div class="category-mini-val" data-cv="'+sp+'" data-cv-fmt="pct0" data-cv-key="sum-velcat-'+i+'">'+sp+'%</div></div>';
+14060:             };
+14061:             const visible=catLeaders.slice(0,MAX_INLINE);
+14062:             const hidden=catLeaders.length-MAX_INLINE;
+14063:             const moreBtn=hidden>0?'<button id="vel-cat-more" onclick="showAllCategoriesModal(window.__summaryByCat)" style="width:100%;margin-top:8px;padding:8px 12px;border-radius:10px;border:1px solid var(--border);background:transparent;color:var(--text-secondary);font-size:12px;font-weight:600;cursor:pointer;font-family:var(--font-body)">Show all categories ('+hidden+' more) \u25be</button>':'';
+14064:             return '<div class="vel-cat-wrap" id="vel-cat-wrap"><div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;font-weight:700;margin-top:14px;margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid var(--border)">Category breakdown</div><div class="category-mini-grid" id="vel-cat-grid" style="margin-top:0">'+visible.map(_catRow).join('')+'</div>'+moreBtn+'</div>';
+14065:           })():''}
+14066:         </div>
+14067:       </div>`;
+14068:     el.innerHTML=html;
+14069:     _animateKPIs(el);   // v2.18.0 — reveal counts from 0, later renders tween from current
+14070:     _animateDonut(el, SUMMARY_PERIOD);  // v2.19.15 — sweep on reveal/period, enter-anim new categories
+14071:     window.__summaryByCat=stats.byCat||[];
+14072:     renderSummaryChart(chartLabels,chartRev,chartProfit,_chartPartialLast);
+14073:     // V3 layout: the old 2-column main/side height-matching no longer applies
+14074:     // (dashboard is now a tiered grid). Left intentionally as a no-op.
+14075:     // Mobile chart summary
+14076:     (function(){
+14077:       const el=document.getElementById('chart-mobile-inner');
+14078:       if(!el)return;
+14079:       const active=chartLabels.map((l,i)=>({label:l,rev:chartRev[i]||0,profit:chartProfit[i]||0})).filter(x=>x.rev>0);
+14080:       if(!active.length){el.innerHTML='<div class="cms-empty">No sales data yet.</div>';return;}
+14081:       // Best month by revenue
+14082:       const best=active.reduce((a,b)=>b.rev>a.rev?b:a,active[0]);
+14083:       // Total & trend (last 2 active months)
+14084:       const totalRev=active.reduce((s,x)=>s+x.rev,0);
+14085:       const totalProfit=active.reduce((s,x)=>s+x.profit,0);
+14086:       const trend=active.length>=2?(active[active.length-1].rev>=active[active.length-2].rev?'↑ Trending up':'↓ Trending down'):'—';
+14087:       const fmt=v=>'£'+v.toFixed(2);
+14088:       const rows=[
+14089:         {label:'Total revenue',sub:active.length+' active month'+(active.length!==1?'s':''),val:fmt(totalRev),profit:'Profit: '+fmt(totalProfit)},
+14090:         {label:'Best month',sub:best.label,val:fmt(best.rev),profit:fmt(best.profit)+' profit'},
+14091:         {label:'Trend',sub:'Recent direction',val:trend,profit:''},
+14092:       ];
+14093:       el.innerHTML=rows.map(r=>`<div class="cms-row"><div><div class="cms-label">${r.label}</div><div class="cms-sub">${r.sub}</div></div><div><div class="cms-val">${r.val}</div>${r.profit?'<div class="cms-profit">'+r.profit+'</div>':''}</div></div>`).join('');
+14094:     })();
+14095:   }catch(err){
+14096:     console.error('renderSummary failed', err);
+14097:     el.innerHTML=`<div class="page-header"><div><div class="page-title">Command Centre</div><div class="page-subtitle">Your business at a glance.</div></div></div><div class="section-card"><div class="section-card-title">Dashboard unavailable</div><div class="section-card-desc">There was a rendering issue. Reload the page or switch period to retry.</div><button class="btn btn-primary" onclick="renderSummary()">Retry dashboard</button></div>`;
+14098:   }
+14099: }
+14100: 
+14101: // monthKey e.g. "APR-26" — for FY monthly bars
+14102: function showMonthSnapshot(monthKey){
+14103:   // Session B: panel uses sale-attribution to match the rest of Monthly.
+14104:   const ms = calcMonthStatsBySale(monthKey);
