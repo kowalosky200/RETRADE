@@ -5514,7 +5514,9 @@ svg.rt-chart-draw .rt-chart-refund-event{
 .expense-amount-chip:hover,.expense-amount-chip.active{border-color:var(--accent);color:var(--text);background:var(--accent-dim);}
 .expense-amount-chip:active{transform:scale(.97);}
 
-.legend-event-mark{display:inline-block;width:10px;height:3px;border-radius:999px;background:var(--red);flex:none;}
+.legend-event-mark{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--red);flex:none;}
+.monthly-legend-refund-line{display:inline-block;width:12px;height:0;border-top:1.5px solid var(--red);border-radius:999px;opacity:.72;flex:none;position:relative;}
+.monthly-legend-refund-line::after{content:"";position:absolute;width:4px;height:4px;border-radius:50%;background:var(--red);left:4px;top:-2.75px;}
 
 .rt-chart-primary-bar{transform-box:fill-box;transform-origin:center bottom;}
 .rt-chart-primary-bar--negative{transform-origin:center top;}
@@ -5590,3 +5592,10 @@ svg.rt-chart-draw .rt-chart-col circle.rt-chart-partial-dot{
 .rt #p-monthly .money-flow-card .mf-row.mf-deduction .mf-fill{opacity:.72;}
 .rt #p-monthly .money-flow-card .mf-net{margin-top:6px;padding-top:12px;border-top:1px solid var(--border);}
 .rt #p-monthly .money-flow-card .mf-foot{line-height:1.45;}
+
+
+/* v1.4.34 — profit area + refund dot/line hierarchy */
+@keyframes rtRefundDotIn{from{opacity:0;transform:scale(.72)}to{opacity:1;transform:scale(1)}}
+svg.rt-chart-draw .rt-chart-refund-event{animation:rtRefundDotIn 150ms var(--ease-out) both;animation-delay:calc(var(--dur-draw) * .84);}
+.rt-chart-tertiary-line{filter:none;}
+@media(prefers-reduced-motion:reduce){svg.rt-chart-draw .rt-chart-refund-event{animation:none!important;}}

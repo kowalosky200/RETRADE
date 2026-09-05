@@ -13241,10 +13241,10 @@ function renderSummaryChart(labels,revData,profitData,returnData,returnCounts,pa
         profitStroke:2.0,revStroke:2.1,scrubDotR:4.5,
         maxDotsN:0,showLastProfitDot:true,
         primaryLabel:'Gross Revenue',secondaryLabel:'Gross Profit',
-        tertiaryData:returnData,tertiaryCounts:returnCounts,tertiaryColor:'var(--red)',tertiaryLabel:'Refunds',tertiaryStroke:0,tertiaryMarkersOnly:true,tertiaryAlwaysDots:true,tertiaryEvents:true,tertiaryEventDotR:4.2,
+        tertiaryData:returnData,tertiaryCounts:returnCounts,tertiaryColor:'var(--red)',tertiaryLabel:'Refunds',tertiaryStroke:0,tertiaryMarkersOnly:true,tertiaryAlwaysDots:true,tertiaryEvents:true,tertiaryEventDotR:3.2,
         drawKey:SUMMARY_PERIOD,
-        fillData:revData,fillColor:'var(--state-listed)',fillOpacity:0.16,
-        gradientId:'rt-revenue-fill',
+        fillData:profitData,fillColor:'var(--profit)',fillOpacity:0.50,
+        gradientId:'rt-profit-fill',
         partialLast:!!partialLast
       });
     }
@@ -13272,10 +13272,10 @@ function renderSummaryChart(labels,revData,profitData,returnData,returnCounts,pa
         profitDotR:3,revDotR:3.5,
         profitStroke:2.3,revStroke:2.4,scrubDotR:5,
         primaryLabel:'Gross Revenue',secondaryLabel:'Gross Profit',
-        tertiaryData:returnData,tertiaryCounts:returnCounts,tertiaryColor:'var(--red)',tertiaryLabel:'Refunds',tertiaryStroke:0,tertiaryMarkersOnly:true,tertiaryAlwaysDots:true,tertiaryEvents:true,tertiaryEventDotR:4.6,
+        tertiaryData:returnData,tertiaryCounts:returnCounts,tertiaryColor:'var(--red)',tertiaryLabel:'Refunds',tertiaryStroke:0,tertiaryMarkersOnly:true,tertiaryAlwaysDots:true,tertiaryEvents:true,tertiaryEventDotR:3.4,
         drawKey:SUMMARY_PERIOD,
-        fillData:revData,fillColor:'var(--state-listed)',fillOpacity:0.14,
-        gradientId:'rt-revenue-fill-m',
+        fillData:profitData,fillColor:'var(--profit)',fillOpacity:0.50,
+        gradientId:'rt-profit-fill-m',
         partialLast:!!partialLast
       });
     }
@@ -13404,6 +13404,7 @@ function _renderChartInto(svgEl,labels,revData,profitData,handlers,opts){
   const tertiaryColor=opts.tertiaryColor||'var(--brand)';
   const tertiaryLabel=opts.tertiaryLabel||'Net Profit';
   const tertiaryStroke=opts.tertiaryStroke!=null?opts.tertiaryStroke:1.6;
+  const tertiaryLineOpacity=opts.tertiaryLineOpacity!=null?Math.max(0.15,Math.min(1,Number(opts.tertiaryLineOpacity)||0.58)):0.95;
   const tertiaryDotR=opts.tertiaryDotR||2.5;
   const tertiaryCounts=Array.isArray(opts.tertiaryCounts)?opts.tertiaryCounts:null;
   const tertiaryEvents=!!opts.tertiaryEvents;
@@ -13551,9 +13552,9 @@ function _renderChartInto(svgEl,labels,revData,profitData,handlers,opts){
     return '<rect class="'+cls+'" style="--bar-i:'+i+'" x="'+(cx-primaryBarW/2).toFixed(1)+'" y="'+y.toFixed(1)+'" width="'+primaryBarW.toFixed(1)+'" height="'+h.toFixed(1)+'" rx="'+Math.min(4,primaryBarW/3).toFixed(1)+'" fill="'+primaryColor+'" fill-opacity="'+(isPartial?'0.12':'0.30')+'" stroke="'+primaryColor+'" stroke-opacity="'+(isPartial?'0.52':'0.72')+'" stroke-width="1"'+(isPartial?' stroke-dasharray="3 2"':'')+'/>';
   }).join(''):'';
 
-  // Refunds are annotations, not a third money series. Put them in the x-axis
-  // gutter below the plot so low-profit periods never collide with a marker.
-  const tertiaryEventY=H-pad.b+Math.max(5,Math.min(7,fontSize*0.48));
+  // Semantic refund marks sit on a fixed rail just inside the plot. Their Y
+  // position does NOT encode amount; amount remains an on-demand tooltip value.
+  const tertiaryEventY=H-pad.b-Math.max(8,Math.min(12,fontSize*0.80));
   const tertiaryBarW=Math.max(3.5,Math.min(tertiaryBarMaxW,(n>1?xStep:innerW)*0.22));
   const tertOverlay=tertiaryData?tertiaryData.map(function(raw,i){
     const t=Math.max(0,Number(raw)||0);
@@ -13561,10 +13562,9 @@ function _renderChartInto(svgEl,labels,revData,profitData,handlers,opts){
     const cx=sx(i);
     if(tertiaryEvents){
       const count=tertiaryCounts?Math.max(0,Number(tertiaryCounts[i])||0):1;
-      const w=7;
       return '<g class="rt-chart-refund-event" data-refund-count="'+count+'">'
-        +'<rect x="'+(cx-w/2).toFixed(1)+'" y="'+(tertiaryEventY-1.5).toFixed(1)+'" width="'+w+'" height="3" rx="1.5" fill="'+tertiaryColor+'" opacity="0.92"/>'
-        +'<title>'+tertiaryLabel+' '+fmtMoney(t)+(count?' · '+count+' event'+(count===1?'':'s'):'')+'</title></g>';
+        +'<circle cx="'+cx.toFixed(1)+'" cy="'+tertiaryEventY.toFixed(1)+'" r="'+tertiaryEventDotR+'" fill="'+tertiaryColor+'" opacity="0.92"/>'
+        +'<title>'+tertiaryLabel+' '+fmtMoney(t)+(count?' ('+count+')':'')+'</title></g>';
     }
     if(!tertiaryBars)return '';
     const y0=sy(0),yt=sy(t);
@@ -13595,7 +13595,7 @@ function _renderChartInto(svgEl,labels,revData,profitData,handlers,opts){
       +(hasT&&!tertiaryBars&&!tertiaryEvents&&(showDots||tertiaryAlwaysDots)?'<circle cx="'+cx.toFixed(1)+'" cy="'+sy(t).toFixed(1)+'" r="'+tertiaryDotR+'" fill="'+_df(tertiaryColor)+'" stroke="'+_ds(tertiaryColor)+'" stroke-width="1.1" opacity="'+tertiaryDotOpacity+'"/>':'')
       +(hasP&&(showDots||(_isLast&&showLastProfitDot))?'<circle class="'+(_isLast?'rt-chart-partial-dot':'')+'" cx="'+cx.toFixed(1)+'" cy="'+sy(p).toFixed(1)+'" r="'+profitDotR+'" fill="'+_df(secondaryColor)+'" stroke="'+_ds(secondaryColor)+'" stroke-width="1.2"/>':'')
       +((hasR&&!primaryBars&&(showDots||_isLast))?'<circle class="'+(_isLast?'rt-chart-partial-dot':'')+'" cx="'+cx.toFixed(1)+'" cy="'+sy(r).toFixed(1)+'" r="'+revDotR+'" fill="'+_df(primaryColor)+'" stroke="'+_ds(primaryColor)+'" stroke-width="1.5"/>':'')
-      +'<title>'+esc(l)+' · '+primaryLabel+' '+fmtMoney(r)+' · '+secondaryLabel+' '+fmtMoney(p)+(hasT?' · '+tertiaryLabel+' -'+fmtMoney(t)+(tertiaryCounts&&tertiaryCounts[i]?' · '+tertiaryCounts[i]+' event'+(tertiaryCounts[i]===1?'':'s'):''):'')+'</title>'
+      +'<title>'+esc(l)+' · '+primaryLabel+' '+fmtMoney(r)+' · '+secondaryLabel+' '+fmtMoney(p)+(hasT?' · '+tertiaryLabel+' -'+fmtMoney(t)+(tertiaryCounts&&tertiaryCounts[i]?' ('+tertiaryCounts[i]+')':''):'')+'</title>'
       +'</g>';
   }).join('');
 
@@ -13613,7 +13613,7 @@ function _renderChartInto(svgEl,labels,revData,profitData,handlers,opts){
     +primaryBarsHTML
     +'<path class="rt-chart-line" d="'+profitLine+'" fill="none" stroke="'+secondaryColor+'" stroke-width="'+profitStroke+'" stroke-linejoin="round" stroke-linecap="round" opacity="0.95"/>'
     +profitPartial
-    +(tertiaryData&&!tertiaryMarkersOnly&&!tertiaryBars?'<path class="rt-chart-line" d="'+tertLine+'" fill="none" stroke="'+tertiaryColor+'" stroke-width="'+tertiaryStroke+'" stroke-linejoin="round" stroke-linecap="round" opacity="0.95"/>':'')
+    +(tertiaryData&&!tertiaryMarkersOnly&&!tertiaryBars?'<path class="rt-chart-line rt-chart-tertiary-line" d="'+tertLine+'" fill="none" stroke="'+tertiaryColor+'" stroke-width="'+tertiaryStroke+'" stroke-linejoin="round" stroke-linecap="round" opacity="'+tertiaryLineOpacity.toFixed(2)+'"/>':'')
     +(!tertiaryMarkersOnly&&!tertiaryBars?tertPartial:'')
     +(primaryBars?'':'<path class="rt-chart-line" d="'+line+'" fill="none" stroke="'+primaryColor+'" stroke-width="'+revStroke+'" stroke-linejoin="round" stroke-linecap="round"/>')
     +(!primaryBars?revPartial:'')
@@ -13779,7 +13779,7 @@ function _setupChartScrub(svgEl,ctx){
       +'<div class="tip-row"><span class="tip-dot" style="background:'+primaryColor+'"></span>'+primaryLabel+' <strong>'+fmtMoneyTip(r)+'</strong></div>'
       +'<div class="tip-row"><span class="tip-dot" style="background:'+secondaryColor+'"></span>'+secondaryLabel+' <strong>'+fmtMoneyTip(p)+'</strong></div>'
       +(extraTooltipData?'<div class="tip-row"><span class="tip-dot" style="background:'+extraTooltipColor+'"></span>'+extraTooltipLabel+' <strong>'+fmtMoneyTip(extraTooltipData[idx]||0)+'</strong></div>':'')
-      +(tertiaryData&&tv!==0?'<div class="tip-row"><span class="tip-dot" style="background:'+tertiaryColor+'"></span>'+((tertiaryCounts&&Number(tertiaryCounts[idx])===1)?'Refund':'Refunds')+' <strong>−'+fmtMoneyTip(tv)+(tertiaryCounts&&Number(tertiaryCounts[idx])>0?' · '+Number(tertiaryCounts[idx])+(Number(tertiaryCounts[idx])===1?' event':' events'):'')+'</strong></div>':'');
+      +(tertiaryData&&tv!==0?'<div class="tip-row"><span class="tip-dot" style="background:'+tertiaryColor+'"></span>'+tertiaryLabel+' <strong>−'+fmtMoneyTip(tv)+(tertiaryCounts&&Number(tertiaryCounts[idx])>0?' ('+Number(tertiaryCounts[idx])+')':'')+'</strong></div>':'');
     tip.style.display='block';
     const rect=svgEl.getBoundingClientRect();
     const cssX=(cx/W)*rect.width;
@@ -14042,8 +14042,8 @@ function renderSummary(){
             <svg class="summary-hero-spark" viewBox="0 0 120 44" preserveAspectRatio="none" aria-hidden="true"></svg>
           </div>
           <div class="summary-hero-chart">
-            <div class="summary-chart-legend"><span class="legend-item"><span class="legend-dot" style="background:var(--state-listed)"></span>Gross Revenue</span><span class="legend-item"><span class="legend-dot" style="background:var(--profit)"></span>Gross Profit</span>${chartReturns.some(function(v){return Number(v)>0;})?'<span class="legend-item"><span class="legend-event-mark"></span>Refunds</span>':''}</div>
-            <svg id="summary-chart-svg-mobile" viewBox="0 0 800 280" preserveAspectRatio="none" role="img" aria-label="Gross revenue, gross profit and refund events over time"></svg>
+            <div class="summary-chart-legend"><span class="legend-item"><span class="legend-dot" style="background:var(--state-listed)"></span>Gross Revenue</span><span class="legend-item"><span class="legend-dot" style="background:var(--profit)"></span>Gross Profit</span>${chartReturns.some(function(v){return Number(v)>0;})?'<span class="legend-item"><span class="legend-event-mark"></span>Refunds ('+chartReturnCounts.reduce(function(s,v){return s+(Number(v)||0);},0)+')</span>':''}</div>
+            <svg id="summary-chart-svg-mobile" viewBox="0 0 800 280" preserveAspectRatio="none" role="img" aria-label="Gross revenue, gross profit and refunds over time"></svg>
           </div>
         </div>
         <div class="summary-mobile-twoup summary-mobile-only">
@@ -14073,10 +14073,10 @@ function renderSummary(){
             <div class="summary-chart-legend">
               <span class="legend-item"><span class="legend-dot" style="background:var(--state-listed)"></span>Gross Revenue</span>
               <span class="legend-item"><span class="legend-dot" style="background:var(--profit)"></span>Gross Profit</span>
-              ${chartReturns.some(function(v){return Number(v)>0;})?'<span class="legend-item"><span class="legend-event-mark"></span>Refunds</span>':''}
+              ${chartReturns.some(function(v){return Number(v)>0;})?'<span class="legend-item"><span class="legend-event-mark"></span>Refunds ('+chartReturnCounts.reduce(function(s,v){return s+(Number(v)||0);},0)+')</span>':''}
             </div>
           </div>
-          <svg id="summary-chart-svg" viewBox="0 0 800 280" preserveAspectRatio="none" role="img" aria-label="Gross revenue, gross profit and refund events over time"></svg>
+          <svg id="summary-chart-svg" viewBox="0 0 800 280" preserveAspectRatio="none" role="img" aria-label="Gross revenue, gross profit and refunds over time"></svg>
         </div>
         ${(()=>{
           const donut=buildCategoryDonut(stats.byCat);
@@ -14557,8 +14557,13 @@ function renderMonthlyProfitabilityChart(){
     refundCounts.push(Number(ms.returnedCount)||0);
   });
   const currentIsLast=keys[keys.length-1]===currentMonthKey();
+  const refundTotalCount=refundCounts.reduce(function(s,v){return s+(Number(v)||0);},0);
+  const hasRefunds=refunds.some(function(v){return Number(v)>0;});
   const refundLegend=document.getElementById('monthly-refund-legend');
-  if(refundLegend)refundLegend.style.display=refunds.some(function(v){return v>0;})?'inline-flex':'none';
+  if(refundLegend){
+    refundLegend.style.display=hasRefunds?'inline-flex':'none';
+    if(hasRefunds)refundLegend.innerHTML='<span class="monthly-legend-refund-line"></span>Refunds ('+refundTotalCount+')';
+  }
 
   _renderChartInto(svg,labels,netRevenue,netProfit,[],{
     W:_W,H:_H,
@@ -14579,14 +14584,17 @@ function renderMonthlyProfitabilityChart(){
     extraTooltipData:grossProfit,
     extraTooltipLabel:'Gross Profit',
     extraTooltipColor:'var(--text-secondary)',
-    tertiaryData:refunds,
-    tertiaryCounts:refundCounts,
+    tertiaryData:hasRefunds?refunds:null,
+    tertiaryCounts:hasRefunds?refundCounts:null,
     tertiaryColor:'var(--red)',
     tertiaryLabel:'Refunds',
-    tertiaryStroke:0,
-    tertiaryMarkersOnly:true,
+    tertiaryStroke:1.45,
+    tertiaryLineOpacity:0.58,
+    tertiaryDotR:_W<520?2.6:2.4,
+    tertiaryDotOpacity:0.78,
+    tertiaryMarkersOnly:false,
     tertiaryAlwaysDots:true,
-    tertiaryEvents:true,
+    tertiaryEvents:false,
     drawKey:'monthly:'+MONTHLY_PERIOD,
     gradientId:'rt-monthly-profit-fill',
     partialLast:currentIsLast
