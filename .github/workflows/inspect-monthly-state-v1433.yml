@@ -27,6 +27,14 @@ jobs:
             (
               "app=rep(app,\"${(deltaChip(deltas&&deltas.grossMargin,{pp:true})||'Item-level margin')}${stats.avgROI!=null?' · '+Math.round(stats.avgROI)+'% ROI':''}\",\"${(deltaChip(grossDeltas&&grossDeltas.margin,{pp:true})||'Gross profit ÷ gross revenue')}${stats.avgROI!=null?' · '+Math.round(stats.avgROI)+'% ROI':''}\",label='mobile gross margin foot')",
               "app=rep(app,\"${(deltaChip(deltas&&deltas.grossMargin,{pp:true})||'Item-level margin')}${stats.avgROI!=null?' · '+Math.round(stats.avgROI)+'% ROI':''}\",\"${(deltaChip(grossDeltas&&grossDeltas.margin,{pp:true})||'Gross profit ÷ gross revenue')}${stats.avgROI!=null?' · '+Math.round(stats.avgROI)+'% ROI':''}\",count=2,label='gross margin foot copy')"
+            ),
+            (
+              "app=rep(app,\"if(MONTH_FILTER==='sold')visible=events.filter(e=>!e.isReturned);\",\"if(MONTH_FILTER==='sold')visible=events.filter(e=>!e.isReturnAdjustment);\",label='month sold filter canonical')",
+              "app=rep(app,\"if(MONTH_FILTER==='sold')visible=events.filter(e=>!e.isReturned);\",\"if(MONTH_FILTER==='sold')visible=events.filter(e=>!e.isReturnAdjustment);\",count=2,label='month sold filter canonical')"
+            ),
+            (
+              "app=rep(app,\"else if(MONTH_FILTER==='returned')visible=events.filter(e=>e.isReturned);\",\"else if(MONTH_FILTER==='returned')visible=events.filter(e=>e.isReturnAdjustment);\",label='month return filter canonical')",
+              "app=rep(app,\"else if(MONTH_FILTER==='returned')visible=events.filter(e=>e.isReturned);\",\"else if(MONTH_FILTER==='returned')visible=events.filter(e=>e.isReturnAdjustment);\",count=2,label='month return filter canonical')"
             )
           ]
           for old,new in fixes:
