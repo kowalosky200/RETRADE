@@ -1,0 +1,37 @@
+name: Fix so-far motion
+on:
+  push:
+    branches: [ui/dashboard-area-motion-v1-4-32]
+permissions:
+  contents: write
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ui/dashboard-area-motion-v1-4-32
+      - name: Fix label animation cascade
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('app.css')
+          s=p.read_text(encoding='utf-8')
+          old='svg.rt-chart-draw .rt-chart-so-far{\n  opacity:0!important;\n'
+          new='svg.rt-chart-draw .rt-chart-so-far{\n  opacity:0;\n'
+          if s.count(old)!=1:
+              raise SystemExit(f'Expected one so-far opacity rule, found {s.count(old)}')
+          p.write_text(s.replace(old,new),encoding='utf-8')
+          PY
+      - name: Validate
+        run: |
+          git diff --check
+          grep -A2 "svg.rt-chart-draw .rt-chart-so-far" app.css | grep -q "opacity:0;"
+      - name: Commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app.css
+          git commit -m "Fix so-far label reveal cascade"
+          git push origin HEAD:ui/dashboard-area-motion-v1-4-32
