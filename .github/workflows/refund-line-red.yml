@@ -25,8 +25,8 @@ jobs:
           old = "tertiaryColor:'var(--warn)'"
           new = "tertiaryColor:'var(--red)'"
           count = text.count(old)
-          if count != 4:
-              raise SystemExit(f'Expected 4 refund colour occurrences, found {count}')
+          if count != 2:
+              raise SystemExit(f'Expected 2 refund colour occurrences, found {count}')
           path.write_text(text.replace(old, new), encoding='utf-8')
           Path('.github/workflows/refund-line-red.yml').unlink()
 
@@ -34,7 +34,7 @@ jobs:
         run: |
           node --check app.js
           git diff --check
-          test "$(grep -o "tertiaryColor:'var(--red)'" app.js | wc -l | tr -d ' ')" = "4"
+          test "$(grep -o "tertiaryColor:'var(--red)'" app.js | wc -l | tr -d ' ')" = "2"
           ! grep -q "tertiaryColor:'var(--warn)'" app.js
 
       - name: Commit patch
