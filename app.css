@@ -5447,3 +5447,38 @@ svg.cat-donut-draw circle.donut-seg-last{
 .rt #p-stock .item-row,.rt #p-monthly .item-row,.rt .cashflow-ledger-row{
   content-visibility:auto;contain-intrinsic-size:auto 76px;
 }
+
+
+/* v1.4.30 — contextual recall + semantic refund events */
+.field-recall{
+  display:none;
+  margin-top:8px;
+  gap:6px;
+  flex-wrap:wrap;
+}
+.field-recall .recall-chip{
+  min-height:36px;
+  padding:0 12px;
+  max-width:100%;
+  font-size:12px;
+  font-weight:600;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+.rt-chart-refund-event{
+  pointer-events:none;
+  transform-box:fill-box;
+  transform-origin:center;
+}
+@keyframes rtRefundEventIn{
+  from{opacity:0;transform:scale(.82)}
+  to{opacity:1;transform:scale(1)}
+}
+svg.rt-chart-draw .rt-chart-refund-event{
+  animation:rtRefundEventIn 160ms var(--ease-out) both;
+  animation-delay:calc(var(--dur-draw) * .88);
+}
+@media(prefers-reduced-motion:reduce){
+  svg.rt-chart-draw .rt-chart-refund-event{animation:none!important;}
+}
