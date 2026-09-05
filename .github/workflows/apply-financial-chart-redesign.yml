@@ -29,7 +29,12 @@ jobs:
           count=s.count(needle)
           if count != 2:
               raise SystemExit(f'Expected two embedded tertOverlay targets, found {count}')
-          p.write_text(s.replace(needle,'",'),encoding='utf-8')
+          s=s.replace(needle,'",')
+          old="'compact expense suggestions': 'field-recall-option' in app and '.field-recall-main' in app,"
+          new="'compact expense suggestions': 'field-recall-option' in app and 'field-recall-main' in app,"
+          if old not in s:
+              raise SystemExit('Compact suggestion validation guard not found')
+          p.write_text(s.replace(old,new),encoding='utf-8')
           PY
 
       - name: Apply redesign patch
