@@ -1,23 +1,37 @@
-name: Inspect chart motion
+name: Apply dashboard area and partial motion
 on:
   push:
     branches: [ui/dashboard-area-motion-v1-4-32]
 permissions:
-  contents: read
+  contents: write
 jobs:
-  inspect:
+  patch:
+    if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           ref: ui/dashboard-area-motion-v1-4-32
-      - name: Inspect relevant chart code
+          fetch-depth: 0
+      - name: Apply v1.4.32 patch
+        run: python3 scripts/apply_dashboard_area_motion_v1432.py
+      - name: JavaScript syntax check
+        run: node --check app.js && node --check accounting.js && node --check reports.js
+      - name: Patch integrity check
         run: |
-          echo '--- renderer 13435-13635 ---'
-          sed -n '13435,13635p' app.js
-          echo '--- draw gate 13590-13655 ---'
-          sed -n '13590,13665p' app.js
-          echo '--- chart CSS 2028-2068 ---'
-          sed -n '2028,2068p' app.css
-          echo '--- v1.4.31 CSS ---'
-          sed -n '5460,5560p' app.css
+          git diff --check
+          grep -q "fillData:revData" app.js
+          grep -q "rt-chart-partial-dash" app.js
+          grep -q "rtChartPartialDashIn" app.css
+          grep -q "app.js?v=1.4.32" index.html
+      - name: Commit application changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app.js app.css index.html
+          if git diff --cached --quiet; then
+            echo "No application changes to commit."
+            exit 0
+          fi
+          git commit -m "Polish dashboard area and partial chart motion"
+          git push origin HEAD:ui/dashboard-area-motion-v1-4-32
