@@ -90,13 +90,11 @@
 </style>
 
 <style id="rt-chart-current-period-motion">
-/* v1.7 motion pass — the history line keeps a stable visual speed, then
-   deliberately slows only when it reaches the live/today dotted tail.
-   The dotted stroke is revealed in place instead of moving its dash
-   offset, which removes the backwards/forwards jitter at the finish. */
+/* v1.7.1 motion pass — preserve the smooth history draw, then let the live
+   dotted tail creep in without a visibility/clip interpolation snap. */
 @keyframes rtChartCurrentTailReveal{
   0%{visibility:hidden;clip-path:inset(0 100% 0 0);}
-  .001%{visibility:visible;}
+  .001%{visibility:visible;clip-path:inset(0 100% 0 0);}
   100%{visibility:visible;clip-path:inset(0 0 0 0);}
 }
 @keyframes rtChartCurrentLabelIn{
@@ -112,27 +110,40 @@
   stroke-dashoffset:0!important;
   transform-box:fill-box;
   will-change:clip-path;
-  animation:rtChartCurrentTailReveal 520ms cubic-bezier(.35,.15,.45,1) var(--dur-draw) both;
+  animation:rtChartCurrentTailReveal 720ms linear var(--dur-draw) both;
 }
 #p-summary svg.rt-chart-draw:has(.rt-chart-partial)>text:last-of-type{
   opacity:0;transform-box:fill-box;transform-origin:center;
-  animation:rtChartCurrentLabelIn 180ms var(--ease-out) calc(var(--dur-draw) + 150ms) both;
+  animation:rtChartCurrentLabelIn 180ms var(--ease-out) calc(var(--dur-draw) + 520ms) both;
 }
 
-/* One continuous donut sweep. The previous donutClose phase changed
-   stroke-dasharray after the sweep (retract -> overshoot -> settle),
-   which looked like a pause followed by a snap. */
+/* Keep the ring as one continuous sweep, then add the missing bounce on the
+   SVG as a compositor transform. This gives a visible elastic finish without
+   reopening/retracting stroke geometry (the old source of the end stutter). */
 #p-summary svg.cat-donut-draw{--dur-donut-sweep:840ms;}
 #p-summary svg.cat-donut-draw circle.donut-seg-last{
-  /* Match the incoming angular velocity, then ease continuously to rest. */
   animation:donutSweep calc(var(--seg-t) * var(--dur-donut-sweep)) cubic-bezier(.35,.35,.72,1) calc(var(--seg-t0) * var(--dur-donut-sweep)) both;
+}
+@keyframes rtDonutFinishBounce{
+  0%{transform:scale(1);}
+  30%{transform:scale(1.045);}
+  55%{transform:scale(.988);}
+  78%{transform:scale(1.012);}
+  100%{transform:scale(1);}
+}
+#p-summary svg.cat-donut-svg.cat-donut-draw{
+  transform-box:fill-box;
+  transform-origin:center;
+  will-change:transform;
+  animation:rtDonutFinishBounce 360ms cubic-bezier(.2,.8,.2,1) 760ms both;
 }
 
 @media(prefers-reduced-motion:reduce){
   #p-summary svg.rt-chart-draw .rt-chart-partial,
   #p-summary svg.rt-chart-draw:has(.rt-chart-partial)>text:last-of-type,
   #p-summary svg.cat-donut-draw circle,
-  #p-summary svg.cat-donut-draw circle.donut-seg-last{
+  #p-summary svg.cat-donut-draw circle.donut-seg-last,
+  #p-summary svg.cat-donut-svg.cat-donut-draw{
     animation:none!important;animation-delay:0ms!important;
   }
   #p-summary svg.rt-chart-draw .rt-chart-partial{
@@ -141,8 +152,10 @@
   #p-summary svg.rt-chart-draw:has(.rt-chart-partial)>text:last-of-type{
     opacity:.85!important;transform:none!important;
   }
+  #p-summary svg.cat-donut-svg.cat-donut-draw{transform:none!important;}
 }
 </style>
+
 </head>
 <body class="rt">
 
