@@ -470,6 +470,25 @@ function _statsForRange(range){
   return{totalRev:+totalRev.toFixed(2),grossProfit:+realised.toFixed(2),grossMargin:netMargin,netProfit:+realised.toFixed(2),netMargin:netMargin,soldCount:sales.length,refundItemRate:refundItemRate,avgProfit:avgProfit};
 }
 
+function _grossSummaryForRange(range){
+  const sales=getSaleEventsInRange(range&&range.from,range&&range.to).filter(function(e){return !e.isReturnAdjustment;});
+  let revenue=0,profit=0;
+  sales.forEach(function(ev){
+    const b=_saleBreakdown(ev);
+    revenue+=(Number(b.salePrice)||0)+(Number(b.postage)||0);
+    profit+=Number(b.netProfit)||0;
+  });
+  revenue=+revenue.toFixed(2);profit=+profit.toFixed(2);
+  return {revenue:revenue,profit:profit,margin:revenue?+((profit/revenue)*100).toFixed(1):0,soldCount:sales.length};
+}
+function calcSummaryGrossStats(){return _grossSummaryForRange(_periodDateRange(SUMMARY_PERIOD));}
+function calcSummaryGrossDeltas(){
+  const prevKey=_prevPeriodKey(SUMMARY_PERIOD);if(!prevKey)return null;
+  const cur=calcSummaryGrossStats(),prev=_grossSummaryForRange(_prevPeriodRange(prevKey));
+  const pct=function(c,p){if(p===null||p===undefined||Math.abs(p)<0.005)return null;return ((c-p)/Math.abs(p))*100;};
+  return {revenue:pct(cur.revenue,prev.revenue),profit:pct(cur.profit,prev.profit),margin:cur.margin-prev.margin};
+}
+
 function calcSummaryDeltas(){
   const prevKey=_prevPeriodKey(SUMMARY_PERIOD);
   if(!prevKey)return null;  // all-time / prev_fy → no baseline
@@ -1098,16 +1117,24 @@ function calcMonthStatsBySale(m){
     realisedProfit+=Number(b.netProfit)||0;
   });
 
-  // Refund-rate cohort mirrors calcYearlyStats: of sales MADE this month, how
-  // many were eventually affected by a refund? The cash/profit effect itself
-  // remains on the actual refund date above.
-  let fullRefundCount=0,partialOnlyCount=0;
-  saleEvents.forEach(function(ev){
-    const n=Math.max(1,Number(ev.sale)||1),rh=(ev.item&&ev.item.returnHistory)||[];
-    const cycle=rh.filter(function(r){return Math.max(1,Number(r.saleNo)||1)===n;});
-    if(cycle.some(function(r){return r.type==='full_seller'||r.type==='full_ebay';}))fullRefundCount++;
-    else if(cycle.some(function(r){return r.type==='partial_seller'||r.type==='partial_ebay';}))partialOnlyCount++;
+  // v1.4.33 — month-detail is an ACTIVITY-period view, not a sale cohort.
+  // Returns shown in this month's list must contribute to this month's return
+  // rate, even when the original sale occurred in an earlier month. Deduplicate
+  // by item + sale cycle so several partial adjustments on one sale count once.
+  const refundCycles=new Map();
+  events.forEach(function(ev){
+    if(!ev.isReturnAdjustment)return;
+    const r=ev.returnEntry||{};
+    const n=Math.max(1,Number(r.saleNo)||Number(ev.sale)||1);
+    const id=(ev.item&&ev.item.id)||('event-'+eventCount);
+    const key=id+':'+n;
+    const slot=refundCycles.get(key)||{full:false,partial:false};
+    if(r.type==='full_seller'||r.type==='full_ebay')slot.full=true;
+    else if(r.type==='partial_seller'||r.type==='partial_ebay')slot.partial=true;
+    refundCycles.set(key,slot);
   });
+  let fullRefundCount=0,partialOnlyCount=0;
+  refundCycles.forEach(function(x){if(x.full)fullRefundCount++;else if(x.partial)partialOnlyCount++;});
   const refundedItemCount=fullRefundCount+partialOnlyCount,refundDenom=soldCount;
   const refundItemRate=refundDenom>0?(refundedItemCount/refundDenom*100):0;
   const refundCount=fullRefundCount,partialCount=partialOnlyCount;

@@ -4657,9 +4657,32 @@ async function initDB(){
     const _lastTab = (() => { if(_freshSession) return 'summary';
       try{ return localStorage.getItem(_SK.tab) || 'summary'; }catch(e){ return 'summary'; } })();
     const _safeTab = ['summary','monthly','stock','expenses','cash','returns','scrapped','tax','data','runs','activity'].includes(_lastTab) ? _lastTab : 'summary';
+    // v1.4.33 — Sales has two real sub-routes (calendar + month detail). Capture
+    // the COMPLETE route before any boot render and re-apply it after hydration.
+    // This prevents a stale in-memory MONTHLY_VIEW from painting Calendar for a
+    // frame before the remembered month-detail route takes over.
+    const _bootMonthlyRoute=(function(){
+      if(_safeTab!=='monthly')return null;
+      try{return {
+        view:localStorage.getItem(_SK.monthV),
+        selected:localStorage.getItem('_rt_mon_sel'),
+        filter:localStorage.getItem('_rt_mon_filter'),
+        sort:localStorage.getItem('_rt_mon_sort'),
+        origin:localStorage.getItem('_rt_mon_origin')
+      };}catch(e){return null;}
+    })();
+    const _restoreBootMonthlyRoute=function(){
+      const r=_bootMonthlyRoute;if(!r)return;
+      if(r.view==='grid'||r.view==='detail')MONTHLY_VIEW=r.view;
+      if(r.selected&&/^[A-Z]{3}-\d{2}$/.test(r.selected)&&MONTHS.includes(keyCode(r.selected)))SELECTED_MONTH=r.selected;
+      if(r.filter)MONTH_FILTER=r.filter;
+      if(r.sort)MONTH_SORT=r.sort;
+      if(r.origin)_monthOrigin=r.origin;
+    };
     // Local UI state is synchronous and must be restored BEFORE the loading
     // renderer so its geometry/subview is the exact page the user left.
     _loadUIState();
+    _restoreBootMonthlyRoute();
     showRealLayoutLoading(_safeTab, 'Loading your data…');
     await Promise.race([
       loadFromSupabase(),
@@ -4715,7 +4738,7 @@ async function initDB(){
     // user saw a blank canvas. Boot now has one contract: every allowed tab must
     // successfully render before loading state is removed.
     if(_safeTab==='summary')renderSummary();
-    else if(_safeTab==='monthly')renderMonthlyPage();
+    else if(_safeTab==='monthly'){_restoreBootMonthlyRoute();renderMonthlyPage();}
     else if(_safeTab==='stock')renderStock();
     else if(_safeTab==='runs')renderRunsPage();
     else if(_safeTab==='expenses')renderExpenses();
@@ -13217,7 +13240,7 @@ function renderSummaryChart(labels,revData,profitData,returnData,returnCounts,pa
         profitDotR:2.5,revDotR:3,
         profitStroke:2.0,revStroke:2.1,scrubDotR:4.5,
         maxDotsN:0,showLastProfitDot:true,
-        primaryLabel:'Sales Revenue',secondaryLabel:'Gross Profit',
+        primaryLabel:'Gross Revenue',secondaryLabel:'Gross Profit',
         tertiaryData:returnData,tertiaryCounts:returnCounts,tertiaryColor:'var(--red)',tertiaryLabel:'Refunds',tertiaryStroke:0,tertiaryMarkersOnly:true,tertiaryAlwaysDots:true,tertiaryEvents:true,tertiaryEventDotR:4.2,
         drawKey:SUMMARY_PERIOD,
         fillData:revData,fillColor:'var(--state-listed)',fillOpacity:0.16,
@@ -13248,7 +13271,7 @@ function renderSummaryChart(labels,revData,profitData,returnData,returnCounts,pa
         maxDotsN:0,showLastProfitDot:true,
         profitDotR:3,revDotR:3.5,
         profitStroke:2.3,revStroke:2.4,scrubDotR:5,
-        primaryLabel:'Sales Revenue',secondaryLabel:'Gross Profit',
+        primaryLabel:'Gross Revenue',secondaryLabel:'Gross Profit',
         tertiaryData:returnData,tertiaryCounts:returnCounts,tertiaryColor:'var(--red)',tertiaryLabel:'Refunds',tertiaryStroke:0,tertiaryMarkersOnly:true,tertiaryAlwaysDots:true,tertiaryEvents:true,tertiaryEventDotR:4.6,
         drawKey:SUMMARY_PERIOD,
         fillData:revData,fillColor:'var(--state-listed)',fillOpacity:0.14,
@@ -13816,6 +13839,8 @@ function renderSummary(){
   try{
     const stats=calcSummaryStats();
     const deltas=calcSummaryDeltas();
+    const grossStats=calcSummaryGrossStats();
+    const grossDeltas=calcSummaryGrossDeltas();
     // Delta chip: green ▲ when good, red ▼ when bad. `invert` flips good/bad for
     // metrics where lower is better (refund rate). `pp` formats as points (margin,
     // refund) vs % (revenue, profit, sold). Returns '' when no baseline.
@@ -14010,48 +14035,48 @@ function renderSummary(){
         <div class="card summary-hero-card summary-mobile-only" onclick="showFilteredItems('revenue')">
           <div class="summary-hero-top">
             <div class="summary-hero-head">
-              <div class="kpi-label">Net revenue · ${(periods.find(p=>p.key===SUMMARY_PERIOD)||{}).label||''}</div>
-              <div class="summary-hero-value num" data-cv="${Number(stats.totalRev||0)}" data-cv-fmt="money" data-cv-key="sum-m-rev">${fmt(stats.totalRev||0)}</div>
-              <div class="kpi-foot">${deltaChip(deltas&&deltas.totalRev)||((stats.soldCount||0)+' sold')}</div>
+              <div class="kpi-label">Gross revenue · ${(periods.find(p=>p.key===SUMMARY_PERIOD)||{}).label||''}</div>
+              <div class="summary-hero-value num" data-cv="${Number(grossStats.revenue||0)}" data-cv-fmt="money" data-cv-key="sum-m-rev">${fmt(grossStats.revenue||0)}</div>
+              <div class="kpi-foot">${deltaChip(grossDeltas&&grossDeltas.revenue)||((grossStats.soldCount||0)+' sold')}</div>
             </div>
             <svg class="summary-hero-spark" viewBox="0 0 120 44" preserveAspectRatio="none" aria-hidden="true"></svg>
           </div>
           <div class="summary-hero-chart">
-            <div class="summary-chart-legend"><span class="legend-item"><span class="legend-dot" style="background:var(--state-listed)"></span>Sales Revenue</span><span class="legend-item"><span class="legend-dot" style="background:var(--profit)"></span>Gross Profit</span>${chartReturns.some(function(v){return Number(v)>0;})?'<span class="legend-item"><span class="legend-event-mark"></span>Refunds</span>':''}</div>
-            <svg id="summary-chart-svg-mobile" viewBox="0 0 800 280" preserveAspectRatio="none" role="img" aria-label="Sales revenue, gross profit and refund events over time"></svg>
+            <div class="summary-chart-legend"><span class="legend-item"><span class="legend-dot" style="background:var(--state-listed)"></span>Gross Revenue</span><span class="legend-item"><span class="legend-dot" style="background:var(--profit)"></span>Gross Profit</span>${chartReturns.some(function(v){return Number(v)>0;})?'<span class="legend-item"><span class="legend-event-mark"></span>Refunds</span>':''}</div>
+            <svg id="summary-chart-svg-mobile" viewBox="0 0 800 280" preserveAspectRatio="none" role="img" aria-label="Gross revenue, gross profit and refund events over time"></svg>
           </div>
         </div>
         <div class="summary-mobile-twoup summary-mobile-only">
           <div class="card kpi clickable" onclick="showFilteredItems('realised')">
             <div class="kpi-label">Gross profit</div>
-            <div class="kpi-value num" data-cv="${Number(stats.grossProfit||0)}" data-cv-fmt="k" data-cv-key="sum-m-gp">${fmtK(stats.grossProfit||0)}</div>
-            <div class="kpi-foot">${deltaChip(deltas&&deltas.grossProfit)||'After returns · before overheads'}</div>
+            <div class="kpi-value num" data-cv="${Number(grossStats.profit||0)}" data-cv-fmt="k" data-cv-key="sum-m-gp">${fmtK(grossStats.profit||0)}</div>
+            <div class="kpi-foot">${deltaChip(grossDeltas&&grossDeltas.profit)||'Before refunds · before overheads'}</div>
           </div>
           <div class="card kpi clickable" onclick="showMarginItems()">
-            <div class="kpi-label">Avg margin</div>
-            <div class="kpi-value num" data-cv="${Number(stats.grossMargin||0)}" data-cv-fmt="pct0" data-cv-key="sum-m-margin">${Math.round(stats.grossMargin||0)}%</div>
-            <div class="kpi-foot">${(deltaChip(deltas&&deltas.grossMargin,{pp:true})||'Item-level margin')}${stats.avgROI!=null?' · '+Math.round(stats.avgROI)+'% ROI':''}</div>
+            <div class="kpi-label">Gross margin</div>
+            <div class="kpi-value num" data-cv="${Number(grossStats.margin||0)}" data-cv-fmt="pct0" data-cv-key="sum-m-margin">${Math.round(grossStats.margin||0)}%</div>
+            <div class="kpi-foot">${(deltaChip(grossDeltas&&grossDeltas.margin,{pp:true})||'Gross profit ÷ gross revenue')}${stats.avgROI!=null?' · '+Math.round(stats.avgROI)+'% ROI':''}</div>
           </div>
         </div>
         <!-- Tier 1: 4-KPI grid -->
         <div class="summary-kpis-v3">
-          <div class="card kpi clickable" onclick="showFilteredItems('revenue')"><div class="kpi-label">Net revenue</div><div class="kpi-value num" data-cv="${Number(stats.totalRev||0)}" data-cv-fmt="k" data-cv-key="sum-rev">${fmtK(stats.totalRev||0)}</div><div class="kpi-foot">${deltaChip(deltas&&deltas.totalRev)||((stats.soldCount||0)+' sold in view')}</div></div>
-          <div class="card kpi clickable kpi-netprofit" onclick="showFilteredItems('realised')"><div class="kpi-label">Gross profit</div><div class="kpi-value num" data-cv="${Number(stats.grossProfit||0)}" data-cv-fmt="k" data-cv-key="sum-gp">${fmtK(stats.grossProfit||0)}</div><div class="kpi-foot">${deltaChip(deltas&&deltas.grossProfit)||'After returns · before overheads'}</div></div>
-          <div class="card kpi clickable" onclick="showMarginItems()"><div class="kpi-label">Avg margin</div><div class="kpi-value num" data-cv="${Number(stats.grossMargin||0)}" data-cv-fmt="pct0" data-cv-key="sum-margin">${Math.round(stats.grossMargin||0)}%</div><div class="kpi-foot">${(deltaChip(deltas&&deltas.grossMargin,{pp:true})||'Item-level margin')}${stats.avgROI!=null?' · '+Math.round(stats.avgROI)+'% ROI':''}</div></div>
+          <div class="card kpi clickable" onclick="showFilteredItems('revenue')"><div class="kpi-label">Gross revenue</div><div class="kpi-value num" data-cv="${Number(grossStats.revenue||0)}" data-cv-fmt="k" data-cv-key="sum-rev">${fmtK(grossStats.revenue||0)}</div><div class="kpi-foot">${deltaChip(grossDeltas&&grossDeltas.revenue)||((grossStats.soldCount||0)+' sold in view')}</div></div>
+          <div class="card kpi clickable kpi-netprofit" onclick="showFilteredItems('realised')"><div class="kpi-label">Gross profit</div><div class="kpi-value num" data-cv="${Number(grossStats.profit||0)}" data-cv-fmt="k" data-cv-key="sum-gp">${fmtK(grossStats.profit||0)}</div><div class="kpi-foot">${deltaChip(grossDeltas&&grossDeltas.profit)||'Before refunds · before overheads'}</div></div>
+          <div class="card kpi clickable" onclick="showMarginItems()"><div class="kpi-label">Gross margin</div><div class="kpi-value num" data-cv="${Number(grossStats.margin||0)}" data-cv-fmt="pct0" data-cv-key="sum-margin">${Math.round(grossStats.margin||0)}%</div><div class="kpi-foot">${(deltaChip(grossDeltas&&grossDeltas.margin,{pp:true})||'Gross profit ÷ gross revenue')}${stats.avgROI!=null?' · '+Math.round(stats.avgROI)+'% ROI':''}</div></div>
           <div class="card kpi clickable" onclick="showReturnedItems()"><div class="kpi-label">Refund rate</div><div class="kpi-value num" data-cv="${Number(stats.refundItemRate||0)}" data-cv-fmt="pct1" data-cv-key="sum-refund">${Number(stats.refundItemRate||0).toFixed(1)}%</div><div class="kpi-foot">${deltaChip(deltas&&deltas.refundItemRate,{pp:true,invert:true})||((stats.fullRefundCount||0)+' full · '+(stats.partialOnlyCount||0)+' partial')}</div></div>
         </div>
 
         <!-- Tier 2: chart + categories -->
         <div class="card summary-panel summary-chart-card">
           <div class="summary-chart-head">
-            <div class="sl">Sales &amp; profit over time</div>
+            <div class="sl">Gross revenue &amp; profit over time</div>
             <div class="summary-chart-legend">
-              <span class="legend-item"><span class="legend-dot" style="background:var(--state-listed)"></span>Sales Revenue</span>
+              <span class="legend-item"><span class="legend-dot" style="background:var(--state-listed)"></span>Gross Revenue</span>
               <span class="legend-item"><span class="legend-dot" style="background:var(--profit)"></span>Gross Profit</span>
               ${chartReturns.some(function(v){return Number(v)>0;})?'<span class="legend-item"><span class="legend-event-mark"></span>Refunds</span>':''}
             </div>
           </div>
-          <svg id="summary-chart-svg" viewBox="0 0 800 280" preserveAspectRatio="none" role="img" aria-label="Sales revenue, gross profit and refund events over time"></svg>
+          <svg id="summary-chart-svg" viewBox="0 0 800 280" preserveAspectRatio="none" role="img" aria-label="Gross revenue, gross profit and refund events over time"></svg>
         </div>
         ${(()=>{
           const donut=buildCategoryDonut(stats.byCat);
@@ -14270,7 +14295,7 @@ function goToMonth(m){
   MONTH_FILTER='sold';
   MONTH_SORT='date-sold';
   SELECTED_ITEMS.clear();
-  MONTHLY_VIEW='detail';_saveUIState();
+  MONTHLY_VIEW='detail';
   const cur=document.querySelector('.page.on');
   // Record where we came from so back button knows where to go
   if(cur&&cur.id==='p-monthly'){
@@ -14278,9 +14303,10 @@ function goToMonth(m){
   } else {
     _monthOrigin=(cur&&cur.id)||'p-summary';
   }
+  // Persist the completed Sales sub-route once. No intermediate grid/detail
+  // state is ever written for boot to observe.
+  _saveUIState();
   if(cur&&cur.id==='p-monthly'){
-    // _monthOrigin is final now, so persist the exact detail context before render.
-    _saveUIState();
     renderMonthlyPage();
   } else {
     // Route through the normal tab switch for nav/UI syncing, but preserve the
@@ -14432,7 +14458,7 @@ function _monthlyPeriodSelectHTML(){
 function _monthlyNetProfitChartHTML(){
   return '<div class="monthly-charts-row">'
     +'<div class="card summary-panel summary-chart-card monthly-profitability-card">'
-    +'<div class="summary-chart-head monthly-performance-head"><div><div class="sl">Monthly performance</div><div class="monthly-chart-sub">Top line vs what you kept after all costs</div></div>'
+    +'<div class="summary-chart-head monthly-performance-head"><div><div class="sl">Monthly performance</div><div class="monthly-chart-sub">Net revenue vs net profit after all costs</div></div>'
     +'<div class="summary-chart-legend">'
     +'<span class="legend-item"><span class="monthly-legend-bar"></span>Net Revenue</span>'
     +'<span class="legend-item"><span class="monthly-legend-line"></span>Net Profit</span>'
@@ -14448,7 +14474,7 @@ function _monthlyNetProfitChartHTML(){
 // reconciles penny-for-penny with SA103.
 function _monthlyMoneyFlowHTML(){
   return '<div class="card summary-panel money-flow-card">'
-    +'<div class="summary-chart-head"><div class="sl">Where the money went</div></div>'
+    +'<div class="summary-chart-head monthly-performance-head"><div><div class="sl">Profit breakdown</div><div class="monthly-chart-sub">How gross revenue becomes net profit</div></div></div>'
     +'<div id="monthly-money-flow" class="money-flow-rows"></div></div>';
 }
 
@@ -14460,34 +14486,45 @@ function renderMonthlyMoneyFlow(){
   try{ p=_buildPnLSummary(r.from,r.to,r.label); }
   catch(e){ host.innerHTML='<div class="mf-foot">Unable to build P&amp;L summary.</div>'; return; }
 
-  const turnover=Number(p.revenue)||0;
+  const grossRevenue=Number(p.revenue)||0;
+  const flowEvents=getSaleEventsInRange(r.from,r.to);
+  const customerRefunds=+flowEvents.filter(function(e){return e.isReturnAdjustment;})
+    .reduce(function(sum,e){return sum+Math.max(0,-(Number(e.salePrice)||0));},0).toFixed(2);
+  const netRevenue=+(grossRevenue-customerRefunds).toFixed(2);
   const cogs=Number(p.cogs)||0;
   const selling=Number((p.selling&&p.selling.total))||0;
+  // p.selling.total includes the customer refund itself plus any return postage.
+  // Pull only the customer refund out here so it is not double-counted; return
+  // postage and all other selling costs remain in this line and reconciliation.
+  const otherSelling=+(selling-customerRefunds).toFixed(2);
   const overheads=Number((p.overheads&&p.overheads.total))||0;
   const net=Number(p.netProfit)||0;
 
-  if(turnover<=0){
-    host.innerHTML='<div class="mf-foot">No sales in '+esc(r.label)+'. Once you log sales, this shows exactly where your money goes.</div>';
+  if(grossRevenue<=0){
+    host.innerHTML='<div class="mf-foot">No sales in '+esc(r.label)+'. Once you log sales, this will bridge gross revenue to net profit.</div>';
     return;
   }
-  const pct=function(v){return Math.max(0,Math.min(100,(Math.abs(v)/turnover)*100));};
-  const row=function(label,val,colour){
-    return '<div class="mf-row">'
+  const pct=function(v){return Math.max(0,Math.min(100,(Math.abs(v)/grossRevenue)*100));};
+  const row=function(label,val,colour,cls){
+    return '<div class="mf-row'+(cls?' '+cls:'')+'">'
       +'<div class="mf-top"><span class="mf-label">'+esc(label)+'</span><span class="mf-val">'+fmt(val)+'</span></div>'
       +'<div class="mf-bar"><span class="mf-fill" style="width:'+pct(val).toFixed(1)+'%;background:'+colour+'"></span></div>'
       +'</div>';
   };
   const netColour=net>=0?'var(--green)':'var(--red)';
+  const margin=netRevenue!==0?(net/netRevenue*100):null;
   host.innerHTML=
-     row('Turnover',turnover,'var(--state-listed)')
-    +row('− Cost of goods',cogs,'var(--red)')
-    +row('− Selling costs (fees, postage, splits)',selling,'var(--red)')
-    +row('− Overheads (trips, expenses)',overheads,'var(--warn)')
+     row('Gross revenue',grossRevenue,'var(--state-listed)','mf-key')
+    +(customerRefunds>0?row('− Refunds',customerRefunds,'var(--red)','mf-deduction'):'')
+    +row('= Net revenue',netRevenue,'var(--state-listed)','mf-key mf-net-revenue')
+    +row('− Cost of goods',cogs,'var(--red)','mf-deduction')
+    +row('− Selling costs',otherSelling,'var(--red)','mf-deduction')
+    +row('− Overheads',overheads,'var(--warn)','mf-deduction')
     +'<div class="mf-row mf-net">'
       +'<div class="mf-top"><span class="mf-label">Net profit</span><span class="mf-val" style="color:'+netColour+'">'+fmt(net)+'</span></div>'
       +'<div class="mf-bar"><span class="mf-fill" style="width:'+pct(net).toFixed(1)+'%;background:'+netColour+'"></span></div>'
     +'</div>'
-    +'<div class="mf-foot">'+esc(r.label)+' · '+(p.soldCount||0)+' sold. Bars are % of turnover. Reconciles with your Tax Return.</div>';
+    +'<div class="mf-foot">'+esc(r.label)+' · '+(p.soldCount||0)+' sold'+(margin!==null?' · '+margin.toFixed(1)+'% net margin':'')+'. Bars are % of gross revenue · reconciles with your Tax Return.</div>';
 }
 
 function renderMonthlyProfitabilityChart(){
@@ -14786,14 +14823,14 @@ function renderMonth(){
   const events=getSaleEventsInMonth(m);
 
   // Counts for chips — sale events landing in this month.
-  const cSold=events.filter(e=>!e.isReturned).length;
-  const cReturned=events.filter(e=>e.isReturned).length;
+  const cSold=events.filter(e=>!e.isReturnAdjustment).length;
+  const cReturned=events.filter(e=>e.isReturnAdjustment).length;
   const cAll=events.length;
 
   // Filter
   let visible=events;
-  if(MONTH_FILTER==='sold')visible=events.filter(e=>!e.isReturned);
-  else if(MONTH_FILTER==='returned')visible=events.filter(e=>e.isReturned);
+  if(MONTH_FILTER==='sold')visible=events.filter(e=>!e.isReturnAdjustment);
+  else if(MONTH_FILTER==='returned')visible=events.filter(e=>e.isReturnAdjustment);
   // 'all' = everything
 
   // Sort
@@ -14829,8 +14866,9 @@ function renderMonth(){
   const refundLabel=stats.refundDenom===0?'—'
     :totalRefundEvents===0?'0%'
     :stats.refundItemRate.toFixed(0)+'%';
-  const refundSub=stats.refundDenom===0?'No sales'
-    :(stats.fullRefundCount||0)+' full · '+(stats.partialOnlyCount||0)+' partial';
+  const refundSub=stats.refundDenom===0
+    ?((stats.refundedItemCount||0)>0?((stats.refundedItemCount||0)+' return'+((stats.refundedItemCount||0)===1?'':'s')+' this month · no sales denominator'):'No sales')
+    :(stats.fullRefundCount||0)+' full · '+(stats.partialOnlyCount||0)+' partial · '+stats.refundDenom+' sale'+(stats.refundDenom===1?'':'s');
 
   // Auto-reset stale filter: if no returns this period but filter is sold/returned, drop to 'all'
   if(cReturned===0&&(MONTH_FILTER==='sold'||MONTH_FILTER==='returned'))MONTH_FILTER='all';
@@ -14889,9 +14927,9 @@ function renderMonth(){
 
     <div class="sales-kpis-v2">
       <div class="card kpi">
-        <div class="kpi-label">Revenue${stats.returnsAmt>0?' (net)':''}</div>
+        <div class="kpi-label">Net Revenue</div>
         <div class="kpi-value num">${fmtK(stats.totalRev)}</div>
-        ${stats.returnsAmt>0?`<div class="kpi-foot revenue-breakdown">${fmt(stats.grossRev)} gross − ${fmt(stats.returnsAmt)} returns</div>`:''}
+        ${stats.returnsAmt>0?`<div class="kpi-foot revenue-breakdown">${fmt(stats.grossRev)} gross − ${fmt(stats.returnsAmt)} refunds</div>`:''}
         <div class="kpi-foot">${stats.soldCount} sale${stats.soldCount!==1?'s':''}${stats.returnedCount>0?' · '+stats.returnedCount+' returned':''}</div>
       </div>
       <div class="card kpi kpi-realised">
@@ -15593,8 +15631,8 @@ function selectAllMonth(){
   // Session B: filter set is now sold | all | returned, driven by sale events.
   const events=getSaleEventsInMonth(SELECTED_MONTH);
   let visible=events;
-  if(MONTH_FILTER==='sold')visible=events.filter(e=>!e.isReturned);
-  else if(MONTH_FILTER==='returned')visible=events.filter(e=>e.isReturned);
+  if(MONTH_FILTER==='sold')visible=events.filter(e=>!e.isReturnAdjustment);
+  else if(MONTH_FILTER==='returned')visible=events.filter(e=>e.isReturnAdjustment);
   const allSelected=visible.length>0&&visible.every(e=>SELECTED_ITEMS.has(e.item.id));
   if(allSelected){visible.forEach(e=>SELECTED_ITEMS.delete(e.item.id));}
   else{visible.forEach(e=>SELECTED_ITEMS.add(e.item.id));}
