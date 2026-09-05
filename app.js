@@ -13388,6 +13388,12 @@ function _renderChartInto(svgEl,labels,revData,profitData,handlers,opts){
   const tertiaryBars=!!opts.tertiaryBars;
   const tertiaryBarMaxW=opts.tertiaryBarMaxW!=null?Math.max(3,Number(opts.tertiaryBarMaxW)||6):6;
   const tertiaryBarOpacity=opts.tertiaryBarOpacity!=null?Math.max(0.08,Math.min(0.5,Number(opts.tertiaryBarOpacity)||0.22)):0.22;
+  const primaryBars=!!opts.primaryBars;
+  const primaryBarMaxW=opts.primaryBarMaxW!=null?Math.max(10,Number(opts.primaryBarMaxW)||30):30;
+  const showArea=opts.showArea!==false;
+  const extraTooltipData=Array.isArray(opts.extraTooltipData)?opts.extraTooltipData:null;
+  const extraTooltipLabel=opts.extraTooltipLabel||'Gross Profit';
+  const extraTooltipColor=opts.extraTooltipColor||'var(--text-secondary)';
   const fillColor=opts.fillColor||secondaryColor;
   const innerW=W-pad.l-pad.r;
   const innerH=H-pad.t-pad.b;
@@ -13485,10 +13491,21 @@ function _renderChartInto(svgEl,labels,revData,profitData,handlers,opts){
   const showDots=n<=maxDotsN;
   const colW=n>1?xStep:innerW;
   const fmtMoney=v=>'£'+(v||0).toLocaleString('en-GB',{minimumFractionDigits:2,maximumFractionDigits:2});
-  // Refunds are event annotations, not a third quantitative series. In event
-  // mode every marker sits on one fixed rail INSIDE the plot; its Y-position and
-  // size never encode amount. Amount/count are disclosed by title + scrub tooltip.
-  const tertiaryEventY=H-pad.b-Math.max(10,Math.min(14,innerH*0.065));
+  // Optional primary columns (used by the yearly Sales performance chart).
+  // They keep magnitude reading separate from the trend line while sharing the
+  // same money axis. Bars always originate at the true £0 baseline.
+  const primaryBarW=Math.max(8,Math.min(primaryBarMaxW,(n>1?xStep:innerW)*0.42));
+  const primaryBarsHTML=primaryBars?revData.map(function(raw,i){
+    const r=Number(raw)||0;if(r===0)return '';
+    const cx=sx(i),y0=sy(0),yr=sy(r),h=Math.max(1.5,Math.abs(y0-yr)),y=Math.min(y0,yr);
+    const isPartial=_partial&&i===n-1;
+    const cls='rt-chart-primary-bar'+(r<0?' rt-chart-primary-bar--negative':'')+(isPartial?' rt-chart-primary-bar--partial':'');
+    return '<rect class="'+cls+'" style="--bar-i:'+i+'" x="'+(cx-primaryBarW/2).toFixed(1)+'" y="'+y.toFixed(1)+'" width="'+primaryBarW.toFixed(1)+'" height="'+h.toFixed(1)+'" rx="'+Math.min(4,primaryBarW/3).toFixed(1)+'" fill="'+primaryColor+'" fill-opacity="'+(isPartial?'0.12':'0.20')+'" stroke="'+primaryColor+'" stroke-opacity="'+(isPartial?'0.52':'0.62')+'" stroke-width="1"'+(isPartial?' stroke-dasharray="3 2"':'')+'/>';
+  }).join(''):'';
+
+  // Refunds are annotations, not a third money series. Put them in the x-axis
+  // gutter below the plot so low-profit periods never collide with a marker.
+  const tertiaryEventY=H-pad.b+Math.max(5,Math.min(7,fontSize*0.48));
   const tertiaryBarW=Math.max(3.5,Math.min(tertiaryBarMaxW,(n>1?xStep:innerW)*0.22));
   const tertOverlay=tertiaryData?tertiaryData.map(function(raw,i){
     const t=Math.max(0,Number(raw)||0);
@@ -13496,14 +13513,10 @@ function _renderChartInto(svgEl,labels,revData,profitData,handlers,opts){
     const cx=sx(i);
     if(tertiaryEvents){
       const count=tertiaryCounts?Math.max(0,Number(tertiaryCounts[i])||0):1;
-      const rr=tertiaryEventDotR;
-      const countText=count>1?(count>9?'9+':String(count)):'';
-      const centre=countText
-        ?'<text x="'+cx.toFixed(1)+'" y="'+(tertiaryEventY+2.45).toFixed(1)+'" text-anchor="middle" font-size="7.2" font-weight="700" fill="'+tertiaryColor+'" font-family="var(--font-body)">'+countText+'</text>'
-        :'<circle cx="'+cx.toFixed(1)+'" cy="'+tertiaryEventY.toFixed(1)+'" r="1.65" fill="'+tertiaryColor+'"/>';
+      const w=count>1?8:6;
       return '<g class="rt-chart-refund-event" data-refund-count="'+count+'">'
-        +'<circle cx="'+cx.toFixed(1)+'" cy="'+tertiaryEventY.toFixed(1)+'" r="'+(rr+1.15).toFixed(1)+'" fill="var(--surface-1)" stroke="'+tertiaryColor+'" stroke-width="1.45"/>'
-        +centre+'</g>';
+        +'<rect x="'+(cx-w/2).toFixed(1)+'" y="'+(tertiaryEventY-1.5).toFixed(1)+'" width="'+w+'" height="3" rx="1.5" fill="'+tertiaryColor+'" opacity="0.92"/>'
+        +'<title>'+tertiaryLabel+' '+fmtMoney(t)+(count?' · '+count+' event'+(count===1?'':'s'):'')+'</title></g>';
     }
     if(!tertiaryBars)return '';
     const y0=sy(0),yt=sy(t);
@@ -13533,7 +13546,7 @@ function _renderChartInto(svgEl,labels,revData,profitData,handlers,opts){
       +'<rect x="'+(cx-colW/2).toFixed(1)+'" y="'+pad.t+'" width="'+colW.toFixed(1)+'" height="'+innerH+'" fill="transparent"/>'
       +(hasT&&!tertiaryBars&&!tertiaryEvents&&(showDots||tertiaryAlwaysDots)?'<circle cx="'+cx.toFixed(1)+'" cy="'+sy(t).toFixed(1)+'" r="'+tertiaryDotR+'" fill="'+_df(tertiaryColor)+'" stroke="'+_ds(tertiaryColor)+'" stroke-width="1.1" opacity="'+tertiaryDotOpacity+'"/>':'')
       +(hasP&&showDots?'<circle cx="'+cx.toFixed(1)+'" cy="'+sy(p).toFixed(1)+'" r="'+profitDotR+'" fill="'+_df(secondaryColor)+'" stroke="'+_ds(secondaryColor)+'" stroke-width="1.2"/>':'')
-      +((hasR&&(showDots||_isLast))?'<circle cx="'+cx.toFixed(1)+'" cy="'+sy(r).toFixed(1)+'" r="'+revDotR+'" fill="'+_df(primaryColor)+'" stroke="'+_ds(primaryColor)+'" stroke-width="1.5"/>':'')
+      +((hasR&&!primaryBars&&(showDots||_isLast))?'<circle cx="'+cx.toFixed(1)+'" cy="'+sy(r).toFixed(1)+'" r="'+revDotR+'" fill="'+_df(primaryColor)+'" stroke="'+_ds(primaryColor)+'" stroke-width="1.5"/>':'')
       +'<title>'+esc(l)+' · '+primaryLabel+' '+fmtMoney(r)+' · '+secondaryLabel+' '+fmtMoney(p)+(hasT?' · '+tertiaryLabel+' -'+fmtMoney(t)+(tertiaryCounts&&tertiaryCounts[i]?' · '+tertiaryCounts[i]+' event'+(tertiaryCounts[i]===1?'':'s'):''):'')+'</title>'
       +'</g>';
   }).join('');
@@ -13548,13 +13561,14 @@ function _renderChartInto(svgEl,labels,revData,profitData,handlers,opts){
     +'</linearGradient>'
     +'</defs>'
     +grid+yLab+xLab
-    +'<path class="rt-chart-area" d="'+area+'" fill="url(#'+gradientId+')" stroke="none"/>'
+    +(showArea?'<path class="rt-chart-area" d="'+area+'" fill="url(#'+gradientId+')" stroke="none"/>':'')
+    +primaryBarsHTML
     +'<path class="rt-chart-line" d="'+profitLine+'" fill="none" stroke="'+secondaryColor+'" stroke-width="'+profitStroke+'" stroke-linejoin="round" stroke-linecap="round" opacity="0.95"/>'
     +(profitDash?'<path class="rt-chart-partial" d="'+profitDash+'" fill="none" stroke="'+secondaryColor+'" stroke-width="'+profitStroke+'" stroke-dasharray="4 3" stroke-linecap="round" opacity="0.55"/>':'')
     +(tertiaryData&&!tertiaryMarkersOnly&&!tertiaryBars?'<path class="rt-chart-line" d="'+tertLine+'" fill="none" stroke="'+tertiaryColor+'" stroke-width="'+tertiaryStroke+'" stroke-linejoin="round" stroke-linecap="round" opacity="0.95"/>':'')
     +(tertDash&&!tertiaryMarkersOnly&&!tertiaryBars?'<path class="rt-chart-partial" d="'+tertDash+'" fill="none" stroke="'+tertiaryColor+'" stroke-width="'+tertiaryStroke+'" stroke-dasharray="4 3" stroke-linecap="round" opacity="0.55"/>':'')
-    +'<path class="rt-chart-line" d="'+line+'" fill="none" stroke="'+primaryColor+'" stroke-width="'+revStroke+'" stroke-linejoin="round" stroke-linecap="round"/>'
-    +(revDash?'<path class="rt-chart-partial" d="'+revDash+'" fill="none" stroke="'+primaryColor+'" stroke-width="'+revStroke+'" stroke-dasharray="4 3" stroke-linecap="round" opacity="0.6"/>':'')
+    +(primaryBars?'':'<path class="rt-chart-line" d="'+line+'" fill="none" stroke="'+primaryColor+'" stroke-width="'+revStroke+'" stroke-linejoin="round" stroke-linecap="round"/>')
+    +(!primaryBars&&revDash?'<path class="rt-chart-partial" d="'+revDash+'" fill="none" stroke="'+primaryColor+'" stroke-width="'+revStroke+'" stroke-dasharray="4 3" stroke-linecap="round" opacity="0.6"/>':'')
     +_soFar
     +tertOverlay
     +hits
@@ -13573,7 +13587,7 @@ function _renderChartInto(svgEl,labels,revData,profitData,handlers,opts){
   // defined' ReferenceError on every touch scrub (mobile, incl. dashboard).
   _setupChartScrub(svgEl,{W:W,pad:pad,innerW:innerW,n:n,sx:sx,sy:sy,revData:revData,profitData:profitData,labels:labels,
     primaryColor:primaryColor,secondaryColor:secondaryColor,primaryLabel:primaryLabel,secondaryLabel:secondaryLabel,
-    tertiaryData:tertiaryData,tertiaryColor:tertiaryColor,tertiaryLabel:tertiaryLabel,tertiaryCounts:tertiaryCounts,tertiaryEvents:tertiaryEvents,tertiaryEventY:tertiaryEventY});
+    tertiaryData:tertiaryData,tertiaryColor:tertiaryColor,tertiaryLabel:tertiaryLabel,tertiaryCounts:tertiaryCounts,tertiaryEvents:tertiaryEvents,tertiaryEventY:tertiaryEventY,extraTooltipData:extraTooltipData,extraTooltipLabel:extraTooltipLabel,extraTooltipColor:extraTooltipColor});
 
   // Column-click drill — delegated. stopPropagation prevents the hero card's
   // own onclick from firing when a column is tapped. Gated on wasScrub so a
@@ -13660,6 +13674,9 @@ function _setupChartScrub(svgEl,ctx){
   const tertiaryCounts=Array.isArray(ctx.tertiaryCounts)?ctx.tertiaryCounts:null;
   const tertiaryEvents=!!ctx.tertiaryEvents;
   const tertiaryEventY=Number(ctx.tertiaryEventY);
+  const extraTooltipData=Array.isArray(ctx.extraTooltipData)?ctx.extraTooltipData:null;
+  const extraTooltipLabel=ctx.extraTooltipLabel||'Gross Profit';
+  const extraTooltipColor=ctx.extraTooltipColor||'var(--text-secondary)';
   const parent=svgEl.parentElement;
   if(!parent)return;
   const cs=getComputedStyle(parent);
@@ -13713,6 +13730,7 @@ function _setupChartScrub(svgEl,ctx){
       '<div class="tip-period">'+esc(labels[idx])+'</div>'
       +'<div class="tip-row"><span class="tip-dot" style="background:'+primaryColor+'"></span>'+primaryLabel+' <strong>'+fmtMoneyTip(r)+'</strong></div>'
       +'<div class="tip-row"><span class="tip-dot" style="background:'+secondaryColor+'"></span>'+secondaryLabel+' <strong>'+fmtMoneyTip(p)+'</strong></div>'
+      +(extraTooltipData?'<div class="tip-row"><span class="tip-dot" style="background:'+extraTooltipColor+'"></span>'+extraTooltipLabel+' <strong>'+fmtMoneyTip(extraTooltipData[idx]||0)+'</strong></div>':'')
       +(tertiaryData&&tv!==0?'<div class="tip-row"><span class="tip-dot" style="background:'+tertiaryColor+'"></span>'+((tertiaryCounts&&Number(tertiaryCounts[idx])===1)?'Refund':'Refunds')+' <strong>−'+fmtMoneyTip(tv)+(tertiaryCounts&&Number(tertiaryCounts[idx])>0?' · '+Number(tertiaryCounts[idx])+(Number(tertiaryCounts[idx])===1?' event':' events'):'')+'</strong></div>':'');
     tip.style.display='block';
     const rect=svgEl.getBoundingClientRect();
@@ -13865,13 +13883,14 @@ function renderSummary(){
     // so it reads as in-progress rather than a same-day dip. Rolling periods end
     // today, so their last bucket is the partial one; FY (monthly) ends on the FY
     // date, so _chartPartialLast is false there (its current-month bar is unchanged).
-    const _chartPartialLast=(range.to===_todayStr);
+    const _chartPartialLast=(range.to===_todayStr)||SUMMARY_PERIOD==='current_fy';
     // Operational trend: sales stay on their sale date; later refunds do not
     // rewrite the sale or its profit. Refunds are a separate positive-magnitude
     // series. Headline KPIs/statements still use full accounting adjustments.
     let chartLabels=[], chartRev=[], chartProfit=[], chartReturns=[], chartReturnCounts=[], chartClickHandlers=[];
     if(isFY){
-      const keys=_fyKeys(SUMMARY_PERIOD==='current_fy'?_currentFYStart():_currentFYStart()-1);
+      let keys=_fyKeys(SUMMARY_PERIOD==='current_fy'?_currentFYStart():_currentFYStart()-1);
+      if(SUMMARY_PERIOD==='current_fy'){const ci=keys.indexOf(currentMonthKey());if(ci>=0)keys=keys.slice(0,ci+1);}
       keys.forEach(k=>{
         const events=getSaleEventsInMonth(k);
         const sales=events.filter(function(x){return !x.isReturnAdjustment;});
@@ -13973,7 +13992,7 @@ function renderSummary(){
             <svg class="summary-hero-spark" viewBox="0 0 120 44" preserveAspectRatio="none" aria-hidden="true"></svg>
           </div>
           <div class="summary-hero-chart">
-            <div class="summary-chart-legend"><span class="legend-item"><span class="legend-dot" style="background:var(--state-listed)"></span>Sales Revenue</span><span class="legend-item"><span class="legend-dot" style="background:var(--profit)"></span>Gross Profit</span>${chartReturns.some(function(v){return Number(v)>0;})?'<span class="legend-item"><span class="legend-dot" style="background:var(--surface);border:2px solid var(--red)"></span>Refunds</span>':''}</div>
+            <div class="summary-chart-legend"><span class="legend-item"><span class="legend-dot" style="background:var(--state-listed)"></span>Sales Revenue</span><span class="legend-item"><span class="legend-dot" style="background:var(--profit)"></span>Gross Profit</span>${chartReturns.some(function(v){return Number(v)>0;})?'<span class="legend-item"><span class="legend-event-mark"></span>Refunds</span>':''}</div>
             <svg id="summary-chart-svg-mobile" viewBox="0 0 800 280" preserveAspectRatio="none" role="img" aria-label="Sales revenue, gross profit and refund events over time"></svg>
           </div>
         </div>
@@ -14004,7 +14023,7 @@ function renderSummary(){
             <div class="summary-chart-legend">
               <span class="legend-item"><span class="legend-dot" style="background:var(--state-listed)"></span>Sales Revenue</span>
               <span class="legend-item"><span class="legend-dot" style="background:var(--profit)"></span>Gross Profit</span>
-              ${chartReturns.some(function(v){return Number(v)>0;})?'<span class="legend-item"><span class="legend-dot" style="background:var(--surface);border:2px solid var(--red)"></span>Refunds</span>':''}
+              ${chartReturns.some(function(v){return Number(v)>0;})?'<span class="legend-item"><span class="legend-event-mark"></span>Refunds</span>':''}
             </div>
           </div>
           <svg id="summary-chart-svg" viewBox="0 0 800 280" preserveAspectRatio="none" role="img" aria-label="Sales revenue, gross profit and refund events over time"></svg>
@@ -14388,13 +14407,13 @@ function _monthlyPeriodSelectHTML(){
 function _monthlyNetProfitChartHTML(){
   return '<div class="monthly-charts-row">'
     +'<div class="card summary-panel summary-chart-card monthly-profitability-card">'
-    +'<div class="summary-chart-head"><div class="sl">Monthly profitability</div>'
+    +'<div class="summary-chart-head monthly-performance-head"><div><div class="sl">Monthly performance</div><div class="monthly-chart-sub">Top line vs what you kept after all costs</div></div>'
     +'<div class="summary-chart-legend">'
-    +'<span class="legend-item"><span class="legend-dot" style="background:var(--state-listed)"></span>Revenue</span>'
-    +'<span class="legend-item"><span class="legend-dot" style="background:var(--profit)"></span>Gross Profit</span>'
-    +'<span class="legend-item"><span class="legend-dot" style="background:var(--brand)"></span>Net Profit</span></div>'
+    +'<span class="legend-item"><span class="monthly-legend-bar"></span>Net Revenue</span>'
+    +'<span class="legend-item"><span class="monthly-legend-line"></span>Net Profit</span>'
+    +'<span class="legend-item" id="monthly-refund-legend" style="display:none"><span class="legend-event-mark"></span>Refunds</span></div>'
     +'</div>'
-    +'<svg id="monthly-profitability-svg" viewBox="0 0 800 360" preserveAspectRatio="none" role="img" aria-label="Monthly revenue, gross profit and net profit over time"></svg></div>'
+    +'<svg id="monthly-profitability-svg" viewBox="0 0 800 360" preserveAspectRatio="none" role="img" aria-label="Monthly net revenue columns, net profit trend and refund events"></svg></div>'
     +_monthlyMoneyFlowHTML()
     +'</div>';
 }
@@ -14449,47 +14468,66 @@ function renderMonthlyMoneyFlow(){
 function renderMonthlyProfitabilityChart(){
   const svg=document.getElementById('monthly-profitability-svg');
   if(!svg)return;
-  // Measure the rendered box and use it as the viewBox. preserveAspectRatio is
-  // "none", so a viewBox that matches the pixel box scales x and y by the same
-  // factor — the axis text stays undistorted while the plot fills the card.
   const _box=svg.getBoundingClientRect();
   const _W=Math.max(320,Math.round(_box.width)||800);
   const _H=Math.max(200,Math.round(_box.height)||360);
   const per=_monthlyPeriodResolve(MONTHLY_PERIOD);
-  const keys=per.keys;
-  // Beyond 12 points the bare month name repeats across years — qualify it.
+  const now=new Date(),curStart=new Date(now.getFullYear(),now.getMonth(),1);
+  let keys=per.keys.filter(function(k){
+    const mo=MONTHS.indexOf(keyCode(k));
+    return mo>=0&&new Date(keyYear(k),mo,1)<=curStart;
+  });
+  if(!keys.length){
+    svg.innerHTML='<text x="50%" y="50%" text-anchor="middle" font-size="13" fill="var(--text-tertiary)" font-family="var(--font-body)">No completed months in this period yet</text>';
+    renderMonthlyMoneyFlow();
+    return;
+  }
   const showYear=keys.length>12;
-  const labels=[],rev=[],gross=[],net=[];
+  const labels=[],netRevenue=[],grossProfit=[],netProfit=[],refunds=[],refundCounts=[];
   keys.forEach(function(k){
     const ms=calcMonthStatsBySale(k);
     const short=MONTH_NAMES[keyCode(k)].slice(0,3);
     labels.push(showYear?short+' '+String(keyYear(k)).slice(-2):short);
-    rev.push(Number(ms.totalRev)||0);
-    gross.push(Number(ms.grossProfit)||0);
-    net.push(Number(ms.netProfit)||0);
+    netRevenue.push(Number(ms.totalRev)||0);
+    grossProfit.push(Number(ms.grossProfit)||0);
+    netProfit.push(Number(ms.netProfit)||0);
+    refunds.push(Number(ms.returnsAmt)||0);
+    refundCounts.push(Number(ms.returnedCount)||0);
   });
-  // Revenue = primary (blue line), Gross = secondary (green, area fill),
-  // Net = tertiary (gold). Mirrors the dashboard's rev/profit semantics.
-  _renderChartInto(svg,labels,rev,gross,[],{
+  const currentIsLast=keys[keys.length-1]===currentMonthKey();
+  const refundLegend=document.getElementById('monthly-refund-legend');
+  if(refundLegend)refundLegend.style.display=refunds.some(function(v){return v>0;})?'inline-flex':'none';
+
+  _renderChartInto(svg,labels,netRevenue,netProfit,[],{
     W:_W,H:_H,
-    pad:{t:16,r:14,b:40,l:60},
+    pad:{t:18,r:16,b:44,l:60},
     fontSize:13,
     yTicks:4,
     maxXLabels:_W<520?6:(keys.length>18?12:keys.length),
-    profitDotR:2.5,revDotR:3,
-    profitStroke:1.8,revStroke:2,scrubDotR:4.5,
+    profitDotR:_W<520?3:2.7,revDotR:0,
+    profitStroke:_W<520?2.4:2.1,revStroke:0,scrubDotR:_W<520?5:4.5,
     maxDotsN:14,
-    gradientId:'rt-monthly-net-fill',
     primaryColor:'var(--state-listed)',
     secondaryColor:'var(--profit)',
-    primaryLabel:'Revenue',
-    secondaryLabel:'Gross Profit',
-    tertiaryData:net,
-    tertiaryColor:'var(--brand)',
-    tertiaryLabel:'Net Profit',
-    // Shade the bottom line (what you actually kept), in brand gold.
-    fillData:net,
-    fillColor:'var(--brand)'
+    primaryLabel:'Net Revenue',
+    secondaryLabel:'Net Profit',
+    primaryBars:true,
+    primaryBarMaxW:_W<520?24:34,
+    showArea:false,
+    extraTooltipData:grossProfit,
+    extraTooltipLabel:'Gross Profit',
+    extraTooltipColor:'var(--text-secondary)',
+    tertiaryData:refunds,
+    tertiaryCounts:refundCounts,
+    tertiaryColor:'var(--red)',
+    tertiaryLabel:'Refunds',
+    tertiaryStroke:0,
+    tertiaryMarkersOnly:true,
+    tertiaryAlwaysDots:true,
+    tertiaryEvents:true,
+    drawKey:'monthly:'+MONTHLY_PERIOD,
+    gradientId:'rt-monthly-profit-fill',
+    partialLast:currentIsLast
   });
   renderMonthlyMoneyFlow();
 }
@@ -17858,28 +17896,46 @@ function _recallExpensePresets(){
 }
 function _recallExpLabel(b){
   const e=b&&b.last?b.last:{};
-  const desc=(e.description||'Expense').trim();
-  const cat=(e.category||'').trim();
-  return desc+(cat?' \u00b7 '+cat:'');
+  return (e.description||'Expense').trim();
 }
 function _recallExpenseMatches(query){
   const key=_recallKey(query);
   if(!key){_recallExp=[];return _recallExp;}
   const ranked=_frecencyRank((DB.expenses||[]),function(e){return e.description||'';},
-                            function(e){return e.date;},12);
-  _recallExp=ranked.filter(function(b){
-    return _recallKey((b.last&&b.last.description)||'').indexOf(key)!==-1;
-  }).slice(0,5);
+                            function(e){return e.date;},24);
+  const matchRank=function(desc){
+    const d=_recallKey(desc);
+    if(d===key)return 0;
+    if(d.indexOf(key)===0)return 1;
+    const words=d.split(/[^a-z0-9]+/).filter(Boolean);
+    if(words.some(function(w){return w.indexOf(key)===0;}))return 2;
+    return d.indexOf(key)!==-1?3:99;
+  };
+  _recallExp=ranked.map(function(b){
+    return {key:b.key,count:b.count,last:b.last,lastDate:b.lastDate,score:b.score,matchRank:matchRank((b.last&&b.last.description)||'')};
+  }).filter(function(b){return b.matchRank<99;})
+    .sort(function(a,b){return (a.matchRank-b.matchRank)||(b.score-a.score)||((Date.parse(b.lastDate)||0)-(Date.parse(a.lastDate)||0));})
+    .slice(0,(window.innerWidth<=600?3:4));
   return _recallExp;
 }
 function _recallExpenseSuggest(){
   const input=document.getElementById('exp-desc');
   const box=document.getElementById('exp-recall-suggestions');
   if(!input||!box)return;
+  const hist=document.getElementById('exp-amount-history');
+  if(hist)hist.style.display='none';
   const items=_recallExpenseMatches(input.value);
   if(!items.length){box.innerHTML='';box.style.display='none';return;}
   box.innerHTML=items.map(function(b,i){
-    return '<button type="button" class="recall-chip" onclick="applyExpensePreset('+i+')">'+esc(_recallExpLabel(b))+'</button>';
+    const e=b.last||{};
+    const desc=(e.description||'Expense').trim();
+    const meta=[];
+    if(e.category)meta.push(e.category);
+    if(Number(e.amount)>0)meta.push(fmt(Number(e.amount)));
+    return '<button type="button" class="recall-chip field-recall-option" onclick="applyExpensePreset('+i+')">'
+      +'<span class="field-recall-main">'+esc(desc)+'</span>'
+      +(meta.length?'<span class="field-recall-meta">'+esc(meta.join(' · '))+'</span>':'')
+      +'</button>';
   }).join('');
   box.style.display='flex';
 }
@@ -17887,16 +17943,48 @@ function _recallExpenseHide(){
   const box=document.getElementById('exp-recall-suggestions');
   if(box)box.style.display='none';
 }
+function _expenseAmountHistory(description){
+  const key=_recallKey(description);
+  if(!key)return [];
+  const rows=(DB.expenses||[]).filter(function(e){return _recallKey(e.description||'')===key&&Number(e.amount)>0;})
+    .slice().sort(function(a,b){return (Date.parse(b.date)||0)-(Date.parse(a.date)||0);});
+  const seen=new Set(),vals=[];
+  rows.forEach(function(e){
+    const v=Math.round((Number(e.amount)||0)*100)/100;
+    const k=v.toFixed(2);
+    if(v>0&&!seen.has(k)){seen.add(k);vals.push(v);}
+  });
+  return vals.slice(0,4);
+}
+function _renderExpenseAmountHistory(description,selectedAmount){
+  const box=document.getElementById('exp-amount-history');
+  if(!box)return;
+  const vals=_expenseAmountHistory(description);
+  if(vals.length<2){box.innerHTML='';box.style.display='none';return;}
+  const sel=Number(selectedAmount)||0;
+  box.innerHTML='<span class="expense-history-label">Paid before</span>'
+    +vals.map(function(v){
+      return '<button type="button" class="expense-amount-chip'+(Math.abs(v-sel)<0.005?' active':'')+'" onclick="applyExpenseAmountPreset('+v+')">'+fmt(v)+'</button>';
+    }).join('');
+  box.style.display='flex';
+}
+function applyExpenseAmountPreset(v){
+  const a=document.getElementById('exp-amt');if(!a)return;
+  a.value=Number(v)||'';
+  document.querySelectorAll('#exp-amount-history .expense-amount-chip').forEach(function(btn){
+    btn.classList.toggle('active',btn.textContent===fmt(Number(v)||0));
+  });
+  try{a.focus();a.select();}catch(e){}
+}
 function applyExpensePreset(i){
   const b=_recallExp[i];if(!b)return;
   const e=b.last||{};
   const d=document.getElementById('exp-desc');if(d)d.value=e.description||'';
   const c=document.getElementById('exp-cat');if(c&&e.category)c.value=e.category;
+  const a=document.getElementById('exp-amt');if(a&&Number(e.amount)>0)a.value=Number(e.amount);
   _recallExpenseHide();
-  // A remembered description may infer its usual category, but never money.
-  // Amount remains an explicit input because repeated expenses can change.
-  const a=document.getElementById('exp-amt');
-  if(a){try{a.focus();}catch(e2){}}
+  _renderExpenseAmountHistory(e.description||'',e.amount);
+  if(a){try{a.focus();a.select();}catch(e2){}}
 }
 
 /* ---- trip locations: type-ahead + remembered mileage ---- */
@@ -18725,7 +18813,7 @@ function addRunExpense(runId){
     <div class="fg"><label>Date</label><input type="date" id="exp-date" value="${defaultDate}" readonly aria-readonly="true"></div>
     <div class="fg"><label>Description</label><input type="text" id="exp-desc" placeholder="e.g. Packaging, entry fee" autocomplete="off" oninput="_recallExpenseSuggest()" onfocus="_recallExpenseSuggest()" onblur="setTimeout(_recallExpenseHide,140)"><div id="exp-recall-suggestions" class="recall-chips field-recall"></div></div>
     <div class="fg"><label>Category</label><select id="exp-cat">${_expenseCatOptionsHTML('')}</select></div>
-    <div class="fg"><label>Amount (£)</label><input type="number" id="exp-amt" step="0.01" min="0" placeholder="0.00" inputmode="decimal"></div>
+    <div class="fg"><label>Amount (£)</label><input type="number" id="exp-amt" step="0.01" min="0" placeholder="0.00" inputmode="decimal"><div id="exp-amount-history" class="expense-amount-history"></div></div>
     <div class="fg" style="background:var(--surface2);border-radius:8px;padding:8px 12px;font-size:12px;color:var(--text-secondary);">Tagged to run: <strong style="color:var(--text)">${esc(run?run.name:'Unknown')}</strong></div>
     <button class="btn btn-primary" style="width:100%;margin-top:16px" onclick="saveRunExpenseInline('${runId}')">Save Expense</button>
   `;
@@ -18906,6 +18994,7 @@ function addExpense(){
     <div class="fg">
       <label>Amount (£)</label>
       <input type="number" id="exp-amt" step="0.01" min="0" placeholder="0.00" inputmode="decimal">
+      <div id="exp-amount-history" class="expense-amount-history"></div>
     </div>
     ${_runDropdownHTML('exp-run-id',null)}
     <button class="btn btn-primary" style="width:100%;margin-top:16px" onclick="saveExpense()">Save Expense</button>
@@ -19132,6 +19221,7 @@ function duplicateExpense(idx){
   const d=document.getElementById('exp-desc');if(d)d.value=e.description||'';
   const c=document.getElementById('exp-cat');if(c&&e.category)c.value=e.category;
   const a=document.getElementById('exp-amt');if(a)a.value=Number(e.amount)||'';
+  _renderExpenseAmountHistory(e.description||'',e.amount);
   if(a){try{a.focus();a.select();}catch(e2){}}
 }
 function saveExpenseEdit(idx){

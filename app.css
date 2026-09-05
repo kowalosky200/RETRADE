@@ -5482,3 +5482,68 @@ svg.rt-chart-draw .rt-chart-refund-event{
 @media(prefers-reduced-motion:reduce){
   svg.rt-chart-draw .rt-chart-refund-event{animation:none!important;}
 }
+
+
+/* v1.4.31 — compact recall + financial chart redesign */
+.field-recall{
+  margin-top:6px;
+  gap:4px;
+  flex-direction:column;
+  flex-wrap:nowrap;
+  max-height:132px;
+  overflow:auto;
+  padding:1px;
+}
+.field-recall .recall-chip{
+  width:100%;
+  min-height:34px;
+  height:auto;
+  padding:7px 9px;
+  border-radius:9px;
+  justify-content:flex-start;
+  gap:9px;
+  font-size:12px;
+  text-align:left;
+  background:var(--surface2);
+}
+.field-recall-main{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.field-recall-meta{flex:0 1 44%;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-secondary);font-size:10.5px;font-weight:500;text-align:right;}
+.expense-amount-history{display:none;align-items:center;gap:5px;flex-wrap:wrap;margin-top:7px;}
+.expense-history-label{font-size:10.5px;color:var(--text-secondary);font-weight:600;margin-right:2px;}
+.expense-amount-chip{height:29px;padding:0 9px;border-radius:8px;border:1px solid var(--border);background:var(--surface2);color:var(--text-secondary);font:600 11px var(--font-body);cursor:pointer;}
+.expense-amount-chip:hover,.expense-amount-chip.active{border-color:var(--accent);color:var(--text);background:var(--accent-dim);}
+.expense-amount-chip:active{transform:scale(.97);}
+
+.legend-event-mark{display:inline-block;width:10px;height:3px;border-radius:999px;background:var(--red);flex:none;}
+
+.rt-chart-primary-bar{transform-box:fill-box;transform-origin:center bottom;}
+.rt-chart-primary-bar--negative{transform-origin:center top;}
+@keyframes rtChartBarIn{from{transform:scaleY(.04)}to{transform:scaleY(1)}}
+svg.rt-chart-draw .rt-chart-primary-bar{
+  animation:rtChartBarIn 380ms var(--ease-draw) both;
+  animation-delay:calc(var(--bar-i) * 20ms);
+}
+@keyframes rtRefundEventNotchIn{from{opacity:0;transform:translateY(3px)}to{opacity:1;transform:none}}
+svg.rt-chart-draw .rt-chart-refund-event{
+  animation:rtRefundEventNotchIn 150ms var(--ease-out) both;
+  animation-delay:calc(var(--dur-draw) * .84);
+}
+
+.rt #p-monthly .monthly-performance-head{align-items:flex-start;}
+.rt #p-monthly .monthly-chart-sub{font-size:10.5px;color:var(--text-tertiary);margin-top:3px;line-height:1.35;}
+.rt #p-monthly .monthly-legend-bar{display:inline-block;width:10px;height:8px;border-radius:2px;background:var(--state-listed);opacity:.72;flex:none;}
+.rt #p-monthly .monthly-legend-line{display:inline-block;width:12px;height:0;border-top:2px solid var(--profit);border-radius:999px;flex:none;}
+.rt #p-monthly .monthly-profitability-card .summary-chart-legend{align-items:center;flex-wrap:wrap;row-gap:6px;}
+
+@media(max-width:600px){
+  .field-recall{max-height:116px;gap:3px;}
+  .field-recall .recall-chip{min-height:32px;padding:6px 8px;border-radius:8px;font-size:11.5px;}
+  .field-recall-meta{font-size:10px;max-width:42%;}
+  .expense-amount-chip{height:28px;padding:0 8px;}
+  .rt #p-monthly .monthly-performance-head{gap:8px;}
+  .rt #p-monthly .monthly-profitability-card .summary-chart-legend{gap:10px;font-size:10.5px;}
+}
+@media(prefers-reduced-motion:reduce){
+  svg.rt-chart-draw .rt-chart-primary-bar,
+  svg.rt-chart-draw .rt-chart-refund-event{animation:none!important;}
+}
