@@ -1,0 +1,269 @@
+===== app.js 6320-6425 =====
+6320:   pb+=_editMoneyRow(_wasRelistedDetect||_isResoldItem?'Sale price (Sale 1)':'Sale price','rcpt-s1-price-input',m,id,_origSalePrice,'var(--green)','');
+6321:   if(_wasRelistedDetect)pb+=rcp('↳ Relisted at',fmt(i.salePrice||0),'var(--muted)',true);
+6322:   // v2.19.35 — Sale 1 postage is now editable (writes the snapshot on a resold
+6323:   // item). Vinted shows the buyer-covered note instead.
+6324:   if(_plat==='vinted')pb+=rcp('Buyer pays postage','(buyer covered)','var(--muted)');
+6325:   else pb+=_editMoneyRow('+ Buyer postage','rcpt-s1-postage-input',m,id,_rcptPostage,'var(--green)','+');
+6326:   if(_showFee)pb+=rcp(_feeLabel,'−'+fmt(bpf),'var(--red)');
+6327:   // F1: Listing fee — inline editable input in receipt for eBay Biz; read-only line for others if set
+6328:   if(_plat==='ebay_biz'){
+6329:     pb+='<div class="ip-receipt-row"><span style="flex:1;color:var(--text-secondary)">Listing fee</span>'
+6330:       +'<span class="ip-receipt-val" style="color:var(--red);display:flex;align-items:center;gap:4px">'
+6331:       +'−£<input type="number" class="rcpt-listing-fee-input" data-m="'+m+'" data-id="'+id+'" value="'+( i.listingFee||0 )+'" min="0" step="0.01" '
+6332:       +'style="width:60px;padding:2px 4px;background:var(--surface2);border:1px solid var(--border);border-radius:5px;color:var(--red);font-size:13px;font-weight:600;text-align:right">'
+6333:       +'</span></div>';
+6334:   } else if((i.listingFee||0)>0){
+6335:     pb+=rcp('Listing fee','−'+fmt(i.listingFee),'var(--red)');
+6336:   }
+6337:   // Relist fees belong to their own Sale-N cycle card, never Sale 1.
+6338:   if(_showPostage)pb+=_editMoneyRow('Shipping cost (you pay)','rcpt-s1-shipping-input',m,id,_rcptShipping,'var(--red)','−'); // v2.19.36 — editable per sale
+6339:   if(_showPostage&&_rcptPackaging>0)pb+=rcp('Packaging','−'+fmt(_rcptPackaging),'var(--red)');
+6340:   if(_rcptPromo)pb+=rcp((_plat==='ebay'?'Promo fee ('+((_rcptPromo*100).toFixed(0))+'% +VAT)':'Boost fee ('+((_rcptPromo*100).toFixed(0))+'%)'),'−'+fmt(promoCost),'var(--red)');
+6341:   pb+=rcp('Item cost','−'+fmt(i.costPrice||0),'var(--red)');
+6342:   if(partsCost>0){
+6343:     const pts=i.parts||[];
+6344:     if(pts.length===1){pb+=rcp(esc(pts[0].description),'−'+fmt(partsCost),'var(--red)');}
+6345:     else{
+6346:       pb+=rcp('Parts & expenses ('+pts.length+')','−'+fmt(partsCost),'var(--red)');
+6347:       pts.forEach(function(p){pb+=rcp(esc(p.description),'−'+fmt(p.cost),'var(--red)',true);});
+6348:     }
+6349:   }
+6350:   if(hasReturn){
+6351:     pb+='<div class="ip-receipt-row section-head"><span>Return impact</span><span></span></div>';
+6352:     (i.returnHistory||[]).forEach(function(r,ri){
+6353:       if((Number(r.saleNo)||1)!==1)return; // Sale 2+ adjustments belong to their own cycle cards.
+6354:       const fullReturn=(r.type==='full_seller'||r.type==='full_ebay');
+6355:       const lbl3={full_seller:'Full refund — you handled',full_ebay:'Full refund — platform involved',partial_seller:'Partial refund — you handled',partial_ebay:'Partial refund — platform decided'}[r.type]||r.type;
+6356:       pb+=rcp(lbl3,'−'+fmt(r.refundAmount||0),'var(--accent)');
+6357:       if(i.resaleSalePrice&&(r.type==='partial_seller'||r.type==='partial_ebay')){
+6358:         const _retagTarget=typeof _currentResaleSaleNo==='function'?_currentResaleSaleNo(i):2;
+6359:         pb+='<div class="ip-receipt-row" style="padding-top:0"><span style="flex:1;color:var(--muted);font-size:11px">Against Sale 1</span>'
+6360:           +'<button class="rcpt-retag-sale-btn" data-m="'+m+'" data-id="'+id+'" data-ri="'+ri+'" data-target="'+_retagTarget+'" '
+6361:           +'style="background:var(--surface2);border:1px solid var(--border);border-radius:5px;color:var(--text-secondary);font-size:11px;padding:2px 8px;cursor:pointer">Move to Sale '+_retagTarget+'</button></div>';
+6362:       }
+6363:       if(fullReturn){
+6364:         const _retCredits=_refundCreditsForEntry(i,r);
+6365:         if(_retCredits.platformCredit>0&&_showFee)pb+=rcp('Platform fee credit','+'+fmt(_retCredits.platformCredit),'var(--green)',true);
+6366:         if(_retCredits.promoCredit>0)pb+=rcp('Advertising fee credit','+'+fmt(_retCredits.promoCredit),'var(--green)',true);
+6367:         const _restored=(Number(i.costPrice)||0)+partsCost;
+6368:         if(_restored>0)pb+=rcp('Stock cost restored','+'+fmt(_restored),'var(--green)',true);
+6369:       }
+6370:       pb+='<div class="ip-receipt-row"><span style="flex:1;color:var(--text-secondary)">Return postage</span>'
+6371:         +'<span class="ip-receipt-val" style="color:var(--red);display:flex;align-items:center;gap:4px">'
+6372:         +'−£<input type="number" class="rcpt-return-postage-input" data-m="'+m+'" data-id="'+id+'" data-ri="'+ri+'" value="'+( r.returnPostage||0 )+'" min="0" step="0.01" '
+6373:         +'style="width:60px;padding:2px 4px;background:var(--surface2);border:1px solid var(--border);border-radius:5px;color:var(--red);font-size:13px;font-weight:600;text-align:right">'
+6374:         +'</span></div>';
+6375:     });
+6376:     // Partial-seller: eBay refunds the fee difference (BPF + promo) on the reduced sale base.
+6377:     // Show explicit credit lines so line items reconcile to the net profit total.
+6378:     if(_psTotal>0){
+6379:       if(_bpfCredit>0&&_showFee)pb+=rcp((_plat==='ebay'?'eBay':'Platform')+' refunds fee difference','+'+fmt(_bpfCredit),'var(--green)',true);
+6380:       if(_promoCredit>0)pb+=rcp((_plat==='ebay'?'eBay':'Platform')+' refunds boost difference','+'+fmt(_promoCredit),'var(--green)',true);
+6381:     }
+6382:   }
+6383:   pb+='<div class="ip-receipt-row total"><span style="flex:1">'+(i.resaleSalePrice?'Sale 1 net':'Net profit / loss')+'</span><span class="ip-receipt-val" style="color:'+(sale1Net>=0?'var(--green)':'var(--red)')+'">'+fmt(sale1Net)+'</span></div>';
+6384: 
+6385:   // sec2 must be declared before the Sale 2 block that uses it (TDZ fix).
+6386:   // sec2: variant that allows a title accent color override
+6387:   const sec2=function(title,body,open,badge,badgeColor,extraClass,accentColor){
+6388:     const cls='ip-section'+(extraClass?' '+extraClass:'');
+6389:     const bdg=badge!=null?'<span class="ip-section-badge" style="color:'+(badgeColor||'var(--muted)')+'">'+badge+'</span>':'';
+6390:     const chevron='<span class="ip-section-chevron" style="transform:'+(open?'rotate(180deg)':'rotate(0deg)')+'">▾</span>';
+6391:     const hdr='<div class="ip-section-header" onclick="var b=this.nextElementSibling,c=this.querySelector(\'.ip-section-chevron\');b.style.display=b.style.display===\'none\'?\'block\':\'none\';c.style.transform=b.style.display===\'none\'?\'rotate(0deg)\':\'rotate(180deg)\'">'
+6392:       +'<span class="ip-section-title"'+(accentColor?' style="color:'+accentColor+'"':'')+'>'+title+'</span>'
+6393:       +'<span class="ip-section-meta">'+bdg+chevron+'</span>'
+6394:       +'</div>';
+6395:     return'<div class="'+cls+'">'+hdr+'<div class="ip-section-body" style="display:'+(open?'block':'none')+'">'+body+'</div></div>';
+6396:   }
+6397: 
+6398:   // Sale 2+ cards — generated from the same canonical Sale-N event source
+6399:   // as Summary, Cashflow and reports. Historical cycles are immutable/read-only;
+6400:   // the single current live resale slot remains editable regardless of whether it
+6401:   // represents Sale 2, Sale 3, Sale 4, ...
+6402:   let resaleHTML='';
+6403:   const _cycleNos=(typeof _saleCycleNumbers==='function'?_saleCycleNumbers(i):[]).filter(function(n){return n>=2;});
+6404:   const _liveCycleNo=i.resaleSalePrice?(typeof _currentResaleSaleNo==='function'?_currentResaleSaleNo(i):2):null;
+6405:   _cycleNos.forEach(function(saleNo){
+6406:     const snap=_saleCycleSnapshot(i,saleNo);if(!snap||!snap.date)return;
+6407:     const ev=_saleEventForCycle(i,m,snap);if(!ev)return;
+6408:     const br=_saleBreakdown(ev);
+6409:     const isLive=!!(i.resaleSalePrice&&saleNo===_liveCycleNo);
+6410:     const platId=snap.platformId||i.resalePlatform||_itemPlatform(i);
+6411:     const platDef=PLATFORMS[platId]||{};
+6412:     const showFee=platId!=='vinted'&&platId!=='fb';
+6413:     const feeLabel=platId==='ebay'?'eBay BPF':platId==='ebay_biz'?'eBay FVF (Biz)':platId==='depop'?'Depop fee':platId==='amazon_uk'?'Amazon fee':'Platform fee';
+6414:     let b='';
+6415:     if(isLive){
+6416:       b+=_salePlatformPickerRow('rcpt-s2-platform-select',m,id,platId);
+6417:       b+=_editMoneyRow('Sale price','rcpt-s2-price-input',m,id,Number(snap.price)||0,'var(--green)','');
+6418:       if(platId==='vinted')b+=rcp('Buyer pays postage','(buyer covered)','var(--muted)');
+6419:       else b+=_editMoneyRow('Postage paid by buyer','rcpt-s2-postage-input',m,id,Number(snap.postage)||0,'var(--green)','+');
+6420:     }else{
+6421:       b+=rcp('Platform',esc(platDef.short||platDef.label||platId),'var(--muted)');
+6422:       b+=rcp('Sale price',fmt(br.salePrice),'var(--green)');
+6423:       if(br.postage>0)b+=rcp('+ Buyer postage','+'+fmt(br.postage),'var(--green)');
+6424:     }
+6425:     if(showFee&&br.bpf>0)b+=rcp(feeLabel,'−'+fmt(br.bpf),'var(--red)');
+===== app.js 22880-23040 =====
+22880: const _SALE_DETAIL_HEADERS=[
+22881:   'Date','Sale #','Item','GID','Platform','Status',
+22882:   'Sale Price (£)','Postage In (£)','BPF Fee (£)','Promo %','Promo Fee (£)',
+22883:   'Shipping Out (£)','Packaging (£)','Item Cost (£)','Parts (£)','Listing Fee (£)',
+22884:   'Return Refund (£)','Return Postage (£)','Partial Refund (£)','Partner Split (£)',
+22885:   'Total Costs (£)','Net Profit (£)','ROI %','Margin %'
+22886: ];
+22887: function runReleaseCandidateChecks(){
+22888:   const results=[];
+22889:   const add=function(name,ok,detail){results.push({name:name,ok:!!ok,detail:String(detail||'')});};
+22890:   const near=function(a,b){return Math.abs((Number(a)||0)-(Number(b)||0))<0.011;};
+22891: 
+22892:   try{
+22893:     const f=runFinancialRegressionTests();
+22894:     add('Financial engine fixtures',f.ok,f.passed+'/'+(f.passed+f.failed)+' passed');
+22895:   }catch(e){add('Financial engine fixtures',false,e&&e.message);}
+22896: 
+22897:   try{
+22898:     const st=runStockLifecycleRegressionTests();
+22899:     add('Stock / Job Lot fixtures',st.ok,st.passed+'/'+(st.passed+st.failed)+' passed');
+22900:   }catch(e){add('Stock / Job Lot fixtures',false,e&&e.message);}
+22901:   try{
+22902:     const cash=runCashLedgerRegressionTests();
+22903:     add('Cashflow event-ledger fixtures',cash.ok,cash.passed+'/'+(cash.passed+cash.failed)+' passed');
+22904:   }catch(e){add('Cashflow event-ledger fixtures',false,e&&e.message);}
+22905:   try{
+22906:     const sum=runSummaryCycleRegressionTests();
+22907:     add('Sale-N Summary fixtures',sum.ok,sum.passed+'/'+(sum.passed+sum.failed)+' passed');
+22908:   }catch(e){add('Sale-N Summary fixtures',false,e&&e.message);}
+22909: 
+22910:   // Full reporting range: event-level net less manual allowable expenses must
+22911:   // equal the P&L net profit. Then the SA103 box total must land on the same number.
+22912:   try{
+22913:     const pnl=_buildPnLSummary('2000-01-01','2099-12-31','RC check');
+22914:     const eventNet=+(pnl.events||[]).reduce(function(sum,ev){return sum+(_saleBreakdown(ev).netProfit||0);},0).toFixed(2);
+22915:     const eventToPnl=+(eventNet-(Number((pnl.selling||{}).manual)||0)-(Number((pnl.overheads||{}).total)||0)).toFixed(2);
+22916:     add('Reporting · events → P&L',near(eventToPnl,pnl.netProfit),
+22917:       'events/manual '+fmt(eventToPnl)+' · P&L '+fmt(pnl.netProfit));
+22918: 
+22919:     // HMRC cash basis is intentionally a separate timing model. Validate the
+22920:     // bridge against its own components instead of incorrectly requiring it to
+22921:     // equal the sale-matched management P&L.
+22922:     const tax=_buildTaxCashSummary('2000-01-01','2099-12-31','RC check');
+22923:     const taxExpected=+((Number(tax.turnover)||0)+(Number(tax.otherIncome)||0)-(Number(tax.totalExpenses)||0)).toFixed(2);
+22924:     add('Reporting · HMRC cash-basis bridge',near(taxExpected,tax.netProfit),
+22925:       'bridge '+fmt(taxExpected)+' · taxable '+fmt(tax.netProfit));
+22926:   }catch(e){add('Reporting reconciliation',false,e&&e.message);}
+22927: 
+22928:   // Every entity the fingerprint can stage must be represented in cloud
+22929:   // persistence, deletion and boot recovery. This protects offline edits.
+22930:   try{
+22931:     const expected=[
+22932:       ['item','item:'],['trip','trip:'],['exp','exp:'],['cash','cash:'],
+22933:       ['run','run:'],['acct','acct:'],['log','log:'],['jlot','jlot:'],
+22934:       ['jmem','jmem:'],['recon','recon:']
+22935:     ];
+22936:     const persistCoverage=Array.isArray(window.__RETRADE_PERSIST_COVERAGE__)?window.__RETRADE_PERSIST_COVERAGE__:[];
+22937:     const recover=(window.__RETRADE_RECOVER_COVERAGE_SOURCE__||String(_recoverOutbox));
+22938:     const missing=[];
+22939:     expected.forEach(function(pair){
+22940:       const type=pair[0];
+22941:       if(persistCoverage.indexOf(type)<0)missing.push(type+' save/delete');
+22942:       if(recover.indexOf("e.type === '"+type+"'")<0 && recover.indexOf("e.type==='"+type+"'")<0)missing.push(type+' recovery');
+22943:     });
+22944:     add('Offline outbox coverage',missing.length===0,missing.length?missing.join(', '):expected.length+' entity types covered');
+22945:   }catch(e){add('Offline outbox coverage',false,e&&e.message);}
+22946: 
+22947:   // Schema handshake + new lifecycle tables are launch requirements, but do
+22948:   // not fail Preview simply because it intentionally runs without Supabase.
+22949:   if(!_previewMode){
+22950:     add('Database schema handshake',_schemaVerified===true,_schemaVerified?'verified':'not verified');
+22951:     add('Job Lot schema',_jobLotSchemaAvailable===true,_jobLotSchemaAvailable?'available':'migration/table unavailable');
+22952:     add('Reconciliation schema',_reconciliationSchemaAvailable===true,_reconciliationSchemaAvailable?'available':'migration/table unavailable');
+22953:   }
+22954: 
+22955:   const failed=results.filter(function(r){return !r.ok;});
+22956:   const out={ok:failed.length===0,passed:results.length-failed.length,failed:failed.length,results:results,ranAt:new Date().toISOString()};
+22957:   window.__RETRADE_RC_CHECKS__=out;
+22958:   if(failed.length)console.error('[RETRADE RC checks] FAILED',failed);
+22959:   else console.info('[RETRADE RC checks] '+results.length+' checks passed');
+22960:   return out;
+22961: }
+22962: 
+22963: function renderReleaseCandidateChecks(){
+22964:   const el=document.getElementById('rc-check-out');if(!el)return;
+22965:   let r;
+22966:   try{r=runReleaseCandidateChecks();}catch(e){
+22967:     _diagRecord('rc-check',e,{message:e&&e.message});
+22968:     el.innerHTML='<div style="color:var(--red);font-size:12px;">Check runner failed: '+esc(e&&e.message||'Unknown error')+'</div>';
+22969:     return;
+22970:   }
+22971:   const rows=(r.results||[]).map(function(x){
+22972:     return '<div style="display:flex;align-items:flex-start;gap:10px;padding:9px 0;border-top:1px solid var(--border);">'
+22973:       +'<div style="width:18px;flex-shrink:0;color:'+(x.ok?'var(--green)':'var(--red)')+';font-weight:800;">'+(x.ok?'✓':'!')+'</div>'
+22974:       +'<div style="flex:1;min-width:0;"><div style="font-size:12.5px;font-weight:650;color:var(--text);">'+esc(x.name)+'</div>'
+22975:       +'<div style="font-size:11px;color:var(--text-secondary);margin-top:2px;overflow-wrap:anywhere;">'+esc(x.detail||'')+'</div></div></div>';
+22976:   }).join('');
+22977:   el.innerHTML='<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:4px;">'
+22978:     +'<strong style="font-size:13px;color:'+(r.ok?'var(--green)':'var(--red)')+';">'+(r.ok?'Release checks passed':'Release checks need attention')+'</strong>'
+22979:     +'<span style="font-size:11px;color:var(--muted);">'+r.passed+'/'+(r.passed+r.failed)+' passed</span></div>'+rows;
+22980: }
+22981: 
+22982: // calcCOGSOnly: the pure accounting "cost of goods sold" for an item — what the
+22983: // stock actually cost to acquire and make saleable (item cost + parts). This is
+22984: // deliberately NARROWER than calcGrossProfit's internal cost: it EXCLUDES
+22985: // platform fees, promoted-listing fees, postage, packaging and listing fees,
+22986: // because in a proper P&L those are SELLING COSTS that sit below gross profit,
+22987: // not cost of sales. Feeds the multi-tier P&L and SA103 Box 17.
+22988: // calcGrossProfit is untouched and remains the source of truth everywhere else.
+22989: 
+22990: // Consignment/hybrid estimated partner economic cost.
+22991: // costPrice remains £0 for consignment; the partner share is a separate
+22992: // post-sale economic cost and is deducted from estimated profit here.
+22993: 
+22994: // Session E2 — Stock-list "estimated profit" semantics.
+22995: // For most active items this equals calcGrossProfit. For relisted-after-return
+22996: // items (no dateSold yet, full return logged), the gross profit is dominated by
+22997: // the loss-so-far from the failed first sale and isn't useful as an "estimate"
+22998: // — so we instead return the LIFETIME P&L if the relist sells at the current
+22999: // ask price. Mirrors the relist projection on the item detail page so the
+23000: // stock row "est. profit" matches that page's "Lifetime P&L if sold" line.
+23001: 
+23002: 
+23003: // Net profit margin = net profit ÷ revenue (sale price), ×100.
+23004: // Answers "for every £1 of revenue, how much is take-home" — so target
+23005: // revenue = target profit ÷ margin. Denominator is calcItemRevenue (which
+23006: // already resolves returns/resales to the correct sale price); numerator is
+23007: // the same net profit used everywhere else (calcGrossProfit). Mirrors
+23008: // calcROI's null-guards: returns null until the item has actually sold.
+23009: 
+23010: // E4 P2 — Relist snapshot audit / backfill.
+23011: // Identifies items that were relisted before the E3 P0 #1 snapshot fix landed,
+23012: // so calcGrossProfit can't reconstruct sale 1 economics. Two classes:
+23013: //   resold       — has resaleSalePrice; lifetime P&L is currently wrong
+23014: //   pending      — _relistedAt set, no resaleSalePrice yet; will become wrong
+23015: //                  when sale 2 logs unless backfilled first
+23016: // Returns { resold:[...], pending:[...], healthy:N } where each item is
+23017: // { m, id, name, _relistedAt, missing:[...], item:<liveRef>, entry:<liveRef> }.
+23018: // missing[] lists which _*AtRelist fields are absent. The audit is read-only
+23019: // and can be re-run any time.
+23020: function auditRelistOrphans(){
+23021:   const result={resold:[],pending:[],healthy:0};
+23022:   const SNAPSHOT_FIELDS=['_shippingCostAtRelist','_postageAtRelist','_packagingCostAtRelist','_promoPercentAtRelist','_sdRateIdxAtRelist','_sdBuyerPaysAtRelist','_salePriceAtRelist'];
+23023:   allDBKeys().forEach(function(m){
+23024:     (DB[m]||[]).forEach(function(item){
+23025:       const fullReturn=(item.returnHistory||[]).slice().reverse().find(function(r){return (r.type==='full_seller'||r.type==='full_ebay')&&(Number(r.saleNo)||1)===1&&r._relistedAt;});
+23026:       if(!fullReturn)return; // never relisted -> not in scope
+23027:       const missing=SNAPSHOT_FIELDS.filter(function(f){return fullReturn[f]===undefined;});
+23028:       if(!missing.length){result.healthy++;return;}
+23029:       const row={m:m,id:item.id,name:item.item||'(unnamed)',_relistedAt:fullReturn._relistedAt,missing:missing,item:item,entry:fullReturn};
+23030:       if(item.resaleSalePrice)result.resold.push(row);
+23031:       else result.pending.push(row);
+23032:     });
+23033:   });
+23034:   return result;
+23035: }
+23036: 
+23037: // Writes the user-supplied sale 1 economics directly onto the full-return entry,
+23038: // closing the orphan. Live calcGrossProfit picks them up on next render.
+23039: // Values: {shipping, postage, packaging, promoPercent (decimal), sdRateIdx, sdBuyerPays}
+23040: function applyRelistSnapshot(m,id,values){
