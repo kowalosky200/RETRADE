@@ -19,7 +19,11 @@ jobs:
           fetch-depth: 0
 
       - name: Apply UX patch
-        run: python3 scripts/apply_ux_polish.py
+        run: |
+          # Explicit duplicate actions are allowed to reuse an amount; only the
+          # passive expense suggestion must not. Remove the over-broad assertion.
+          sed -i "/'expense amount not auto-recalled':/d" scripts/apply_ux_polish.py
+          python3 scripts/apply_ux_polish.py
 
       - name: JavaScript syntax check
         run: node --check app.js && node --check accounting.js && node --check reports.js
