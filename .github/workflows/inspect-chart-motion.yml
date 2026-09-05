@@ -1,0 +1,27 @@
+name: Inspect chart motion
+on:
+  push:
+    branches: [ui/dashboard-area-motion-v1-4-32]
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ui/dashboard-area-motion-v1-4-32
+      - name: Inspect relevant chart code
+        run: |
+          echo '--- fillData ---'
+          grep -n -B 8 -A 18 "fillData" app.js | head -180 || true
+          echo '--- renderSummaryChart ---'
+          grep -n -B 8 -A 100 "function renderSummaryChart" app.js | head -220 || true
+          echo '--- monthly chart ---'
+          grep -n -B 8 -A 120 "function renderMonthlyProfitabilityChart" app.js | head -260 || true
+          echo '--- partial paths ---'
+          grep -n -B 12 -A 26 "rt-chart-partial" app.js | head -240 || true
+          echo '--- chart motion CSS ---'
+          grep -n -B 20 -A 80 "rt-chart-partial" app.css | head -320 || true
+          echo '--- draw animation CSS ---'
+          grep -n -B 16 -A 80 "svg.rt-chart-draw" app.css | tail -360 || true
