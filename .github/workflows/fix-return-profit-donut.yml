@@ -1,4 +1,6 @@
 name: Fix return profit and donut endpoint
+
+# Trigger commit: patch is intentionally self-removing after validation.
 on:
   push:
     branches: [audit/return-profit-bounce]
@@ -17,8 +19,6 @@ jobs:
         run: |
           from pathlib import Path
 
-          # ---- accounting.js: returned/relisted estimate must use the LIVE ask
-          # and consume the recovered stock basis exactly once on the next sale.
           p=Path('accounting.js')
           s=p.read_text(encoding='utf-8')
           old="""    const ask=(Number(i.estSalePrice)>0)?Number(i.estSalePrice):Math.max(0,Number(i.salePrice)||0);
@@ -56,7 +56,6 @@ jobs:
     return +(base+nextCycle).toFixed(2);"""
           if old not in s: raise SystemExit('calcEstGrossProfit target not found')
           s=s.replace(old,new,1)
-
           anchor="""  const estGross=calcEstGrossProfit(i);
   check('Consignment estimate · partner split deducted once',calcEstProfit(i),estGross*0.5);
 
@@ -84,39 +83,26 @@ jobs:
           s=s.replace(anchor,fixture,1)
           p.write_text(s,encoding='utf-8',newline='')
 
-          # ---- app.js: make item receipt rows reconcile and projection show COGS.
           p=Path('app.js')
           s=p.read_text(encoding='utf-8')
           reps=[
-            ("if(_showFee)pb+=rcp(_feeLabel,'−'+fmt(bpf),'var(--red)');",
-             "if(_showFee)pb+=rcp(_feeLabel,'−'+fmt(_origBpfBeforeCredits),'var(--red)');"),
-            ("if(_rcptPromo)pb+=rcp((_plat==='ebay'?'Promo fee ('+((_rcptPromo*100).toFixed(0))+'% +VAT)':'Boost fee ('+((_rcptPromo*100).toFixed(0))+'%)'),'−'+fmt(promoCost),'var(--red)');",
-             "if(_rcptPromo)pb+=rcp((_plat==='ebay'?'Promo fee ('+((_rcptPromo*100).toFixed(0))+'% +VAT)':'Boost fee ('+((_rcptPromo*100).toFixed(0))+'%)'),'−'+fmt(_origPromoBeforeCredits),'var(--red)');"),
-            ("    const rlCost=rlShipping+rlPackaging+rlPromo;",
-             "    const rlItemCost=Math.max(0,Number(i.costPrice)||0);\n    const rlPartsCost=Math.max(0,Number(calcPartsCost(i))||0);\n    const rlStockBasis=rlItemCost+rlPartsCost;\n    const rlCost=rlShipping+rlPackaging+rlPromo+rlStockBasis;"),
-            ("oninput=\"_recalcRelist(${profit},${rlSalePrice},${rlBPF},${rlShipping},${rlPackaging},${rlPostage})\"",
-             "oninput=\"_recalcRelist(${profit},${rlSalePrice},${rlBPF},${rlShipping},${rlPackaging},${rlPostage},'${_itemPlatform(i)}',${rlStockBasis})\""),
-            ("        <div class=\"ip-receipt-row\"><span style=\"flex:1;color:var(--muted)\">Item cost (sunk)</span><span class=\"ip-receipt-val\" style=\"color:var(--muted)\">—</span></div>",
-             "        <div class=\"ip-receipt-row\"><span style=\"flex:1\">Item cost</span><span class=\"ip-receipt-val\" style=\"color:var(--red)\">−${fmt(rlItemCost)}</span></div>\n        ${rlPartsCost>0?`<div class=\"ip-receipt-row\"><span style=\"flex:1\">Parts & expenses</span><span class=\"ip-receipt-val\" style=\"color:var(--red)\">−${fmt(rlPartsCost)}</span></div>`:''}"),
-            ("function _recalcRelist(currentPL,salePrice,bpf,shipping,packaging,postage){",
-             "function _recalcRelist(currentPL,salePrice,bpf,shipping,packaging,postage,platformId,stockBasis){"),
-            ("  const promoCost=_calcPromoFee('ebay',salePrice,postage,promoInput/100);",
-             "  const promoCost=_calcPromoFee(platformId||'ebay',salePrice,postage,promoInput/100);"),
-            ("  const cost=shipping+packaging+promoCost;",
-             "  const cost=shipping+packaging+promoCost+Math.max(0,Number(stockBasis)||0);")
+            ("if(_showFee)pb+=rcp(_feeLabel,'−'+fmt(bpf),'var(--red)');","if(_showFee)pb+=rcp(_feeLabel,'−'+fmt(_origBpfBeforeCredits),'var(--red)');"),
+            ("if(_rcptPromo)pb+=rcp((_plat==='ebay'?'Promo fee ('+((_rcptPromo*100).toFixed(0))+'% +VAT)':'Boost fee ('+((_rcptPromo*100).toFixed(0))+'%)'),'−'+fmt(promoCost),'var(--red)');","if(_rcptPromo)pb+=rcp((_plat==='ebay'?'Promo fee ('+((_rcptPromo*100).toFixed(0))+'% +VAT)':'Boost fee ('+((_rcptPromo*100).toFixed(0))+'%)'),'−'+fmt(_origPromoBeforeCredits),'var(--red)');"),
+            ("    const rlCost=rlShipping+rlPackaging+rlPromo;","    const rlItemCost=Math.max(0,Number(i.costPrice)||0);\n    const rlPartsCost=Math.max(0,Number(calcPartsCost(i))||0);\n    const rlStockBasis=rlItemCost+rlPartsCost;\n    const rlCost=rlShipping+rlPackaging+rlPromo+rlStockBasis;"),
+            ("oninput=\"_recalcRelist(${profit},${rlSalePrice},${rlBPF},${rlShipping},${rlPackaging},${rlPostage})\"","oninput=\"_recalcRelist(${profit},${rlSalePrice},${rlBPF},${rlShipping},${rlPackaging},${rlPostage},'${_itemPlatform(i)}',${rlStockBasis})\""),
+            ("        <div class=\"ip-receipt-row\"><span style=\"flex:1;color:var(--muted)\">Item cost (sunk)</span><span class=\"ip-receipt-val\" style=\"color:var(--muted)\">—</span></div>","        <div class=\"ip-receipt-row\"><span style=\"flex:1\">Item cost</span><span class=\"ip-receipt-val\" style=\"color:var(--red)\">−${fmt(rlItemCost)}</span></div>\n        ${rlPartsCost>0?`<div class=\"ip-receipt-row\"><span style=\"flex:1\">Parts & expenses</span><span class=\"ip-receipt-val\" style=\"color:var(--red)\">−${fmt(rlPartsCost)}</span></div>`:''}"),
+            ("function _recalcRelist(currentPL,salePrice,bpf,shipping,packaging,postage){","function _recalcRelist(currentPL,salePrice,bpf,shipping,packaging,postage,platformId,stockBasis){"),
+            ("  const promoCost=_calcPromoFee('ebay',salePrice,postage,promoInput/100);","  const promoCost=_calcPromoFee(platformId||'ebay',salePrice,postage,promoInput/100);"),
+            ("  const cost=shipping+packaging+promoCost;","  const cost=shipping+packaging+promoCost+Math.max(0,Number(stockBasis)||0);")
           ]
           for old,new in reps:
             if old not in s: raise SystemExit('app.js target missing: '+old[:80])
             s=s.replace(old,new,1)
-
-          # The closing stroke recoil should be noticeable but not lurch backwards.
           if 'const RECOIL=26;' not in s: raise SystemExit('donut recoil constant not found')
           s=s.replace('const RECOIL=26;','const RECOIL=16;',1)
-          s=s.replace('// six slices, 26 user units always fits without data-dependent clamping.',
-                      '// six slices, 16 user units gives a visible endpoint recoil without a lurch.',1)
+          s=s.replace('// six slices, 26 user units always fits without data-dependent clamping.','// six slices, 16 user units gives a visible endpoint recoil without a lurch.',1)
           p.write_text(s,encoding='utf-8',newline='')
 
-          # ---- index.html: remove whole-circle scale bounce; bounce the closing stroke endpoint.
           p=Path('index.html')
           s=p.read_text(encoding='utf-8')
           start=s.find('/* Keep the ring as one continuous sweep, then add the missing bounce on the')
@@ -140,13 +126,10 @@ jobs:
 
 """
           s=s[:start]+block+s[end:]
-          # Update reduced-motion selector/remnant from wrapper-scale implementation.
-          s=s.replace("  #p-summary .cat-donut-chart:has(svg.cat-donut-draw){\n    animation:none!important;animation-delay:0ms!important;\n  }",
-                      "  #p-summary svg.cat-donut-draw circle.donut-seg-last{\n    animation:none!important;animation-delay:0ms!important;\n  }",1)
+          s=s.replace("  #p-summary .cat-donut-chart:has(svg.cat-donut-draw){\n    animation:none!important;animation-delay:0ms!important;\n  }","  #p-summary svg.cat-donut-draw circle.donut-seg-last{\n    animation:none!important;animation-delay:0ms!important;\n  }",1)
           s=s.replace("  #p-summary .cat-donut-chart:has(svg.cat-donut-draw){transform:none!important;}\n",'',1)
           if 'rtDonutFinishBounce' in s: raise SystemExit('whole-donut bounce still present')
           p.write_text(s,encoding='utf-8',newline='')
-
       - name: Validate
         run: |
           node --check app.js
@@ -157,7 +140,6 @@ jobs:
           grep -q "rtDonutEndpointBounce 300ms" index.html
           ! grep -q "rtDonutFinishBounce" index.html
           ! grep -q "cat-donut-chart:has(svg.cat-donut-draw)" index.html
-
       - name: Clean audit artifacts and commit
         run: |
           git config user.name "github-actions[bot]"
