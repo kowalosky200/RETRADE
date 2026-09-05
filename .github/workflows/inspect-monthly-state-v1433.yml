@@ -1,0 +1,27 @@
+name: Inspect monthly state
+on:
+  push:
+    branches: [ui/monthly-dashboard-accounting-v1-4-33]
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ui/monthly-dashboard-accounting-v1-4-33
+      - name: Inspect state and accounting code
+        run: |
+          echo '--- UI persistence ---'
+          grep -n -B 20 -A 90 "const _SK=" app.js | head -220 || true
+          echo '--- boot init ---'
+          grep -n -B 30 -A 120 "showRealLayoutLoading(_safeTab" app.js | head -260 || true
+          echo '--- monthly state override ---'
+          grep -n -B 30 -A 100 "const _rtBaseLoadUIState" app.js | head -240 || true
+          echo '--- monthly render ---'
+          grep -n -B 20 -A 120 "function renderMonth" app.js | head -300 || true
+          echo '--- month stats ---'
+          grep -n -B 10 -A 110 "function calcMonthStatsBySale" accounting.js | head -280 || true
+          echo '--- summary deltas ---'
+          grep -n -B 30 -A 100 "function calcSummaryDeltas" accounting.js | head -280 || true
