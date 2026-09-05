@@ -1,0 +1,53 @@
+name: Inspect return projection math
+
+on:
+  push:
+    branches:
+      - audit/return-profit-bounce
+
+permissions:
+  contents: write
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: audit/return-profit-bounce
+          fetch-depth: 0
+      - name: Collect relevant snippets
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          terms = [
+            'Lifetime P&L if sold','P&L after return','RELIST PROJECTION','Relist projection',
+            'Stock cost restored','Profit if sold','Expected sale','expected profit','Expected profit',
+            'calcGrossProfit','returnHistory','isReturned','relist'
+          ]
+          out=[]
+          for fn in ['app.js','accounting.js']:
+            p=Path(fn)
+            lines=p.read_text(encoding='utf-8').splitlines()
+            hits=[]
+            for i,l in enumerate(lines):
+              if any(t.lower() in l.lower() for t in terms): hits.append(i)
+            merged=[]
+            for i in hits:
+              a=max(0,i-18); b=min(len(lines),i+19)
+              if merged and a <= merged[-1][1]+2: merged[-1]=(merged[-1][0],max(merged[-1][1],b))
+              else: merged.append((a,b))
+            out.append(f'===== {fn} =====')
+            for a,b in merged:
+              out.append(f'--- lines {a+1}-{b} ---')
+              out.extend(f'{j+1}: {lines[j]}' for j in range(a,b))
+          Path('docs/return-profit-inspect.txt').write_text('\n'.join(out),encoding='utf-8')
+          PY
+      - name: Commit report and remove workflow
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/inspect-return-profit.yml
+          git add docs/return-profit-inspect.txt
+          git commit -m "chore: capture return projection inspection"
+          git push origin HEAD:audit/return-profit-bounce
