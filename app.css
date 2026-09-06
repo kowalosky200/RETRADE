@@ -5515,8 +5515,7 @@ svg.rt-chart-draw .rt-chart-refund-event{
 .expense-amount-chip:active{transform:scale(.97);}
 
 .legend-event-mark{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--red);flex:none;}
-.monthly-legend-refund-line{display:inline-block;width:12px;height:0;border-top:1.5px solid var(--red);border-radius:999px;opacity:.72;flex:none;position:relative;}
-.monthly-legend-refund-line::after{content:"";position:absolute;width:4px;height:4px;border-radius:50%;background:var(--red);left:4px;top:-2.75px;}
+.monthly-legend-refund-line{display:inline-block;width:12px;height:0;border-top:2px solid var(--red);border-radius:999px;opacity:.58;flex:none;}
 
 .rt-chart-primary-bar{transform-box:fill-box;transform-origin:center bottom;}
 .rt-chart-primary-bar--negative{transform-origin:center top;}
@@ -5599,3 +5598,8 @@ svg.rt-chart-draw .rt-chart-col circle.rt-chart-partial-dot{
 svg.rt-chart-draw .rt-chart-refund-event{animation:rtRefundDotIn 150ms var(--ease-out) both;animation-delay:calc(var(--dur-draw) * .84);}
 .rt-chart-tertiary-line{filter:none;}
 @media(prefers-reduced-motion:reduce){svg.rt-chart-draw .rt-chart-refund-event{animation:none!important;}}
+
+
+/* v1.4.35 — chart legend/value alignment + explicit-view motion re-arm */
+.rt .rt-chart-scrub-tip .tip-row{min-width:0;}
+.rt .rt-chart-scrub-tip .tip-row strong{min-width:52px;text-align:right;}
