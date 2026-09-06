@@ -1,0 +1,28 @@
+name: Inspect v1.4.35 chart and Sales route
+on:
+  push:
+    branches: [ui/chart-routing-polish-v1-4-35]
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ui/chart-routing-polish-v1-4-35
+      - name: Inspect route chart and tooltip code
+        run: |
+          echo '--- sales route state ---'
+          grep -n -B 35 -A 95 "function goToMonth" app.js || true
+          grep -n -B 30 -A 90 "function renderMonthlyPage" app.js || true
+          grep -n -B 25 -A 90 "MONTHLY_VIEW" app.js | head -420 || true
+          echo '--- monthly chart ---'
+          grep -n -B 25 -A 130 "function renderMonthlyProfitabilityChart" app.js || true
+          echo '--- tooltip ---'
+          grep -n -B 20 -A 120 "function _setupChartScrub" app.js | head -260 || true
+          echo '--- partial motion css ---'
+          grep -n -B 25 -A 80 "rt-chart-partial-dash" app.css || true
+          grep -n -B 20 -A 80 "rt-chart-scrub-tip" app.css | head -220 || true
+          echo '--- version ---'
+          grep -n "app.css?v\|app.js?v" index.html || true
