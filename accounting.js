@@ -482,17 +482,17 @@ function _grossSummaryForRange(range){
   return {revenue:revenue,profit:profit,margin:revenue?+((profit/revenue)*100).toFixed(1):0,soldCount:sales.length};
 }
 function calcSummaryGrossStats(){return _grossSummaryForRange(_periodDateRange(SUMMARY_PERIOD));}
-function calcSummaryGrossDeltas(){
+function calcSummaryGrossDeltas(currentStats){
   const prevKey=_prevPeriodKey(SUMMARY_PERIOD);if(!prevKey)return null;
-  const cur=calcSummaryGrossStats(),prev=_grossSummaryForRange(_prevPeriodRange(prevKey));
+  const cur=currentStats||calcSummaryGrossStats(),prev=_grossSummaryForRange(_prevPeriodRange(prevKey));
   const pct=function(c,p){if(p===null||p===undefined||Math.abs(p)<0.005)return null;return ((c-p)/Math.abs(p))*100;};
   return {revenue:pct(cur.revenue,prev.revenue),profit:pct(cur.profit,prev.profit),margin:cur.margin-prev.margin};
 }
 
-function calcSummaryDeltas(){
+function calcSummaryDeltas(currentStats){
   const prevKey=_prevPeriodKey(SUMMARY_PERIOD);
   if(!prevKey)return null;  // all-time / prev_fy → no baseline
-  const cur=calcSummaryStats();
+  const cur=currentStats||calcSummaryStats();
   const prev=_statsForRange(_prevPeriodRange(prevKey));
   // % change helper. Returns null when prior baseline is ~0 (a % is meaningless
   // / would read as +∞). For refund rate, lower is better → invert "good".
@@ -1094,8 +1094,8 @@ function _buildTaxCashSummary(from,to,label){
   });
 }
 
-function calcMonthStatsBySale(m){
-  const events=getSaleEventsInMonth(m);
+function calcMonthStatsBySale(m,ctx){
+  const events=(ctx&&ctx.eventsByMonth instanceof Map)?(ctx.eventsByMonth.get(m)||[]):getSaleEventsInMonth(m);
   let totalRev=0,realisedProfit=0,soldCount=0,eventCount=0,returnedCount=0,grossRev=0,returnsAmt=0;
   let roiSum=0,roiCount=0,daysSum=0,daysCount=0,marginSum=0,marginCount=0;
   const saleEvents=[];
@@ -1146,7 +1146,7 @@ function calcMonthStatsBySale(m){
   const _monthStart=String(_monthYear)+'-'+String(_monthIndex+1).padStart(2,'0')+'-01';
   const _monthEnd=new Date(_monthYear,_monthIndex+1,0).toISOString().split('T')[0];
   const _inMonth=function(ds){return !!ds&&ds>=_monthStart&&ds<=_monthEnd;};
-  const _allTrips=DB.trips||[],_tieredTrips=calcTieredTrips(_allTrips);let tripsCost=0,expensesCost=0;
+  const _allTrips=DB.trips||[],_tieredTrips=(ctx&&Array.isArray(ctx.tieredTrips))?ctx.tieredTrips:calcTieredTrips(_allTrips);let tripsCost=0,expensesCost=0;
   _allTrips.forEach(function(t,idx){if(_inMonth(t.date))tripsCost+=(_tieredTrips[idx]?_tieredTrips[idx].totalCost:0);});
   (DB.expenses||[]).forEach(function(e){if(_inMonth(e.date))expensesCost+=(Number(e.amount)||0);});
   const grossProfit=+realisedProfit.toFixed(2),overheads=+(tripsCost+expensesCost).toFixed(2),netProfit=+(grossProfit-overheads).toFixed(2);

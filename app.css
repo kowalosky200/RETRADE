@@ -5559,16 +5559,17 @@ svg.rt-chart-draw .rt-chart-partial-dash{
   opacity:0;
   transform-box:fill-box;
   transform-origin:center;
-  animation:rtChartPartialDashIn 95ms var(--ease-out) both;
-  animation-delay:calc(var(--dur-draw) + var(--dash-delay,0ms));
+  animation:rtChartPartialDashIn 125ms var(--ease-out) both;
+  /* A small pause is the visual hand-off from actual history to "so far". */
+  animation-delay:calc(var(--dur-draw) + 85ms + var(--dash-delay,0ms));
 }
 svg.rt-chart-draw .rt-chart-so-far{
   opacity:0;
   animation:rtChartFadeIn 160ms var(--ease-out) both;
-  animation-delay:calc(var(--dur-draw) + 210ms);
+  animation-delay:calc(var(--dur-draw) + 85ms + var(--partial-tail-ms,520ms) - 55ms);
 }
 svg.rt-chart-draw .rt-chart-col circle.rt-chart-partial-dot{
-  animation-delay:calc(var(--dur-draw) + 280ms)!important;
+  animation-delay:calc(var(--dur-draw) + 85ms + var(--partial-tail-ms,520ms) + 20ms)!important;
 }
 @media(prefers-reduced-motion:reduce){
   svg.rt-chart-draw .rt-chart-partial-dash,
@@ -5603,3 +5604,6 @@ svg.rt-chart-draw .rt-chart-refund-event{animation:rtRefundDotIn 150ms var(--eas
 /* v1.4.35 — chart legend/value alignment + explicit-view motion re-arm */
 .rt .rt-chart-scrub-tip .tip-row{min-width:0;}
 .rt .rt-chart-scrub-tip .tip-row strong{min-width:52px;text-align:right;}
+
+
+/* v1.4.36 — performance audit + deliberate current-period tail */
