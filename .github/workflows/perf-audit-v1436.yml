@@ -11,18 +11,12 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: audit/performance-v1-4-36
-      - name: Inspect exact patch anchors
+      - name: Inspect sync fingerprint coverage
         run: |
-          echo '=== GO TO TAB ==='; sed -n '5584,5610p' app.js
-          echo '=== REFRESH ACTIVE ==='; sed -n '5260,5288p' app.js
-          echo '=== SUMMARY START/HOTSPOTS ==='; sed -n '13840,13990p' app.js
-          echo '=== SUMMARY CHART BUCKETS ==='; sed -n '13990,14055p' app.js
-          echo '=== MONTHLY GRID FULL HOTSPOTS ==='; sed -n '14605,14825p' app.js
-          echo '=== MONTH DETAIL PICKER ==='; sed -n '14830,14970p' app.js
-          echo '=== CHART FUNCTION PARTIAL + DRAW GATE ==='; sed -n '13480,13715p' app.js
-          echo '=== CLOUD REFRESH ==='; sed -n '4480,4565p' app.js
-          echo '=== MONTHLY PROFITABILITY ==='; sed -n '14525,14608p' app.js
-          echo '=== ACCOUNTING SUMMARY ==='; sed -n '420,525p' accounting.js
-          echo '=== SALE EVENT RANGE ==='; sed -n '700,780p' accounting.js
-          echo '=== CSS PARTIAL ==='; sed -n '5548,5585p' app.css
-          echo '=== CALLS PROFIT CHART ==='; grep -n "renderMonthlyProfitabilityChart" app.js || true
+          echo '=== DB FINGERPRINT ==='
+          grep -n "_dbFingerprint" app.js | head -30
+          n=$(grep -n "function _dbFingerprint\|_dbFingerprint=function" app.js | head -1 | cut -d: -f1); if [ -n "$n" ]; then s=$((n-60)); [ $s -lt 1 ] && s=1; e=$((n+180)); sed -n "${s},${e}p" app.js; fi
+          echo '=== LOAD SUPABASE ==='
+          sed -n '2940,3235p' app.js
+          echo '=== OTHER DATA SNAPSHOTS ==='
+          grep -n "_accounts\|_sourcingRuns\|_cashLedger\|_jobLots\|_activityLog" app.js | head -160
