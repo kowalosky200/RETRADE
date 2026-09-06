@@ -13,8 +13,10 @@ jobs:
         with:
           ref: audit/performance-v1-4-36
           fetch-depth: 0
-      - name: Apply v1.4.36 patch
-        run: python3 scripts/apply_perf_v1436.py
+      - name: Correct patch anchor and apply v1.4.36
+        run: |
+          python3 scripts/fix_apply_perf_v1436.py
+          python3 scripts/apply_perf_v1436.py
       - name: JavaScript syntax check
         run: node --check app.js && node --check accounting.js && node --check reports.js
       - name: Patch integrity and performance checks
@@ -39,7 +41,6 @@ jobs:
           grep -q "currentStats||calcSummaryStats" accounting.js
           grep -q "app.js?v=1.4.36" index.html
           grep -q "accounting.js?v=1.4.11" index.html
-          # Guard against accidental recurrence of the Calendar -> Month fight.
           ! grep -q "else if(id==='p-monthly')renderMonth();" app.js
       - name: Commit application changes
         run: |
