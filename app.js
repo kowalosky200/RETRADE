@@ -17,6 +17,9 @@
     pre.textContent='html.rt-motion-prep #monthly-profitability-svg{opacity:0!important}#monthly-profitability-svg{transition:opacity 180ms cubic-bezier(.22,.61,.36,1)}@media(prefers-reduced-motion:reduce){html.rt-motion-prep #monthly-profitability-svg{opacity:1!important}#monthly-profitability-svg{transition:none!important}}';
     document.head.appendChild(pre);
   }
+  /* Never let a presentation-layer failure strand the chart invisible. Once the
+     wrapper scripts are loaded they prepare future renders synchronously anyway. */
+  setTimeout(function(){document.documentElement.classList.remove('rt-motion-prep');},3500);
 
   function writeScript(src){document.write('<script src="'+src+'"><\/script>');}
   if(document.readyState==='loading'){
