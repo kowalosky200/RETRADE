@@ -1,11 +1,11 @@
-/* RETRADE chart final presentation pass v1.4.42
+/* RETRADE chart final presentation pass v1.4.43
  * Loaded after chart-motion.js.
  *
  * Small visual corrections only:
- * - Calendar Year keeps a current-month forecast; other dashboard ranges stay actual-only.
- * - 30-day daily bars get a little more air and quieter outlines on small screens.
- * - Refund legend is a true event dot.
- * - Sales forecast no longer leaves detached achieved-value dots beneath the forecast rings.
+ * - Current FY keeps the dashboard current-month forecast shell; other dashboard ranges stay actual-only.
+ * - 30-day daily bars keep extra breathing room and quieter outlines on small screens.
+ * - Refund legend remains a true event dot.
+ * - Sales forecast keeps only the dotted projection + hollow end points; forecast text appears contextually near Sep on hover/touch.
  *
  * Accounting, sync, inventory lifecycle and persisted data are untouched.
  */
@@ -14,6 +14,7 @@
 
   if(typeof _renderChartInto!=='function')return;
 
+  var NS='http://www.w3.org/2000/svg';
   function num(v){v=Number(v);return isFinite(v)?v:0;}
   function periodKey(){
     try{if(typeof SUMMARY_PERIOD!=='undefined')return String(SUMMARY_PERIOD||'').toLowerCase();}catch(_){}
@@ -24,11 +25,10 @@
     if(!el)return '';
     try{return String(el.options[el.selectedIndex].text||'').toLowerCase();}catch(_){return '';}
   }
-  function isCalendarYear(){
+  function isCurrentFY(){
     var p=periodKey().replace(/[\s_-]+/g,'');
-    if(p==='cy'||p==='currentcy'||p==='calendaryear'||p==='currentyear'||p==='ytd'||p==='currentytd'||p==='calendarytd')return true;
-    var txt=selectedSummaryText();
-    return /\bcalendar\s+year\b|\bcurrent\s+cy\b|\bthis\s+calendar\s+year\b|\byear\s+to\s+date\b/.test(txt)&&!/\bfy\b|fiscal/.test(txt);
+    if(p==='fy'||p==='currentfy'||p==='fiscalyear'||p==='currentfiscalyear'||p==='financialyear'||p==='currentfinancialyear')return true;
+    return /\bcurrent\s+fy\b|\bcurrent\s+fiscal\s+year\b|\bcurrent\s+financial\s+year\b/.test(selectedSummaryText());
   }
   function isLast30Days(){
     var p=periodKey().replace(/[\s_-]+/g,'');
@@ -43,8 +43,9 @@
   }
 
   function installStyles(){
-    var old=document.getElementById('rt-chart-finalize-v1442');if(old)old.remove();
-    var s=document.createElement('style');s.id='rt-chart-finalize-v1442';
+    var ids=['rt-chart-finalize-v1442','rt-chart-finalize-v1443'];
+    ids.forEach(function(id){var old=document.getElementById(id);if(old)old.remove();});
+    var s=document.createElement('style');s.id='rt-chart-finalize-v1443';
     s.textContent='\
 /* Refunds are discrete events: keep the legend language identical to the chart. */\
 #p-summary .summary-chart-legend .rt-refund-legend-dot,\
@@ -58,8 +59,14 @@
 /* Dense daily view: preserve the blue/green hierarchy without the outlines touching visually. */\
 #p-summary svg.rt-dense-daily-bars .rt-chart-primary-bar:not(.rt-chart-profit-bar){stroke-width:.65!important;stroke-opacity:.52!important;}\
 #p-summary svg.rt-dense-daily-bars .rt-chart-profit-bar{stroke-width:.5!important;stroke-opacity:.44!important;}\
-/* The line itself already projects to the hollow forecast rings; detached achieved dots read as stray marks. */\
-#p-monthly .rt-sales-forecast-layer .rt-sales-actual-dot{display:none!important;}';
+/* Sales projection: dotted continuation + hollow destination points do the visual work. */\
+#p-monthly .rt-sales-forecast-layer .rt-sales-actual-dot{display:none!important;}\
+#p-monthly .rt-sales-forecast-layer .rt-sales-forecast-label{display:none!important;}\
+#p-monthly .rt-sales-hover-forecast{pointer-events:none;opacity:0;transition:opacity 120ms ease-out;}\
+#p-monthly .rt-sales-hover-forecast.is-visible{opacity:1;}\
+#p-monthly .rt-sales-hover-forecast rect{fill:var(--surface-1);stroke:var(--border);stroke-width:1;vector-effect:non-scaling-stroke;}\
+#p-monthly .rt-sales-hover-forecast text{fill:var(--text-secondary);font-family:var(--font-body);font-weight:650;letter-spacing:.01em;}\
+@media(prefers-reduced-motion:reduce){#p-monthly .rt-sales-hover-forecast{transition:none;}}';
     document.head.appendChild(s);
   }
 
@@ -96,14 +103,84 @@
     });
   }
 
+  function svgPointX(svgEl,clientX){
+    var rect;try{rect=svgEl.getBoundingClientRect();}catch(_){rect=null;}
+    if(!rect||!rect.width)return NaN;
+    var vb=svgEl.viewBox&&svgEl.viewBox.baseVal;
+    var vx=vb&&vb.width?vb.x:0,vw=vb&&vb.width?vb.width:num(svgEl.getAttribute('width'))||rect.width;
+    return vx+((clientX-rect.left)/rect.width)*vw;
+  }
+
+  function installSalesForecastHover(svgEl,label,rings){
+    if(!svgEl||!label||!rings||!rings.length)return;
+    if(svgEl.__rtForecastHoverCleanup){try{svgEl.__rtForecastHoverCleanup();}catch(_){}svgEl.__rtForecastHoverCleanup=null;}
+    var prior=svgEl.querySelector('.rt-sales-hover-forecast');if(prior)prior.remove();
+
+    var x=num(rings[0].getAttribute('cx'));
+    var topY=Infinity;
+    Array.prototype.forEach.call(rings,function(r){topY=Math.min(topY,num(r.getAttribute('cy')));});
+    if(!isFinite(topY))topY=30;
+
+    var vb=svgEl.viewBox&&svgEl.viewBox.baseVal;
+    var W=vb&&vb.width?vb.width:num(svgEl.getAttribute('width'))||600;
+    var fontSize=W<560?10.5:11.5;
+    var boxW=Math.max(78,Math.min(126,label.length*fontSize*.56+18));
+    var boxH=24;
+    var cx=Math.max(boxW/2+4,Math.min(W-boxW/2-4,x));
+    var cy=Math.max(18,topY-25);
+
+    var g=document.createElementNS(NS,'g');g.setAttribute('class','rt-sales-hover-forecast');
+    var r=document.createElementNS(NS,'rect');
+    r.setAttribute('x',(cx-boxW/2).toFixed(1));r.setAttribute('y',(cy-boxH/2).toFixed(1));
+    r.setAttribute('width',boxW.toFixed(1));r.setAttribute('height',boxH.toFixed(1));r.setAttribute('rx','7');
+    var t=document.createElementNS(NS,'text');
+    t.setAttribute('x',cx.toFixed(1));t.setAttribute('y',(cy+fontSize*.34).toFixed(1));t.setAttribute('text-anchor','middle');t.setAttribute('font-size',fontSize.toFixed(1));t.textContent=label;
+    g.appendChild(r);g.appendChild(t);
+    svgEl.appendChild(g);
+
+    Array.prototype.forEach.call(rings,function(ring){
+      var title=ring.querySelector('title');
+      if(!title){title=document.createElementNS(NS,'title');ring.appendChild(title);}
+      title.textContent=label;
+    });
+
+    var threshold=Math.max(34,Math.min(58,W*.09));
+    function showForClientX(clientX){
+      var px=svgPointX(svgEl,clientX);
+      g.classList.toggle('is-visible',isFinite(px)&&Math.abs(px-x)<=threshold);
+    }
+    function onPointerMove(e){if(e&&isFinite(e.clientX))showForClientX(e.clientX);}
+    function onPointerDown(e){if(e&&isFinite(e.clientX))showForClientX(e.clientX);}
+    function hide(){g.classList.remove('is-visible');}
+    svgEl.addEventListener('pointermove',onPointerMove,{passive:true});
+    svgEl.addEventListener('pointerdown',onPointerDown,{passive:true});
+    svgEl.addEventListener('pointerleave',hide,{passive:true});
+    svgEl.__rtForecastHoverCleanup=function(){
+      svgEl.removeEventListener('pointermove',onPointerMove);
+      svgEl.removeEventListener('pointerdown',onPointerDown);
+      svgEl.removeEventListener('pointerleave',hide);
+    };
+  }
+
   function cleanSalesForecast(svgEl){
     if(!svgEl)return;
     var layer=svgEl.querySelector('.rt-sales-forecast-layer');
     if(!layer)return;
     Array.prototype.forEach.call(layer.querySelectorAll('.rt-sales-actual-dot'),function(dot){dot.remove();});
+
+    var labelEl=layer.querySelector('.rt-sales-forecast-label');
+    var label=labelEl?String(labelEl.textContent||'').trim():'';
+    if(labelEl)labelEl.remove();
+    if(!label){
+      var title=layer.querySelector('title');
+      var m=title&&String(title.textContent||'').match(/Net Revenue[^;]*;\s*([^;]*forecast)/i);
+      if(m)label=String(m[1]||'').replace(/^\s*/,'');
+    }
+    var rings=layer.querySelectorAll('.rt-sales-forecast-ring');
+    if(label&&rings.length)installSalesForecastHover(svgEl,label,rings);
   }
 
-  function withCalendarYearSignal(fn){
+  function withForecastSignal(fn){
     var changed=false,previous;
     try{
       if(typeof SUMMARY_PERIOD!=='undefined'){
@@ -125,16 +202,18 @@
   _renderChartInto=function(svgEl,labels,revData,profitData,handlers,opts){
     var dashboard=isDashboardBars(opts);
     if(dashboard){
-      var cy=isCalendarYear(),dense30=isLast30Days(),nextOpts=Object.assign({},opts),out;
-      if(cy){
-        /* chart-polish uses this key to project the remainder of the current month,
-           while chart-motion uses the CY signal to permit the forecast at all. */
+      var fy=isCurrentFY(),dense30=isLast30Days(),nextOpts=Object.assign({},opts),out;
+      if(fy){
+        /* chart-polish uses current_fy to project the remainder of September;
+           chart-motion currently keys forecast permission from the CY signal,
+           so the signal is scoped to this render only. */
         nextOpts.partialLast=true;
         nextOpts.drawKey='current_fy';
-        out=withCalendarYearSignal(function(){
+        out=withForecastSignal(function(){
           return _renderBeforeFinalize.call(this,svgEl,labels,revData,profitData,handlers,nextOpts);
         }.bind(this));
       }else{
+        nextOpts.partialLast=false;
         out=_renderBeforeFinalize.call(this,svgEl,labels,revData,profitData,handlers,nextOpts);
       }
       tuneDenseDailyBars(svgEl,dense30&&labels&&labels.length>=24);
