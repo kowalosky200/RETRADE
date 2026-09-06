@@ -1,16 +1,18 @@
 /* RETRADE app entrypoint.
- * The production bundle is kept intact in app-core.js; chart-polish.js and
- * chart-motion.js are deliberately isolated presentation layers so chart UX
- * can be iterated without touching accounting, sync or lifecycle logic.
+ * The production bundle is kept intact in app-core.js; chart-polish.js,
+ * chart-motion.js and chart-finalize.js are deliberately isolated presentation
+ * layers so chart UX can be iterated without touching accounting, sync or
+ * lifecycle logic.
  */
 (function(){
   'use strict';
-  var v='20260906-v1441';
+  var v='20260906-v1442';
   function writeScript(src){document.write('<script src="'+src+'"><\/script>');}
   if(document.readyState==='loading'){
     writeScript('./app-core.js?v='+v);
     writeScript('./chart-polish.js?v='+v);
     writeScript('./chart-motion.js?v='+v);
+    writeScript('./chart-finalize.js?v='+v);
     return;
   }
   var core=document.createElement('script');
@@ -21,6 +23,11 @@
     polish.onload=function(){
       var motion=document.createElement('script');
       motion.src='./chart-motion.js?v='+v;
+      motion.onload=function(){
+        var finalize=document.createElement('script');
+        finalize.src='./chart-finalize.js?v='+v;
+        document.head.appendChild(finalize);
+      };
       document.head.appendChild(motion);
     };
     document.head.appendChild(polish);
