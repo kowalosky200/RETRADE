@@ -5607,3 +5607,10 @@ svg.rt-chart-draw .rt-chart-refund-event{animation:rtRefundDotIn 150ms var(--eas
 
 
 /* v1.4.36 — performance audit + deliberate current-period tail */
+
+
+/* v1.4.37 — Dashboard bars / FY trend trial */
+.rt #p-monthly .monthly-legend-line--revenue{border-top-color:var(--state-listed);}
+.rt-chart-profit-bar{filter:none;}
+svg.rt-chart-draw .rt-chart-profit-bar{animation-delay:calc(var(--bar-i) * 26ms + 90ms);}
+@media(prefers-reduced-motion:reduce){svg.rt-chart-draw .rt-chart-profit-bar{animation:none!important;}}
