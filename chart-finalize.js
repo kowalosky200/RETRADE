@@ -1,8 +1,9 @@
-/* RETRADE chart final presentation pass v1.4.43
+/* RETRADE chart final presentation pass v1.4.44
  * Loaded after chart-motion.js.
  *
  * Small visual corrections only:
  * - Current FY keeps the dashboard current-month forecast shell; other dashboard ranges stay actual-only.
+ * - Current FY forecast text is contextual only: hover on desktop, press-and-hold near September on touch.
  * - 30-day daily bars keep extra breathing room and quieter outlines on small screens.
  * - Refund legend remains a true event dot.
  * - Sales forecast keeps only the dotted projection + hollow end points; forecast text appears contextually near Sep on hover/touch.
@@ -43,9 +44,9 @@
   }
 
   function installStyles(){
-    var ids=['rt-chart-finalize-v1442','rt-chart-finalize-v1443'];
+    var ids=['rt-chart-finalize-v1442','rt-chart-finalize-v1443','rt-chart-finalize-v1444'];
     ids.forEach(function(id){var old=document.getElementById(id);if(old)old.remove();});
-    var s=document.createElement('style');s.id='rt-chart-finalize-v1443';
+    var s=document.createElement('style');s.id='rt-chart-finalize-v1444';
     s.textContent='\
 /* Refunds are discrete events: keep the legend language identical to the chart. */\
 #p-summary .summary-chart-legend .rt-refund-legend-dot,\
@@ -59,14 +60,20 @@
 /* Dense daily view: preserve the blue/green hierarchy without the outlines touching visually. */\
 #p-summary svg.rt-dense-daily-bars .rt-chart-primary-bar:not(.rt-chart-profit-bar){stroke-width:.65!important;stroke-opacity:.52!important;}\
 #p-summary svg.rt-dense-daily-bars .rt-chart-profit-bar{stroke-width:.5!important;stroke-opacity:.44!important;}\
+/* Forecast labels stay out of the plot until the user asks for them. */\
+#p-summary .rt-chart-forecast-label{display:none!important;}\
+#p-summary .rt-dashboard-hover-forecast,\
+#p-monthly .rt-sales-hover-forecast{pointer-events:none;opacity:0;transition:opacity 120ms ease-out;}\
+#p-summary .rt-dashboard-hover-forecast.is-visible,\
+#p-monthly .rt-sales-hover-forecast.is-visible{opacity:1;}\
+#p-summary .rt-dashboard-hover-forecast rect,\
+#p-monthly .rt-sales-hover-forecast rect{fill:var(--surface-1);stroke:var(--border);stroke-width:1;vector-effect:non-scaling-stroke;}\
+#p-summary .rt-dashboard-hover-forecast text,\
+#p-monthly .rt-sales-hover-forecast text{fill:var(--text-secondary);font-family:var(--font-body);font-weight:650;letter-spacing:.01em;}\
 /* Sales projection: dotted continuation + hollow destination points do the visual work. */\
 #p-monthly .rt-sales-forecast-layer .rt-sales-actual-dot{display:none!important;}\
 #p-monthly .rt-sales-forecast-layer .rt-sales-forecast-label{display:none!important;}\
-#p-monthly .rt-sales-hover-forecast{pointer-events:none;opacity:0;transition:opacity 120ms ease-out;}\
-#p-monthly .rt-sales-hover-forecast.is-visible{opacity:1;}\
-#p-monthly .rt-sales-hover-forecast rect{fill:var(--surface-1);stroke:var(--border);stroke-width:1;vector-effect:non-scaling-stroke;}\
-#p-monthly .rt-sales-hover-forecast text{fill:var(--text-secondary);font-family:var(--font-body);font-weight:650;letter-spacing:.01em;}\
-@media(prefers-reduced-motion:reduce){#p-monthly .rt-sales-hover-forecast{transition:none;}}';
+@media(prefers-reduced-motion:reduce){#p-summary .rt-dashboard-hover-forecast,#p-monthly .rt-sales-hover-forecast{transition:none;}}';
     document.head.appendChild(s);
   }
 
@@ -111,6 +118,89 @@
     return vx+((clientX-rect.left)/rect.width)*vw;
   }
 
+  function buildContextBubble(svgEl,className,label,x,topY){
+    var vb=svgEl.viewBox&&svgEl.viewBox.baseVal;
+    var W=vb&&vb.width?vb.width:num(svgEl.getAttribute('width'))||600;
+    var fontSize=W<560?10.5:11.5;
+    var boxW=Math.max(78,Math.min(134,label.length*fontSize*.56+18));
+    var boxH=24;
+    var cx=Math.max(boxW/2+4,Math.min(W-boxW/2-4,x));
+    var cy=Math.max(18,topY-25);
+    var g=document.createElementNS(NS,'g');g.setAttribute('class',className);
+    var r=document.createElementNS(NS,'rect');
+    r.setAttribute('x',(cx-boxW/2).toFixed(1));r.setAttribute('y',(cy-boxH/2).toFixed(1));
+    r.setAttribute('width',boxW.toFixed(1));r.setAttribute('height',boxH.toFixed(1));r.setAttribute('rx','7');
+    var t=document.createElementNS(NS,'text');
+    t.setAttribute('x',cx.toFixed(1));t.setAttribute('y',(cy+fontSize*.34).toFixed(1));t.setAttribute('text-anchor','middle');t.setAttribute('font-size',fontSize.toFixed(1));t.textContent=label;
+    g.appendChild(r);g.appendChild(t);svgEl.appendChild(g);
+    return {group:g,W:W};
+  }
+
+  function installDashboardForecastHold(svgEl,label,shells){
+    if(!svgEl||!label||!shells||!shells.length)return;
+    if(svgEl.__rtDashboardForecastCleanup){try{svgEl.__rtDashboardForecastCleanup();}catch(_){}svgEl.__rtDashboardForecastCleanup=null;}
+    var prior=svgEl.querySelector('.rt-dashboard-hover-forecast');if(prior)prior.remove();
+
+    var revShell=null;
+    Array.prototype.some.call(shells,function(shell){
+      if(!shell.classList.contains('rt-chart-profit-bar')){revShell=shell;return true;}
+      return false;
+    });
+    revShell=revShell||shells[0];
+    var x=num(revShell.getAttribute('x'))+num(revShell.getAttribute('width'))/2;
+    var topY=Infinity;
+    Array.prototype.forEach.call(shells,function(shell){topY=Math.min(topY,num(shell.getAttribute('y')));});
+    if(!isFinite(topY))topY=30;
+
+    label=String(label||'').replace(/^month\s+forecast\s+/i,'Forecast ').trim();
+    var bubble=buildContextBubble(svgEl,'rt-dashboard-hover-forecast',label,x,topY),g=bubble.group,W=bubble.W;
+    var threshold=Math.max(34,Math.min(58,W*.09));
+    var holdTimer=0,startX=0,startY=0,holding=false;
+
+    function near(clientX){var px=svgPointX(svgEl,clientX);return isFinite(px)&&Math.abs(px-x)<=threshold;}
+    function show(){g.classList.add('is-visible');holding=true;}
+    function hide(){g.classList.remove('is-visible');holding=false;}
+    function cancelHold(){if(holdTimer){clearTimeout(holdTimer);holdTimer=0;}}
+    function onPointerMove(e){
+      if(!e||!isFinite(e.clientX))return;
+      if(e.pointerType==='mouse'){
+        g.classList.toggle('is-visible',near(e.clientX));
+        return;
+      }
+      if(holdTimer&&Math.hypot((e.clientX||0)-startX,(e.clientY||0)-startY)>10)cancelHold();
+    }
+    function onPointerDown(e){
+      if(!e||!isFinite(e.clientX)||!near(e.clientX))return;
+      if(e.pointerType==='mouse'){show();return;}
+      cancelHold();startX=e.clientX||0;startY=e.clientY||0;
+      holdTimer=setTimeout(function(){holdTimer=0;show();},240);
+    }
+    function onPointerUp(){cancelHold();if(holding)setTimeout(hide,80);}
+    function onPointerLeave(){cancelHold();hide();}
+    svgEl.addEventListener('pointermove',onPointerMove,{passive:true});
+    svgEl.addEventListener('pointerdown',onPointerDown,{passive:true});
+    svgEl.addEventListener('pointerup',onPointerUp,{passive:true});
+    svgEl.addEventListener('pointercancel',onPointerUp,{passive:true});
+    svgEl.addEventListener('pointerleave',onPointerLeave,{passive:true});
+    svgEl.__rtDashboardForecastCleanup=function(){
+      cancelHold();
+      svgEl.removeEventListener('pointermove',onPointerMove);
+      svgEl.removeEventListener('pointerdown',onPointerDown);
+      svgEl.removeEventListener('pointerup',onPointerUp);
+      svgEl.removeEventListener('pointercancel',onPointerUp);
+      svgEl.removeEventListener('pointerleave',onPointerLeave);
+    };
+  }
+
+  function cleanDashboardForecast(svgEl){
+    if(!svgEl)return;
+    var labelEl=svgEl.querySelector('.rt-chart-forecast-label');
+    var label=labelEl?String(labelEl.textContent||'').trim():'';
+    if(labelEl)labelEl.remove();
+    var shells=svgEl.querySelectorAll('.rt-chart-forecast-shell');
+    if(label&&shells.length)installDashboardForecastHold(svgEl,label,shells);
+  }
+
   function installSalesForecastHover(svgEl,label,rings){
     if(!svgEl||!label||!rings||!rings.length)return;
     if(svgEl.__rtForecastHoverCleanup){try{svgEl.__rtForecastHoverCleanup();}catch(_){}svgEl.__rtForecastHoverCleanup=null;}
@@ -120,23 +210,7 @@
     var topY=Infinity;
     Array.prototype.forEach.call(rings,function(r){topY=Math.min(topY,num(r.getAttribute('cy')));});
     if(!isFinite(topY))topY=30;
-
-    var vb=svgEl.viewBox&&svgEl.viewBox.baseVal;
-    var W=vb&&vb.width?vb.width:num(svgEl.getAttribute('width'))||600;
-    var fontSize=W<560?10.5:11.5;
-    var boxW=Math.max(78,Math.min(126,label.length*fontSize*.56+18));
-    var boxH=24;
-    var cx=Math.max(boxW/2+4,Math.min(W-boxW/2-4,x));
-    var cy=Math.max(18,topY-25);
-
-    var g=document.createElementNS(NS,'g');g.setAttribute('class','rt-sales-hover-forecast');
-    var r=document.createElementNS(NS,'rect');
-    r.setAttribute('x',(cx-boxW/2).toFixed(1));r.setAttribute('y',(cy-boxH/2).toFixed(1));
-    r.setAttribute('width',boxW.toFixed(1));r.setAttribute('height',boxH.toFixed(1));r.setAttribute('rx','7');
-    var t=document.createElementNS(NS,'text');
-    t.setAttribute('x',cx.toFixed(1));t.setAttribute('y',(cy+fontSize*.34).toFixed(1));t.setAttribute('text-anchor','middle');t.setAttribute('font-size',fontSize.toFixed(1));t.textContent=label;
-    g.appendChild(r);g.appendChild(t);
-    svgEl.appendChild(g);
+    var bubble=buildContextBubble(svgEl,'rt-sales-hover-forecast',label,x,topY),g=bubble.group,W=bubble.W;
 
     Array.prototype.forEach.call(rings,function(ring){
       var title=ring.querySelector('title');
@@ -212,6 +286,7 @@
         out=withForecastSignal(function(){
           return _renderBeforeFinalize.call(this,svgEl,labels,revData,profitData,handlers,nextOpts);
         }.bind(this));
+        cleanDashboardForecast(svgEl);
       }else{
         nextOpts.partialLast=false;
         out=_renderBeforeFinalize.call(this,svgEl,labels,revData,profitData,handlers,nextOpts);
@@ -230,5 +305,6 @@
   requestAnimationFrame(function(){
     fixRefundLegend();
     var sales=document.getElementById('monthly-profitability-svg');if(sales)cleanSalesForecast(sales);
+    var dash=document.getElementById('summary-chart-svg-mobile')||document.getElementById('summary-chart-svg');if(dash&&isCurrentFY())cleanDashboardForecast(dash);
   });
 })();
