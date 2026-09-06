@@ -5,7 +5,7 @@
  */
 (function(){
   'use strict';
-  var v='20260906-v1438';
+  var v='20260906-v1439';
   function writeScript(src){document.write('<script src="'+src+'"><\/script>');}
   if(document.readyState==='loading'){
     writeScript('./app-core.js?v='+v);
