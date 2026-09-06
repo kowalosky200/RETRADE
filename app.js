@@ -14001,10 +14001,10 @@ function renderSummary(){
       });
     } else {
       const buckets=[]; let cur=range.from;
-      if(isDaily){
+      const _summarySpanDays=Math.max(1,Math.round((Date.parse(range.to)-Date.parse(range.from))/86400000)+1);
+      if(_summarySpanDays<=10){
         while(cur<=range.to){buckets.push({from:cur,to:cur,label:fmtShort(cur)});cur=addDays(cur,1);}
       } else {
-        const _summarySpanDays=Math.max(1,Math.round((Date.parse(range.to)-Date.parse(range.from))/86400000)+1);
         let bucketDays=_summarySpanDays<=65?7:(_summarySpanDays<=100?14:30);
         while(cur<=range.to){
           const end = addDays(cur,bucketDays-1)<=range.to ? addDays(cur,bucketDays-1) : range.to;
