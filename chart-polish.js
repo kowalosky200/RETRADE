@@ -137,7 +137,7 @@
     var s=document.createElement('style');
     s.id='rt-chart-polish-v1438';
     s.textContent='\
-#p-summary .summary-chart-legend .legend-item:nth-child(3) .legend-dot{background:transparent!important;border:1.4px solid var(--red);box-sizing:border-box;border-radius:2px;}\
+#p-summary .summary-chart-legend .legend-item:nth-child(3) .legend-dot,#p-summary .summary-chart-legend .legend-event-mark{width:8px;height:8px;background:transparent!important;border:1.4px solid var(--red);box-sizing:border-box;border-radius:2px;}\
 #p-summary .rt-chart-refund-outline{fill:none!important;stroke:var(--red);stroke-linejoin:round;vector-effect:non-scaling-stroke;transform-box:fill-box;transform-origin:center bottom;}\
 #p-summary .rt-chart-primary-bar,#p-summary .rt-chart-profit-bar,#p-summary .rt-chart-refund-outline{will-change:transform,opacity;}\
 @keyframes rtRevenueBarPolishIn{from{transform:scaleY(.025);opacity:.18}to{transform:scaleY(1);opacity:1}}\
@@ -296,6 +296,10 @@
   function ensureResizeObserver(svgEl){
     if(!window.ResizeObserver || svgEl.__rtPolishedResizeObserver) return;
     var lastW=0,lastH=0,raf=0;
+    try{
+      var initial=svgEl.getBoundingClientRect();
+      if(initial&&initial.width>=260&&initial.height>=150){lastW=Math.round(initial.width);lastH=Math.round(initial.height);}
+    }catch(_){}
     var ro=new ResizeObserver(function(entries){
       var e=entries&&entries[0];
       if(!e || !svgEl.isConnected) return;
