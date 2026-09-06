@@ -4229,6 +4229,13 @@ function _dbFingerprint(){
   if(_reconciliationSchemaAvailable)(_saleReconciliations||[]).forEach(r => { fp['recon:'+r.id] = JSON.stringify(r); });
   return fp;
 }
+function _dbFingerprintsEqual(a,b){
+  a=a||{};b=b||{};
+  const ak=Object.keys(a),bk=Object.keys(b);
+  if(ak.length!==bk.length)return false;
+  for(let i=0;i<ak.length;i++){const k=ak[i];if(a[k]!==b[k])return false;}
+  return true;
+}
 
 async function _persistChangesPass(){
   // Never persist if no user is logged in — prevents ghost saves after sign-out
@@ -4495,11 +4502,14 @@ async function _refreshCloudOnResume(force){
       await _waitForSync();
       if(_outboxPendingCount()>0)return false; // remain local-first until upload succeeds
     }
+    const _beforeSnapshot=_dbSnapshot||{};
     await loadFromSupabase();
-    _dbSnapshot=_dbFingerprint();
+    const _nextSnapshot=_dbFingerprint();
+    const _dataChanged=!_dbFingerprintsEqual(_beforeSnapshot,_nextSnapshot);
+    _dbSnapshot=_nextSnapshot;
     _initActivityShadow();
     _lastCloudRefreshAt=Date.now();
-    refreshActivePage();
+    if(_dataChanged)refreshActivePage();
     if(typeof updateSyncStatus==='function')updateSyncStatus();
     return true;
   }catch(e){
@@ -5265,7 +5275,7 @@ function refreshActivePage(){
   if(!active)return;
   const id=active.id;
   if(id==='p-summary')renderSummary();
-  else if(id==='p-monthly')renderMonth();
+  else if(id==='p-monthly')renderMonthlyPage();
   else if(id==='p-stock')renderStock();
   else if(id==='p-expenses')renderExpenses();
   else if(id==='p-cash'&&typeof renderCash==='function')renderCash();
@@ -5592,16 +5602,15 @@ function goToTab(name,sourceEl){
   };
   if(name==='summary'){delete _chartDrawKey['summary-chart-svg'];delete _chartDrawKey['summary-chart-svg-mobile'];_renderTab(renderSummary);}
   else if(name==='monthly'){
-    // Sales is a two-level route: Calendar is the overview, Month is drill-down.
-    // Preserve the user's last real subview instead of forcing current-month detail
-    // every time the Sales tab is selected. Explicit goToMonth() still owns detail.
+    // A deliberate Sales-tab click is the fast daily workflow: open THIS month.
+    // Calendar remains a real sub-route and hard reload restores it through the
+    // boot-route snapshot in initDB(); only an explicit nav click resets to live month.
     if(!_monthOpenFromContext){
-      if(MONTHLY_VIEW!=='grid'&&MONTHLY_VIEW!=='detail')MONTHLY_VIEW='grid';
-      if(MONTHLY_VIEW==='detail'&&!SELECTED_MONTH)SELECTED_MONTH=currentMonthKey();
-      if(MONTHLY_VIEW==='grid')_monthOrigin='calendar-top';
-      // A deliberate return to the Calendar is a new visual visit. Re-arm only
-      // the chart draw gate; background/data rerenders remain silent.
-      if(MONTHLY_VIEW==='grid')delete _chartDrawKey['monthly-profitability-svg'];
+      _monthOrigin='calendar-top';
+      SELECTED_MONTH=currentMonthKey();
+      MONTHLY_VIEW='detail';
+      MONTH_FILTER='all';
+      MONTH_SORT='date-sold';
     }
     _renderTab(renderMonthlyPage);
     _saveUIState();
@@ -13500,19 +13509,25 @@ function _renderChartInto(svgEl,labels,revData,profitData,handlers,opts){
   // down and reveal dash-by-dash after the historical line reaches the present.
   const _solidTo=_partial?n-1:n; // solid covers indices 0.._solidTo-1
   const _mkLine=function(data,from,to){let d='';for(let i=from;i<to;i++)d+=(i===from?'M ':' L ')+sx(i).toFixed(1)+' '+sy(data[i]||0).toFixed(1);return d;};
+  let _maxPartialTailMs=0;
   const _mkDashMarks=function(data,color,strokeWidth,opacity){
     if(!_partial)return '';
     const x1=sx(n-2),y1=sy(data[n-2]||0),x2=sx(n-1),y2=sy(data[n-1]||0);
     const dx=x2-x1,dy=y2-y1,dist=Math.sqrt(dx*dx+dy*dy);
     if(!isFinite(dist)||dist<=0.01)return '';
     const dashLen=4.2,gap=3.2,step=dashLen+gap;
+    const dashCount=Math.max(1,Math.ceil(dist/step));
+    // Keep the reveal clearly sequential without letting a steep segment drag on.
+    // Most tails land around 0.4–0.65s after the historical line completes.
+    const dashStagger=Math.max(26,Math.min(42,520/Math.max(1,dashCount-1)));
     let out='<g class="rt-chart-partial-group" opacity="'+opacity+'">',di=0;
     for(let pos=0;pos<dist;pos+=step,di++){
       const end=Math.min(pos+dashLen,dist);
       const a=pos/dist,b=end/dist;
       const ax=x1+dx*a,ay=y1+dy*a,bx=x1+dx*b,by=y1+dy*b;
-      out+='<line class="rt-chart-partial-dash" style="--dash-delay:'+(di*22)+'ms" x1="'+ax.toFixed(1)+'" y1="'+ay.toFixed(1)+'" x2="'+bx.toFixed(1)+'" y2="'+by.toFixed(1)+'" stroke="'+color+'" stroke-width="'+strokeWidth+'" stroke-linecap="round"/>';
+      out+='<line class="rt-chart-partial-dash" style="--dash-delay:'+Math.round(di*dashStagger)+'ms" x1="'+ax.toFixed(1)+'" y1="'+ay.toFixed(1)+'" x2="'+bx.toFixed(1)+'" y2="'+by.toFixed(1)+'" stroke="'+color+'" stroke-width="'+strokeWidth+'" stroke-linecap="round"/>';
     }
+    _maxPartialTailMs=Math.max(_maxPartialTailMs,Math.max(360,Math.round(Math.max(0,di-1)*dashStagger+125)));
     return out+'</g>';
   };
 
@@ -13522,14 +13537,16 @@ function _renderChartInto(svgEl,labels,revData,profitData,handlers,opts){
 
   // Tertiary quantitative line when one is actually requested.
   let tertLine='',tertPartial='';
-  if(tertiaryData){
+  if(tertiaryData&&!tertiaryMarkersOnly&&!tertiaryBars){
     tertLine=_mkLine(tertiaryData,0,_solidTo);
     tertPartial=_mkDashMarks(tertiaryData,tertiaryColor,tertiaryStroke,0.58);
   }
 
-  // Revenue line (primary visual)
-  const line=_mkLine(revData,0,_solidTo);
-  const revPartial=_mkDashMarks(revData,primaryColor,revStroke,0.68);
+  // Revenue line only exists on line charts; FY revenue is rendered as bars.
+  const line=primaryBars?'':_mkLine(revData,0,_solidTo);
+  const revPartial=primaryBars?'':_mkDashMarks(revData,primaryColor,revStroke,0.68);
+  if(_partial)svgEl.style.setProperty('--partial-tail-ms',(_maxPartialTailMs||360)+'ms');
+  else svgEl.style.removeProperty('--partial-tail-ms');
   const _soFar=_partial?('<text class="rt-chart-so-far" x="'+sx(n-1).toFixed(1)+'" y="'+(pad.t+fontSize+1).toFixed(1)+'" font-size="'+Math.round(fontSize*0.92)+'" fill="var(--text-tertiary)" text-anchor="end" font-family="var(--font-body)" opacity="0.85">so far</text>'):'';
 
   // Interactive columns — full-height hit zones + persistent dots on both
@@ -13843,9 +13860,10 @@ function renderSummary(){
   if(!el) return;
   try{
     const stats=calcSummaryStats();
-    const deltas=calcSummaryDeltas();
+    const deltas=calcSummaryDeltas(stats);
     const grossStats=calcSummaryGrossStats();
-    const grossDeltas=calcSummaryGrossDeltas();
+    const grossDeltas=calcSummaryGrossDeltas(grossStats);
+    const _summaryItems=allItems();
     // Delta chip: green ▲ when good, red ▼ when bad. `invert` flips good/bad for
     // metrics where lower is better (refund rate). `pp` formats as points (margin,
     // refund) vs % (revenue, profit, sold). Returns '' when no baseline.
@@ -13868,7 +13886,7 @@ function renderSummary(){
     ];
     // Empty-account onboarding belongs on Home rather than in a blocking wizard.
     // It vanishes automatically as soon as the user creates operational data.
-    const _isFirstRunEmpty=allItems().length===0&&(DB.expenses||[]).length===0&&(DB.trips||[]).length===0&&(_sourcingRuns||[]).length===0;
+    const _isFirstRunEmpty=_summaryItems.length===0&&(DB.expenses||[]).length===0&&(DB.trips||[]).length===0&&(_sourcingRuns||[]).length===0;
     if(_isFirstRunEmpty){
       el.innerHTML=`
         <div class="summary-header">
@@ -13888,7 +13906,7 @@ function renderSummary(){
         </section>`;
       _wireFormLabels(el);_suppressPasswordManagers(el);return;
     }
-    const activeStock=allItems().filter(function(i){
+    const activeStock=_summaryItems.filter(function(i){
       if(i.scrappedAt||i.resaleSalePrice)return false;
       if(i.isReturned||i.state==='returned')return true;
       return !i.dateSold&&(i.state==='sourced'||i.state==='listed'||!i.state);
@@ -13896,7 +13914,7 @@ function renderSummary(){
     const listedSummaryStock=activeStock.filter(function(i){return !i.isReturned&&i.state!=='sourced';});
     const activeStockCount=activeStock.length;
     const activeStockVal=listedSummaryStock.reduce((s,i)=>s+(i.salePrice||0),0);
-    const listedInPeriod=allItems().filter(i=>i.dateListed&&i.dateListed>=range.from&&i.dateListed<=range.to).length;
+    const listedInPeriod=_summaryItems.filter(i=>i.dateListed&&i.dateListed>=range.from&&i.dateListed<=range.to).length;
     // Listing-age buckets only apply to active listings — Unlisted/Returned use
     // their own age clocks inside Inventory.
     const _todayStr=new Date().toISOString().split('T')[0];
@@ -13913,10 +13931,17 @@ function renderSummary(){
     // accounting. The old item-final-state scan only exposed Sale 1 + the latest
     // resale, so Sale 2 disappeared as soon as Sale 3 existed. Each completed
     // Sale 1/2/3+ is now its own ranked flip for the selected period.
-    const sold=getSaleEventsInRange(range.from,range.to)
+    const _summaryRangeEvents=getSaleEventsInRange(range.from,range.to);
+    const _summaryBreakdowns=new WeakMap();
+    const _summaryBreakdown=function(ev){
+      let b=_summaryBreakdowns.get(ev);
+      if(!b){b=_saleBreakdown(ev);_summaryBreakdowns.set(ev,b);}
+      return b;
+    };
+    const sold=_summaryRangeEvents
       .filter(function(ev){return !ev.isReturnAdjustment&&!ev.isReturned;})
       .map(function(ev){
-        const b=_saleBreakdown(ev);
+        const b=_summaryBreakdown(ev);
         return {
           id:ev.item.id,item:ev.item.item,month:ev.month,category:ev.item.category,
           saleNo:Math.max(1,Number(ev.sale)||1),saleDate:ev.saleDate||'',
@@ -13950,8 +13975,8 @@ function renderSummary(){
         const events=getSaleEventsInMonth(k);
         const sales=events.filter(function(x){return !x.isReturnAdjustment;});
         const returns=events.filter(function(x){return x.isReturnAdjustment;});
-        const salesRevenue=sales.reduce(function(sum,x){const sb=_saleBreakdown(x);return sum+(Number(sb.salePrice)||0)+(Number(sb.postage)||0);},0);
-        const salesProfit=sales.reduce(function(sum,x){return sum+(Number(_saleBreakdown(x).netProfit)||0);},0);
+        const salesRevenue=sales.reduce(function(sum,x){const sb=_summaryBreakdown(x);return sum+(Number(sb.salePrice)||0)+(Number(sb.postage)||0);},0);
+        const salesProfit=sales.reduce(function(sum,x){return sum+(Number(_summaryBreakdown(x).netProfit)||0);},0);
         const refunds=returns.reduce(function(sum,x){return sum+Math.max(0,-(Number(x.salePrice)||0));},0);
         chartLabels.push(MONTH_NAMES[keyCode(k)].slice(0,3));
         chartRev.push(+salesRevenue.toFixed(2));
@@ -13972,14 +13997,14 @@ function renderSummary(){
           cur=addDays(cur,bucketDays);
         }
       }
-      const chartEvents=getSaleEventsInRange(range.from,range.to);
+      const chartEvents=_summaryRangeEvents;
       const bData=buckets.map(function(b){
         const inB=chartEvents.filter(function(x){return x.saleDate>=b.from&&x.saleDate<=b.to;});
         const sales=inB.filter(function(x){return !x.isReturnAdjustment;});
         const returns=inB.filter(function(x){return x.isReturnAdjustment;});
         return {...b,
-          rev:sales.reduce(function(sum,x){const sb=_saleBreakdown(x);return sum+(Number(sb.salePrice)||0)+(Number(sb.postage)||0);},0),
-          profit:sales.reduce(function(sum,x){return sum+(Number(_saleBreakdown(x).netProfit)||0);},0),
+          rev:sales.reduce(function(sum,x){const sb=_summaryBreakdown(x);return sum+(Number(sb.salePrice)||0)+(Number(sb.postage)||0);},0),
+          profit:sales.reduce(function(sum,x){return sum+(Number(_summaryBreakdown(x).netProfit)||0);},0),
           refunds:returns.reduce(function(sum,x){return sum+Math.max(0,-(Number(x.salePrice)||0));},0),
           refundCount:returns.length,
           eventCount:inB.length};
@@ -14534,7 +14559,7 @@ function renderMonthlyMoneyFlow(){
     +'<div class="mf-foot">'+esc(r.label)+' · '+(p.soldCount||0)+' sold'+(margin!==null?' · '+margin.toFixed(1)+'% net margin':'')+'. Bars are % of gross revenue · reconciles with your Tax Return.</div>';
 }
 
-function renderMonthlyProfitabilityChart(){
+function renderMonthlyProfitabilityChart(statsForMonth){
   const svg=document.getElementById('monthly-profitability-svg');
   if(!svg)return;
   const _box=svg.getBoundingClientRect();
@@ -14554,7 +14579,7 @@ function renderMonthlyProfitabilityChart(){
   const showYear=keys.length>12;
   const labels=[],netRevenue=[],grossProfit=[],netProfit=[],refunds=[],refundCounts=[];
   keys.forEach(function(k){
-    const ms=calcMonthStatsBySale(k);
+    const ms=(typeof statsForMonth==='function')?statsForMonth(k):calcMonthStatsBySale(k);
     const short=MONTH_NAMES[keyCode(k)].slice(0,3);
     labels.push(showYear?short+' '+String(keyYear(k)).slice(-2):short);
     netRevenue.push(Number(ms.totalRev)||0);
@@ -14613,6 +14638,25 @@ function renderMonthlyGrid(){
   const curMonthKey=currentMonthKey(); // e.g. 'APR-26'
   const currentFY=_currentFYStart();
 
+  // Per-render analytics index. getSaleEventsInMonth() scans every item, so
+  // doing that independently for every FY rollup/card/chart was quadratic-ish
+  // as history grew. Build the canonical Sale-N event set once, group by month,
+  // and share it with calcMonthStatsBySale() for this render.
+  const _calendarAllEvents=getSaleEventsInRange(null,null);
+  const _calendarEventsByMonth=new Map();
+  _calendarAllEvents.forEach(function(ev){
+    const mk=_monthKeyFromDate(ev.saleDate);if(!mk)return;
+    if(!_calendarEventsByMonth.has(mk))_calendarEventsByMonth.set(mk,[]);
+    _calendarEventsByMonth.get(mk).push(ev);
+  });
+  const _calendarStatsCtx={eventsByMonth:_calendarEventsByMonth,tieredTrips:calcTieredTrips(DB.trips||[])};
+  const _monthStatsCache=new Map();
+  const monthStats=function(k){
+    if(!_monthStatsCache.has(k))_monthStatsCache.set(k,calcMonthStatsBySale(k,_calendarStatsCtx));
+    return _monthStatsCache.get(k);
+  };
+  const monthEvents=function(k){return _calendarEventsByMonth.get(k)||[];};
+
   // Build set of FYs to show: previous, current, next + any FY with data
   const fySet=new Set([currentFY-1, currentFY, currentFY+1]);
   allDBKeys().forEach(function(k){
@@ -14655,11 +14699,11 @@ function renderMonthlyGrid(){
     let fyProfit=0,fySold=0,fyROISum=0,fyROICount=0,fyMarginSum=0,fyMarginCount=0;
     months.forEach(function(k){
       // Session B: FY rollups attribute by sale date, not listing month.
-      const ms=calcMonthStatsBySale(k);
+      const ms=monthStats(k);
       fyProfit+=ms.netProfit;   // v2.21.21 — net (after overheads), uniform with the top P&L summary + month-detail page
       fySold+=ms.soldCount;
       // Roll up ROI from this month's sale events (not from items in DB[k]).
-      getSaleEventsInMonth(k).forEach(function(ev){
+      monthEvents(k).forEach(function(ev){
         if(!ev.isReturned&&ev.roi!==null){fyROISum+=ev.roi;fyROICount++;}
         if(!ev.isReturned&&ev.margin!==null&&ev.margin!==undefined){fyMarginSum+=ev.margin;fyMarginCount++;}
       });
@@ -14682,7 +14726,7 @@ function renderMonthlyGrid(){
         // Session B: card profit and sold count come from sale-attribution,
         // but listedCount stays as listing-month inventory (kept in the bySale
         // helper for this exact use).
-        const ms=calcMonthStatsBySale(k);
+        const ms=monthStats(k);
         const hasItems=(DB[k]||[]).length>0||ms.soldCount>0||ms.eventCount>0;
         const hasActivity=ms.soldCount>0||ms.listedCount>0||ms.eventCount>0;
         const isCurrent=k===curMonthKey;
@@ -14741,7 +14785,7 @@ function renderMonthlyGrid(){
   document.getElementById('p-monthly').innerHTML=html;
   // Render with the exact same SVG engine, axes, grid, spacing, typography,
   // scrub tooltip and responsive geometry as the dashboard chart.
-  renderMonthlyProfitabilityChart();
+  renderMonthlyProfitabilityChart(monthStats);
   // Scroll ONLY when an explicit target month was requested (i.e. returning
   // from that month's detail view). Everything else — period changes, FY
   // collapse toggles — leaves the page exactly where the user left it.
@@ -14907,7 +14951,28 @@ function renderMonth(){
               const curFY=_currentFYStart();
               const liveMonthKey=currentMonthKey();
               const fySet=new Set();
-              allDBKeys().forEach(k=>{const code=keyCode(k);const yr=keyYear(k);const mo=MONTHS.indexOf(code);const fy=mo>=3?yr:yr-1;fySet.add(fy);});
+              const _pickerActivity=new Map();
+              const _pickerSlot=function(k){
+                if(!_pickerActivity.has(k))_pickerActivity.set(k,{soldCount:0,eventCount:0});
+                return _pickerActivity.get(k);
+              };
+              // One lightweight history pass: no fees, P&L, trip tiers or expense
+              // aggregation are needed just to label the month picker.
+              allDBKeys().forEach(function(src){
+                const code=keyCode(src),yr=keyYear(src),mo=MONTHS.indexOf(code);
+                if(mo>=0)fySet.add(mo>=3?yr:yr-1);
+                (DB[src]||[]).forEach(function(i){
+                  if((i.item||'').trim().toUpperCase()==='MONTH END')return;
+                  _saleCycleNumbers(i).forEach(function(n){
+                    const c=_saleCycleSnapshot(i,n),mk=c&&c.date?_monthKeyFromDate(c.date):null;
+                    if(!mk)return;const a=_pickerSlot(mk);a.soldCount++;a.eventCount++;
+                  });
+                  (i.returnHistory||[]).forEach(function(r){
+                    const d=_returnEventDate(r),mk=d?_monthKeyFromDate(d):null;
+                    if(mk)_pickerSlot(mk).eventCount++;
+                  });
+                });
+              });
               const fyYears=Array.from(fySet).sort((a,b)=>b-a);
               let out='';
               fyYears.forEach(fy=>{
@@ -14915,18 +14980,21 @@ function renderMonth(){
                 const isCur=fy===curFY;
                 // Pre-filter the keys for this FY so we can skip empty FYs.
                 const visibleEntries=keys.map(k=>{
-                  const ms=calcMonthStatsBySale(k);
-                  const hasActivity=ms.soldCount>0||ms.listedCount>0||ms.eventCount>0;
+                  const a=_pickerActivity.get(k)||{soldCount:0,eventCount:0};
+                  const listedCount=(DB[k]||[]).filter(function(i){
+                    return (i.item||'').trim().toUpperCase()!=='MONTH END'&&!i.scrappedAt&&!i.isReturned&&!i.dateSold&&!i.resaleSalePrice;
+                  }).length;
+                  const hasActivity=a.soldCount>0||listedCount>0||a.eventCount>0;
                   const isActiveSel=k===m;        // currently viewing this month
                   const isLiveMonth=k===liveMonthKey;
                   if(!hasActivity&&!isActiveSel&&!isLiveMonth)return null;
-                  return {k,ms,hasActivity,isLiveMonth};
+                  return {k,soldCount:a.soldCount,listedCount,hasActivity,isLiveMonth};
                 }).filter(Boolean);
                 if(visibleEntries.length===0)return; // skip empty FYs
                 out+='<div class="month-picker-fy-header">FY '+_getFYLabelHTML(fy)+(isCur?' · Current':'')+'</div>';
-                visibleEntries.forEach(({k,ms,hasActivity,isLiveMonth})=>{
+                visibleEntries.forEach(({k,soldCount,listedCount,hasActivity,isLiveMonth})=>{
                   const sub=hasActivity
-                    ?'<span class="month-picker-option-sub">'+ms.soldCount+' sold · '+ms.listedCount+' active</span>'
+                    ?'<span class="month-picker-option-sub">'+soldCount+' sold · '+listedCount+' active</span>'
                     :'<span class="month-picker-option-sub" style="opacity:0.4">'+(isLiveMonth?'this month':'no activity')+'</span>';
                   out+='<div class="month-picker-option'+(k===m?' active':'')+'" onclick="pickMonth(\''+k+'\')">'
                     +MONTH_NAMES[keyCode(k)]+sub+'</div>';
