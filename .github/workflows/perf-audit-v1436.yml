@@ -1,0 +1,44 @@
+name: Audit v1.4.36 performance and chart motion
+on:
+  push:
+    branches: [audit/performance-v1-4-36]
+permissions:
+  contents: read
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: audit/performance-v1-4-36
+      - name: Inspect route, chart and performance hotspots
+        run: |
+          echo '=== ROUTING ==='
+          grep -n -B 35 -A 85 "function goToTab" app.js || true
+          grep -n -B 25 -A 55 "function backToMonthlyGrid" app.js || true
+          grep -n -B 20 -A 55 "function renderMonthlyPage" app.js || true
+          echo '=== CHART PARTIAL BUILD ==='
+          grep -n -B 80 -A 280 "function _renderChartInto" app.js | head -560 || true
+          echo '=== CHART MOTION CSS ==='
+          grep -n -B 35 -A 140 "rtChartPartialDashIn" app.css || true
+          grep -n -B 35 -A 100 "rt-chart-line" app.css | head -320 || true
+          echo '=== TIMERS ==='
+          grep -n "setInterval\|setTimeout\|requestAnimationFrame\|requestIdleCallback" app.js | head -360 || true
+          echo '=== OBSERVERS/LISTENERS ==='
+          grep -n "MutationObserver\|ResizeObserver\|IntersectionObserver\|addEventListener" app.js | head -420 || true
+          echo '=== SAVE/SYNC ==='
+          grep -n -B 45 -A 260 "async function saveDB" app.js | head -480 || true
+          grep -n -B 35 -A 190 "function _refreshCloudOnResume" app.js | head -340 || true
+          echo '=== SUMMARY RENDER ==='
+          grep -n -B 35 -A 420 "function renderSummary()" app.js | head -600 || true
+          echo '=== MONTHLY GRID ==='
+          grep -n -B 30 -A 460 "function renderMonthlyGrid()" app.js | head -660 || true
+          echo '=== CALC MONTH STATS ==='
+          grep -n -B 40 -A 340 "function calcMonthStatsBySale" app.js | head -500 || true
+          echo '=== COMMON FULL DB SCANS ==='
+          grep -n "allDBKeys()" app.js | head -300 || true
+          grep -n "getSaleEventsInMonth\|getSaleEventsInRange" app.js | head -300 || true
+          echo '=== FILE SIZES ==='
+          wc -l -c app.js app.css accounting.js reports.js index.html
+          echo '=== VERSION ==='
+          grep -n "app.css?v\|app.js?v" index.html || true
