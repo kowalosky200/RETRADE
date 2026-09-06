@@ -1,55 +1,23 @@
-name: Apply v1.4.36 performance fixes
+name: Compare prior chart motion
 on:
   push:
     branches: [audit/performance-v1-4-36]
 permissions:
-  contents: write
+  contents: read
 jobs:
-  patch:
-    if: github.actor != 'github-actions[bot]'
+  inspect:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           ref: audit/performance-v1-4-36
           fetch-depth: 0
-      - name: Correct patch anchor and apply v1.4.36
+      - name: Compare current and prior motion implementations
         run: |
-          python3 scripts/fix_apply_perf_v1436.py
-          python3 scripts/apply_perf_v1436.py
-      - name: JavaScript syntax check
-        run: node --check app.js && node --check accounting.js && node --check reports.js
-      - name: Patch integrity and performance checks
-        run: |
-          git diff --check
-          grep -q "else if(id==='p-monthly')renderMonthlyPage();" app.js
-          grep -q "SELECTED_MONTH=currentMonthKey();" app.js
-          grep -q "MONTHLY_VIEW='detail';" app.js
-          grep -q "dashStagger=Math.max(26,Math.min(42" app.js
-          grep -q -- "--partial-tail-ms" app.js
-          grep -q "animation:rtChartPartialDashIn 125ms" app.css
-          grep -q "_summaryItems=allItems();" app.js
-          grep -q "const _summaryRangeEvents=getSaleEventsInRange" app.js
-          grep -q "renderMonthlyProfitabilityChart(statsForMonth)" app.js
-          grep -q "renderMonthlyProfitabilityChart(monthStats);" app.js
-          grep -q "const _calendarAllEvents=getSaleEventsInRange(null,null);" app.js
-          grep -q "_pickerActivity=new Map" app.js
-          grep -q "function _dbFingerprintsEqual" app.js
-          grep -q "if(_dataChanged)refreshActivePage();" app.js
-          grep -q "function calcMonthStatsBySale(m,ctx)" accounting.js
-          grep -q "currentStats||calcSummaryGrossStats" accounting.js
-          grep -q "currentStats||calcSummaryStats" accounting.js
-          grep -q "app.js?v=1.4.36" index.html
-          grep -q "accounting.js?v=1.4.11" index.html
-          ! grep -q "else if(id==='p-monthly')renderMonth();" app.js
-      - name: Commit application changes
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add app.js app.css accounting.js index.html
-          if git diff --cached --quiet; then
-            echo "No application changes to commit."
-            exit 0
-          fi
-          git commit -m "Improve runtime performance and current-period chart motion"
-          git push origin HEAD:audit/performance-v1-4-36
+          git fetch origin fix/motion-v1-7 fix/motion-v1-7-tail-bounce ui/dashboard-area-motion-v1-4-32 --depth=1 || true
+          for ref in audit/performance-v1-4-36 origin/fix/motion-v1-7 origin/fix/motion-v1-7-tail-bounce origin/ui/dashboard-area-motion-v1-4-32; do
+            echo "========== $ref CSS =========="
+            git show "$ref:app.css" 2>/dev/null | grep -n -B 20 -A 55 "rtChartPartial\|partial-dash\|chart.*dash" | tail -220 || true
+            echo "========== $ref JS =========="
+            git show "$ref:app.js" 2>/dev/null | grep -n -B 35 -A 90 "_mkDashMarks\|partialLast\|dash-delay" | head -360 || true
+          done
