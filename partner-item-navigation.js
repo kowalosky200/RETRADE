@@ -1,4 +1,4 @@
-/* RETRADE partner item navigation v1.4.61
+/* RETRADE partner item navigation v1.4.62
  * Partner/account item rows are primary navigation, not popup previews.
  *
  * Flow:
@@ -7,8 +7,9 @@
  * Selection mode keeps its existing bulk-select behaviour. Buttons inside a row
  * (settle, edit split, relist, etc.) keep their own actions and do not navigate.
  *
- * v1.4.61: adds the account-header Statement action. The statement/export module
- * is loaded only when requested so normal launch and non-partner pages stay lean.
+ * v1.4.62: keeps Statement in the account navigation row beside Back to accounts
+ * instead of mixing it into the account page header actions. The statement/export
+ * module is loaded only when requested so normal launch and non-partner pages stay lean.
  */
 (function(){
   'use strict';
@@ -82,23 +83,53 @@
     });
   }
 
+  function findAccountBackControl(page){
+    if(!page)return null;
+    var controls=page.querySelectorAll('button,a');
+    var fallback=null;
+    for(var i=0;i<controls.length;i++){
+      var txt=String(controls[i].textContent||'').replace(/\s+/g,' ').trim().toLowerCase();
+      if(!txt)continue;
+      if(txt==='back to accounts'||txt==='back to account'||txt==='back to partners'||txt==='back to partner')return controls[i];
+      if(!fallback&&(txt.indexOf('back to account')!==-1||txt.indexOf('back to partner')!==-1))fallback=controls[i];
+    }
+    return fallback;
+  }
+
+  function accountNavRow(back,page){
+    if(!back||!page)return null;
+    var node=back.parentElement;
+    var fallback=node;
+    for(var depth=0;node&&node!==page&&depth<3;depth++,node=node.parentElement){
+      try{
+        var display=window.getComputedStyle(node).display;
+        if(display==='flex'||display==='inline-flex'||display==='grid'||display==='inline-grid')return node;
+      }catch(_){}
+    }
+    return fallback;
+  }
+
   function wireStatementButton(acct){
     var page=document.getElementById('p-item');
     if(!page||!acct)return;
-    var header=page.querySelector('.page-header');
-    if(!header)return;
-    var actions=header.lastElementChild;
-    if(!actions)return;
+    var back=findAccountBackControl(page);
+    var row=accountNavRow(back,page);
+    if(!back||!row)return;
 
-    var old=actions.querySelector('.rt-partner-statement-btn');
-    if(old){old.dataset.accountId=acct.id;return;}
+    var old=page.querySelector('.rt-partner-statement-btn');
+    if(old){
+      old.dataset.accountId=acct.id;
+      if(old.parentElement!==row)row.appendChild(old);
+      old.style.marginLeft='auto';
+      return;
+    }
 
     var btn=document.createElement('button');
     btn.type='button';
     btn.className='btn btn-secondary rt-partner-statement-btn';
     btn.dataset.accountId=acct.id;
     btn.title='Generate partner statement';
-    btn.style.cssText='font-size:12px;padding:6px 10px;white-space:nowrap;';
+    btn.style.cssText='font-size:12px;padding:6px 10px;white-space:nowrap;margin-left:auto;';
     btn.innerHTML='<svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true" style="vertical-align:-2px;margin-right:4px"><path d="M4 2.5h5l3 3V13.5H4z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/><path d="M9 2.5v3h3M6 8h4M6 10.5h4" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>Statement';
     btn.addEventListener('click',function(ev){
       ev.preventDefault();ev.stopPropagation();
@@ -108,7 +139,7 @@
         else try{toast('Partner statements are unavailable','error');}catch(_){}
       });
     });
-    actions.insertBefore(btn,actions.firstChild);
+    row.appendChild(btn);
   }
 
   function wirePartnerRows(acct){
@@ -186,5 +217,5 @@
     };
   }
 
-  console.info('[RETRADE] v1.4.61 partner item navigation + statements loaded');
+  console.info('[RETRADE] v1.4.62 partner item navigation + statements loaded');
 })();
