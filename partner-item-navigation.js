@@ -1,4 +1,4 @@
-/* RETRADE partner item navigation v1.4.62
+/* RETRADE partner item navigation v1.4.64
  * Partner/account item rows are primary navigation, not popup previews.
  *
  * Flow:
@@ -7,15 +7,19 @@
  * Selection mode keeps its existing bulk-select behaviour. Buttons inside a row
  * (settle, edit split, relist, etc.) keep their own actions and do not navigate.
  *
- * v1.4.62: keeps Statement in the account navigation row beside Back to accounts
- * instead of mixing it into the account page header actions. The statement/export
- * module is loaded only when requested so normal launch and non-partner pages stay lean.
+ * v1.4.64: Statement is an account-navigation action beside Back to accounts.
+ * The account page can already exist before this late enhancement loads and can
+ * also rebuild its DOM later, so a small page-scoped observer repairs the action
+ * whenever the account detail surface changes. It never watches the whole app.
  */
 (function(){
   'use strict';
 
   var returnContext=null;
   var statementLoader=null;
+  var activeAccountId=null;
+  var repairObserver=null;
+  var repairQueued=false;
 
   function accountById(id){
     try{return (_accounts||[]).find(function(a){return a&&String(a.id)===String(id);})||null;}
@@ -34,6 +38,7 @@
       return;
     }
 
+    activeAccountId=acct.id;
     returnContext={
       accountId:acct.id,
       scrollY:window.scrollY||0
@@ -88,19 +93,26 @@
     var controls=page.querySelectorAll('button,a');
     var fallback=null;
     for(var i=0;i<controls.length;i++){
-      var txt=String(controls[i].textContent||'').replace(/\s+/g,' ').trim().toLowerCase();
-      if(!txt)continue;
-      if(txt==='back to accounts'||txt==='back to account'||txt==='back to partners'||txt==='back to partner')return controls[i];
-      if(!fallback&&(txt.indexOf('back to account')!==-1||txt.indexOf('back to partner')!==-1))fallback=controls[i];
+      var el=controls[i];
+      var txt=String(el.textContent||'').replace(/\s+/g,' ').trim().toLowerCase();
+      var meta=(txt+' '+String(el.getAttribute('aria-label')||'')+' '+String(el.getAttribute('title')||'')).toLowerCase();
+      if(txt==='back to accounts'||txt==='back to account'||txt==='back to partners'||txt==='back to partner')return el;
+      if(/\bback\b/.test(meta)&&/\b(account|accounts|partner|partners)\b/.test(meta)&&!fallback)fallback=el;
     }
     return fallback;
+  }
+
+  function isAccountDetailContext(page){
+    if(!page||!page.classList.contains('on'))return false;
+    try{if(typeof _itemPageOrigin!=='undefined'&&_itemPageOrigin==='p-account-detail')return false;}catch(_){}
+    return !!findAccountBackControl(page);
   }
 
   function accountNavRow(back,page){
     if(!back||!page)return null;
     var node=back.parentElement;
     var fallback=node;
-    for(var depth=0;node&&node!==page&&depth<3;depth++,node=node.parentElement){
+    for(var depth=0;node&&node!==page&&depth<4;depth++,node=node.parentElement){
       try{
         var display=window.getComputedStyle(node).display;
         if(display==='flex'||display==='inline-flex'||display==='grid'||display==='inline-grid')return node;
@@ -109,9 +121,50 @@
     return fallback;
   }
 
+  function accountFromRenderedPage(page){
+    var known=accountById(activeAccountId);
+    if(known)return known;
+    if(!page)return null;
+
+    // Prefer an explicit account id if the current renderer exposes one.
+    var tagged=page.querySelector('[data-account-id],[data-accountid]');
+    if(tagged){
+      var taggedId=tagged.getAttribute('data-account-id')||tagged.getAttribute('data-accountid');
+      var taggedAcct=accountById(taggedId);if(taggedAcct)return taggedAcct;
+    }
+
+    // Existing account rows expose item id + month. Resolve the owning account
+    // from the already-hydrated DB without depending on header wording.
+    var itemLink=page.querySelector('.account-group .metric-k[data-itemid][data-month]');
+    if(itemLink){
+      try{
+        var month=itemLink.getAttribute('data-month'),itemId=itemLink.getAttribute('data-itemid');
+        var items=(typeof DB!=='undefined'&&DB&&Array.isArray(DB[month]))?DB[month]:[];
+        var item=items.find(function(x){return x&&String(x.id)===String(itemId);});
+        if(item&&item.accountId!=null){
+          var itemAcct=accountById(item.accountId);if(itemAcct)return itemAcct;
+        }
+      }catch(_){}
+    }
+
+    // Covers an empty account detail page that has no item rows yet.
+    var heading=page.querySelector('.page-title,h1,h2,h3');
+    var headingText=String(heading&&heading.textContent||'').replace(/\s+/g,' ').trim().toLowerCase();
+    if(headingText){
+      try{
+        var matches=(_accounts||[]).filter(function(a){
+          var name=String(a&&a.name||'').replace(/\s+/g,' ').trim().toLowerCase();
+          return !!name&&(headingText===name||headingText.indexOf(name)!==-1);
+        });
+        if(matches.length===1)return matches[0];
+      }catch(_){}
+    }
+    return null;
+  }
+
   function wireStatementButton(acct){
     var page=document.getElementById('p-item');
-    if(!page||!acct)return;
+    if(!page||!acct||!isAccountDetailContext(page))return;
     var back=findAccountBackControl(page);
     var row=accountNavRow(back,page);
     if(!back||!row)return;
@@ -140,6 +193,32 @@
       });
     });
     row.appendChild(btn);
+  }
+
+  function repairStatementButton(){
+    repairQueued=false;
+    var page=document.getElementById('p-item');
+    if(!isAccountDetailContext(page))return;
+    var acct=accountFromRenderedPage(page);
+    if(!acct)return;
+    activeAccountId=acct.id;
+    wireStatementButton(acct);
+  }
+
+  function scheduleStatementRepair(){
+    if(repairQueued)return;
+    repairQueued=true;
+    requestAnimationFrame(repairStatementButton);
+  }
+
+  function installStatementRepairObserver(){
+    var page=document.getElementById('p-item');
+    if(!page||repairObserver)return;
+    try{
+      repairObserver=new MutationObserver(function(){scheduleStatementRepair();});
+      repairObserver.observe(page,{childList:true,subtree:true,attributes:true,attributeFilter:['class']});
+    }catch(_){}
+    scheduleStatementRepair();
   }
 
   function wirePartnerRows(acct){
@@ -180,9 +259,11 @@
   if(typeof _renderAccountPage==='function'){
     var baseRenderAccountPage=_renderAccountPage;
     _renderAccountPage=function(acct){
+      if(acct&&acct.id!=null)activeAccountId=acct.id;
       var result=baseRenderAccountPage.apply(this,arguments);
       try{wireStatementButton(acct);}catch(err){console.warn('[RETRADE] partner statement button failed',err);}
       try{wirePartnerRows(acct);}catch(err){console.warn('[RETRADE] partner row navigation polish failed',err);}
+      scheduleStatementRepair();
       return result;
     };
   }
@@ -195,6 +276,7 @@
         returnContext=null;
         var acct=accountById(ctx.accountId);
         if(acct){
+          activeAccountId=acct.id;
           try{if(typeof window._resetNavScrollState==='function')window._resetNavScrollState();}catch(_){}
           try{if(typeof _deactivatePages==='function')_deactivatePages();}catch(_){}
           document.querySelectorAll('.tab,.bnt').forEach(function(el){el.classList.remove('on');});
@@ -217,5 +299,6 @@
     };
   }
 
-  console.info('[RETRADE] v1.4.62 partner item navigation + statements loaded');
+  installStatementRepairObserver();
+  console.info('[RETRADE] v1.4.64 partner item navigation + persistent statements loaded');
 })();
