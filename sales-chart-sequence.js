@@ -1,4 +1,4 @@
-/* RETRADE Sales yearly chart sequence v2.0 (v1.4.61)
+/* RETRADE Sales yearly chart sequence v2.1 (v1.4.64)
  *
  * Single owner for the Sales yearly-chart animation.
  *
@@ -11,9 +11,9 @@
  *   5. reveal the current-month forecast one physical dash at a time
  *   6. reveal the hollow forecast destination points last
  *
- * Replaces the previous sales-forecast-gate.js + chart-line-motion.js stack.
- * There is no subtree MutationObserver and no second animation loop competing
- * with the renderer. Incidental same-data re-renders inherit the active clock.
+ * Boot rule: prepare the final hydrated chart while the real-layout skeleton is
+ * present, but do not start the animation clock until the skeleton begins its
+ * actual reveal. Normal in-app Sales renders continue to start immediately.
  *
  * No accounting, forecast calculation, sync, lifecycle or persisted data.
  */
@@ -21,7 +21,7 @@
   'use strict';
 
   if(typeof _renderChartInto!=='function'){
-    document.documentElement.classList.remove('rt-motion-prep');
+    window.__rtSalesSequenceArmed=false;
     return;
   }
 
@@ -40,12 +40,16 @@
 
   window.__rtSalesChartSequence=window.__rtSalesChartSequence||{};
   var diag=window.__rtSalesChartSequence;
-  diag.version='2.0';
+  diag.version='2.1';
 
   function now(){return (window.performance&&performance.now)?performance.now():Date.now();}
   function clamp(v){return Math.max(0,Math.min(1,v));}
   function reduced(){
     try{return !!(window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches);}catch(_){return false;}
+  }
+  function bootHandoffHolding(){
+    var body=document.body;
+    return !!(body&&body.classList.contains('rt-real-layout-loading')&&!body.classList.contains('rt-real-layout-revealing'));
   }
   function isSales(svg,opts){
     return !!(svg&&svg.id==='monthly-profitability-svg'&&opts&&opts.primaryLabel==='Net Revenue'&&opts.secondaryLabel==='Net Profit');
@@ -251,6 +255,8 @@
   }
   function start(s){
     if(!s||s.cancelled||s.completed||s.startedAt!=null||s!==session)return;
+    if(bootHandoffHolding()){s.waitingForBoot=true;return;}
+    s.waitingForBoot=false;
     var svg=document.getElementById('monthly-profitability-svg');
     if(!svg||!visible(svg))return;
     if(reduced()){
@@ -261,6 +267,8 @@
   }
   function scheduleStart(s){
     if(!s||s.cancelled||s.completed||s.startedAt!=null||s!==session)return;
+    if(bootHandoffHolding()){s.waitingForBoot=true;return;}
+    s.waitingForBoot=false;
     requestAnimationFrame(function(){requestAnimationFrame(function(){start(s);});});
   }
   function begin(svg,key){
@@ -271,7 +279,7 @@
       var live=prepare(svg,session,key);apply(live,elapsed);if(session.startedAt==null)scheduleStart(session);return;
     }
     cancel(session);
-    session={id:++serial,key:key,startedAt:null,completed:false,cancelled:false,raf:0,timing:null};
+    session={id:++serial,key:key,startedAt:null,completed:false,cancelled:false,raf:0,timing:null,waitingForBoot:false};
     prepare(svg,session,key);scheduleStart(session);
   }
 
@@ -291,7 +299,13 @@
     }
   }catch(_){}
 
-  /* Synchronous arming is complete. The chart can now paint in its prepared
-     state rather than flashing fully drawn and rewinding. */
-  requestAnimationFrame(function(){document.documentElement.classList.remove('rt-motion-prep');});
+  window.addEventListener('retrade:boot-reveal',function(){
+    if(!session||session.cancelled||session.completed||session.startedAt!=null)return;
+    session.waitingForBoot=false;
+    scheduleStart(session);
+  });
+
+  /* Synchronous arming is complete. app.js owns the global motion-ready gate;
+     this module only reports that the Sales sequence can now start on reveal. */
+  window.__rtSalesSequenceArmed=true;
 })();
