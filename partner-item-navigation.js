@@ -1,4 +1,4 @@
-/* RETRADE partner item navigation v1.4.60
+/* RETRADE partner item navigation v1.4.61
  * Partner/account item rows are primary navigation, not popup previews.
  *
  * Flow:
@@ -6,11 +6,15 @@
  *
  * Selection mode keeps its existing bulk-select behaviour. Buttons inside a row
  * (settle, edit split, relist, etc.) keep their own actions and do not navigate.
+ *
+ * v1.4.61: adds the account-header Statement action. The statement/export module
+ * is loaded only when requested so normal launch and non-partner pages stay lean.
  */
 (function(){
   'use strict';
 
   var returnContext=null;
+  var statementLoader=null;
 
   function accountById(id){
     try{return (_accounts||[]).find(function(a){return a&&String(a.id)===String(id);})||null;}
@@ -46,6 +50,66 @@
     try{if(typeof _syncFabVisibility==='function')_syncFabVisibility();}catch(_){}
   }
   window.openAccountItemPage=openAccountItemPage;
+
+  function loadPartnerStatements(done){
+    if(typeof window.openPartnerStatement==='function'){
+      done();
+      return;
+    }
+    if(statementLoader){
+      statementLoader.then(done).catch(function(){try{toast('Could not load partner statements','error');}catch(_){}});
+      return;
+    }
+    statementLoader=new Promise(function(resolve,reject){
+      var existing=document.getElementById('rt-partner-statements-script');
+      if(existing){
+        existing.addEventListener('load',resolve,{once:true});
+        existing.addEventListener('error',reject,{once:true});
+        return;
+      }
+      var script=document.createElement('script');
+      script.id='rt-partner-statements-script';
+      script.src='./partner-statements.js?v=1.0.0';
+      script.async=true;
+      script.onload=resolve;
+      script.onerror=reject;
+      document.head.appendChild(script);
+    });
+    statementLoader.then(done).catch(function(err){
+      statementLoader=null;
+      console.warn('[RETRADE] partner statement module failed to load',err);
+      try{toast('Could not load partner statements','error');}catch(_){}
+    });
+  }
+
+  function wireStatementButton(acct){
+    var page=document.getElementById('p-item');
+    if(!page||!acct)return;
+    var header=page.querySelector('.page-header');
+    if(!header)return;
+    var actions=header.lastElementChild;
+    if(!actions)return;
+
+    var old=actions.querySelector('.rt-partner-statement-btn');
+    if(old){old.dataset.accountId=acct.id;return;}
+
+    var btn=document.createElement('button');
+    btn.type='button';
+    btn.className='btn btn-secondary rt-partner-statement-btn';
+    btn.dataset.accountId=acct.id;
+    btn.title='Generate partner statement';
+    btn.style.cssText='font-size:12px;padding:6px 10px;white-space:nowrap;';
+    btn.innerHTML='<svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true" style="vertical-align:-2px;margin-right:4px"><path d="M4 2.5h5l3 3V13.5H4z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/><path d="M9 2.5v3h3M6 8h4M6 10.5h4" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>Statement';
+    btn.addEventListener('click',function(ev){
+      ev.preventDefault();ev.stopPropagation();
+      var accountId=btn.dataset.accountId;
+      loadPartnerStatements(function(){
+        if(typeof window.openPartnerStatement==='function')window.openPartnerStatement(accountId);
+        else try{toast('Partner statements are unavailable','error');}catch(_){}
+      });
+    });
+    actions.insertBefore(btn,actions.firstChild);
+  }
 
   function wirePartnerRows(acct){
     var page=document.getElementById('p-item');
@@ -86,6 +150,7 @@
     var baseRenderAccountPage=_renderAccountPage;
     _renderAccountPage=function(acct){
       var result=baseRenderAccountPage.apply(this,arguments);
+      try{wireStatementButton(acct);}catch(err){console.warn('[RETRADE] partner statement button failed',err);}
       try{wirePartnerRows(acct);}catch(err){console.warn('[RETRADE] partner row navigation polish failed',err);}
       return result;
     };
@@ -121,5 +186,5 @@
     };
   }
 
-  console.info('[RETRADE] v1.4.60 partner item direct navigation loaded');
+  console.info('[RETRADE] v1.4.61 partner item navigation + statements loaded');
 })();
