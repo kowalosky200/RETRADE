@@ -16,10 +16,18 @@ jobs:
 
       - name: JavaScript syntax
         run: |
-          node --check app.js
-          node --check accounting.js
-          node --check reports.js
-          node --check sw.js
+          set -euo pipefail
+          for file in \
+            app.js app-core.js accounting.js reports.js sw.js \
+            launch-experience.js performance-system.js sales-defaults.js \
+            bundle-orders.js bundle-panel.js bundle-row-polish.js \
+            cashflow-liabilities.js partner-item-navigation.js partner-statements.js \
+            chart-polish.js chart-motion.js chart-finalize.js chart-reveal.js \
+            sales-chart-sequence.js chart-forecast-sequence.js motion-system.js
+          do
+            echo "Checking $file"
+            node --check "$file"
+          done
 
       - name: Repository safety checks
         shell: bash
