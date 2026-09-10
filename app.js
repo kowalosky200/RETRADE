@@ -4,14 +4,18 @@
  *   1) launch coordinator + production core
  *   2) give the browser one real paint opportunity
  *   3) load feature/presentation refinements in deterministic order
+ *   4) release the boot skeleton only after the final motion layer is installed
  *
  * This keeps the large core authoritative while avoiding a long back-to-back
  * chain of secondary JavaScript evaluation before the first useful frame.
  */
 (function(){
   'use strict';
-  var v='20260910-v1463';
+  var v='20260910-v1464';
+  var motionReady=false;
+  var motionFallbackTimer=0;
 
+  window.__rtMotionStackReady=false;
   document.documentElement.classList.add('rt-app-cold','rt-motion-prep');
 
   if(!document.getElementById('rt-motion-preflight')){
@@ -20,7 +24,19 @@
     document.head.appendChild(pre);
   }
 
-  setTimeout(function(){document.documentElement.classList.remove('rt-motion-prep');},3000);
+  function markMotionReady(reason){
+    if(motionReady)return;
+    motionReady=true;
+    window.__rtMotionStackReady=true;
+    if(motionFallbackTimer){clearTimeout(motionFallbackTimer);motionFallbackTimer=0;}
+    document.documentElement.classList.remove('rt-motion-prep');
+    try{window.dispatchEvent(new CustomEvent('retrade:motion-ready',{detail:{reason:reason||'ready'}}));}catch(_){}
+  }
+
+  // Presentation failure must never strand the app indefinitely. Normal boots
+  // signal readiness when motion-system.js finishes evaluating; this is only a
+  // safety net for a failed optional enhancement request.
+  motionFallbackTimer=setTimeout(function(){motionFallbackTimer=0;markMotionReady('fallback');},3000);
   setTimeout(function(){
     if(!document.body||!document.body.classList.contains('rt-real-layout-loading'))document.documentElement.classList.remove('rt-app-cold');
   },5000);
@@ -34,7 +50,7 @@
     s.onerror=function(){
       console.error('[RETRADE] startup script failed:',src);
       if(src==='./launch-experience.js')document.documentElement.classList.remove('rt-app-cold');
-      if(src==='./sales-chart-sequence.js')document.documentElement.classList.remove('rt-motion-prep');
+      if(src==='./motion-system.js')markMotionReady('motion-system-error');
     };
     document.head.appendChild(s);
     return s;
@@ -59,7 +75,9 @@
       './chart-forecast-sequence.js',
       './motion-system.js'
     ];
-    files.forEach(function(src,index){append(src,index<2?'auto':'low');});
+    files.forEach(function(src,index){
+      append(src,index<2?'auto':'low',index===files.length-1?function(){markMotionReady('stack-loaded');}:null);
+    });
   }
 
   /* Only two scripts sit on the first critical execution path. Dynamic classic

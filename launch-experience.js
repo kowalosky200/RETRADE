@@ -1,23 +1,19 @@
-/* RETRADE cold-start / wake coordinator v1.4.61
+/* RETRADE cold-start / wake coordinator v1.4.64
  *
- * Launch principle: the real application is already there and quietly wakes up.
- * The startup path therefore favours one coordinated page-level handoff over
- * dozens of independent value/chart animations.
+ * Launch principle: the real responsive application renders underneath its own
+ * loading state and is only revealed when BOTH contracts are true:
+ *   1) the cloud/database load has finished and the final page render returned;
+ *   2) the presentation/motion stack is installed and ready to start.
  *
- * Performance changes in this pass:
- * - no 8ms polling loop while the 1.6MB core is downloading/evaluating
- * - no per-value/per-chart hydration animations competing on the first frame
- * - shorter presentation-only boot floor (~90ms instead of the legacy 440ms)
- * - static child cache is warmed only AFTER the app is awake/idle
- * - local-only first-paint/long-task diagnostics are retained
- *
+ * This prevents a first-load flash of zero/default values and prevents chart
+ * animation from running underneath the skeleton before the user can see it.
  * No accounting, lifecycle, sync writes, auth state, forecast maths or Supabase
  * schema/data is changed by this file.
  */
 (function(){
   'use strict';
 
-  var VERSION='20260909-v1461';
+  var VERSION='20260910-v1464';
   var root=document.documentElement;
   var t0=(window.performance&&performance.now)?performance.now():Date.now();
   var bodyObserver=null;
@@ -43,6 +39,10 @@
   perf.longTaskMs=0;
   perf.loaderLongPhase=false;
   perf.bootHoldPatched=false;
+  perf.finishRequestedAt=null;
+  perf.finishReleasedAt=null;
+  perf.dataReadyAt=null;
+  perf.motionReadyAt=null;
 
   function stamp(){return ((window.performance&&performance.now)?performance.now():Date.now())-t0;}
   function reducedMotion(){
@@ -129,6 +129,9 @@ html.rt-app-cold #fab-dial,html.rt-app-cold #search-fab{transition:none!importan
     if(revealingSeen)return;
     revealingSeen=true;perf.revealAt=stamp();clearLongTimer();
     body.classList.remove('rt-launch-long');body.classList.add('rt-launch-waking');
+    // Motion owners arm while hidden and start from zero exactly as the real
+    // loading surface begins its handoff. This event is boot-only.
+    try{window.dispatchEvent(new CustomEvent('retrade:boot-reveal',{detail:{at:perf.revealAt}}));}catch(_){}
   }
   function finishWake(body){
     if(readySeen)return;
@@ -156,14 +159,39 @@ html.rt-app-cold #fab-dial,html.rt-app-cold #search-fab{transition:none!importan
   }
   observeBody();
 
-  /* Called exactly once by app.js after app-core has evaluated. This replaces
-     the previous 8ms polling loop that could wake hundreds of times while the
-     large core was still being fetched/compiled. */
+  function dataLoadFinished(){
+    try{
+      if(typeof _dbLoading!=='undefined'&&_dbLoading)return false;
+    }catch(_){}
+    return true;
+  }
+  function motionStackReady(){
+    try{
+      if(window.__rtMotionStackReady===false)return false;
+      if(root.classList.contains('rt-motion-prep'))return false;
+    }catch(_){}
+    return true;
+  }
+
+  /* Called exactly once by app.js after app-core has evaluated. The core asks to
+     finish loading from inside initDB before its finally block clears _dbLoading.
+     Capture that request, let the current task finish, then require the motion
+     stack to be armed before allowing the canonical real-layout handoff. */
   window.__rtInstallLaunchCoreHooks=function(){
     try{
-      if(typeof finishRealLayoutLoading!=='function'||finishRealLayoutLoading.__rtWakeWrapped)return !!(finishRealLayoutLoading&&finishRealLayoutLoading.__rtWakeWrapped);
+      if(typeof finishRealLayoutLoading!=='function')return false;
+      if(finishRealLayoutLoading.__rtWakeWrapped)return true;
+
       var baseFinish=finishRealLayoutLoading;
-      var wrapped=function(tab){
+      var pending=null;
+      var releaseScheduled=false;
+      var released=false;
+      var fallbackTimer=0;
+
+      function callBase(req){
+        if(!req||released)return;
+        released=true;pending=null;releaseScheduled=false;
+        if(fallbackTimer){clearTimeout(fallbackTimer);fallbackTimer=0;}
         try{
           if(typeof _realLayoutLoadingStartedAt!=='undefined'&&_realLayoutLoadingStartedAt){
             var n=(window.performance&&performance.now)?performance.now():Date.now();
@@ -172,9 +200,55 @@ html.rt-app-cold #fab-dial,html.rt-app-cold #search-fab{transition:none!importan
             _realLayoutLoadingStartedAt=n-(440-desiredRemaining);
           }
         }catch(_){}
-        return baseFinish.apply(this,arguments);
+        perf.finishReleasedAt=stamp();
+        return baseFinish.apply(req.ctx,req.args);
+      }
+
+      function schedulePaintStableRelease(){
+        if(releaseScheduled||released||!pending)return;
+        if(!dataLoadFinished()||!motionStackReady())return;
+        releaseScheduled=true;
+        perf.dataReadyAt=perf.dataReadyAt==null?stamp():perf.dataReadyAt;
+        perf.motionReadyAt=perf.motionReadyAt==null?stamp():perf.motionReadyAt;
+        var req=pending;
+        // Two paint boundaries let any renderer-owned rAF work land while the
+        // skeleton still masks values. The animation clock is still stopped.
+        requestAnimationFrame(function(){
+          requestAnimationFrame(function(){callBase(req);});
+        });
+      }
+
+      function afterCurrentTask(){
+        if(released||!pending)return;
+        if(dataLoadFinished())perf.dataReadyAt=perf.dataReadyAt==null?stamp():perf.dataReadyAt;
+        schedulePaintStableRelease();
+      }
+
+      var wrapped=function(){
+        if(released)return baseFinish.apply(this,arguments);
+        pending={ctx:this,args:Array.prototype.slice.call(arguments)};
+        perf.finishRequestedAt=perf.finishRequestedAt==null?stamp():perf.finishRequestedAt;
+        // initDB's finally clears _dbLoading after hideLoadingScreen returns.
+        // A microtask observes that completed state without a high-frequency poll.
+        Promise.resolve().then(afterCurrentTask);
+        if(!fallbackTimer){
+          fallbackTimer=setTimeout(function(){
+            // app.js also has a motion-stack fallback. This only guarantees a
+            // broken presentation enhancement can never strand the application.
+            try{window.__rtMotionStackReady=true;root.classList.remove('rt-motion-prep');}catch(_){}
+            Promise.resolve().then(afterCurrentTask);
+          },3600);
+        }
       };
-      wrapped.__rtWakeWrapped=true;finishRealLayoutLoading=wrapped;perf.bootHoldPatched=true;return true;
+      wrapped.__rtWakeWrapped=true;
+      finishRealLayoutLoading=wrapped;
+      perf.bootHoldPatched=true;
+
+      window.addEventListener('retrade:motion-ready',function(){
+        perf.motionReadyAt=perf.motionReadyAt==null?stamp():perf.motionReadyAt;
+        Promise.resolve().then(afterCurrentTask);
+      });
+      return true;
     }catch(_){return false;}
   };
 })();
