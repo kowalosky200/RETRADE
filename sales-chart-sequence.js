@@ -128,12 +128,21 @@
     var rings=svg.querySelectorAll('.rt-sales-forecast-ring');
     if(!rings.length){Array.prototype.forEach.call(svg.querySelectorAll('.rt-chart-partial-dot'),function(d){d.style.visibility='visible';d.style.opacity='1';});}
   }
+  function primePath(path){
+    if(!path||!path.isConnected)return;
+    try{path.getAnimations().forEach(function(a){a.cancel();});}catch(_){}
+    var len=0;try{len=path.getTotalLength();}catch(_){len=0;}
+    if(!(len>8))return;
+    path.style.strokeDasharray=len.toFixed(2)+'px '+len.toFixed(2)+'px';
+    path.style.strokeDashoffset=len.toFixed(2)+'px';
+  }
   function prepare(svg){
     svg.classList.add('rt-sales-sequence','rt-sales-history-stage');
     svg.classList.remove('rt-sales-forecast-stage','rt-sales-endpoint-stage','rt-sales-sequence-complete');
     var columns=chartColumns(svg);
     var partial=svg.querySelector('.rt-chart-partial-group');
     var historyColumns=partial&&columns.length>1?columns.slice(0,-1):columns.slice();
+    var paths=historyPaths(svg);paths.forEach(primePath);
     columns.forEach(function(col,idx){
       Array.prototype.forEach.call(col.querySelectorAll('circle'),function(c){
         c.classList.remove('rt-sales-history-point','rt-sales-point-on');
@@ -141,11 +150,12 @@
       });
     });
     Array.prototype.forEach.call(svg.querySelectorAll('.rt-chart-partial-dash'),function(d){d.classList.remove('rt-sales-dash-on');});
-    return {columns:columns,historyColumns:historyColumns,paths:historyPaths(svg),dashes:Array.prototype.slice.call(svg.querySelectorAll('.rt-chart-partial-dash'))};
+    return {columns:columns,historyColumns:historyColumns,paths:paths,dashes:Array.prototype.slice.call(svg.querySelectorAll('.rt-chart-partial-dash'))};
   }
   function animatePath(session,path,duration,delay){
     var len=0;try{len=path.getTotalLength();}catch(_){len=0;}
     if(!(len>8))return;
+    try{path.getAnimations().forEach(function(a){a.cancel();});}catch(_){}
     path.style.strokeDasharray=len.toFixed(2)+'px '+len.toFixed(2)+'px';
     path.style.strokeDashoffset=len.toFixed(2)+'px';
     if(typeof path.animate!=='function'){
@@ -167,8 +177,9 @@
     if(!svg||!svg.isConnected)return;
     cancel(active);
     var session=active={id:++serial,key:key,cancelled:false,timers:[],animations:[]};
+    lastAnimatedKey=key;
     var state=prepare(svg);
-    if(reduced()||!visible(svg)){settle(svg);lastAnimatedKey=key;return;}
+    if(reduced()||!visible(svg)){settle(svg);return;}
 
     var points=Math.max(1,state.historyColumns.length);
     var historyMs=Math.max(HISTORY_MIN,Math.min(HISTORY_MAX,Math.max(1,points-1)*HISTORY_PER_MONTH));
@@ -193,7 +204,7 @@
 
     var endpointStart=forecastStart+dashTotal+ENDPOINT_GAP;
     addTimer(session,function(){svg.classList.add('rt-sales-endpoint-stage');},endpointStart);
-    addTimer(session,function(){settle(svg);lastAnimatedKey=key;diag.lastTotalMs=endpointStart+ENDPOINT_MS;},endpointStart+ENDPOINT_MS+20);
+    addTimer(session,function(){settle(svg);diag.lastTotalMs=endpointStart+ENDPOINT_MS;},endpointStart+ENDPOINT_MS+20);
 
     diag.historyMs=historyMs;
     diag.forecastMs=dashTotal;
