@@ -10,6 +10,20 @@
  * functions remain the accessible source of truth. Vertical scrolling wins
  * whenever direction is ambiguous. No accounting, lifecycle, persistence,
  * forecast or sync semantics are duplicated here.
+ *
+ * Interaction model (kept here beside the implementation so later features do
+ * not invent competing gesture semantics):
+ *   Item row leading swipe  : next lifecycle action (List / Sold / Return / Relist)
+ *   Item row trailing swipe : Delete (canonical confirmation still applies)
+ *   Other rows              : derive Open/Edit/Undo/Delete from existing controls
+ *   Hold / secondary click  : up to six contextual actions, destructive last
+ *   Leading-edge page swipe : hierarchical Back / dismiss, never root-tab paging
+ *
+ * A short swipe only exposes the action rail. Full-swipe execution is opt-in per
+ * action and reserved for canonical flows that either open a workflow or retain
+ * their existing confirmation guard. Charts, form controls and explicit buttons
+ * are excluded from row gesture capture. Reduced Motion keeps state changes but
+ * removes the ornamental transition.
  */
 (function(){
   'use strict';
