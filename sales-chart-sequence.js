@@ -1,19 +1,14 @@
-/* RETRADE Sales yearly chart sequence v2.1 (v1.4.64)
+/* RETRADE Sales yearly chart sequence v3.0 (v1.4.66)
  *
- * Single owner for the Sales yearly-chart animation.
+ * One presentation owner for the Sales yearly chart.
  *
- * The static chart/forecast maths are still produced by app-core + chart-motion.
- * This layer owns ONLY the presentation sequence:
- *   1. hide historical points and all current-month forecast geometry
- *   2. draw the two historical lines continuously from left to right
- *   3. reveal each month's points exactly when the line reaches that month
- *   4. pause briefly at the latest completed month
- *   5. reveal the current-month forecast one physical dash at a time
- *   6. reveal the hollow forecast destination points last
- *
- * Boot rule: prepare the final hydrated chart while the real-layout skeleton is
- * present, but do not start the animation clock until the skeleton begins its
- * actual reveal. Normal in-app Sales renders continue to start immediately.
+ * Premium-motion goals:
+ * - useful chart geometry is ready immediately; animation never gates data
+ * - history draws once with a short continuous left-to-right reveal
+ * - current-month actual/forecast follows as one compact second act
+ * - incidental data refreshes settle in place instead of replaying the show
+ * - no perpetual requestAnimationFrame loop; browser-owned WAAPI handles paths
+ * - reduced-motion settles the finished chart immediately
  *
  * No accounting, forecast calculation, sync, lifecycle or persisted data.
  */
@@ -25,96 +20,79 @@
     return;
   }
 
-  var START_DELAY=70;
-  var MONTH_MS=225;
-  var HISTORY_MIN=1050;
-  var HISTORY_MAX=2350;
-  var FORECAST_GAP=145;
-  var FORECAST_DASH_MS=78;
-  var FORECAST_MIN=620;
-  var FORECAST_MAX=1320;
-  var ENDPOINT_GAP=95;
-  var ENDPOINT_MS=190;
-  var session=null;
+  var EASE='cubic-bezier(.22,.61,.36,1)';
+  var START_DELAY=35;
+  var HISTORY_MIN=480;
+  var HISTORY_MAX=760;
+  var HISTORY_PER_MONTH=55;
+  var FORECAST_GAP=65;
+  var DASH_STEP=34;
+  var DASH_MAX=360;
+  var ENDPOINT_GAP=45;
+  var ENDPOINT_MS=165;
+  var active=null;
   var serial=0;
+  var lastAnimatedKey='';
 
   window.__rtSalesChartSequence=window.__rtSalesChartSequence||{};
   var diag=window.__rtSalesChartSequence;
-  diag.version='2.1';
+  diag.version='3.0';
+  window.__rtSalesSequenceArmed=true;
 
-  function now(){return (window.performance&&performance.now)?performance.now():Date.now();}
-  function clamp(v){return Math.max(0,Math.min(1,v));}
   function reduced(){
     try{return !!(window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches);}catch(_){return false;}
-  }
-  function bootHandoffHolding(){
-    var body=document.body;
-    return !!(body&&body.classList.contains('rt-real-layout-loading')&&!body.classList.contains('rt-real-layout-revealing'));
-  }
-  function isSales(svg,opts){
-    return !!(svg&&svg.id==='monthly-profitability-svg'&&opts&&opts.primaryLabel==='Net Revenue'&&opts.secondaryLabel==='Net Profit');
   }
   function visible(svg){
     if(!svg||!svg.isConnected)return false;
     var r;try{r=svg.getBoundingClientRect();}catch(_){r=null;}
     return !!(r&&r.width>80&&r.height>80);
   }
-  function keyFor(labels,rev,profit,opts){
-    var p='';try{p=String(typeof MONTHLY_PERIOD!=='undefined'?MONTHLY_PERIOD:'');}catch(_){}
-    var r=(rev||[]).map(function(v){return Math.round((Number(v)||0)*100)/100;});
-    var g=(profit||[]).map(function(v){return Math.round((Number(v)||0)*100)/100;});
-    return [p,(opts&&opts.partialLast)?'partial':'full',(labels||[]).join(','),r.join(','),g.join(',')].join('|');
+  function bootHolding(){
+    var body=document.body;
+    return !!(body&&body.classList.contains('rt-real-layout-loading')&&!body.classList.contains('rt-real-layout-revealing'));
   }
-  function parsePathPoints(path){
-    var d=String(path&&path.getAttribute('d')||'');
-    var nums=d.match(/[-+]?(?:\d*\.)?\d+(?:e[-+]?\d+)?/ig)||[];
-    var pts=[];
-    for(var i=0;i+1<nums.length;i+=2){
-      var x=Number(nums[i]),y=Number(nums[i+1]);
-      if(isFinite(x)&&isFinite(y))pts.push({x:x,y:y});
-    }
-    return pts;
+  function isSales(svg,opts){
+    return !!(svg&&svg.id==='monthly-profitability-svg'&&opts&&opts.primaryLabel==='Net Revenue'&&opts.secondaryLabel==='Net Profit');
   }
-  function pathMilestones(path){
-    var pts=parsePathPoints(path),cum=[0],total=0;
-    for(var i=1;i<pts.length;i++){
-      var dx=pts[i].x-pts[i-1].x,dy=pts[i].y-pts[i-1].y;
-      total+=Math.sqrt(dx*dx+dy*dy);cum.push(total);
-    }
-    if(total<=0){try{total=path.getTotalLength()||0;}catch(_){total=0;}}
-    return {path:path,points:pts,milestones:cum,total:total};
-  }
-  function allHistoricalPaths(svg){
-    return Array.prototype.slice.call(svg.querySelectorAll('path.rt-chart-line:not(.rt-chart-tertiary-line)')).filter(function(p){
-      return !!p.getAttribute('d')&&parsePathPoints(p).length>1;
-    });
+  function routeKey(){
+    var period='',view='',replay=window.__rtSalesMotionReplayToken||0;
+    try{period=String(typeof MONTHLY_PERIOD!=='undefined'?MONTHLY_PERIOD:'');}catch(_){}
+    try{view=String(typeof MONTHLY_VIEW!=='undefined'?MONTHLY_VIEW:'');}catch(_){}
+    return period+'|'+view+'|'+String(replay);
   }
   function chartColumns(svg){
     return Array.prototype.slice.call(svg.querySelectorAll('.rt-chart-col[data-idx]')).sort(function(a,b){
       return (Number(a.getAttribute('data-idx'))||0)-(Number(b.getAttribute('data-idx'))||0);
     });
   }
+  function historyPaths(svg){
+    return Array.prototype.slice.call(svg.querySelectorAll('path.rt-chart-line:not(.rt-chart-tertiary-line)')).filter(function(path){
+      if(path.closest('.rt-chart-partial-group'))return false;
+      try{return path.getTotalLength()>8;}catch(_){return false;}
+    });
+  }
 
   function installStyles(){
-    ['rt-sales-sequence-v2-css','rt-sales-forecast-hard-gate-css','rt-line-motion-v1455'].forEach(function(id){var n=document.getElementById(id);if(n)n.remove();});
-    var s=document.createElement('style');s.id='rt-sales-sequence-v2-css';
+    ['rt-sales-sequence-v2-css','rt-sales-sequence-v3-css','rt-sales-forecast-hard-gate-css','rt-line-motion-v1455'].forEach(function(id){var n=document.getElementById(id);if(n)n.remove();});
+    var s=document.createElement('style');s.id='rt-sales-sequence-v3-css';
     s.textContent='\
-#p-monthly #monthly-profitability-svg.rt-sales-sequence{--rt-sales-point-ms:150ms}\
-#p-monthly #monthly-profitability-svg.rt-sales-sequence .rt-sales-history-point{opacity:0!important;transform:scale(.70)!important;transform-box:fill-box;transform-origin:center;animation:none!important;transition:none!important}\
-#p-monthly #monthly-profitability-svg.rt-sales-sequence .rt-sales-history-point.rt-sales-point-on{opacity:1!important;transform:scale(1)!important;transition:opacity var(--rt-sales-point-ms) ease-out,transform var(--rt-sales-point-ms) cubic-bezier(.22,.61,.36,1)!important}\
+#p-monthly #monthly-profitability-svg.rt-sales-sequence{--rt-sales-point-ms:135ms}\
+#p-monthly #monthly-profitability-svg.rt-sales-sequence .rt-sales-history-point{opacity:0!important;transform:scale(.92)!important;transform-box:fill-box;transform-origin:center;animation:none!important;transition:none!important}\
+#p-monthly #monthly-profitability-svg.rt-sales-sequence .rt-sales-history-point.rt-sales-point-on{opacity:1!important;transform:scale(1)!important;transition:opacity var(--rt-sales-point-ms) ease-out,transform var(--rt-sales-point-ms) '+EASE+'!important}\
 #p-monthly #monthly-profitability-svg.rt-sales-sequence .rt-chart-partial-group{visibility:hidden!important}\
 #p-monthly #monthly-profitability-svg.rt-sales-sequence.rt-sales-forecast-stage .rt-chart-partial-group{visibility:visible!important}\
 #p-monthly #monthly-profitability-svg.rt-sales-sequence .rt-chart-partial-dash{opacity:0!important;animation:none!important;transition:none!important}\
-#p-monthly #monthly-profitability-svg.rt-sales-sequence .rt-chart-partial-dash.rt-sales-dash-on{opacity:1!important;transition:opacity 90ms ease-out!important}\
+#p-monthly #monthly-profitability-svg.rt-sales-sequence .rt-chart-partial-dash.rt-sales-dash-on{opacity:1!important;transition:opacity 80ms ease-out!important}\
 #p-monthly #monthly-profitability-svg.rt-sales-sequence .rt-chart-partial-dot{opacity:0!important;visibility:hidden!important;animation:none!important}\
-#p-monthly #monthly-profitability-svg.rt-sales-sequence .rt-sales-forecast-ring{opacity:0!important;visibility:hidden!important;transform:scale(.72)!important;transform-box:fill-box;transform-origin:center;animation:none!important;transition:none!important}\
-#p-monthly #monthly-profitability-svg.rt-sales-sequence.rt-sales-endpoint-stage .rt-sales-forecast-ring{opacity:.98!important;visibility:visible!important;transform:scale(1)!important;transition:opacity '+ENDPOINT_MS+'ms ease-out,transform '+ENDPOINT_MS+'ms cubic-bezier(.22,.72,.28,1)!important}\
+#p-monthly #monthly-profitability-svg.rt-sales-sequence .rt-sales-actual-dot{opacity:0!important;transform:scale(.94)!important;transform-box:fill-box;transform-origin:center;animation:none!important;transition:none!important}\
+#p-monthly #monthly-profitability-svg.rt-sales-sequence.rt-sales-forecast-stage .rt-sales-actual-dot{opacity:1!important;transform:scale(1)!important;transition:opacity 135ms ease-out,transform 135ms '+EASE+'!important}\
+#p-monthly #monthly-profitability-svg.rt-sales-sequence .rt-sales-forecast-ring,#p-monthly #monthly-profitability-svg.rt-sales-sequence .rt-sales-forecast-label,#p-monthly #monthly-profitability-svg.rt-sales-sequence .rt-sales-range-label{opacity:0!important;visibility:hidden!important;animation:none!important;transition:none!important}\
+#p-monthly #monthly-profitability-svg.rt-sales-sequence .rt-sales-forecast-ring{transform:scale(.94)!important;transform-box:fill-box;transform-origin:center}\
+#p-monthly #monthly-profitability-svg.rt-sales-sequence.rt-sales-endpoint-stage .rt-sales-forecast-ring,#p-monthly #monthly-profitability-svg.rt-sales-sequence.rt-sales-endpoint-stage .rt-sales-forecast-label,#p-monthly #monthly-profitability-svg.rt-sales-sequence.rt-sales-endpoint-stage .rt-sales-range-label{opacity:1!important;visibility:visible!important;transform:scale(1)!important;transition:opacity '+ENDPOINT_MS+'ms ease-out,transform '+ENDPOINT_MS+'ms '+EASE+'!important}\
 #p-monthly #monthly-profitability-svg.rt-sales-sequence .rt-chart-so-far{opacity:0!important;transition:none!important}\
-#p-monthly #monthly-profitability-svg.rt-sales-sequence.rt-sales-forecast-stage .rt-chart-so-far{opacity:.72!important;transition:opacity 160ms ease-out!important}\
-/* Retire the older independent actual/forecast point animations from chart-motion. */\
-#p-monthly #monthly-profitability-svg.rt-sales-sequence .rt-sales-actual-dot,#p-monthly #monthly-profitability-svg.rt-sales-sequence .rt-sales-forecast-label,#p-monthly #monthly-profitability-svg.rt-sales-sequence .rt-sales-range-label{animation:none!important}\
+#p-monthly #monthly-profitability-svg.rt-sales-sequence.rt-sales-forecast-stage .rt-chart-so-far{opacity:.72!important;transition:opacity 130ms ease-out!important}\
 @media(prefers-reduced-motion:reduce){\
- #p-monthly #monthly-profitability-svg.rt-sales-sequence .rt-sales-history-point,#p-monthly #monthly-profitability-svg.rt-sales-sequence .rt-chart-partial-dash,#p-monthly #monthly-profitability-svg.rt-sales-sequence .rt-sales-forecast-ring,#p-monthly #monthly-profitability-svg.rt-sales-sequence .rt-chart-partial-dot{opacity:1!important;visibility:visible!important;transform:none!important;transition:none!important}\
+ #p-monthly #monthly-profitability-svg.rt-sales-sequence .rt-sales-history-point,#p-monthly #monthly-profitability-svg.rt-sales-sequence .rt-chart-partial-dash,#p-monthly #monthly-profitability-svg.rt-sales-sequence .rt-sales-actual-dot,#p-monthly #monthly-profitability-svg.rt-sales-sequence .rt-sales-forecast-ring,#p-monthly #monthly-profitability-svg.rt-sales-sequence .rt-sales-forecast-label,#p-monthly #monthly-profitability-svg.rt-sales-sequence .rt-sales-range-label,#p-monthly #monthly-profitability-svg.rt-sales-sequence .rt-chart-partial-dot{opacity:1!important;visibility:visible!important;transform:none!important;transition:none!important}\
  #p-monthly #monthly-profitability-svg.rt-sales-sequence .rt-chart-partial-group{visibility:visible!important}\
 }\
 ';
@@ -122,54 +100,40 @@
   }
   installStyles();
 
-  function cancel(s){
-    if(!s)return;s.cancelled=true;
-    if(s.raf){try{cancelAnimationFrame(s.raf);}catch(_){}s.raf=0;}
+  function addTimer(session,fn,delay){
+    var id=setTimeout(function(){
+      var i=session.timers.indexOf(id);if(i>=0)session.timers.splice(i,1);
+      if(!session.cancelled)fn();
+    },Math.max(0,delay||0));
+    session.timers.push(id);return id;
   }
-  function cleanInline(st){
-    (st.paths||[]).forEach(function(p){
-      if(!p.path||!p.path.isConnected)return;
-      p.path.style.removeProperty('stroke-dasharray');p.path.style.removeProperty('stroke-dashoffset');
-    });
+  function cancel(session){
+    if(!session)return;
+    session.cancelled=true;
+    (session.timers||[]).forEach(clearTimeout);session.timers=[];
+    (session.animations||[]).forEach(function(a){try{a.cancel();}catch(_){}});session.animations=[];
   }
-  function revealHistoryPoint(st,index){
-    var col=st.historyColumns[index];if(!col)return;
-    Array.prototype.forEach.call(col.querySelectorAll('circle.rt-sales-history-point'),function(c){c.classList.add('rt-sales-point-on');});
+  function cleanupPath(path){
+    if(!path||!path.isConnected)return;
+    path.style.removeProperty('stroke-dasharray');
+    path.style.removeProperty('stroke-dashoffset');
   }
-  function revealAllHistoryPoints(st){for(var i=0;i<st.historyColumns.length;i++)revealHistoryPoint(st,i);}
-  function revealForecastDashes(st,count){
-    st.partialGroups.forEach(function(group){
-      var dashes=group.dashes,n=dashes.length;
-      if(!n)return;
-      var target=Math.min(n,Math.ceil((count/Math.max(1,st.forecastSteps))*n));
-      for(var i=0;i<target;i++)dashes[i].classList.add('rt-sales-dash-on');
-    });
+  function settle(svg){
+    if(!svg)return;
+    svg.classList.add('rt-sales-sequence','rt-sales-forecast-stage','rt-sales-endpoint-stage','rt-sales-sequence-complete');
+    svg.classList.remove('rt-sales-history-stage');
+    historyPaths(svg).forEach(cleanupPath);
+    Array.prototype.forEach.call(svg.querySelectorAll('.rt-sales-history-point'),function(c){c.classList.add('rt-sales-point-on');});
+    Array.prototype.forEach.call(svg.querySelectorAll('.rt-chart-partial-dash'),function(d){d.classList.add('rt-sales-dash-on');});
+    var rings=svg.querySelectorAll('.rt-sales-forecast-ring');
+    if(!rings.length){Array.prototype.forEach.call(svg.querySelectorAll('.rt-chart-partial-dot'),function(d){d.style.visibility='visible';d.style.opacity='1';});}
   }
-  function settle(st){
-    if(!st||!st.svg)return;
-    cleanInline(st);revealAllHistoryPoints(st);revealForecastDashes(st,st.forecastSteps);
-    st.svg.classList.add('rt-sales-forecast-stage','rt-sales-endpoint-stage','rt-sales-sequence-complete');
-    st.svg.classList.remove('rt-sales-history-stage');
-    /* The renderer-owned hollow last-column dots duplicate the cleaner overlay
-       forecast rings when that layer exists. Keep duplicates suppressed. */
-    var rings=st.svg.querySelectorAll('.rt-sales-forecast-ring');
-    if(!rings.length){Array.prototype.forEach.call(st.svg.querySelectorAll('.rt-chart-partial-dot'),function(d){d.style.visibility='visible';d.style.opacity='1';});}
-  }
-
-  function prepare(svg,s,key){
-    if(!svg)return null;
-    var columns=chartColumns(svg),partialGroups=Array.prototype.slice.call(svg.querySelectorAll('.rt-chart-partial-group'));
-    var partial=partialGroups.length>0;
-    var historyColumns=partial&&columns.length>1?columns.slice(0,-1):columns.slice();
-    var paths=allHistoricalPaths(svg).map(pathMilestones).filter(function(p){return p.total>0&&p.milestones.length>1;});
-    var pointCount=historyColumns.length;
-    var segmentCount=Math.max(1,pointCount-1);
-    paths.forEach(function(p){segmentCount=Math.min(segmentCount,Math.max(1,p.milestones.length-1));});
-    var historyMs=Math.max(HISTORY_MIN,Math.min(HISTORY_MAX,segmentCount*MONTH_MS));
-
+  function prepare(svg){
     svg.classList.add('rt-sales-sequence','rt-sales-history-stage');
     svg.classList.remove('rt-sales-forecast-stage','rt-sales-endpoint-stage','rt-sales-sequence-complete');
-
+    var columns=chartColumns(svg);
+    var partial=svg.querySelector('.rt-chart-partial-group');
+    var historyColumns=partial&&columns.length>1?columns.slice(0,-1):columns.slice();
     columns.forEach(function(col,idx){
       Array.prototype.forEach.call(col.querySelectorAll('circle'),function(c){
         c.classList.remove('rt-sales-history-point','rt-sales-point-on');
@@ -177,135 +141,93 @@
       });
     });
     Array.prototype.forEach.call(svg.querySelectorAll('.rt-chart-partial-dash'),function(d){d.classList.remove('rt-sales-dash-on');});
+    return {columns:columns,historyColumns:historyColumns,paths:historyPaths(svg),dashes:Array.prototype.slice.call(svg.querySelectorAll('.rt-chart-partial-dash'))};
+  }
+  function animatePath(session,path,duration,delay){
+    var len=0;try{len=path.getTotalLength();}catch(_){len=0;}
+    if(!(len>8))return;
+    path.style.strokeDasharray=len.toFixed(2)+'px '+len.toFixed(2)+'px';
+    path.style.strokeDashoffset=len.toFixed(2)+'px';
+    if(typeof path.animate!=='function'){
+      addTimer(session,function(){path.style.strokeDashoffset='0px';cleanupPath(path);},delay+duration);
+      return;
+    }
+    try{
+      var a=path.animate([{strokeDashoffset:len.toFixed(2)+'px'},{strokeDashoffset:'0px'}],{duration:duration,delay:delay,easing:EASE,fill:'forwards'});
+      session.animations.push(a);
+      a.onfinish=function(){
+        path.style.strokeDashoffset='0px';cleanupPath(path);
+        var i=session.animations.indexOf(a);if(i>=0)session.animations.splice(i,1);
+        try{a.cancel();}catch(_){}
+      };
+    }catch(_){addTimer(session,function(){cleanupPath(path);},delay+duration);}
+  }
 
-    paths.forEach(function(p){
-      p.path.style.strokeDasharray=p.total.toFixed(2)+'px '+p.total.toFixed(2)+'px';
-      p.path.style.strokeDashoffset=p.total.toFixed(2)+'px';
-      try{p.path.getAnimations().forEach(function(a){a.cancel();});}catch(_){}
+  function run(svg,key){
+    if(!svg||!svg.isConnected)return;
+    cancel(active);
+    var session=active={id:++serial,key:key,cancelled:false,timers:[],animations:[]};
+    var state=prepare(svg);
+    if(reduced()||!visible(svg)){settle(svg);lastAnimatedKey=key;return;}
+
+    var points=Math.max(1,state.historyColumns.length);
+    var historyMs=Math.max(HISTORY_MIN,Math.min(HISTORY_MAX,Math.max(1,points-1)*HISTORY_PER_MONTH));
+    state.paths.forEach(function(path){animatePath(session,path,historyMs,START_DELAY);});
+
+    state.historyColumns.forEach(function(col,index){
+      var ratio=points<=1?0:index/(points-1);
+      addTimer(session,function(){
+        Array.prototype.forEach.call(col.querySelectorAll('circle.rt-sales-history-point'),function(c){c.classList.add('rt-sales-point-on');});
+      },START_DELAY+historyMs*ratio-18);
     });
 
-    var groups=partialGroups.map(function(g){return {el:g,dashes:Array.prototype.slice.call(g.querySelectorAll('.rt-chart-partial-dash'))};});
-    var forecastSteps=0;groups.forEach(function(g){forecastSteps=Math.max(forecastSteps,g.dashes.length);});
-    var forecastMs=forecastSteps?Math.max(FORECAST_MIN,Math.min(FORECAST_MAX,forecastSteps*FORECAST_DASH_MS)):0;
     var forecastStart=START_DELAY+historyMs+FORECAST_GAP;
-    var endpointStart=forecastStart+forecastMs+ENDPOINT_GAP;
-    var completeAt=endpointStart+ENDPOINT_MS+80;
-    var st={svg:svg,key:key,session:s,columns:columns,historyColumns:historyColumns,paths:paths,partialGroups:groups,segmentCount:segmentCount,historyMs:historyMs,forecastSteps:forecastSteps,forecastMs:forecastMs,forecastStart:forecastStart,endpointStart:endpointStart,completeAt:completeAt,lastPoint:-1,lastForecastStep:-1};
-    svg.__rtSalesSequenceState=st;
-    s.timing={historyMs:historyMs,forecastMs:forecastMs,completeAt:completeAt};
-    diag.historyMs=historyMs;diag.forecastMs=forecastMs;diag.forecastSteps=forecastSteps;diag.points=pointCount;
-    return st;
+    addTimer(session,function(){svg.classList.remove('rt-sales-history-stage');svg.classList.add('rt-sales-forecast-stage');},forecastStart);
+
+    var dashCount=state.dashes.length;
+    var dashTotal=Math.min(DASH_MAX,Math.max(0,dashCount*DASH_STEP));
+    if(dashCount){
+      var step=dashTotal/Math.max(1,dashCount);
+      state.dashes.forEach(function(dash,index){addTimer(session,function(){dash.classList.add('rt-sales-dash-on');},forecastStart+index*step);});
+    }
+
+    var endpointStart=forecastStart+dashTotal+ENDPOINT_GAP;
+    addTimer(session,function(){svg.classList.add('rt-sales-endpoint-stage');},endpointStart);
+    addTimer(session,function(){settle(svg);lastAnimatedKey=key;diag.lastTotalMs=endpointStart+ENDPOINT_MS;},endpointStart+ENDPOINT_MS+20);
+
+    diag.historyMs=historyMs;
+    diag.forecastMs=dashTotal;
+    diag.points=points;
+    diag.dashes=dashCount;
+    diag.totalMs=endpointStart+ENDPOINT_MS;
   }
 
-  function historyCursor(st,elapsed){
-    if(elapsed<=START_DELAY)return 0;
-    return clamp((elapsed-START_DELAY)/Math.max(1,st.historyMs))*st.segmentCount;
-  }
-  function updateHistory(st,elapsed){
-    var cursor=historyCursor(st,elapsed);
-    var seg=Math.min(st.segmentCount-1,Math.floor(cursor));
-    var local=Math.max(0,Math.min(1,cursor-seg));
-    if(cursor>=st.segmentCount){seg=st.segmentCount-1;local=1;}
-
-    st.paths.forEach(function(p){
-      if(!p.path||!p.path.isConnected)return;
-      var maxSeg=Math.min(st.segmentCount,p.milestones.length-1);
-      var localCursor=Math.min(maxSeg,cursor),i=Math.min(maxSeg-1,Math.floor(localCursor)),q=Math.max(0,Math.min(1,localCursor-i));
-      if(localCursor>=maxSeg){i=maxSeg-1;q=1;}
-      var a=p.milestones[i]||0,b=p.milestones[i+1]!=null?p.milestones[i+1]:p.total;
-      var shown=a+(b-a)*q;
-      p.path.style.strokeDashoffset=Math.max(0,p.total-shown).toFixed(2)+'px';
-    });
-
-    var arrived=Math.min(st.historyColumns.length-1,Math.floor(cursor+0.015));
-    if(elapsed>=START_DELAY&&arrived>st.lastPoint){
-      for(var j=st.lastPoint+1;j<=arrived;j++)revealHistoryPoint(st,j);
-      st.lastPoint=arrived;
+  function arm(svg,key){
+    if(!svg||!svg.isConnected)return;
+    if(key===lastAnimatedKey){cancel(active);settle(svg);return;}
+    prepare(svg);
+    if(reduced()){settle(svg);lastAnimatedKey=key;return;}
+    if(bootHolding()){
+      var once=function(){window.removeEventListener('retrade:boot-reveal',once);requestAnimationFrame(function(){run(svg,key);});};
+      window.addEventListener('retrade:boot-reveal',once,{once:true});
+      return;
     }
-    if(cursor>=st.segmentCount){cleanInline(st);revealAllHistoryPoints(st);st.lastPoint=st.historyColumns.length-1;}
-  }
-  function updateForecast(st,elapsed){
-    if(!st.forecastSteps)return;
-    if(elapsed<st.forecastStart)return;
-    if(!st.svg.classList.contains('rt-sales-forecast-stage')){
-      st.svg.classList.remove('rt-sales-history-stage');st.svg.classList.add('rt-sales-forecast-stage');
-    }
-    var q=clamp((elapsed-st.forecastStart)/Math.max(1,st.forecastMs));
-    var step=Math.min(st.forecastSteps,Math.floor(q*st.forecastSteps));
-    if(q>=1)step=st.forecastSteps;
-    if(step!==st.lastForecastStep){revealForecastDashes(st,step);st.lastForecastStep=step;}
-    if(elapsed>=st.endpointStart)st.svg.classList.add('rt-sales-endpoint-stage');
-  }
-  function apply(st,elapsed){
-    updateHistory(st,elapsed);updateForecast(st,elapsed);
-    if(elapsed>=st.completeAt)settle(st);
+    requestAnimationFrame(function(){run(svg,key);});
   }
 
-  function frame(s,ts){
-    if(!s||s.cancelled||s!==session)return;
-    var svg=document.getElementById('monthly-profitability-svg');
-    if(!svg||!svg.isConnected||!visible(svg)){
-      s.raf=requestAnimationFrame(function(t){frame(s,t);});return;
-    }
-    var st=svg.__rtSalesSequenceState;
-    if(!st||st.session!==s)st=prepare(svg,s,s.key);
-    var elapsed=Math.max(0,ts-s.startedAt);apply(st,elapsed);
-    if(elapsed>=st.completeAt){s.completed=true;s.raf=0;return;}
-    s.raf=requestAnimationFrame(function(t){frame(s,t);});
-  }
-  function start(s){
-    if(!s||s.cancelled||s.completed||s.startedAt!=null||s!==session)return;
-    if(bootHandoffHolding()){s.waitingForBoot=true;return;}
-    s.waitingForBoot=false;
-    var svg=document.getElementById('monthly-profitability-svg');
-    if(!svg||!visible(svg))return;
-    if(reduced()){
-      var rs=svg.__rtSalesSequenceState||prepare(svg,s,s.key);settle(rs);s.completed=true;return;
-    }
-    s.startedAt=now();diag.startedAt=s.startedAt;
-    s.raf=requestAnimationFrame(function(t){frame(s,t);});
-  }
-  function scheduleStart(s){
-    if(!s||s.cancelled||s.completed||s.startedAt!=null||s!==session)return;
-    if(bootHandoffHolding()){s.waitingForBoot=true;return;}
-    s.waitingForBoot=false;
-    requestAnimationFrame(function(){requestAnimationFrame(function(){start(s);});});
-  }
-  function begin(svg,key){
-    if(session&&session.key===key){
-      var existing=svg.__rtSalesSequenceState;
-      if(session.completed){existing=prepare(svg,session,key);settle(existing);return;}
-      var elapsed=session.startedAt==null?0:Math.max(0,now()-session.startedAt);
-      var live=prepare(svg,session,key);apply(live,elapsed);if(session.startedAt==null)scheduleStart(session);return;
-    }
-    cancel(session);
-    session={id:++serial,key:key,startedAt:null,completed:false,cancelled:false,raf:0,timing:null,waitingForBoot:false};
-    prepare(svg,session,key);scheduleStart(session);
-  }
-
-  var before=_renderChartInto;
+  var renderBeforeSequence=_renderChartInto;
   _renderChartInto=function(svgEl,labels,revData,profitData,handlers,opts){
-    var out=before.apply(this,arguments);
-    if(isSales(svgEl,opts))begin(svgEl,keyFor(labels,revData,profitData,opts));
+    var out=renderBeforeSequence.apply(this,arguments);
+    if(isSales(svgEl,opts))arm(svgEl,routeKey());
     return out;
   };
 
-  /* The first Sales chart can exist before this late presentation layer loads. */
-  try{
-    var existing=document.getElementById('monthly-profitability-svg');
-    if(existing&&existing.querySelector('path.rt-chart-line')){
-      var cols=chartColumns(existing),labelKey=cols.map(function(c){return c.getAttribute('data-idx')||'';}).join(',');
-      begin(existing,'existing|'+labelKey+'|'+String(existing.innerHTML.length));
-    }
-  }catch(_){}
-
-  window.addEventListener('retrade:boot-reveal',function(){
-    if(!session||session.cancelled||session.completed||session.startedAt!=null)return;
-    session.waitingForBoot=false;
-    scheduleStart(session);
+  /* The first hydrated render can precede this late presentation layer. Enhance
+     an already-present visible Sales chart once; never hold the app for it. */
+  requestAnimationFrame(function(){
+    try{
+      var svg=document.getElementById('monthly-profitability-svg');
+      if(svg&&visible(svg))arm(svg,routeKey());
+    }catch(_){}
   });
-
-  /* Synchronous arming is complete. app.js owns the global motion-ready gate;
-     this module only reports that the Sales sequence can now start on reveal. */
-  window.__rtSalesSequenceArmed=true;
 })();
