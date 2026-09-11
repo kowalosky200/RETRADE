@@ -11,7 +11,7 @@
  */
 (function(){
   'use strict';
-  var v='20260911-v1466';
+  var v='20260911-v1467';
   var motionReady=false;
   var motionFallbackTimer=0;
 
@@ -60,10 +60,11 @@
   }
 
   function loadEnhancements(){
-    /* Performance/navigation wrappers first: they are cheap and should be in
+    /* Interaction/navigation wrappers first: they are cheap and should be in
        place before a fast Supabase response causes the hydrated render. */
     var files=[
       './performance-system.js',
+      './interaction-system.js',
       './sales-defaults.js',
       './bundle-orders.js',
       './bundle-panel.js',
@@ -90,7 +91,7 @@
   append('./app-core.js','high',function(){
     try{if(typeof window.__rtInstallLaunchCoreHooks==='function')window.__rtInstallLaunchCoreHooks();}catch(_){}
     /* A frame boundary is deliberate: let the real shell/chrome reach the
-       screen before evaluating bundle/chart presentation layers. */
+       screen before evaluating interaction/chart presentation layers. */
     requestAnimationFrame(function(){loadEnhancements();});
   });
 })();
