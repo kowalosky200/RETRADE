@@ -1,19 +1,18 @@
-/* RETRADE cold-start / wake coordinator v1.4.64
+/* RETRADE cold-start / wake coordinator v1.4.66
  *
  * Launch principle: the real responsive application renders underneath its own
- * loading state and is only revealed when BOTH contracts are true:
- *   1) the cloud/database load has finished and the final page render returned;
- *   2) the presentation/motion stack is installed and ready to start.
+ * loading state and is revealed as soon as the cloud/database load has finished
+ * and the final page render has returned.
  *
- * This prevents a first-load flash of zero/default values and prevents chart
- * animation from running underneath the skeleton before the user can see it.
+ * Presentation/motion is progressive enhancement. It may arm before or after
+ * the handoff, but it must never keep useful hydrated UI behind the loader.
  * No accounting, lifecycle, sync writes, auth state, forecast maths or Supabase
  * schema/data is changed by this file.
  */
 (function(){
   'use strict';
 
-  var VERSION='20260910-v1464';
+  var VERSION='20260911-v1466';
   var root=document.documentElement;
   var t0=(window.performance&&performance.now)?performance.now():Date.now();
   var bodyObserver=null;
@@ -55,7 +54,7 @@
     s.textContent='\
 @keyframes rtWakeSheen{0%{background-position:185% 0}100%{background-position:-85% 0}}\
 @keyframes rtWakePulse{from{opacity:.48}to{opacity:.76}}\
-@keyframes rtWakePage{0%{opacity:.965;transform:translate3d(0,2px,0)}100%{opacity:1;transform:translate3d(0,0,0)}}\
+@keyframes rtWakePage{0%{opacity:.97;transform:translate3d(0,2px,0)}100%{opacity:1;transform:translate3d(0,0,0)}}\
 html.rt-app-cold .page.on{animation:none!important;}\
 html.rt-app-cold body.rt-real-layout-loading .rt-label-loading{color:inherit!important;text-shadow:inherit!important;background:none!important;overflow:visible!important;}\
 html.rt-app-cold body.rt-real-layout-loading .rt-label-loading::after{display:none!important;animation:none!important;}\
@@ -66,9 +65,9 @@ html.rt-app-cold body.rt-launch-long.rt-real-layout-loading .rt-data-loading,htm
 html.rt-app-cold body.rt-launch-long.rt-real-layout-loading .rt-chart-loading::after{animation:rtWakeSheen 2.15s cubic-bezier(.4,0,.2,1) infinite!important;opacity:.42!important;}\
 html.rt-app-cold body.rt-launch-long.rt-real-layout-loading .cat-donut-chart::before,html.rt-app-cold body.rt-launch-long.rt-real-layout-loading .cat-donut-legend::before{animation:rtWakePulse 1.7s ease-in-out infinite alternate!important;}\
 /* One composited wake for the page. Do not animate every KPI/value/chart child. */\
-body.rt-launch-waking.rt-real-layout-revealing .page.on{animation:rtWakePage 220ms cubic-bezier(.22,.61,.36,1) both!important;}\
+body.rt-launch-waking.rt-real-layout-revealing .page.on{animation:rtWakePage 190ms cubic-bezier(.22,.61,.36,1) both!important;}\
 body.rt-launch-waking.rt-real-layout-revealing .rt-data-reveal,body.rt-launch-waking.rt-real-layout-revealing .rt-chart-reveal{filter:none!important;animation:none!important;transform:none!important;}\
-body.rt-launch-waking.rt-real-layout-revealing .rt-loading-overlay-exit{transition:opacity 160ms cubic-bezier(.22,.61,.36,1)!important;}\
+body.rt-launch-waking.rt-real-layout-revealing .rt-loading-overlay-exit{transition:opacity 145ms cubic-bezier(.22,.61,.36,1)!important;}\
 html.rt-app-cold #fab-dial,html.rt-app-cold #search-fab{transition:none!important;}\
 @media(prefers-reduced-motion:reduce){\
  html.rt-app-cold body.rt-real-layout-loading .rt-data-loading,html.rt-app-cold body.rt-real-layout-loading .rt-loading-line,html.rt-app-cold body.rt-real-layout-loading .rt-chart-loading::after,html.rt-app-cold body.rt-real-layout-loading .cat-donut-chart::before,html.rt-app-cold body.rt-real-layout-loading .cat-donut-legend::before{animation:none!important;}\
@@ -129,8 +128,9 @@ html.rt-app-cold #fab-dial,html.rt-app-cold #search-fab{transition:none!importan
     if(revealingSeen)return;
     revealingSeen=true;perf.revealAt=stamp();clearLongTimer();
     body.classList.remove('rt-launch-long');body.classList.add('rt-launch-waking');
-    // Motion owners arm while hidden and start from zero exactly as the real
-    // loading surface begins its handoff. This event is boot-only.
+    // Motion owners may arm while hidden and start from zero exactly as the real
+    // loading surface begins its handoff. If they load later, they enhance the
+    // already-visible chart without delaying useful UI.
     try{window.dispatchEvent(new CustomEvent('retrade:boot-reveal',{detail:{at:perf.revealAt}}));}catch(_){}
   }
   function finishWake(body){
@@ -139,7 +139,7 @@ html.rt-app-cold #fab-dial,html.rt-app-cold #search-fab{transition:none!importan
     if(releaseTimer)clearTimeout(releaseTimer);
     releaseTimer=setTimeout(function(){
       body.classList.remove('rt-launch-waking');root.classList.remove('rt-app-cold');root.classList.add('rt-app-awake');releaseTimer=0;scheduleStaticWarm();
-    },reducedMotion()?0:235);
+    },reducedMotion()?0:205);
   }
   function inspectBody(body){
     if(!body)return;
@@ -165,18 +165,11 @@ html.rt-app-cold #fab-dial,html.rt-app-cold #search-fab{transition:none!importan
     }catch(_){}
     return true;
   }
-  function motionStackReady(){
-    try{
-      if(window.__rtMotionStackReady===false)return false;
-      if(root.classList.contains('rt-motion-prep'))return false;
-    }catch(_){}
-    return true;
-  }
 
   /* Called exactly once by app.js after app-core has evaluated. The core asks to
      finish loading from inside initDB before its finally block clears _dbLoading.
-     Capture that request, let the current task finish, then require the motion
-     stack to be armed before allowing the canonical real-layout handoff. */
+     Capture that request, let the current task finish, then release on DATA
+     readiness only. Motion-stack readiness is intentionally non-blocking. */
   window.__rtInstallLaunchCoreHooks=function(){
     try{
       if(typeof finishRealLayoutLoading!=='function')return false;
@@ -186,12 +179,10 @@ html.rt-app-cold #fab-dial,html.rt-app-cold #search-fab{transition:none!importan
       var pending=null;
       var releaseScheduled=false;
       var released=false;
-      var fallbackTimer=0;
 
       function callBase(req){
         if(!req||released)return;
         released=true;pending=null;releaseScheduled=false;
-        if(fallbackTimer){clearTimeout(fallbackTimer);fallbackTimer=0;}
         try{
           if(typeof _realLayoutLoadingStartedAt!=='undefined'&&_realLayoutLoadingStartedAt){
             var n=(window.performance&&performance.now)?performance.now():Date.now();
@@ -206,13 +197,12 @@ html.rt-app-cold #fab-dial,html.rt-app-cold #search-fab{transition:none!importan
 
       function schedulePaintStableRelease(){
         if(releaseScheduled||released||!pending)return;
-        if(!dataLoadFinished()||!motionStackReady())return;
+        if(!dataLoadFinished())return;
         releaseScheduled=true;
         perf.dataReadyAt=perf.dataReadyAt==null?stamp():perf.dataReadyAt;
-        perf.motionReadyAt=perf.motionReadyAt==null?stamp():perf.motionReadyAt;
         var req=pending;
-        // Two paint boundaries let any renderer-owned rAF work land while the
-        // skeleton still masks values. The animation clock is still stopped.
+        // Two paint boundaries let renderer-owned rAF work land while the
+        // skeleton still masks values, without waiting for optional animation JS.
         requestAnimationFrame(function(){
           requestAnimationFrame(function(){callBase(req);});
         });
@@ -231,14 +221,6 @@ html.rt-app-cold #fab-dial,html.rt-app-cold #search-fab{transition:none!importan
         // initDB's finally clears _dbLoading after hideLoadingScreen returns.
         // A microtask observes that completed state without a high-frequency poll.
         Promise.resolve().then(afterCurrentTask);
-        if(!fallbackTimer){
-          fallbackTimer=setTimeout(function(){
-            // app.js also has a motion-stack fallback. This only guarantees a
-            // broken presentation enhancement can never strand the application.
-            try{window.__rtMotionStackReady=true;root.classList.remove('rt-motion-prep');}catch(_){}
-            Promise.resolve().then(afterCurrentTask);
-          },3600);
-        }
       };
       wrapped.__rtWakeWrapped=true;
       finishRealLayoutLoading=wrapped;
@@ -246,7 +228,6 @@ html.rt-app-cold #fab-dial,html.rt-app-cold #search-fab{transition:none!importan
 
       window.addEventListener('retrade:motion-ready',function(){
         perf.motionReadyAt=perf.motionReadyAt==null?stamp():perf.motionReadyAt;
-        Promise.resolve().then(afterCurrentTask);
       });
       return true;
     }catch(_){return false;}
