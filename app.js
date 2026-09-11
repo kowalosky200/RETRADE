@@ -18,6 +18,16 @@
   window.__rtMotionStackReady=false;
   document.documentElement.classList.add('rt-app-cold','rt-motion-prep');
 
+  /* Base chart CSS intentionally shares timing tokens between line and donut
+     reveals. Keep that useful relationship, but make the shared sequence much
+     shorter and remove the old pronounced spring/bounce tail. */
+  (function installMotionTokens(){
+    if(document.getElementById('rt-motion-token-preflight'))return;
+    var s=document.createElement('style');s.id='rt-motion-token-preflight';
+    s.textContent=':root{--ease-spring:cubic-bezier(.22,.61,.36,1);--dur-draw:580ms;--dur-donut-sweep:420ms;--dur-bounce:160ms;}';
+    document.head.appendChild(s);
+  })();
+
   function markMotionReady(reason){
     if(motionReady)return;
     motionReady=true;
