@@ -63,12 +63,24 @@ jobs:
           print('Workflow write-safety check passed')
           PY
 
-      - name: Core file references
+      - name: Core file references and build alignment
         run: |
           python - <<'PY'
           from pathlib import Path
+          import re
+
           index=Path('index.html').read_text(encoding='utf-8')
+          app=Path('app.js').read_text(encoding='utf-8')
+          sw=Path('sw.js').read_text(encoding='utf-8')
           for required in ('app.js','app.css'):
               assert required in index, f'{required} is not referenced by index.html'
-          print('Core file reference check passed')
+
+          assert "'./interaction-system.js'" in app, 'interaction-system.js is not loaded by app.js'
+          assert "'interaction-system.js'" in sw, 'interaction-system.js is not in the service-worker child cache'
+
+          app_build=re.search(r"\bvar\s+v='([^']+)'",app)
+          sw_build=re.search(r"\bconst\s+BUILD='([^']+)'",sw)
+          assert app_build and sw_build, 'Could not resolve app/SW build identifiers'
+          assert app_build.group(1)==sw_build.group(1), f'Build mismatch: app.js={app_build.group(1)} sw.js={sw_build.group(1)}'
+          print('Core references and build alignment passed:',app_build.group(1))
           PY
