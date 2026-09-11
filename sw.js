@@ -72,7 +72,8 @@ self.addEventListener('activate',event=>{
 self.addEventListener('message',event=>{
   const d=event&&event.data;
   if(!d||d.type!=='RT_WARM_STATIC')return;
-  if(d.build&&d.build!==BUILD)return;
+  /* The wake coordinator can be one child-build behind the controlling worker
+     during an upgrade. Warm the worker's own immutable BUILD either way. */
   if(event.waitUntil)event.waitUntil(warmStatic());
   else warmStatic();
 });
