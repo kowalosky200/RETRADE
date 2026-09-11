@@ -1,11 +1,12 @@
-/* RETRADE dashboard forecast sequence v1.4.56
- * Loaded after chart-line-motion.js.
+/* RETRADE dashboard forecast sequence v1.4.66
+ * Loaded after the main chart presentation layers.
  *
- * Calendar Year dashboard motion has two deliberate acts:
- * 1) actual Revenue/Profit bars complete their normal left-to-right reveal
- * 2) only then does the current-month forecast extension arrive in slower,
- *    stepped increments, using the existing dashed forecast-shell language
+ * Calendar Year dashboard motion has two compact acts:
+ * 1) actual Revenue/Profit bars arrive left-to-right
+ * 2) the current-month forecast extension follows in restrained stepped growth
  *
+ * The forecast remains legible as a continuation without leaving the dashboard
+ * visually unfinished for another full second after the actuals are readable.
  * Presentation only: no forecast calculation, accounting or persisted data.
  */
 (function(){
@@ -13,10 +14,10 @@
 
   if(typeof _renderChartInto!=='function')return;
 
-  var STEP_MS=96;
-  var STEPS=10;
-  var AFTER_ACTUAL_GAP=145;
-  var FALLBACK_MAIN_MS=1120;
+  var STEP_MS=45;
+  var STEPS=7;
+  var AFTER_ACTUAL_GAP=70;
+  var FALLBACK_MAIN_MS=620;
 
   function num(v){v=Number(v);return isFinite(v)?v:0;}
   function clamp(min,v,max){return Math.max(min,Math.min(max,v));}
@@ -89,11 +90,11 @@
       var raw='';try{raw=el.style.getPropertyValue('--rt-bar-delay');}catch(_){}
       var d=parseFloat(raw);if(isFinite(d)){found=true;maxDelay=Math.max(maxDelay,d);}
     });
-    /* Production Revenue is 590ms; Profit is 500ms with an 86ms offset.
-       650ms safely covers either without adding dead time to the interaction. */
-    return found?maxDelay+650:FALLBACK_MAIN_MS;
+    /* Global motion caps the longest actual-bar animation at ~360ms. Leave a
+       small settle allowance instead of retaining the old 650ms dead tail. */
+    return found?maxDelay+410:FALLBACK_MAIN_MS;
   }
-  function stepEase(q){return 1-Math.pow(1-clamp(0,q,1),2.05);}
+  function stepEase(q){return 1-Math.pow(1-clamp(0,q,1),2.15);}
 
   function runSequence(svg){
     if(!svg||!svg.isConnected)return;
@@ -116,23 +117,23 @@
       states.forEach(function(st){
         if(!st.el||!st.el.isConnected)return;
         st.el.classList.remove('rt-cy-forecast-waiting');
-        st.el.style.opacity='.22';
+        st.el.style.opacity='.30';
       });
       for(var step=1;step<=STEPS;step++)(function(stepNo){
         timers.push(setTimeout(function(){
           var q=stepNo/STEPS,e=stepEase(q);
           states.forEach(function(st,index){
             if(!st.el||!st.el.isConnected)return;
-            var local=clamp(0,q-(index*.018),1),le=stepEase(local);
+            var local=clamp(0,q-(index*.012),1),le=stepEase(local);
             var scale=st.start+(1-st.start)*le;
             st.el.style.transform='scaleY('+scale.toFixed(4)+')';
-            st.el.style.opacity=String((.22+.78*e).toFixed(3));
+            st.el.style.opacity=String((.30+.70*e).toFixed(3));
           });
           if(stepNo===STEPS){
             timers.push(setTimeout(function(){
               states.forEach(function(st){if(st.el&&st.el.isConnected){st.el.style.removeProperty('transform');st.el.style.removeProperty('opacity');}});
               svg.classList.add('rt-cy-forecast-complete');
-            },80));
+            },55));
           }
         },stepNo*STEP_MS));
       })(step);
@@ -142,9 +143,9 @@
   function prepareWhenReady(svg,attempt){
     attempt=attempt||0;
     if(!svg||!svg.isConnected)return;
-    if((loadingHandoffActive()||!isVisible(svg))&&attempt<32){
+    if((loadingHandoffActive()||!isVisible(svg))&&attempt<20){
       var timers=svg.__rtCyForecastTimers||(svg.__rtCyForecastTimers=[]);
-      timers.push(setTimeout(function(){prepareWhenReady(svg,attempt+1);},80));
+      timers.push(setTimeout(function(){prepareWhenReady(svg,attempt+1);},65));
       return;
     }
     runSequence(svg);
@@ -159,8 +160,6 @@
     return out;
   };
 
-  /* The first dashboard render can precede this late presentation layer. If a
-     CY forecast shell is already present, sequence it once after handoff. */
   try{
     var existing=document.getElementById('summary-chart-svg')||document.getElementById('summary-chart-svg-mobile');
     if(existing&&isCalendarYear()&&existing.querySelector('.rt-chart-forecast-shell'))prepareWhenReady(existing,0);
